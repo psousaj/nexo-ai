@@ -10,8 +10,6 @@ import { env } from "@/config/env";
 import {
   webhookVerifySchema,
   whatsappWebhookPayloadSchema,
-  webhookSuccessResponseSchema,
-  errorResponseSchema,
   type WhatsappMessage,
 } from "@/schemas";
 
@@ -191,10 +189,6 @@ export const webhookRouter = new Elysia({ prefix: "/webhook" })
     },
     {
       body: whatsappWebhookPayloadSchema,
-      response: {
-        200: webhookSuccessResponseSchema,
-        500: errorResponseSchema,
-      },
       detail: {
         tags: ["Webhook"],
         summary: "Recebe mensagens do WhatsApp",

@@ -2,16 +2,11 @@ import { Elysia } from "elysia";
 import { itemService } from "@/services/item-service";
 import {
   listItemsQuerySchema,
-  listItemsResponseSchema,
   getItemParamsSchema,
   getItemQuerySchema,
-  getItemResponseSchema,
   searchItemsBodySchema,
-  searchItemsResponseSchema,
   deleteItemParamsSchema,
   deleteItemQuerySchema,
-  deleteItemResponseSchema,
-  errorResponseSchema,
 } from "@/schemas";
 
 export const itemsRouter = new Elysia({ prefix: "/items" })
@@ -31,9 +26,6 @@ export const itemsRouter = new Elysia({ prefix: "/items" })
     },
     {
       query: listItemsQuerySchema,
-      response: {
-        200: listItemsResponseSchema,
-      },
       detail: {
         tags: ["Items"],
         summary: "Lista items do usuário",
@@ -60,10 +52,6 @@ export const itemsRouter = new Elysia({ prefix: "/items" })
     {
       params: getItemParamsSchema,
       query: getItemQuerySchema,
-      response: {
-        200: getItemResponseSchema,
-        404: errorResponseSchema,
-      },
       detail: {
         tags: ["Items"],
         summary: "Busca item por ID",
@@ -88,9 +76,6 @@ export const itemsRouter = new Elysia({ prefix: "/items" })
     },
     {
       body: searchItemsBodySchema,
-      response: {
-        200: searchItemsResponseSchema,
-      },
       detail: {
         tags: ["Items"],
         summary: "Busca semântica de items",
@@ -111,9 +96,6 @@ export const itemsRouter = new Elysia({ prefix: "/items" })
     {
       params: deleteItemParamsSchema,
       query: deleteItemQuerySchema,
-      response: {
-        200: deleteItemResponseSchema,
-      },
       detail: {
         tags: ["Items"],
         summary: "Deleta um item",
