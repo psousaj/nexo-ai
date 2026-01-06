@@ -1,6 +1,30 @@
+# Environment
 .env
+.env.local
 
+# Dependencies
 node_modules
-dist
 
+# Build
+dist
 .next
+
+# Drizzle
+drizzle/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Wrangler
+.wrangler/
+.dev.vars

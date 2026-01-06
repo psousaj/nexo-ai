@@ -1,0 +1,18 @@
+name = "nexo-ai"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+NODE_ENV = "production"
+
+# Secrets devem ser configurados via: wrangler secret put SECRET_NAME
+# Não coloque secrets aqui!
+
+# Para usar em produção:
+# 1. wrangler secret put DATABASE_URL
+# 2. wrangler secret put META_WHATSAPP_TOKEN
+# 3. wrangler secret put META_WHATSAPP_PHONE_NUMBER_ID
+# 4. wrangler secret put META_VERIFY_TOKEN
+# 5. wrangler secret put ANTHROPIC_API_KEY
+# 6. wrangler secret put TMDB_API_KEY
+# 7. wrangler secret put YOUTUBE_API_KEY
