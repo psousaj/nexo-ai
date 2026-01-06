@@ -43,6 +43,7 @@ bun run dev
 - **[Arquitetura](docs/ARQUITETURA.md)** - Visão geral do sistema e fluxos
 - **[Database Schema](docs/SCHEMA.md)** - Estrutura do banco PostgreSQL
 - **[Estrutura do Projeto](docs/ESTRUTURA.md)** - Organização de arquivos
+- **[ADRs](docs/adr/README.md)** - Por quê das decisões técnicas
 
 ### Referência
 

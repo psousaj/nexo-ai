@@ -18,6 +18,7 @@ Para compreender como o sistema funciona:
 1. **[ARQUITETURA.md](ARQUITETURA.md)** - Visão geral, camadas e fluxos
 2. **[SCHEMA.md](SCHEMA.md)** - Estrutura do banco de dados
 3. **[ESTRUTURA.md](ESTRUTURA.md)** - Organização de código
+4. **[adr/](adr/README.md)** - Architecture Decision Records (por quê das escolhas)
 
 ## 📖 Referência Técnica
 

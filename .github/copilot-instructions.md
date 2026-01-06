@@ -15,6 +15,8 @@ WhatsApp (Meta API) → REST Adapter → Services → PostgreSQL (Supabase)
 
 **Princípio fundamental**: Adapters são simples (traduzem requisições), Services contêm toda lógica de negócio.
 
+> **Decisões Arquiteturais**: Ver [ADRs](../docs/adr/README.md) para contexto detalhado das escolhas técnicas
+
 ## Estrutura de Código
 
 ```
@@ -41,6 +43,7 @@ Toda conversa segue estados: `idle → awaiting_confirmation → enriching → s
 - Estado e contexto persistidos em `conversations.state` e `conversations.context`
 - `conversation-service` gerencia transições
 - Ver [docs/ARQUITETURA.md](../docs/ARQUITETURA.md) para fluxo completo
+- **Decisão**: Ver [ADR-004](../docs/adr/004-state-machine.md) para contexto da escolha
 
 ### 2. Metadata Flexível (JSONB)
 
@@ -51,11 +54,11 @@ Campo `items.metadata` varia por tipo:
 - `link`: `{url, og_title, og_description, og_image}`
 - `note`: `{category, related_topics, priority}`
 
-Ver estruturas completas em [docs/METADA.md](../docs/METADA.md)
+Ver estruturas completas em [docs/METADA.md](../docs/METADA.md) e [ADR-003](../docs/adr/003-jsonb-metadata.md)
 
 ### 3. Services são Provider-Agnostic
 
-`ai-service` funciona com qualquer LLM:
+`ai-service` funciona com qualquer LLM (ver [ADR-005](../docs/adr/005-ai-agnostic.md)):
 
 ```typescript
 // Hoje: Claude
@@ -189,6 +192,7 @@ Ver checklist completo em [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md)
 - [docs/SCHEMA.md](../docs/SCHEMA.md) - Estrutura do banco
 - [docs/ENDPOINTS.md](../docs/ENDPOINTS.md) - API REST completa
 - [docs/ROADMAP.md](../docs/ROADMAP.md) - Features planejadas
+- [docs/adr/](../docs/adr/README.md) - Architecture Decision Records
 
 ## MCP Integration (Futuro)
 

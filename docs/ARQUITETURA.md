@@ -23,7 +23,9 @@ PostgreSQL (Supabase)
 - **Adapters são simples**: apenas traduzem requisições
 - **Services contêm lógica**: toda regra de negócio fica nos services
 - **Contexto no backend**: não dependemos de memória do LLM
-- **AI-agnostic**: funciona com qualquer LLM (Claude, Gemini, etc)
+- **AI-agnostic**: funciona com qualquer LLM (ver [ADR-005](adr/005-ai-agnostic.md))
+
+> **Decisões Arquiteturais**: Ver [ADRs](adr/README.md) para contexto detalhado das escolhas técnicas
 
 ## Camadas
 

@@ -1,58 +1,28 @@
 # Stack Tecnológica
 
-Tecnologias utilizadas no Nexo AI.
-
-## Runtime & Framework
+## Core Stack
 
 - **Runtime**: Bun
 - **Framework**: Elysia
-- **Deployment**: Cloudflare Workers
-
-## Database & Auth
-
-- **Database**: Supabase (PostgreSQL)
-- **ORM**: Drizzle ORM
-- **Auth**: Supabase Auth
+- **Database**: Supabase (PostgreSQL + JSONB)
+- **ORM**: Drizzle
+- **Deploy**: Cloudflare Workers
 
 ## APIs Externas
 
-- **WhatsApp**: Meta WhatsApp Business API (oficial)
-- **AI**: Claude API (Anthropic) + MCP Server
-- **Enrichment**:
-  - TMDB (filmes/séries)
-  - YouTube Data API
-  - OpenGraph (links)
+- **WhatsApp**: Meta WhatsApp Business API
+- **AI**: Claude API (Anthropic)
+- **Enrichment**: TMDB, YouTube Data API, OpenGraph
 
-## Ferramentas
+## Decisões Arquiteturais
 
-- **Validação**: Zod
-- **Logging**: Cloudflare Workers Analytics
-- **Environment**: Cloudflare Workers Environment Variables
+Decisões técnicas importantes estão documentadas em ADRs (Architecture Decision Records):
 
-## Decisões Técnicas
+- **[ADR-001](adr/001-cloudflare-workers.md)** - Por que Cloudflare Workers
+- **[ADR-002](adr/002-supabase-postgres.md)** - Por que Supabase
+- **[ADR-003](adr/003-jsonb-metadata.md)** - JSONB para metadados flexíveis
+- **[ADR-004](adr/004-state-machine.md)** - State machine de conversação
+- **[ADR-005](adr/005-ai-agnostic.md)** - Arquitetura AI-agnostic
+- **[ADR-006](adr/006-meta-whatsapp-api.md)** - Meta WhatsApp API oficial
 
-### Por que Cloudflare Workers?
-
-- Execução edge (baixa latência)
-- Custo-benefício (100k requests grátis)
-- Deploy simplificado
-
-### Por que Supabase?
-
-- PostgreSQL com JSONB nativo
-- Auth integrado
-- Row Level Security
-- Free tier generoso
-
-### Por que Elysia?
-
-- Performance com Bun
-- Type-safety end-to-end
-- OpenAPI nativo
-- Lightweight
-
-### Por que Meta WhatsApp API?
-
-- Oficial e estável
-- SLA garantido
-- Webhooks confiáveis
+Ver todos os ADRs em [docs/adr/](adr/README.md)
