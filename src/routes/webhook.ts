@@ -7,11 +7,16 @@ import { enrichmentService } from "@/services/enrichment";
 import { itemService } from "@/services/item-service";
 import { aiService } from "@/services/ai";
 import { env } from "@/config/env";
-import {
-  webhookVerifySchema,
-  whatsappWebhookPayloadSchema,
-  type WhatsappMessage,
-} from "@/schemas";
+
+interface WhatsappMessage {
+  from: string;
+  id: string;
+  timestamp: string;
+  text?: {
+    body: string;
+  };
+  type: string;
+}
 
 /**
  * Processa mensagem do WhatsApp
@@ -117,13 +122,18 @@ async function processMessage(message: WhatsappMessage) {
     }
   } else {
     // Nota ou mensagem genérica - usa AI
-    const history = await conversationService.getHistory(conversation.id);
-    const aiResponse = await aiService.callLLM({
-      message: messageText,
-      history,
-    });
-
-    responseText = aiResponse.message;
+    try {
+      const history = await conversationService.getHistory(conversation.id);
+      const aiResponse = await aiService.callLLM({
+        message: messageText,
+        history,
+      });
+      responseText = aiResponse.message;
+    } catch (error) {
+      console.error("Erro ao chamar AI:", error);
+      responseText =
+        "⚠️ Desculpe, estou com problemas técnicos. Tente: 'clube da luta' ou envie um link.";
+    }
   }
 
   // 6. Salva resposta do bot
@@ -134,8 +144,23 @@ async function processMessage(message: WhatsappMessage) {
   );
 
   // 7. Envia resposta via WhatsApp
-  await whatsappService.sendMessage(phoneNumber, responseText);
-  await whatsappService.markAsRead(message.id);
+  try {
+    await whatsappService.sendMessage(phoneNumber, responseText);
+    await whatsappService.markAsRead(message.id);
+  } catch (error: any) {
+    console.error("Erro ao enviar mensagem WhatsApp:", error);
+    // Em dev mode, números precisam estar na lista permitida
+    // Erro 131030: Recipient phone number not in allowed list
+    if (error.message?.includes("131030")) {
+      console.warn(
+        `⚠️  Número ${phoneNumber} não está na lista permitida (dev mode)`
+      );
+      console.warn(
+        "Adicione em: https://developers.facebook.com/apps > WhatsApp > Configuration"
+      );
+    }
+    // Não falha o webhook, apenas loga o erro
+  }
 }
 
 export const webhookRouter = new Elysia({ prefix: "/webhook" })
@@ -155,7 +180,11 @@ export const webhookRouter = new Elysia({ prefix: "/webhook" })
       return new Response("Forbidden", { status: 403 });
     },
     {
-      query: webhookVerifySchema,
+      query: t.Object({
+        "hub.mode": t.Literal("subscribe"),
+        "hub.verify_token": t.String(),
+        "hub.challenge": t.String(),
+      }),
       detail: {
         tags: ["Webhook"],
         summary: "Verificação do webhook Meta",
@@ -169,7 +198,7 @@ export const webhookRouter = new Elysia({ prefix: "/webhook" })
    */
   .post(
     "/meta",
-    async ({ body }) => {
+    async ({ body, set }) => {
       try {
         // Valida e extrai mensagens
         const entry = body.entry?.[0];
@@ -184,11 +213,12 @@ export const webhookRouter = new Elysia({ prefix: "/webhook" })
         return { success: true };
       } catch (error) {
         console.error("Erro no webhook:", error);
+        set.status = 500;
         return { error: "Internal error" };
       }
     },
     {
-      body: whatsappWebhookPayloadSchema,
+      body: t.Any(), // Aceita qualquer payload do Meta (status updates, mensagens, etc)
       response: {
         200: t.Object({
           success: t.Boolean(),

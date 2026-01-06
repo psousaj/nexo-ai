@@ -60,7 +60,11 @@ export class AIService {
       };
     } catch (error) {
       console.error("Erro ao chamar AI:", error);
-      throw new Error("Erro ao processar com IA");
+      // Retorna mensagem padrão em vez de lançar erro
+      return {
+        message:
+          "⚠️ Serviço de IA indisponível. Configure ANTHROPIC_API_KEY no .env",
+      };
     }
   }
 

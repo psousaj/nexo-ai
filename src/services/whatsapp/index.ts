@@ -9,7 +9,7 @@ interface WhatsAppMessage {
  * Cliente para Meta WhatsApp Business API
  */
 export class WhatsAppService {
-  private baseUrl = "https://graph.facebook.com/v22.0";
+  private baseUrl = "https://graph.facebook.com/v24.0";
   private token = env.META_WHATSAPP_TOKEN;
   private phoneNumberId = env.META_WHATSAPP_PHONE_NUMBER_ID;
 

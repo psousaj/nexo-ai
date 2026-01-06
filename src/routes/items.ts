@@ -133,8 +133,11 @@ export const itemsRouter = new Elysia({ prefix: "/items" })
   .delete(
     "/:id",
     async ({ params, query }) => {
+      console.log("DELETE request:", { params, query });
       await itemService.deleteItem(params.id, query.userId);
-      return { success: true };
+      const response = { success: true };
+      console.log("DELETE response:", response);
+      return response;
     },
     {
       params: t.Object({
@@ -144,9 +147,12 @@ export const itemsRouter = new Elysia({ prefix: "/items" })
         userId: t.String({ format: "uuid" }),
       }),
       response: {
-        200: t.Object({
-          success: t.Boolean(),
-        }),
+        200: t.Object(
+          {
+            success: t.Boolean(),
+          },
+          { additionalProperties: false }
+        ),
       },
       detail: {
         tags: ["Items"],
