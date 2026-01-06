@@ -1,4 +1,4 @@
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { userService } from "@/services/user-service";
 import { conversationService } from "@/services/conversation-service";
 import { whatsappService } from "@/services/whatsapp";
@@ -7,18 +7,18 @@ import { enrichmentService } from "@/services/enrichment";
 import { itemService } from "@/services/item-service";
 import { aiService } from "@/services/ai";
 import { env } from "@/config/env";
-
-interface WebhookMessage {
-  from: string;
-  id: string;
-  text?: { body: string };
-  type: string;
-}
+import {
+  webhookVerifySchema,
+  whatsappWebhookPayloadSchema,
+  webhookSuccessResponseSchema,
+  errorResponseSchema,
+  type WhatsappMessage,
+} from "@/schemas";
 
 /**
  * Processa mensagem do WhatsApp
  */
-async function processMessage(message: WebhookMessage) {
+async function processMessage(message: WhatsappMessage) {
   if (!message.text?.body) return;
 
   const phoneNumber = message.from;
@@ -58,7 +58,7 @@ async function processMessage(message: WebhookMessage) {
         userId: user.id,
         type: "movie",
         title: movie.title,
-        metadata,
+        metadata: metadata || undefined,
       });
 
       responseText = `✅ Salvo: ${movie.title} (${
@@ -92,8 +92,11 @@ async function processMessage(message: WebhookMessage) {
       await itemService.createItem({
         userId: user.id,
         type: "video",
-        title: metadata?.channel_name || "Vídeo",
-        metadata,
+        title:
+          (metadata && "channel_name" in metadata
+            ? metadata.channel_name
+            : null) || "Vídeo",
+        metadata: metadata || undefined,
       });
 
       responseText = `✅ Vídeo salvo!`;
@@ -106,8 +109,10 @@ async function processMessage(message: WebhookMessage) {
       await itemService.createItem({
         userId: user.id,
         type: "link",
-        title: metadata?.og_title || url,
-        metadata,
+        title:
+          (metadata && "og_title" in metadata ? metadata.og_title : null) ||
+          url,
+        metadata: metadata || undefined,
       });
 
       responseText = `✅ Link salvo!`;
@@ -139,38 +144,62 @@ export const webhookRouter = new Elysia({ prefix: "/webhook" })
   /**
    * GET /webhook/meta - Verificação do webhook
    */
-  .get("/meta", ({ query }) => {
-    const mode = query["hub.mode"];
-    const token = query["hub.verify_token"];
-    const challenge = query["hub.challenge"];
+  .get(
+    "/meta",
+    ({ query }) => {
+      if (
+        query["hub.mode"] === "subscribe" &&
+        query["hub.verify_token"] === env.META_VERIFY_TOKEN
+      ) {
+        return new Response(query["hub.challenge"]);
+      }
 
-    if (mode === "subscribe" && token === env.META_VERIFY_TOKEN) {
-      return new Response(challenge);
+      return new Response("Forbidden", { status: 403 });
+    },
+    {
+      query: webhookVerifySchema,
+      detail: {
+        tags: ["Webhook"],
+        summary: "Verificação do webhook Meta",
+        description: "Endpoint usado pelo Meta para verificar o webhook",
+      },
     }
-
-    return new Response("Forbidden", { status: 403 });
-  })
+  )
 
   /**
    * POST /webhook/meta - Recebe mensagens do WhatsApp
    */
-  .post("/meta", async ({ body, request }) => {
-    try {
-      const data = body as any;
+  .post(
+    "/meta",
+    async ({ body }) => {
+      try {
+        // Valida e extrai mensagens
+        const entry = body.entry?.[0];
+        const changes = entry?.changes?.[0];
+        const messages = changes?.value?.messages;
 
-      // Extrai mensagens
-      const entry = data.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const messages = changes?.value?.messages;
+        if (messages && messages.length > 0) {
+          // Processa primeira mensagem (em produção, processar todas)
+          await processMessage(messages[0]);
+        }
 
-      if (messages && messages.length > 0) {
-        // Processa primeira mensagem (em produção, processar todas)
-        await processMessage(messages[0]);
+        return { success: true };
+      } catch (error) {
+        console.error("Erro no webhook:", error);
+        return { error: "Internal error" };
       }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Erro no webhook:", error);
-      return { error: "Internal error" };
+    },
+    {
+      body: whatsappWebhookPayloadSchema,
+      response: {
+        200: webhookSuccessResponseSchema,
+        500: errorResponseSchema,
+      },
+      detail: {
+        tags: ["Webhook"],
+        summary: "Recebe mensagens do WhatsApp",
+        description:
+          "Webhook que recebe e processa mensagens do WhatsApp Business API",
+      },
     }
-  });
+  );

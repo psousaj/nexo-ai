@@ -1,5 +1,20 @@
 # Nexo AI - Changelog
 
+## [0.1.1] - 2026-01-06
+
+### 🔧 Melhorias
+
+#### Validação com Zod
+
+- Migração completa de TypeBox para Zod schemas
+- Criado arquivo centralizado de schemas (`src/schemas/index.ts`)
+- Schemas validados para todas as rotas:
+  - Webhook Meta (verificação e payload)
+  - Items (listagem, busca, criação, deleção)
+- Type inference automática com `z.infer`
+- Validação robusta com coerção de tipos (ex: `z.coerce.number()`)
+- Correção de bugs de tipagem no user-service e webhook
+
 ## [0.1.0] - 2026-01-06
 
 ### ✨ Implementação Inicial

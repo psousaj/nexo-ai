@@ -10,24 +10,24 @@ export class UserService {
     const [existingUser] = await db
       .select()
       .from(users)
-      .where(eq(users.phoneNumber, phoneNumber))
+      .where(eq(users.phone, phoneNumber))
       .limit(1);
 
     if (existingUser) {
       // Atualiza nome se fornecido e diferente
-      if (whatsappName && whatsappName !== existingUser.whatsappName) {
+      if (whatsappName && whatsappName !== existingUser.name) {
         await db
           .update(users)
-          .set({ whatsappName })
+          .set({ name: whatsappName })
           .where(eq(users.id, existingUser.id));
-        return { ...existingUser, whatsappName };
+        return { ...existingUser, name: whatsappName };
       }
       return existingUser;
     }
 
     const [newUser] = await db
       .insert(users)
-      .values({ phoneNumber, whatsappName })
+      .values({ phone: phoneNumber, name: whatsappName })
       .returning();
 
     return newUser;
