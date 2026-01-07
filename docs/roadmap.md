@@ -308,7 +308,271 @@ DEFAULT_AI_PROVIDER="gemini" # opcional, default já é gemini
 
 ---
 
-## 🔮 Phase 8: Telegram Web Login (Feature Futura)
+## � Phase 8: Productivity Integrations (Feature Futura)
+
+**Objetivo:** Integrar com Google Calendar e Microsoft To Do para gerenciamento de eventos e tarefas
+
+### Contexto
+
+Permitir que o assistente crie automaticamente eventos e tarefas quando detectar intenção do usuário, estendendo funcionalidade além de simples "salvar para depois".
+
+**Use Cases:**
+
+- "reunião com joão amanhã às 15h" → cria evento no Google Calendar
+- "ver esse artigo depois" → cria task no Microsoft To Do
+- "lembrar de ligar pro dentista na quinta" → cria lembrete
+
+### Tasks
+
+- [ ] **8.1 Google Calendar Integration**
+
+  - [ ] OAuth 2.0 setup (Google Cloud Console)
+  - [ ] Service `integrations/google-calendar.ts`
+  - [ ] Métodos: `createEvent()`, `listEvents()`, `updateEvent()`
+  - [ ] Detecção de intenção via LLM (evento vs nota)
+  - [ ] Parse de data/hora natural ("amanhã às 15h" → ISO timestamp)
+  - [ ] Confirmação de evento antes de criar
+  - [ ] Salvar referência no items (type: "event")
+
+- [ ] **8.2 Microsoft To Do Integration**
+
+  - [ ] OAuth 2.0 setup (Azure AD)
+  - [ ] Service `integrations/microsoft-todo.ts`
+  - [ ] Métodos: `createTask()`, `listTasks()`, `updateTask()`
+  - [ ] Detecção de intenção via LLM (tarefa vs nota)
+  - [ ] Suporte a due date opcional
+  - [ ] Confirmação de tarefa antes de criar
+  - [ ] Salvar referência no items (type: "task")
+
+- [ ] **8.3 Database Schema**
+
+  ```sql
+  -- Adicionar novos tipos
+  ALTER TYPE item_type ADD VALUE 'event';
+  ALTER TYPE item_type ADD VALUE 'task';
+
+  -- Metadata para eventos
+  -- items.metadata (type: event)
+  {
+    "calendar_id": "primary",
+    "event_id": "abc123",
+    "start_time": "2026-01-15T15:00:00Z",
+    "end_time": "2026-01-15T16:00:00Z",
+    "attendees": ["joao@example.com"],
+    "location": "Escritório"
+  }
+
+  -- Metadata para tarefas
+  -- items.metadata (type: task)
+  {
+    "list_id": "AQMkADAwAT...",
+    "task_id": "AAMkADAwAT...",
+    "due_date": "2026-01-20",
+    "status": "notStarted" | "inProgress" | "completed",
+    "importance": "low" | "normal" | "high"
+  }
+  ```
+
+- [ ] **8.4 Intent Detection**
+
+  - [ ] Prompt engineering para detectar eventos vs tarefas vs notas
+  - [ ] Keywords: "reunião", "compromisso", "evento" → event
+  - [ ] Keywords: "tarefa", "fazer", "lembrar" → task
+  - [ ] Extraction de data/hora usando LLM tool calling
+  - [ ] Fallback para note se ambíguo
+
+- [ ] **8.5 Authentication Flow**
+
+  - [ ] Endpoint `/auth/google/callback`
+  - [ ] Endpoint `/auth/microsoft/callback`
+  - [ ] Armazenar tokens OAuth em `user_accounts` table
+  - [ ] Refresh token automático quando expirar
+  - [ ] Link account via mensagem WhatsApp/Telegram
+
+- [ ] **8.6 Testing & Error Handling**
+  - [ ] Testar criação de evento via mensagem
+  - [ ] Testar criação de tarefa via mensagem
+  - [ ] Error handling: token expirado, permissões negadas
+  - [ ] Rate limit das APIs (Google: 1000 req/100s, Microsoft: 2000 req/sec)
+
+### Environment Variables
+
+```bash
+# .env
+GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
+GOOGLE_REDIRECT_URI="https://nexo-ai.com/auth/google/callback"
+
+MICROSOFT_CLIENT_ID="xxx-xxx-xxx-xxx"
+MICROSOFT_CLIENT_SECRET="xxx~xxx"
+MICROSOFT_REDIRECT_URI="https://nexo-ai.com/auth/microsoft/callback"
+```
+
+### Dependencies
+
+```json
+{
+  "dependencies": {
+    "googleapis": "^134.0.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@azure/msal-node": "^2.15.0"
+  }
+}
+```
+
+### Example Flow
+
+```
+Usuário: "reunião com time de produto amanhã às 14h"
+
+Bot: 🤔 Detectei um evento:
+     📅 15/01/2026 às 14:00
+     📝 Reunião com time de produto
+
+     Criar no Google Calendar?
+     [Sim] [Não] [Editar]
+
+Usuário: "sim"
+
+Bot: ✅ Evento criado no Google Calendar!
+     🔗 Link: https://calendar.google.com/event?eid=...
+```
+
+**Entregável:** Integração com Google Calendar e Microsoft To Do funcionais
+
+---
+
+## 🔮 Phase 9: Semantic Search with pgvector (Feature Futura)
+
+**Objetivo:** Implementar busca semântica com embeddings para encontrar conteúdo por similaridade
+
+### Contexto
+
+Busca atual é **estruturada** (JSONB + GIN indexes). Busca semântica permite queries como:
+
+- "me mostra filmes parecidos com Inception"
+- "artigos sobre programação que salvei"
+- "aquele vídeo sobre culinária italiana"
+
+**Quando implementar:**
+
+- ✅ > 500 items por usuário (busca estruturada fica limitada)
+- ✅ Feedback de usuários sobre "não encontrei X"
+- ✅ Need de recomendações inteligentes
+
+### Tasks
+
+- [ ] **9.1 pgvector Setup**
+
+  - [ ] Instalar extensão pgvector no Postgres
+  - [ ] Migration: `CREATE EXTENSION IF NOT EXISTS vector`
+  - [ ] Adicionar coluna `items.embedding vector(1536)` (OpenAI ada-002)
+  - [ ] Criar índice: `CREATE INDEX ON items USING ivfflat (embedding vector_cosine_ops)`
+
+- [ ] **9.2 Embedding Generation**
+
+  - [ ] Service `embeddings/embedding-service.ts`
+  - [ ] Integração com OpenAI Embeddings API ou Gemini Embeddings
+  - [ ] Método `generateEmbedding(text: string): Promise<number[]>`
+  - [ ] Pipeline async: ao salvar item → gera embedding → atualiza DB
+  - [ ] Batch processing para items existentes (migration)
+
+- [ ] **9.3 Semantic Search**
+
+  - [ ] Service `search/semantic-search.ts`
+  - [ ] Método `searchByEmbedding(query: string, userId: string, limit: number)`
+  - [ ] Query: `SELECT * FROM items WHERE user_id = $1 ORDER BY embedding <=> $2 LIMIT $3`
+  - [ ] Combinar com filtros estruturados (type, date, etc)
+  - [ ] Threshold de similaridade (ex: cosine similarity > 0.7)
+
+- [ ] **9.4 Hybrid Search**
+
+  - [ ] Combinar busca semântica + busca estruturada
+  - [ ] Scoring: 0.7 _ semantic_score + 0.3 _ keyword_match
+  - [ ] Deduplicação de resultados
+  - [ ] Re-ranking por relevância
+
+- [ ] **9.5 Recommendations**
+
+  - [ ] Método `recommendSimilar(itemId: string, limit: number)`
+  - [ ] Buscar items com embedding similar ao item de referência
+  - [ ] Excluir item original dos resultados
+  - [ ] Personalização: priorizar items não vistos
+
+- [ ] **9.6 Database Schema**
+
+  ```sql
+  -- Migration: adicionar embedding column
+  ALTER TABLE items
+  ADD COLUMN embedding vector(1536);
+
+  -- Índice IVFFlat para busca rápida (após popular dados)
+  CREATE INDEX items_embedding_idx
+  ON items USING ivfflat (embedding vector_cosine_ops)
+  WITH (lists = 100);
+
+  -- Índice GIN para busca híbrida
+  CREATE INDEX items_hybrid_idx
+  ON items USING gin (to_tsvector('portuguese', title || ' ' || coalesce(description, '')));
+  ```
+
+- [ ] **9.7 Embedding Provider Selection**
+
+  - [ ] Opção 1: OpenAI `text-embedding-ada-002` (1536 dims, $0.0001/1k tokens)
+  - [ ] Opção 2: Gemini `embedding-001` (768 dims, free tier)
+  - [ ] Opção 3: Open source (Sentence Transformers, self-hosted)
+  - [ ] Decisão: Gemini embedding (custo zero, integração já existente)
+
+- [ ] **9.8 Testing & Optimization**
+  - [ ] Testar precisão de busca (recall@10)
+  - [ ] Benchmark de latência (query < 100ms)
+  - [ ] Otimizar `ivfflat lists` parameter
+  - [ ] Cache de embeddings frequentes
+
+### Environment Variables
+
+```bash
+# .env (se usar OpenAI embeddings)
+# OPENAI_API_KEY="sk-..." # opcional, Gemini já está configurado
+```
+
+### Example Queries
+
+```typescript
+// Busca semântica
+const results = await semanticSearch.search({
+  query: "filmes sobre viagem no tempo",
+  userId: "user123",
+  limit: 10,
+  filters: { type: "movie" },
+});
+
+// Recomendações
+const similar = await semanticSearch.recommendSimilar({
+  itemId: "item-inception",
+  limit: 5,
+  excludeTypes: ["note"], // apenas filmes/vídeos
+});
+```
+
+### Comparação: Busca Estruturada vs Semântica
+
+| Aspecto        | Estruturada (atual) | Semântica (pgvector)    |
+| -------------- | ------------------- | ----------------------- |
+| **Query type** | Keywords exatos     | Similaridade            |
+| **Latência**   | < 10ms              | < 100ms                 |
+| **Custo**      | $0                  | ~$0.50/mês (embeddings) |
+| **Setup**      | Simples             | Complexo                |
+| **Precisão**   | Alta (keywords)     | Alta (conceitos)        |
+| **Use case**   | "Fight Club 1999"   | "filmes tipo Inception" |
+
+**Decisão:** Implementar busca semântica **apenas quando necessário** (> 500 items/user ou feedback negativo de busca).
+
+**Entregável:** Busca semântica com pgvector + embeddings (quando atingir critérios)
+
+---
+
+## 🔮 Phase 10: Telegram Web Login (Feature Futura)
 
 **Objetivo:** Permitir autenticação de usuários externos via Telegram Login Widget
 
@@ -1323,16 +1587,22 @@ graph TD
 ### Nice to Have (v0.4.0+) - 📋 **PLANEJADO**
 
 - [ ] MCP server
-- [ ] Recommendations
 - [ ] Voice messages
 - [ ] Web dashboard
 - [ ] Image recognition
+
+### Nice to Have (v0.5.0+) - 🔮 **FUTURO**
+
+- [ ] Google Calendar integration (Phase 8)
+- [ ] Microsoft To Do integration (Phase 8)
+- [ ] Semantic search with pgvector (Phase 9)
+- [ ] Recommendations with embeddings (Phase 9)
+- [ ] Hybrid search (structured + semantic)
 
 ### Won't Have (Now)
 
 - [ ] Mobile app nativo
 - [ ] Collaborative features
-- [ ] Calendar sync
 - [ ] Offline support
 
 ---
