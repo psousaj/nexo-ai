@@ -41,7 +41,10 @@ async function processMessage(
     await conversationService.addMessage(conversation.id, "user", messageText);
 
     // 4. Verifica contexto recente (últimos 5 minutos)
-    const recentMessages = await conversationService.getRecentMessages(conversation.id, 5);
+    const recentMessages = await conversationService.getRecentMessages(
+      conversation.id,
+      5
+    );
     const hasRecentContext = recentMessages.length > 1; // Mais de 1 mensagem = tem contexto
 
     // 5. Se está aguardando confirmação, processa resposta
@@ -49,9 +52,13 @@ async function processMessage(
       const context = conversation.context as any;
       const selection = parseInt(messageText.trim());
 
-      if (!isNaN(selection) && context.candidates && context.candidates[selection - 1]) {
+      if (
+        !isNaN(selection) &&
+        context.candidates &&
+        context.candidates[selection - 1]
+      ) {
         const selected = context.candidates[selection - 1];
-        
+
         if (context.detected_type === "movie") {
           const metadata = await enrichmentService.enrich("movie", {
             tmdbId: selected.id,
@@ -64,17 +71,24 @@ async function processMessage(
             metadata: metadata || undefined,
           });
 
-          responseText = `✅ Salvo: ${selected.title} (${selected.release_date?.split("-")[0]})`;
-          
+          responseText = `✅ Salvo: ${selected.title} (${
+            selected.release_date?.split("-")[0]
+          })`;
+
           // Reseta estado
           await conversationService.updateState(conversation.id, "idle", {});
         }
       } else {
-        responseText = "Por favor, digite o número da opção que deseja (1, 2 ou 3).";
+        responseText =
+          "Por favor, digite o número da opção que deseja (1, 2 ou 3).";
       }
 
       // Salva e envia resposta
-      await conversationService.addMessage(conversation.id, "assistant", responseText);
+      await conversationService.addMessage(
+        conversation.id,
+        "assistant",
+        responseText
+      );
       await provider.sendMessage(incomingMsg.externalId, responseText);
       return;
     }
@@ -84,14 +98,24 @@ async function processMessage(
     let processedMessage = messageText;
 
     // 7. Se tem contexto recente E não detectou tipo claro, usa IA para analisar
-    if (hasRecentContext && detectedType === "note" && !classifierService.extractUrl(messageText)) {
+    if (
+      hasRecentContext &&
+      detectedType === "note" &&
+      !classifierService.extractUrl(messageText)
+    ) {
       try {
-        const history = await conversationService.getHistory(conversation.id, 10);
+        const history = await conversationService.getHistory(
+          conversation.id,
+          10
+        );
         const contextAnalysis = await llmService.callLLM({
           message: `ANÁLISE DE CONTEXTO:
 
 Histórico recente:
-${history.slice(-6).map(m => `${m.role === 'user' ? 'Usuário' : 'Bot'}: ${m.content}`).join('\n')}
+${history
+  .slice(-6)
+  .map((m) => `${m.role === "user" ? "Usuário" : "Bot"}: ${m.content}`)
+  .join("\n")}
 
 Nova mensagem: "${messageText}"
 
@@ -104,14 +128,18 @@ Responda apenas: "REFINAMENTO" ou "NOVA_SOLICITACAO"
 Se for refinamento, forneça também a consulta combinada no formato:
 RESULTADO: [consulta completa]`,
           history: [],
-          systemPrompt: "Você analisa contexto de conversas. Responda de forma direta e objetiva.",
+          systemPrompt:
+            "Você analisa contexto de conversas. Responda de forma direta e objetiva.",
         });
 
-        const isRefinement = contextAnalysis.message.toUpperCase().includes("REFINAMENTO");
-        
+        const isRefinement = contextAnalysis.message
+          .toUpperCase()
+          .includes("REFINAMENTO");
+
         if (isRefinement) {
           // Extrai consulta combinada se disponível
-          const resultMatch = contextAnalysis.message.match(/RESULTADO:\s*(.+)/i);
+          const resultMatch =
+            contextAnalysis.message.match(/RESULTADO:\s*(.+)/i);
           if (resultMatch) {
             processedMessage = resultMatch[1].trim();
             // Reclassifica com o contexto combinado

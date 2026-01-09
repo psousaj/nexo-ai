@@ -92,7 +92,7 @@ export class ConversationService {
    */
   async getRecentMessages(conversationId: string, minutesAgo = 5) {
     const fiveMinutesAgo = new Date(Date.now() - minutesAgo * 60 * 1000);
-    
+
     const recentMessages = await db
       .select()
       .from(messages)
