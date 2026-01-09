@@ -27,10 +27,16 @@ export class GeminiProvider implements AIProvider {
       });
 
       // Converter histórico para formato Gemini
-      const geminiHistory = history.map((msg) => ({
+      let geminiHistory = history.map((msg) => ({
         role: msg.role === "assistant" ? "model" : "user",
         parts: [{ text: msg.content }],
       }));
+
+      // Gemini exige que histórico sempre comece com 'user'
+      // Remove mensagens iniciais 'model' se existirem
+      while (geminiHistory.length > 0 && geminiHistory[0].role !== "user") {
+        geminiHistory = geminiHistory.slice(1);
+      }
 
       const chat = model.startChat({
         history: geminiHistory,
@@ -50,7 +56,7 @@ export class GeminiProvider implements AIProvider {
       if (error?.status === 400 || error?.message?.includes("API_KEY")) {
         return {
           message:
-            "⚠️ Google Gemini API key inválida. Configure GOOGLE_API_KEY no .env",
+            "😅 Hmm... estou com problemas de configuração aqui. Pode tentar novamente mais tarde?",
         };
       }
 
@@ -58,12 +64,14 @@ export class GeminiProvider implements AIProvider {
       if (error?.status === 429) {
         return {
           message:
-            "⚠️ Limite de requisições atingido. Tente novamente em alguns minutos.",
+            "😅 Opa, muitas mensagens de uma vez! Dá uma pausa de uns minutinhos e tenta de novo?",
         };
       }
 
+      // Erro genérico
       return {
-        message: "⚠️ Serviço de IA indisponível. Tente novamente mais tarde.",
+        message:
+          "😅 Hmm... estou com problemas pra te responder no momento. Pode tentar novamente mais tarde?",
       };
     }
   }

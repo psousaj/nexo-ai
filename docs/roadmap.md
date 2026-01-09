@@ -105,9 +105,20 @@ Planejamento de implementação do projeto em fases.
   - [x] `getHistory()`
 
 - [x] **2.5 Testes Integração**
+
   - [x] Enviar mensagem via WhatsApp
   - [x] Verificar resposta automática
   - [x] Verificar mensagem salva no DB
+
+- [x] **2.6 Error Handling & Reliability**
+  - [x] Tratamento robusto de erros com try-catch global
+  - [x] Mensagens educadas quando LLM falha ou não responde
+  - [x] Garantir que bot sempre responda, mesmo com erros críticos
+  - [ ] **Feature: Conversa Única Cross-Provider** - **TODO v0.3.0**
+    - [ ] Implementar lógica: apenas 1 conversa ativa (idle/em progresso) por usuário
+    - [ ] Contexto unificado: mesma conversa independente do provider (Telegram/WhatsApp)
+    - [ ] Migração: adicionar campo `is_active` em `conversations`
+    - [ ] Service: `findOrCreateConversation()` retorna sempre a mesma conversa ativa
 
 **Entregável:** ✅ Bot responde mensagens simples no WhatsApp
 

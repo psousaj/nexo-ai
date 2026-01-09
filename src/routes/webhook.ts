@@ -21,129 +21,146 @@ async function processMessage(
   provider: MessagingProvider
 ) {
   const messageText = incomingMsg.text;
-
-  // 1. Busca ou cria usuário (unificação cross-provider)
-  const { user } = await userService.findOrCreateUserByAccount(
-    incomingMsg.externalId,
-    incomingMsg.provider,
-    incomingMsg.senderName,
-    incomingMsg.phoneNumber
-  );
-
-  // 2. Busca ou cria conversação
-  const conversation = await conversationService.findOrCreateConversation(
-    user.id
-  );
-
-  // 3. Salva mensagem do usuário
-  await conversationService.addMessage(conversation.id, "user", messageText);
-
-  // 4. Classifica tipo de conteúdo
-  const detectedType = classifierService.detectType(messageText);
-
-  // 5. Processa baseado no tipo
   let responseText = "";
 
-  if (detectedType === "movie") {
-    const query = classifierService.extractQuery(messageText, "movie");
-    const results = await enrichmentService.searchMovies(query);
+  try {
+    // 1. Busca ou cria usuário (unificação cross-provider)
+    const { user } = await userService.findOrCreateUserByAccount(
+      incomingMsg.externalId,
+      incomingMsg.provider,
+      incomingMsg.senderName,
+      incomingMsg.phoneNumber
+    );
 
-    if (results.length === 0) {
-      responseText = `Não encontrei nenhum filme com "${query}". Pode tentar com outro nome?`;
-    } else if (results.length === 1) {
-      // Salva direto
-      const movie = results[0];
-      const metadata = await enrichmentService.enrich("movie", {
-        tmdbId: movie.id,
-      });
+    // 2. Busca ou cria conversação
+    const conversation = await conversationService.findOrCreateConversation(
+      user.id
+    );
 
-      await itemService.createItem({
-        userId: user.id,
-        type: "movie",
-        title: movie.title,
-        metadata: metadata || undefined,
-      });
+    // 3. Salva mensagem do usuário
+    await conversationService.addMessage(conversation.id, "user", messageText);
 
-      responseText = `✅ Salvo: ${movie.title} (${
-        movie.release_date?.split("-")[0]
-      })`;
+    // 4. Classifica tipo de conteúdo
+    const detectedType = classifierService.detectType(messageText);
+
+    // 5. Processa baseado no tipo
+    if (detectedType === "movie") {
+      const query = classifierService.extractQuery(messageText, "movie");
+      const results = await enrichmentService.searchMovies(query);
+
+      if (results.length === 0) {
+        responseText = `Não encontrei nenhum filme com "${query}". Pode tentar com outro nome?`;
+      } else if (results.length === 1) {
+        // Salva direto
+        const movie = results[0];
+        const metadata = await enrichmentService.enrich("movie", {
+          tmdbId: movie.id,
+        });
+
+        await itemService.createItem({
+          userId: user.id,
+          type: "movie",
+          title: movie.title,
+          metadata: metadata || undefined,
+        });
+
+        responseText = `✅ Salvo: ${movie.title} (${
+          movie.release_date?.split("-")[0]
+        })`;
+      } else {
+        // Múltiplos resultados - pede confirmação
+        await conversationService.updateState(
+          conversation.id,
+          "awaiting_confirmation",
+          {
+            candidates: results.slice(0, 3),
+            detected_type: "movie",
+          }
+        );
+
+        const options = results
+          .slice(0, 3)
+          .map(
+            (m, i) => `${i + 1}. ${m.title} (${m.release_date?.split("-")[0]})`
+          )
+          .join("\n");
+
+        responseText = `Encontrei vários filmes:\n\n${options}\n\nQual você quer salvar? (Digite o número)`;
+      }
+    } else if (detectedType === "video") {
+      const url = classifierService.extractUrl(messageText);
+      if (url) {
+        const metadata = await enrichmentService.enrich("video", { url });
+
+        await itemService.createItem({
+          userId: user.id,
+          type: "video",
+          title:
+            (metadata && "channel_name" in metadata
+              ? metadata.channel_name
+              : null) || "Vídeo",
+          metadata: metadata || undefined,
+        });
+
+        responseText = `✅ Vídeo salvo!`;
+      }
+    } else if (detectedType === "link") {
+      const url = classifierService.extractUrl(messageText);
+      if (url) {
+        const metadata = await enrichmentService.enrich("link", { url });
+
+        await itemService.createItem({
+          userId: user.id,
+          type: "link",
+          title:
+            (metadata && "og_title" in metadata ? metadata.og_title : null) ||
+            url,
+          metadata: metadata || undefined,
+        });
+
+        responseText = `✅ Link salvo!`;
+      }
     } else {
-      // Múltiplos resultados - pede confirmação
-      await conversationService.updateState(
-        conversation.id,
-        "awaiting_confirmation",
-        {
-          candidates: results.slice(0, 3),
-          detected_type: "movie",
+      // Nota ou mensagem genérica - usa AI
+      try {
+        const history = await conversationService.getHistory(conversation.id);
+        const aiResponse = await llmService.callLLM({
+          message: messageText,
+          history,
+        });
+
+        // Verifica se a IA retornou uma resposta válida
+        if (
+          !aiResponse ||
+          !aiResponse.message ||
+          aiResponse.message.trim() === ""
+        ) {
+          responseText =
+            "😅 Opa, fiquei sem resposta aqui meu brother! Tenta de novo ou me manda um filme, vídeo ou link que eu organizo pra você!";
+        } else {
+          responseText = aiResponse.message;
         }
-      );
-
-      const options = results
-        .slice(0, 3)
-        .map(
-          (m, i) => `${i + 1}. ${m.title} (${m.release_date?.split("-")[0]})`
-        )
-        .join("\n");
-
-      responseText = `Encontrei vários filmes:\n\n${options}\n\nQual você quer salvar? (Digite o número)`;
+      } catch (error) {
+        console.error("Erro ao chamar AI:", error);
+        responseText =
+          "😅 Eita, dei um bug aqui meu brother! Mas não se preocupa, tenta de novo ou me manda algum conteúdo tipo:\n\n🎬 Nome de um filme\n🎥 Link do YouTube\n🔗 Qualquer link interessante";
+      }
     }
-  } else if (detectedType === "video") {
-    const url = classifierService.extractUrl(messageText);
-    if (url) {
-      const metadata = await enrichmentService.enrich("video", { url });
 
-      await itemService.createItem({
-        userId: user.id,
-        type: "video",
-        title:
-          (metadata && "channel_name" in metadata
-            ? metadata.channel_name
-            : null) || "Vídeo",
-        metadata: metadata || undefined,
-      });
-
-      responseText = `✅ Vídeo salvo!`;
-    }
-  } else if (detectedType === "link") {
-    const url = classifierService.extractUrl(messageText);
-    if (url) {
-      const metadata = await enrichmentService.enrich("link", { url });
-
-      await itemService.createItem({
-        userId: user.id,
-        type: "link",
-        title:
-          (metadata && "og_title" in metadata ? metadata.og_title : null) ||
-          url,
-        metadata: metadata || undefined,
-      });
-
-      responseText = `✅ Link salvo!`;
-    }
-  } else {
-    // Nota ou mensagem genérica - usa AI
-    try {
-      const history = await conversationService.getHistory(conversation.id);
-      const aiResponse = await llmService.callLLM({
-        message: messageText,
-        history,
-      });
-      responseText = aiResponse.message;
-    } catch (error) {
-      console.error("Erro ao chamar AI:", error);
-      responseText =
-        "⚠️ Desculpe, estou com problemas técnicos. Tente: 'clube da luta' ou envie um link.";
-    }
+    // 6. Salva resposta do bot
+    await conversationService.addMessage(
+      conversation.id,
+      "assistant",
+      responseText
+    );
+  } catch (error) {
+    // Erro crítico durante processamento - responde com mensagem genérica
+    console.error("Erro crítico ao processar mensagem:", error);
+    responseText =
+      "😅 Opa, algo deu errado aqui meu brother! Mas já estou de volta. Me manda aí:\n\n🎬 Um filme pra salvar\n🎥 Vídeo do YouTube\n🔗 Link interessante\n📝 Ou qualquer coisa que queira organizar!";
   }
 
-  // 6. Salva resposta do bot
-  await conversationService.addMessage(
-    conversation.id,
-    "assistant",
-    responseText
-  );
-
-  // 7. Envia resposta via provider
+  // 7. Envia resposta via provider (sempre envia, mesmo com erro)
   try {
     await provider.sendMessage(incomingMsg.externalId, responseText);
 

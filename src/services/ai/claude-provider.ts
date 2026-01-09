@@ -47,7 +47,8 @@ export class ClaudeProvider implements AIProvider {
       }
 
       return {
-        message: "Desculpe, não consegui processar sua mensagem.",
+        message:
+          "😅 Hmm... não consegui processar sua mensagem. Tenta de novo?",
       };
     } catch (error: any) {
       console.error("Erro ao chamar Claude:", error);
@@ -56,7 +57,7 @@ export class ClaudeProvider implements AIProvider {
       if (error?.status === 401) {
         return {
           message:
-            "⚠️ Anthropic API key inválida. Configure ANTHROPIC_API_KEY no .env",
+            "😅 Hmm... estou com problemas de configuração aqui. Pode tentar novamente mais tarde?",
         };
       }
 
@@ -64,12 +65,13 @@ export class ClaudeProvider implements AIProvider {
       if (error?.status === 429) {
         return {
           message:
-            "⚠️ Limite de requisições atingido. Tente novamente em alguns minutos.",
+            "😅 Opa, muitas mensagens de uma vez! Dá uma pausa de uns minutinhos e tenta de novo?",
         };
       }
 
       return {
-        message: "⚠️ Serviço de IA indisponível. Tente novamente mais tarde.",
+        message:
+          "😅 Hmm... estou com problemas pra te responder no momento. Pode tentar novamente mais tarde?",
       };
     }
   }
