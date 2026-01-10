@@ -1,155 +1,152 @@
-import { env } from "@/config/env";
-import { CloudflareProvider } from "./cloudflare-provider";
-import { GeminiProvider } from "./gemini-provider";
-import { ClaudeProvider } from "./claude-provider";
-import type { AIProvider, AIProviderType, AIResponse, Message } from "./types";
+import { env } from '@/config/env';
+import { CloudflareProvider } from './cloudflare-provider';
+import { GeminiProvider } from './gemini-provider';
+import type { AIProvider, AIProviderType, AIResponse, Message } from './types';
 
 /**
  * Serviço AI multi-provider com fallback automático
  *
  * Ordem de prioridade:
- * 1. Cloudflare Workers AI (default - rodando no edge)
- * 2. Gemini (mais rápido e barato)
- * 3. Claude (mais sofisticado)
+ * 1. Gemini (default - mais rápido e barato)
+ * 2. Cloudflare Workers AI (fallback quando Gemini falha com 4xx/5xx)
  */
 export class AIService {
-  private providers: Map<AIProviderType, AIProvider>;
-  private defaultProvider: AIProviderType;
-  private currentProvider: AIProviderType;
+	private providers: Map<AIProviderType, AIProvider>;
+	private defaultProvider: AIProviderType;
+	private currentProvider: AIProviderType;
 
-  constructor(defaultProvider: AIProviderType = "cloudflare") {
-    this.providers = new Map();
-    this.defaultProvider = defaultProvider;
-    this.currentProvider = defaultProvider;
+	constructor(defaultProvider: AIProviderType = 'gemini') {
+		this.providers = new Map();
+		this.defaultProvider = defaultProvider;
+		this.currentProvider = defaultProvider;
 
-    // Inicializa providers disponíveis (na ordem de prioridade)
-    if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
-      this.providers.set(
-        "cloudflare",
-        new CloudflareProvider(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_API_TOKEN)
-      );
-    }
+		// Inicializa providers disponíveis (na ordem de prioridade)
+		if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
+			this.providers.set('cloudflare', new CloudflareProvider(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_API_TOKEN));
+		}
 
-    if (env.GOOGLE_API_KEY) {
-      this.providers.set("gemini", new GeminiProvider(env.GOOGLE_API_KEY));
-    }
+		if (env.GOOGLE_API_KEY) {
+			this.providers.set('gemini', new GeminiProvider(env.GOOGLE_API_KEY));
+		}
 
-    if (env.ANTHROPIC_API_KEY) {
-      this.providers.set("claude", new ClaudeProvider(env.ANTHROPIC_API_KEY));
-    }
+		// Valida que pelo menos um provider está disponível
+		if (this.providers.size === 0) {
+			console.warn('⚠️ Nenhum provider de IA configurado! Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN ou GOOGLE_API_KEY');
+		}
 
-    // Valida que pelo menos um provider está disponível
-    if (this.providers.size === 0) {
-      console.warn(
-        "⚠️ Nenhum provider de IA configurado! Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN, GOOGLE_API_KEY ou ANTHROPIC_API_KEY"
-      );
-    }
+		// Valida que o provider default existe
+		if (!this.providers.has(defaultProvider)) {
+			const available = Array.from(this.providers.keys())[0];
+			if (available) {
+				console.warn(`⚠️ Provider '${defaultProvider}' não disponível. Usando '${available}' como default.`);
+				this.defaultProvider = available;
+				this.currentProvider = available;
+			}
+		}
+	}
 
-    // Valida que o provider default existe
-    if (!this.providers.has(defaultProvider)) {
-      const available = Array.from(this.providers.keys())[0];
-      if (available) {
-        console.warn(
-          `⚠️ Provider '${defaultProvider}' não disponível. Usando '${available}' como default.`
-        );
-        this.defaultProvider = available;
-        this.currentProvider = available;
-      }
-    }
-  }
+	/**
+	 * Chama o LLM com contexto da conversação e fallback automático
+	 */
+	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
+		const { systemPrompt, ...rest } = params;
+		const prompt = systemPrompt || this.getDefaultSystemPrompt();
 
-  /**
-   * Chama o LLM com contexto da conversação e fallback automático
-   */
-  async callLLM(params: {
-    message: string;
-    history?: Message[];
-    systemPrompt?: string;
-  }): Promise<AIResponse> {
-    const { systemPrompt, ...rest } = params;
-    const prompt = systemPrompt || this.getDefaultSystemPrompt();
+		console.log(`🤖 [AI] Chamando ${this.currentProvider}`);
+		console.log(`📝 [AI] Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
+		console.log(`📚 [AI] Histórico: ${params.history?.length || 0} mensagens`);
 
-    console.log(`🤖 [AI] Chamando ${this.currentProvider}`);
-    console.log(`📝 [AI] Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);    console.log(`📚 [AI] Histórico: ${params.history?.length || 0} mensagens`);
+		// Tenta com o provider atual
+		const provider = this.providers.get(this.currentProvider);
+		if (!provider) {
+			console.error('❌ [AI] Nenhum provider disponível');
+			return {
+				message: '⚠️ Nenhum serviço de IA disponível. Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN ou GOOGLE_API_KEY no .env',
+			};
+		}
 
-    // Tenta com o provider atual
-    const provider = this.providers.get(this.currentProvider);
-    if (!provider) {
-      console.error("❌ [AI] Nenhum provider disponível");
-      return {
-        message:
-          "⚠️ Nenhum serviço de IA disponível. Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN, GOOGLE_API_KEY ou ANTHROPIC_API_KEY no .env",
-      };
-    }
+		try {
+			const response = await provider.callLLM({
+				...rest,
+				systemPrompt: prompt,
+			});
 
-    try {
-      const response = await provider.callLLM({
-        ...rest,
-        systemPrompt: prompt,
-      });
+			console.log(
+				`✅ [AI] Resposta de ${this.currentProvider}: "${response.message.substring(0, 150)}${response.message.length > 150 ? '...' : ''}"`
+			);
+			// Se sucesso, mantém o provider atual
+			return response;
+		} catch (error: any) {
+			console.error(`❌ [AI] Erro no provider ${this.currentProvider}:`, error);
 
-      console.log(`✅ [AI] Resposta de ${this.currentProvider}: "${response.message.substring(0, 150)}${response.message.length > 150 ? '...' : ''}"`);      
-      // Se sucesso, mantém o provider atual
-      return response;
-    } catch (error) {
-      console.error(`❌ [AI] Erro no provider ${this.currentProvider}:`, error);
+			// Verifica se é erro 4xx ou 5xx (rate limit, server error, etc)
+			const isHttpError = error?.status >= 400 && error?.status < 600;
+			const shouldFallback = isHttpError || error?.message?.includes('rate limit') || error?.message?.includes('quota');
 
-      // Tenta fallback para outro provider
-      const fallbackProvider = this.getFallbackProvider();
-      if (fallbackProvider) {
-        console.log(`🔄 [AI] Usando fallback para ${fallbackProvider}`);
-        this.currentProvider = fallbackProvider;
-        return this.callLLM({ ...rest, systemPrompt: prompt });
-      }
+			if (shouldFallback) {
+				// Tenta fallback para outro provider
+				const fallbackProvider = this.getFallbackProvider();
+				if (fallbackProvider) {
+					console.log(`🔄 [AI] Erro ${error?.status || 'HTTP'} detectado. Usando fallback para ${fallbackProvider}`);
+					const originalProvider = this.currentProvider;
+					this.currentProvider = fallbackProvider;
+					try {
+						return await this.callLLM({ ...rest, systemPrompt: prompt });
+					} catch (fallbackError) {
+						// Se fallback também falhar, restaura provider original
+						this.currentProvider = originalProvider;
+						throw fallbackError;
+					}
+				}
+			}
 
-      // Sem fallback disponível
-      console.error("❌ [AI] Nenhum fallback disponível");
-      return {
-        message:
-          "⚠️ Todos os serviços de IA estão indisponíveis. Tente novamente mais tarde.",
-      };
-    }
-  }
+			// Sem fallback disponível ou erro não é HTTP
+			console.error('❌ [AI] Nenhum fallback disponível ou erro não recuperável');
+			return {
+				message: '⚠️ Serviço de IA temporariamente indisponível. Tente novamente em alguns instantes.',
+			};
+		}
+	}
 
-  /**
-   * Retorna um provider alternativo disponível
-   */
-  private getFallbackProvider(): AIProviderType | null {
-    const available = Array.from(this.providers.keys());
-    const fallback = available.find((p) => p !== this.currentProvider);
-    return fallback || null;
-  }
+	/**
+	 * Retorna um provider alternativo disponível
+	 */
+	private getFallbackProvider(): AIProviderType | null {
+		const available = Array.from(this.providers.keys());
+		const fallback = available.find((p) => p !== this.currentProvider);
+		return fallback || null;
+	}
 
-  /**
-   * Força o uso de um provider específico
-   */
-  setProvider(provider: AIProviderType): void {
-    if (!this.providers.has(provider)) {
-      throw new Error(`Provider '${provider}' não está configurado`);
-    }
-    this.currentProvider = provider;
-    console.log(`Provider alterado para: ${provider}`);
-  }
+	/**
+	 * Força o uso de um provider específico
+	 */
+	setProvider(provider: AIProviderType): void {
+		if (!this.providers.has(provider)) {
+			throw new Error(`Provider '${provider}' não está configurado`);
+		}
+		this.currentProvider = provider;
+		console.log(`Provider alterado para: ${provider}`);
+	}
 
-  /**
-   * Retorna o provider ativo
-   */
-  getCurrentProvider(): AIProviderType {
-    return this.currentProvider;
-  }
+	/**
+	 * Retorna o provider ativo
+	 */
+	getCurrentProvider(): AIProviderType {
+		return this.currentProvider;
+	}
 
-  /**
-   * Lista providers disponíveis
-   */
-  getAvailableProviders(): AIProviderType[] {
-    return Array.from(this.providers.keys());
-  }
+	/**
+	 * Lista providers disponíveis
+	 */
+	getAvailableProviders(): AIProviderType[] {
+		return Array.from(this.providers.keys());
+	}
 
-  /**
-   * Default system prompt
-   */
-  private getDefaultSystemPrompt(): string {
-    return `You are MAX, a personal assistant that helps organize memories and content - movies, TV shows, videos, links, and notes.
+	/**
+	 * Default system prompt
+	 */
+	private getDefaultSystemPrompt(): string {
+		return `You are MAX, a personal assistant that helps organize memories and content - movies, TV shows, videos, links, and notes.
 
 **CRITICAL: ALL RESPONSES MUST BE IN BRAZILIAN PORTUGUESE (pt-BR)**
 
@@ -207,9 +204,9 @@ TECHNICAL RULES (always follow, but don't mention to user):
    - Respond with something like: "Isso eu não manjo não 😅 Mas se quiser salvar algum filme ou link, tô aqui!"
 
 Be yourself - natural, helpful, and friendly! Remember: ALWAYS respond in Brazilian Portuguese.`;
-  }
+	}
 }
 
-// Singleton com Cloudflare como default
-export const llmService = new AIService("cloudflare");
-export type { AIProvider, AIProviderType, AIResponse, Message } from "./types";
+// Singleton com Gemini como default
+export const llmService = new AIService('gemini');
+export type { AIProvider, AIProviderType, AIResponse, Message } from './types';

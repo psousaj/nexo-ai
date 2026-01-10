@@ -6,20 +6,6 @@ v0.2.0: Dashboard web para linking manual de contas
 v0.3.0: Suporte a Discord (provider sem telefone)
 Futuro: Ativar WhatsApp quando houver demanda
 
-import { aiService } from "@/services/ai";
-
-// Usa Gemini (default)
-const response = await aiService.callLLM({
-message: "clube da luta",
-history: [],
-});
-
-// Força Claude
-aiService.setProvider("claude");
-
-// Verifica provider ativo
-console.log(aiService.getCurrentProvider()); // "gemini" ou "claude"
-
 ## 🎯 O que faz?
 
 Envie mensagens sobre filmes, vídeos, links ou notas pelo Telegram (ou WhatsApp):
@@ -27,7 +13,7 @@ Envie mensagens sobre filmes, vídeos, links ou notas pelo Telegram (ou WhatsApp
 - **Identifica** o tipo de conteúdo automaticamente
 - **Enriquece** com metadados (TMDB, YouTube, OpenGraph)
 - **Organiza** e salva no PostgreSQL com busca inteligente
-- **Responde** de forma natural usando Claude AI
+- **Responde** de forma natural usando IA
 - **Unifica** usuários cross-provider (mesmo telefone = mesma conta)
 
 ### Exemplos de uso
@@ -63,7 +49,8 @@ cp .env.example .env
 
 - `DATABASE_URL` - PostgreSQL (ou Supabase)
 - `TELEGRAM_BOT_TOKEN` - Token do bot Telegram (via @BotFather)
-- `ANTHROPIC_API_KEY` - API Claude
+- `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` - Cloudflare Workers AI
+- `GOOGLE_API_KEY` - Google Gemini (opcional, fallback)
 - `TMDB_API_KEY` - The Movie Database
 - `YOUTUBE_API_KEY` - YouTube Data API
 - (Opcional) `META_WHATSAPP_TOKEN` - WhatsApp Business (feature futura)
@@ -96,7 +83,7 @@ nexo-ai/
 │   ├── config/          # Environment, database
 │   ├── db/schema/       # Drizzle schemas
 │   ├── services/        # Lógica de negócio
-│   │   ├── ai/          # Claude integration
+│   │   ├── ai/          # AI integration (Cloudflare/Gemini)
 │   │   └── enrichment/  # TMDB, YouTube, OpenGraph
 │   ├── routes/          # REST endpoints
 │   └── index.ts         # Entry point
@@ -108,17 +95,17 @@ Ver [docs/ESTRUTURA.md](docs/ESTRUTURA.md) para detalhes completos.
 
 ## 🛠️ Stack Tecnológico
 
-| Categoria      | Tecnologia                         |
-| -------------- | ---------------------------------- |
-| **Runtime**    | Bun                                |
-| **Framework**  | Elysia                             |
-| **Database**   | PostgreSQL (Supabase)              |
-| **ORM**        | Drizzle                            |
-| **Deploy**     | Cloudflare Workers                 |
-| **Chat**       | Telegram Bot API (padrão)          |
-| **WhatsApp**   | Meta WhatsApp API (feature futura) |
-| **AI**         | Claude 3.5 Sonnet (Anthropic)      |
-| **Enrichment** | TMDB, YouTube Data API, OpenGraph  |
+| Categoria      | Tecnologia                                |
+| -------------- | ----------------------------------------- |
+| **Runtime**    | Bun                                       |
+| **Framework**  | Elysia                                    |
+| **Database**   | PostgreSQL (Supabase)                     |
+| **ORM**        | Drizzle                                   |
+| **Deploy**     | Cloudflare Workers                        |
+| **Chat**       | Telegram Bot API (padrão)                 |
+| **WhatsApp**   | Meta WhatsApp API (feature futura)        |
+| **AI**         | Cloudflare Workers AI + Gemini (Fallback) |
+| **Enrichment** | TMDB, YouTube Data API, OpenGraph         |
 
 ## ��� Documentação
 
