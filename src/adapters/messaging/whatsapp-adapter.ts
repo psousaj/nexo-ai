@@ -1,174 +1,173 @@
-import { env } from "@/config/env";
-import type { MessagingProvider, IncomingMessage, ProviderType } from "./types";
+import { env } from '@/config/env';
+import type { MessagingProvider, IncomingMessage, ProviderType } from './types';
 
 /**
  * Adapter para Meta WhatsApp Business API
  */
 export class WhatsAppAdapter implements MessagingProvider {
-  private baseUrl = "https://graph.facebook.com/v24.0";
-  private token = env.META_WHATSAPP_TOKEN;
-  private phoneNumberId = env.META_WHATSAPP_PHONE_NUMBER_ID;
+	private baseUrl = 'https://graph.facebook.com/v24.0';
+	private token = env.META_WHATSAPP_TOKEN;
+	private phoneNumberId = env.META_WHATSAPP_PHONE_NUMBER_ID;
 
-  getProviderName(): ProviderType {
-    return "whatsapp";
-  }
+	getProviderName(): ProviderType {
+		return 'whatsapp';
+	}
 
-  parseIncomingMessage(payload: any): IncomingMessage | null {
-    const entry = payload.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    const message = value?.messages?.[0];
+	parseIncomingMessage(payload: any): IncomingMessage | null {
+		const entry = payload.entry?.[0];
+		const changes = entry?.changes?.[0];
+		const value = changes?.value;
+		const message = value?.messages?.[0];
 
-    if (!message?.text?.body) {
-      return null;
-    }
+		if (!message?.text?.body) {
+			return null;
+		}
 
-    // Extrai nome do contato
-    const contact = value?.contacts?.[0];
-    const senderName = contact?.profile?.name;
+		// Extrai nome do contato
+		const contact = value?.contacts?.[0];
+		const senderName = contact?.profile?.name;
 
-    // Phone number é o externalId no WhatsApp
-    const phoneNumber = message.from;
+		// Phone number é o externalId no WhatsApp
+		const phoneNumber = message.from;
 
-    return {
-      messageId: message.id,
-      externalId: phoneNumber,
-      senderName,
-      text: message.text.body,
-      timestamp: new Date(parseInt(message.timestamp) * 1000),
-      provider: "whatsapp",
-      phoneNumber, // WhatsApp sempre tem telefone
-    };
-  }
+		return {
+			messageId: message.id,
+			externalId: phoneNumber,
+			senderName,
+			text: message.text.body,
+			timestamp: new Date(parseInt(message.timestamp) * 1000),
+			provider: 'whatsapp',
+			phoneNumber, // WhatsApp sempre tem telefone
+		};
+	}
 
-  async verifyWebhook(request: any): Promise<boolean> {
-    try {
-      // Extrai signature do header (compatível com Fetch API e Express)
-      const signature = request.headers?.get?.("X-Hub-Signature-256") || 
-                       request.headers?.["x-hub-signature-256"];
-      
-      if (!signature) {
-        console.warn("⚠️ Webhook sem signature X-Hub-Signature-256");
-        return false;
-      }
+	async verifyWebhook(request: any): Promise<boolean> {
+		try {
+			// Extrai signature do header (compatível com Fetch API, Express, e objeto simples)
+			let signature: string | undefined;
 
-      // Extrai body como texto (compatível com Elysia/Hono que já parseou)
-      let bodyText: string;
-      
-      if (typeof request.body === "string") {
-        bodyText = request.body;
-      } else if (request.body && typeof request.body === "object") {
-        bodyText = JSON.stringify(request.body);
-      } else {
-        console.error("❌ Body inválido para validação");
-        return false;
-      }
+			if (request.signature) {
+				// Objeto simples com signature direta
+				signature = request.signature;
+			} else if (request.headers?.get) {
+				// Fetch API / Hono
+				signature = request.headers.get('X-Hub-Signature-256');
+			} else if (request.headers) {
+				// Express / objeto com headers
+				signature = request.headers['x-hub-signature-256'];
+			}
 
-      // Valida signature usando crypto.subtle (Cloudflare Workers compatible)
-      const isValid = await this.validateSignature(signature, bodyText);
-      
-      if (!isValid) {
-        console.warn("⚠️ Signature inválida no webhook WhatsApp");
-      }
-      
-      return isValid;
-    } catch (error) {
-      console.error("❌ Erro ao verificar webhook:", error);
-      return false;
-    }
-  }
+			if (!signature) {
+				console.warn('⚠️ Webhook sem signature X-Hub-Signature-256');
+				return false;
+			}
 
-  /**
-   * Valida HMAC SHA-256 signature do WhatsApp
-   * Usa crypto.subtle (Cloudflare Workers compatible)
-   */
-  private async validateSignature(
-    receivedSignature: string,
-    payload: string
-  ): Promise<boolean> {
-    try {
-      // Remove prefixo "sha256=" se presente
-      const signatureHash = receivedSignature.startsWith("sha256=")
-        ? receivedSignature.substring(7)
-        : receivedSignature;
+			// Extrai body como texto (compatível com rawBody, body string, ou body objeto)
+			let bodyText: string;
 
-      // Converte app secret para ArrayBuffer
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(env.META_WHATSAPP_APP_SECRET);
-      const messageData = encoder.encode(payload);
+			if (typeof request.rawBody === 'string') {
+				bodyText = request.rawBody;
+			} else if (typeof request.body === 'string') {
+				bodyText = request.body;
+			} else if (request.body && typeof request.body === 'object') {
+				bodyText = JSON.stringify(request.body);
+			} else {
+				console.error('❌ Body inválido para validação');
+				return false;
+			}
 
-      // Importa key para HMAC
-      const cryptoKey = await crypto.subtle.importKey(
-        "raw",
-        keyData,
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-      );
+			// Valida signature usando crypto.subtle (Cloudflare Workers compatible)
+			const isValid = await this.validateSignature(signature, bodyText);
 
-      // Calcula HMAC SHA-256
-      const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+			if (!isValid) {
+				console.warn('⚠️ Signature inválida no webhook WhatsApp');
+			}
 
-      // Converte para hex string
-      const hashArray = Array.from(new Uint8Array(signature));
-      const expectedHash = hashArray
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+			return isValid;
+		} catch (error) {
+			console.error('❌ Erro ao verificar webhook:', error);
+			return false;
+		}
+	}
 
-      // Compara signatures (timing-safe comparison)
-      return signatureHash.toLowerCase() === expectedHash.toLowerCase();
-    } catch (error) {
-      console.error("❌ Erro ao validar signature:", error);
-      return false;
-    }
-  }
+	/**
+	 * Valida HMAC SHA-256 signature do WhatsApp
+	 * Usa crypto.subtle (Cloudflare Workers compatible)
+	 */
+	private async validateSignature(receivedSignature: string, payload: string): Promise<boolean> {
+		try {
+			// Remove prefixo "sha256=" se presente
+			const signatureHash = receivedSignature.startsWith('sha256=') ? receivedSignature.substring(7) : receivedSignature;
 
-  async sendMessage(to: string, text: string): Promise<void> {
-    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+			// Converte app secret para ArrayBuffer
+			const encoder = new TextEncoder();
+			const keyData = encoder.encode(env.META_WHATSAPP_APP_SECRET);
+			const messageData = encoder.encode(payload);
 
-    const payload = {
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: text },
-    };
+			// Importa key para HMAC
+			const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+			// Calcula HMAC SHA-256
+			const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`WhatsApp API error: ${error}`);
-    }
-  }
+			// Converte para hex string
+			const hashArray = Array.from(new Uint8Array(signature));
+			const expectedHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 
-  /**
-   * Marca mensagem como lida (método específico WhatsApp)
-   */
-  async markAsRead(messageId: string): Promise<void> {
-    const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+			// Compara signatures (timing-safe comparison)
+			return signatureHash.toLowerCase() === expectedHash.toLowerCase();
+		} catch (error) {
+			console.error('❌ Erro ao validar signature:', error);
+			return false;
+		}
+	}
 
-    const payload = {
-      messaging_product: "whatsapp",
-      status: "read",
-      message_id: messageId,
-    };
+	async sendMessage(to: string, text: string): Promise<void> {
+		const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
 
-    await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-  }
+		const payload = {
+			messaging_product: 'whatsapp',
+			to,
+			type: 'text',
+			text: { body: text },
+		};
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${this.token}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			throw new Error(`WhatsApp API error: ${error}`);
+		}
+	}
+
+	/**
+	 * Marca mensagem como lida (método específico WhatsApp)
+	 */
+	async markAsRead(messageId: string): Promise<void> {
+		const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+
+		const payload = {
+			messaging_product: 'whatsapp',
+			status: 'read',
+			message_id: messageId,
+		};
+
+		await fetch(url, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${this.token}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+	}
 }
 
 export const whatsappAdapter = new WhatsAppAdapter();

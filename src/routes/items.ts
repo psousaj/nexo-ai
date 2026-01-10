@@ -1,80 +1,83 @@
-import { Router, Request, Response } from "express";
-import { itemService } from "@/services/item-service";
+import { Hono } from 'hono';
+import { itemService } from '@/services/item-service';
 
-export const itemsRouter: Router = Router();
+export const itemsRoutes = new Hono();
 
 /**
  * GET / - Lista items do usuário
  */
-itemsRouter.get("/", async (req: Request, res: Response) => {
-  const userId = req.query.userId as string;
-  const type = req.query.type as string | undefined;
-  const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+itemsRoutes.get('/', async (c) => {
+	const userId = c.req.query('userId');
+	const type = c.req.query('type');
+	const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : 20;
 
-  if (!userId) {
-    return res.status(400).json({ error: "userId é obrigatório" });
-  }
+	if (!userId) {
+		return c.json({ error: 'userId é obrigatório' }, 400);
+	}
 
-  const items = await itemService.listItems({
-    userId,
-    type: type as any,
-    limit,
-  });
+	const items = await itemService.listItems({
+		userId,
+		type: type as any,
+		limit,
+	});
 
-  return res.json({ items });
+	return c.json({ items });
 });
 
 /**
  * GET /:id - Busca item por ID
  */
-itemsRouter.get("/:id", async (req: Request, res: Response) => {
-  const userId = req.query.userId as string;
+itemsRoutes.get('/:id', async (c) => {
+	const userId = c.req.query('userId');
+	const id = c.req.param('id');
 
-  if (!userId) {
-    return res.status(400).json({ error: "userId é obrigatório" });
-  }
+	if (!userId) {
+		return c.json({ error: 'userId é obrigatório' }, 400);
+	}
 
-  const item = await itemService.getItemById(req.params.id, userId);
+	const item = await itemService.getItemById(id, userId);
 
-  if (!item) {
-    return res.status(404).json({ error: "Item não encontrado" });
-  }
+	if (!item) {
+		return c.json({ error: 'Item não encontrado' }, 404);
+	}
 
-  return res.json({ item });
+	return c.json({ item });
 });
 
 /**
  * POST /search - Busca semântica
  */
-itemsRouter.post("/search", async (req: Request, res: Response) => {
-  const { userId, query, limit = 20 } = req.body;
+itemsRoutes.post('/search', async (c) => {
+	const body = await c.req.json();
+	const { userId, query, limit = 20 } = body;
 
-  if (!userId || !query) {
-    return res.status(400).json({ error: "userId e query são obrigatórios" });
-  }
+	if (!userId || !query) {
+		return c.json({ error: 'userId e query são obrigatórios' }, 400);
+	}
 
-  const items = await itemService.searchItems({
-    userId,
-    query,
-    limit,
-  });
+	const items = await itemService.searchItems({
+		userId,
+		query,
+		limit,
+	});
 
-  return res.json({ items });
+	return c.json({ items });
 });
 
 /**
  * DELETE /:id - Deleta item
  */
-itemsRouter.delete("/:id", async (req: Request, res: Response) => {
-  const userId = req.query.userId as string;
+itemsRoutes.delete('/:id', async (c) => {
+	const userId = c.req.query('userId');
+	const id = c.req.param('id');
 
-  if (!userId) {
-    return res.status(400).json({ error: "userId é obrigatório" });
-  }
+	if (!userId) {
+		return c.json({ error: 'userId é obrigatório' }, 400);
+	}
 
-  console.log("DELETE request:", { params: req.params, query: req.query });
-  await itemService.deleteItem(req.params.id, userId);
-  const response = { success: true };
-  console.log("DELETE response:", response);
-  return res.json(response);
+	console.log('DELETE request:', { id, userId });
+	await itemService.deleteItem(id, userId);
+	const response = { success: true };
+	console.log('DELETE response:', response);
+	return c.json(response);
 });
