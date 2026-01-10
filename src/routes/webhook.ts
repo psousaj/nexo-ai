@@ -467,31 +467,55 @@ async function processMessage(
       
       try {
         const interpretResponse = await llmService.callLLM({
-          message: `The user is choosing between these options:
+          message: `CONTEXT: User was asked to choose from this list:
 ${candidatesList}
 
-User's response: "${messageText}"
+USER'S MESSAGE: "${messageText}"
+
+TASK: Analyze if the user is:
+1. Selecting an option from the list
+2. Canceling/giving up
+3. Changing subject (asking something else, requesting a different movie/series)
+4. Providing more details to clarify
+5. Unclear response
 
 Respond in JSON:
 {
-  "action": "select" | "ambiguous" | "cancel" | "unclear",
+  "action": "select" | "ambiguous" | "cancel" | "change_subject" | "unclear",
   "selected": option number (if action=select),
   "options": [numbers] (if action=ambiguous),
-  "reason": "short explanation in Brazilian Portuguese" (if ambiguous or unclear),
+  "new_intent": "search_movie" | "search_tv_show" | "chat" | null (only if action=change_subject),
+  "new_query": "the new movie/series title" (only if action=change_subject and new_intent is search_*),
+  "reason": "short explanation in Brazilian Portuguese",
   "response": "natural response to user in Brazilian Portuguese"
 }
 
+CRITICAL RULES:
+- If user says something like "não, quero X" or "não é esse, é Y" → action: "change_subject", new_query: "Y"
+- If user asks about something unrelated → action: "change_subject", new_intent: "chat"
+- If user says "nenhum desses" or "não quero" without alternative → action: "cancel"
+- If user mentions "não tá na lista" + gives more details → action: "change_subject" with clarified query
+- ALWAYS cancel pending state when user changes subject
+
 Examples:
-- "o primeiro" → {"action":"select","selected":1,"response":"Beleza!"}
-- "o de 2014" with 2 from 2014 → {"action":"ambiguous","options":[1,2],"reason":"dois são de 2014","response":"Hmm, achei dois de 2014..."}
-- "não quero nenhum" → {"action":"cancel","response":"Beleza, cancelado!"}
-- "asdfgh" → {"action":"unclear","response":"Não entendi, qual deles você quer?"}`,
+- "o primeiro" → {"action":"select","selected":1}
+- "não é esse, é o clube da luta de 1999" → {"action":"change_subject","new_intent":"search_movie","new_query":"Fight Club 1999"}
+- "deixa pra lá, me fala das séries que eu tenho" → {"action":"change_subject","new_intent":"chat"}
+- "nenhum desses" → {"action":"cancel"}`,
           history: [],
-          systemPrompt: "You interpret user selections for a Brazilian Portuguese assistant. Respond ONLY with valid JSON. Be smart about natural language. ALL text in 'response' and 'reason' fields MUST be in Brazilian Portuguese.",
+          systemPrompt: "You interpret user responses in context. Detect when user changes subject or wants something different. Respond ONLY with valid JSON. ALL text fields MUST be in Brazilian Portuguese.",
         });
 
         // Parse JSON
-        let result: { action: string; selected?: number; options?: number[]; reason?: string; response: string };
+        let result: { 
+          action: string; 
+          selected?: number; 
+          options?: number[]; 
+          new_intent?: string;
+          new_query?: string;
+          reason?: string; 
+          response: string 
+        };
         try {
           const jsonMatch = interpretResponse.message.match(/\{[\s\S]*\}/);
           result = JSON.parse(jsonMatch?.[0] || "{}");
@@ -506,14 +530,23 @@ Examples:
             const selected = candidates[result.selected! - 1];
             if (selected) {
               const metadata = await enrichmentService.enrich(detectedType, { tmdbId: selected.id });
-              await itemService.createItem({
+              
+              // Verifica duplicata antes de salvar
+              const saveResult = await itemService.createItem({
                 userId: user.id,
                 type: detectedType,
                 title: selected.title || selected.name,
                 metadata: metadata || undefined,
               });
+              
               const year = selected.release_date?.split("-")[0] || selected.first_air_date?.split("-")[0];
-              responseText = `✅ Pronto! Salvei "${selected.title || selected.name}" (${year}) 🎬`;
+              
+              if (saveResult.isDuplicate) {
+                responseText = `⚠️ Você já tem "${saveResult.existingItem?.title}" salvo! Foi em ${new Date(saveResult.existingItem?.createdAt || '').toLocaleDateString('pt-BR')}.`;
+              } else {
+                responseText = `✅ Pronto! Salvei "${selected.title || selected.name}" (${year}) 🎬`;
+              }
+              
               await conversationService.updateState(conversation.id, "idle", {});
               // Limpa contexto após salvar
               await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
@@ -548,6 +581,79 @@ Examples:
             break;
           }
           
+          case "change_subject": {
+            // Usuário mudou de assunto - cancela estado atual
+            await conversationService.updateState(conversation.id, "idle", {});
+            await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
+            
+            // Se tem uma nova query, processa
+            if (result.new_intent === "search_movie" && result.new_query) {
+              const newResults = await enrichmentService.searchMovies(result.new_query);
+              
+              if (newResults.length === 0) {
+                responseText = `Não achei "${result.new_query}" 🤔 Tenta com outro nome?`;
+              } else if (newResults.length === 1) {
+                const movie = newResults[0];
+                const metadata = await enrichmentService.enrich("movie", { tmdbId: movie.id });
+                const saveResult = await itemService.createItem({
+                  userId: user.id,
+                  type: "movie",
+                  title: movie.title,
+                  metadata: metadata || undefined,
+                });
+                
+                if (saveResult.isDuplicate) {
+                  responseText = `⚠️ Você já tem "${movie.title}" salvo!`;
+                } else {
+                  responseText = `✅ Salvei "${movie.title}" (${movie.release_date?.split("-")[0]}) 🎬`;
+                }
+              } else {
+                await conversationService.updateState(conversation.id, "awaiting_confirmation", {
+                  candidates: newResults.slice(0, 5),
+                  detected_type: "movie",
+                });
+                const options = newResults.slice(0, 5).map((m, i) => 
+                  `${i + 1}. ${m.title} (${m.release_date?.split("-")[0]})`
+                ).join("\n");
+                responseText = `Ok! Achei esses:\n\n${options}\n\nQual deles?`;
+              }
+            } else if (result.new_intent === "search_tv_show" && result.new_query) {
+              const newResults = await enrichmentService.searchTVShows(result.new_query);
+              
+              if (newResults.length === 0) {
+                responseText = `Não achei "${result.new_query}" 🤔 Tenta com outro nome?`;
+              } else if (newResults.length === 1) {
+                const show = newResults[0];
+                const metadata = await enrichmentService.enrich("tv_show", { tmdbId: show.id });
+                const saveResult = await itemService.createItem({
+                  userId: user.id,
+                  type: "tv_show",
+                  title: show.name,
+                  metadata: metadata || undefined,
+                });
+                
+                if (saveResult.isDuplicate) {
+                  responseText = `⚠️ Você já tem "${show.name}" salvo!`;
+                } else {
+                  responseText = `✅ Salvei "${show.name}" (${show.first_air_date?.split("-")[0]}) 📺`;
+                }
+              } else {
+                await conversationService.updateState(conversation.id, "awaiting_confirmation", {
+                  candidates: newResults.slice(0, 5),
+                  detected_type: "tv_show",
+                });
+                const options = newResults.slice(0, 5).map((s, i) => 
+                  `${i + 1}. ${s.name} (${s.first_air_date?.split("-")[0]})`
+                ).join("\n");
+                responseText = `Ok! Achei esses:\n\n${options}\n\nQual deles?`;
+              }
+            } else {
+              // Chat ou outra coisa
+              responseText = result.response || "Beleza! O que mais posso fazer por você?";
+            }
+            break;
+          }
+          
           default: {
             responseText = result.response || "Não entendi, qual deles você quer?";
           }
@@ -578,22 +684,32 @@ Examples:
       
       if (isVideo) {
         const metadata = await enrichmentService.enrich("video", { url });
-        await itemService.createItem({
+        const saveResult = await itemService.createItem({
           userId: user.id,
           type: "video",
           title: (metadata && "channel_name" in metadata ? metadata.channel_name : null) || "Vídeo",
           metadata: metadata || undefined,
         });
-        responseText = `✅ Vídeo salvo!`;
+        
+        if (saveResult.isDuplicate) {
+          responseText = `⚠️ Você já salvou esse vídeo!`;
+        } else {
+          responseText = `✅ Vídeo salvo!`;
+        }
       } else {
         const metadata = await enrichmentService.enrich("link", { url });
-        await itemService.createItem({
+        const saveResult = await itemService.createItem({
           userId: user.id,
           type: "link",
           title: (metadata && "og_title" in metadata ? metadata.og_title : null) || url,
           metadata: metadata || undefined,
         });
-        responseText = `✅ Link salvo!`;
+        
+        if (saveResult.isDuplicate) {
+          responseText = `⚠️ Você já salvou esse link!`;
+        } else {
+          responseText = `✅ Link salvo!`;
+        }
       }
       
       await conversationService.addMessage(conversation.id, "assistant", responseText);
@@ -721,13 +837,20 @@ The "response" field MUST be in Brazilian Portuguese.`,
           } else if (results.length === 1) {
             const movie = results[0];
             const metadata = await enrichmentService.enrich("movie", { tmdbId: movie.id });
-            await itemService.createItem({
+            
+            // Verifica duplicata antes de salvar
+            const saveResult = await itemService.createItem({
               userId: user.id,
               type: "movie",
               title: movie.title,
               metadata: metadata || undefined,
             });
-            responseText = `✅ Pronto! Salvei "${movie.title}" (${movie.release_date?.split("-")[0]}) 🎬`;
+            
+            if (saveResult.isDuplicate) {
+              responseText = `⚠️ Você já tem "${movie.title}" salvo! Foi em ${new Date(saveResult.existingItem?.createdAt || '').toLocaleDateString('pt-BR')}.`;
+            } else {
+              responseText = `✅ Pronto! Salvei "${movie.title}" (${movie.release_date?.split("-")[0]}) 🎬`;
+            }
             // Limpa contexto após salvar
             await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
           } else {
@@ -759,13 +882,20 @@ The "response" field MUST be in Brazilian Portuguese.`,
           } else if (results.length === 1) {
             const show = results[0];
             const metadata = await enrichmentService.enrich("tv_show", { tmdbId: show.id });
-            await itemService.createItem({
+            
+            // Verifica duplicata antes de salvar
+            const saveResult = await itemService.createItem({
               userId: user.id,
               type: "tv_show",
               title: show.name,
               metadata: metadata || undefined,
             });
-            responseText = `✅ Pronto! Salvei "${show.name}" (${show.first_air_date?.split("-")[0]}) 📺`;
+            
+            if (saveResult.isDuplicate) {
+              responseText = `⚠️ Você já tem "${show.name}" salvo! Foi em ${new Date(saveResult.existingItem?.createdAt || '').toLocaleDateString('pt-BR')}.`;
+            } else {
+              responseText = `✅ Pronto! Salvei "${show.name}" (${show.first_air_date?.split("-")[0]}) 📺`;
+            }
             // Limpa contexto após salvar
             await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
           } else {
