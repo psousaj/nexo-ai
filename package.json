@@ -11,7 +11,11 @@
         "db:push": "drizzle-kit push",
         "db:studio": "drizzle-kit studio",
         "test": "node --test",
-        "lint": "tsc --noEmit"
+        "lint": "tsc --noEmit",
+        "cf:deploy": "wrangler deploy",
+        "cf:dev": "wrangler dev",
+        "cf:start": "wrangler dev",
+        "cf-typegen": "wrangler types"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.27.3",
@@ -33,6 +37,7 @@
         "drizzle-kit": "^0.31.8",
         "pino": "^10.1.1",
         "tsx": "^4.21.0",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "wrangler": "^4.58.0"
     }
 }
