@@ -5,7 +5,7 @@
         ],
         "target": "ES2022",
         "module": "ESNext",
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "allowJs": true,
         "outDir": "./dist",
         "rootDir": "./src",
@@ -22,7 +22,7 @@
         "declarationMap": true,
         "sourceMap": true,
         "types": [
-            "node"
+            "./worker-configuration.d.ts"
         ],
         "baseUrl": ".",
         "paths": {
@@ -36,6 +36,7 @@
     ],
     "exclude": [
         "node_modules",
-        "dist"
+        "dist",
+        "worker-configuration.d.ts"
     ]
 }
