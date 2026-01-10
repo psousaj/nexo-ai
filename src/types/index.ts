@@ -64,9 +64,11 @@ export interface LinkMetadata {
 }
 
 export interface NoteMetadata {
+  full_content?: string;
   category?: string;
   related_topics?: string[];
   priority?: "low" | "medium" | "high";
+  created_via?: "chat" | "api";
 }
 
 export type ItemMetadata =

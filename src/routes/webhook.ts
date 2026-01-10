@@ -158,12 +158,23 @@ async function processMessage(
     // 3. Salva mensagem do usuário
     await conversationService.addMessage(conversation.id, "user", messageText);
 
-    // 4. Verifica contexto recente (últimos 5 minutos)
+    // 4. Verifica timeout de conversa (3 min sem mensagens = nova conversa)
     const recentMessages = await conversationService.getRecentMessages(
       conversation.id,
-      5
+      3 // 3 minutos
     );
-    const hasRecentContext = recentMessages.length > 1; // Mais de 1 mensagem = tem contexto
+    
+    // Se passou mais de 3 min desde a última mensagem, reseta o estado
+    const lastMessage = recentMessages[recentMessages.length - 2]; // penúltima (a atual já foi salva)
+    const isStaleConversation = !lastMessage || 
+      (Date.now() - new Date(lastMessage.createdAt).getTime() > 3 * 60 * 1000);
+    
+    if (isStaleConversation && conversation.state !== "idle") {
+      console.log("⏰ Conversa expirada (>3 min), resetando estado...");
+      await conversationService.updateState(conversation.id, "idle", {});
+      conversation.state = "idle";
+      conversation.context = {};
+    }
 
     // 5. Se está aguardando confirmação de item em batch, processa
     if (conversation.state === "awaiting_batch_item") {
@@ -433,128 +444,108 @@ async function processMessage(
     // 5b. Se está aguardando confirmação simples, processa resposta
     if (conversation.state === "awaiting_confirmation") {
       const context = conversation.context as any;
-      const selection = parseInt(messageText.trim());
-
-      if (
-        !isNaN(selection) &&
-        context.candidates &&
-        context.candidates[selection - 1]
-      ) {
-        const selected = context.candidates[selection - 1];
-
-        if (context.detected_type === "movie") {
-          const metadata = await enrichmentService.enrich("movie", {
-            tmdbId: selected.id,
-          });
-
-          await itemService.createItem({
-            userId: user.id,
-            type: "movie",
-            title: selected.title,
-            metadata: metadata || undefined,
-          });
-
-          responseText = `✅ Salvo: ${selected.title} (${
-            selected.release_date?.split("-")[0]
-          })`;
-
-          // Reseta estado
-          await conversationService.updateState(conversation.id, "idle", {});
-        }
-      } else {
-        // Verifica se usuário quer cancelar
-        const cancelPhrases = /\b(não quero|nenhum|nenhuma|cancelar|desistir|deixa pra lá|esquece|não mais)\b/i;
-        
-        if (cancelPhrases.test(messageText.toLowerCase())) {
-          responseText = "⏭️ Ok, cancelado. Me manda outra coisa quando quiser!";
-          await conversationService.updateState(conversation.id, "idle", {});
-          
-          // Adiciona mensagem de reset para limpar contexto
-          await conversationService.addMessage(
-            conversation.id,
-            "assistant",
-            "[Contexto anterior encerrado - nova busca]"
-          );
-        } else {
-          // Usa IA para interpretar resposta natural (ex: "o de 2014", "o primeiro", "o com DiCaprio")
-          const candidatesList = context.candidates
-            .map((c: any, i: number) => `${i + 1}. ${c.title} (${c.release_date?.split("-")[0]})`)
-            .join("\n");
-          
-          try {
-            const interpretResponse = await llmService.callLLM({
-              message: `O usuário está escolhendo entre estas opções de filmes:
+      const candidates = context.candidates || [];
+      const detectedType = context.detected_type || "movie";
+      
+      // Monta lista de candidatos para o LLM
+      const candidatesList = candidates
+        .map((c: any, i: number) => {
+          const title = c.title || c.name;
+          const year = c.release_date?.split("-")[0] || c.first_air_date?.split("-")[0];
+          return `${i + 1}. ${title} (${year})`;
+        })
+        .join("\n");
+      
+      try {
+        const interpretResponse = await llmService.callLLM({
+          message: `The user is choosing between these options:
 ${candidatesList}
 
-Resposta do usuário: "${messageText}"
+User's response: "${messageText}"
 
-TAREFA: Identifique qual(is) filme(s) o usuário está se referindo.
+Respond in JSON:
+{
+  "action": "select" | "ambiguous" | "cancel" | "unclear",
+  "selected": option number (if action=select),
+  "options": [numbers] (if action=ambiguous),
+  "reason": "short explanation in Brazilian Portuguese" (if ambiguous or unclear),
+  "response": "natural response to user in Brazilian Portuguese"
+}
 
-REGRAS:
-- Se a resposta identifica EXATAMENTE UM filme → responda: SELECIONADO: [número]
-- Se a resposta é ambígua (ex: "o de 2014" mas há 2 filmes de 2014) → responda: AMBIGUO: [números separados por vírgula] | MOTIVO: [explicação curta]
-- Se não conseguir identificar → responda com uma mensagem apropriada indicando a confusão
+Examples:
+- "o primeiro" → {"action":"select","selected":1,"response":"Beleza!"}
+- "o de 2014" with 2 from 2014 → {"action":"ambiguous","options":[1,2],"reason":"dois são de 2014","response":"Hmm, achei dois de 2014..."}
+- "não quero nenhum" → {"action":"cancel","response":"Beleza, cancelado!"}
+- "asdfgh" → {"action":"unclear","response":"Não entendi, qual deles você quer?"}`,
+          history: [],
+          systemPrompt: "You interpret user selections for a Brazilian Portuguese assistant. Respond ONLY with valid JSON. Be smart about natural language. ALL text in 'response' and 'reason' fields MUST be in Brazilian Portuguese.",
+        });
 
-Exemplos:
-- "o primeiro" com lista de 3 filmes → SELECIONADO: 1
-- "o de 2014" com 2 filmes de 2014 (opções 1 e 2) → AMBIGUO: 1,2 | MOTIVO: dois filmes são de 2014
-- "o do Nolan" quando só 1 é do Nolan → SELECIONADO: [número correspondente]
-- "qualquer um" → INDEFINIDO`,
-              history: [],
-              systemPrompt: "You interpret user responses about movie selection. Be precise and direct. Respond ONLY in the requested format. The MOTIVO field (if used) should be in Brazilian Portuguese.",
-            });
+        // Parse JSON
+        let result: { action: string; selected?: number; options?: number[]; reason?: string; response: string };
+        try {
+          const jsonMatch = interpretResponse.message.match(/\{[\s\S]*\}/);
+          result = JSON.parse(jsonMatch?.[0] || "{}");
+        } catch {
+          result = { action: "unclear", response: "Não entendi, qual deles você quer?" };
+        }
 
-            const response = interpretResponse.message.trim();
-            console.log(`🧠 Interpretação da IA: ${response}`);
+        console.log(`🧠 Interpretação: ${result.action}`);
 
-            if (response.startsWith("SELECIONADO:")) {
-              const selectedNum = parseInt(response.replace("SELECIONADO:", "").trim());
-              if (!isNaN(selectedNum) && context.candidates[selectedNum - 1]) {
-                const selected = context.candidates[selectedNum - 1];
-                
-                const metadata = await enrichmentService.enrich("movie", {
-                  tmdbId: selected.id,
-                });
-
-                await itemService.createItem({
-                  userId: user.id,
-                  type: "movie",
-                  title: selected.title,
-                  metadata: metadata || undefined,
-                });
-
-                responseText = `✅ Salvo: ${selected.title} (${selected.release_date?.split("-")[0]})`;
-                await conversationService.updateState(conversation.id, "idle", {});
-              } else {
-                responseText = "Hmm, não entendi. Digite o número (1, 2 ou 3) ou 'cancelar'.";
-              }
-            } else if (response.startsWith("AMBIGUO:")) {
-              // Extrai números e motivo
-              const parts = response.replace("AMBIGUO:", "").split("|");
-              const ambiguousNums = parts[0].trim().split(",").map(n => parseInt(n.trim()));
-              const reason = parts[1]?.replace("MOTIVO:", "").trim() || "mais de uma opção corresponde";
-              
-              // Filtra candidatos ambíguos
-              const ambiguousCandidates = ambiguousNums
-                .filter(n => !isNaN(n) && context.candidates[n - 1])
-                .map(n => {
-                  const c = context.candidates[n - 1];
-                  return `${n}. ${c.title} (${c.release_date?.split("-")[0]})`;
-                });
-              
-              if (ambiguousCandidates.length > 1) {
-                responseText = `🤔 Achei ${ambiguousCandidates.length} opções (${reason}):\n\n${ambiguousCandidates.join("\n")}\n\nQual deles? (digite o número)`;
-              } else {
-                responseText = "Hmm, não entendi. Digite o número (1, 2 ou 3) ou 'cancelar'.";
-              }
+        switch (result.action) {
+          case "select": {
+            const selected = candidates[result.selected! - 1];
+            if (selected) {
+              const metadata = await enrichmentService.enrich(detectedType, { tmdbId: selected.id });
+              await itemService.createItem({
+                userId: user.id,
+                type: detectedType,
+                title: selected.title || selected.name,
+                metadata: metadata || undefined,
+              });
+              const year = selected.release_date?.split("-")[0] || selected.first_air_date?.split("-")[0];
+              responseText = `✅ Pronto! Salvei "${selected.title || selected.name}" (${year}) 🎬`;
+              await conversationService.updateState(conversation.id, "idle", {});
+              // Limpa contexto após salvar
+              await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
             } else {
-              responseText = "Hmm, não entendi. Digite o número (1, 2 ou 3) ou 'cancelar'.";
+              responseText = result.response || "Não entendi, qual deles?";
             }
-          } catch (error) {
-            console.error("Erro ao interpretar resposta:", error);
-            responseText = "Hmm, não entendi. Digite o número (1, 2 ou 3) ou 'cancelar'.";
+            break;
+          }
+          
+          case "ambiguous": {
+            const ambiguousItems = (result.options || [])
+              .filter(n => candidates[n - 1])
+              .map(n => {
+                const c = candidates[n - 1];
+                const title = c.title || c.name;
+                const year = c.release_date?.split("-")[0] || c.first_air_date?.split("-")[0];
+                return `${n}. ${title} (${year})`;
+              });
+            responseText = `🤔 ${result.reason || "Achei mais de uma opção"}:\n\n${ambiguousItems.join("\n")}\n\nQual deles?`;
+            break;
+          }
+          
+          case "cancel": {
+            responseText = result.response || "Beleza, cancelado! 👍";
+            await conversationService.updateState(conversation.id, "idle", {});
+            // Marca no histórico que o contexto foi limpo (para o LLM saber)
+            await conversationService.addMessage(
+              conversation.id,
+              "assistant",
+              "[CONTEXT_CLEARED]"
+            );
+            break;
+          }
+          
+          default: {
+            responseText = result.response || "Não entendi, qual deles você quer?";
           }
         }
+      } catch (error) {
+        console.error("Erro ao interpretar:", error);
+        responseText = "Não entendi, pode repetir?";
       }
 
       // Salva e envia resposta
@@ -567,50 +558,33 @@ Exemplos:
       return;
     }
 
-    // 6. Classifica tipo de conteúdo
-    let detectedType = classifierService.detectType(messageText);
-    let processedMessage = messageText;
-
-    // 6.0 DETECTA COMANDOS DE LISTAGEM/CONSULTA (antes de qualquer outra coisa)
-    const listCommands = /^(listar|mostrar|ver|meus|minhas|o que (eu )?(tenho|salvei)|quais?|lista)/i;
-    const isListCommand = listCommands.test(messageText.trim());
+    // 6. FLUXO PRINCIPAL: LLM decide a intenção e responde naturalmente
+    // Mantemos apenas detecção de URLs (que são objetivas) fora do LLM
+    const hasUrl = classifierService.extractUrl(messageText);
     
-    if (isListCommand) {
-      console.log("📋 Comando de listagem detectado");
+    // Se tem URL, processa diretamente (sem ambiguidade)
+    if (hasUrl) {
+      const url = hasUrl;
+      const isVideo = /youtube\.com|youtu\.be|vimeo\.com/i.test(url);
       
-      // Busca itens do usuário
-      const userItems = await itemService.getUserItems(user.id, undefined, undefined, 10);
-      
-      if (userItems.length === 0) {
-        responseText = "Você ainda não salvou nada! 📭\n\nMe manda um filme, série, vídeo ou link que eu guardo pra você.";
-      } else {
-        responseText = "📚 Aqui tá o que você tem salvo:\n\n";
-        
-        // Agrupa por tipo
-        const byType: Record<string, typeof userItems> = {};
-        userItems.forEach(item => {
-          if (!byType[item.type]) byType[item.type] = [];
-          byType[item.type].push(item);
+      if (isVideo) {
+        const metadata = await enrichmentService.enrich("video", { url });
+        await itemService.createItem({
+          userId: user.id,
+          type: "video",
+          title: (metadata && "channel_name" in metadata ? metadata.channel_name : null) || "Vídeo",
+          metadata: metadata || undefined,
         });
-        
-        const typeLabels: Record<string, string> = {
-          movie: "🎬 Filmes",
-          tv_show: "📺 Séries",
-          video: "🎥 Vídeos",
-          link: "🔗 Links",
-          note: "📝 Notas",
-        };
-        
-        for (const [type, items] of Object.entries(byType)) {
-          responseText += `${typeLabels[type] || type}:\n`;
-          items.forEach(item => {
-            const year = (item.metadata as any)?.year || (item.metadata as any)?.first_air_date || "";
-            responseText += `  • ${item.title}${year ? ` (${year})` : ""}\n`;
-          });
-          responseText += "\n";
-        }
-        
-        responseText += `Total: ${userItems.length} item(s) 🎉`;
+        responseText = `✅ Vídeo salvo!`;
+      } else {
+        const metadata = await enrichmentService.enrich("link", { url });
+        await itemService.createItem({
+          userId: user.id,
+          type: "link",
+          title: (metadata && "og_title" in metadata ? metadata.og_title : null) || url,
+          metadata: metadata || undefined,
+        });
+        responseText = `✅ Link salvo!`;
       }
       
       await conversationService.addMessage(conversation.id, "assistant", responseText);
@@ -618,376 +592,221 @@ Exemplos:
       return;
     }
 
-    // 6.1 DETECTA MÚLTIPLOS ITENS (lista)
-    const multipleItems = classifierService.detectMultipleItems(messageText);
+    // Para todo o resto: LLM decide a intenção
+    console.log("🧠 Chamando IA para decidir intenção...");
+    
+    try {
+      // Busca itens do usuário (usado depois para list_items)
+      const userItems = await itemService.getUserItems(user.id, undefined, undefined, 20);
+      
+      const intentPrompt = `CURRENT MESSAGE TO ANALYZE: "${messageText}"
 
-    if (multipleItems && multipleItems.length >= 2) {
-      // Detectou lista! Inicia processamento em batch
-      const batchQueue: Array<{
-        query: string;
-        type: ItemType;
-        status: "pending" | "processing" | "confirmed" | "skipped";
-      }> = multipleItems.map((item) => ({
-        query: item,
-        type: (classifierService.detectType(item) || "movie") as ItemType,
-        status: "pending",
-      }));
+Analyze ONLY this message and respond in JSON:
+{
+  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "chat" | "cancel",
+  "query": "extracted title if search, or note content if save_note",
+  "response": "your natural response to the user in Brazilian Portuguese"
+}
 
-      responseText = `📋 Detectei ${multipleItems.length} itens! Vamos processar:\n`;
-      multipleItems.forEach((item, i) => {
-        responseText += `${i + 1}. ${item}\n`;
+INTENT RULES:
+- "search_movie": user wants to save a MOVIE (extract ONLY the clean title in "query")
+- "search_tv_show": user wants to save a TV SERIES (extract ONLY the clean title in "query")
+- "list_items": user wants to see what they've already saved
+- "save_note": user wants to save a reminder, task, or note (NOT a movie/series title!)
+- "chat": casual conversation, questions, or out of scope
+- "cancel": user wants to cancel/give up on something
+
+CRITICAL - QUERY EXPANSION:
+If the user uses an abbreviation, nickname, or informal name, EXPAND it to the full official title in "query":
+- "tbbt" → query: "The Big Bang Theory"
+- "got" → query: "Game of Thrones"  
+- "lotr" → query: "Lord of the Rings"
+- "senhor dos aneis" → query: "Lord of the Rings"
+- "vingadores" → query: "Avengers"
+The query field must contain the SEARCHABLE title, not the user's abbreviation.
+
+CRITICAL DISTINCTIONS:
+- If the message looks like a TASK or REMINDER (e.g. "lembrar de...", "adicionar...", "fazer...") → save_note
+- If the message is a simple title that could be a movie/series → search_movie or search_tv_show
+- If the message is a QUESTION about features or how-to → chat
+- When in doubt between note and search, consider: would this make sense as a movie/series title?
+
+The "response" must be natural, friendly, in Brazilian Portuguese.`;
+
+      const intentResponse = await llmService.callLLM({
+        message: intentPrompt,
+        history: [], // NÃO passa histórico - cada mensagem é independente
+        systemPrompt: `You are an intent classifier for a memory assistant.
+Respond ONLY with valid JSON. No markdown, no explanations.
+
+CRITICAL RULES:
+1. ONLY analyze the CURRENT MESSAGE in the prompt - ignore any previous context
+2. The "query" must come DIRECTLY from the current message, NEVER from history or saved items
+3. If you don't recognize the current message as a title, try to expand abbreviations
+4. NEVER substitute the user's input with something from their saved items
+
+The "response" field MUST be in Brazilian Portuguese.`,
       });
-      responseText += `\n⏳ Buscando informações...`;
 
-      // Envia mensagem inicial
-      await conversationService.addMessage(
-        conversation.id,
-        "assistant",
-        responseText
-      );
-      await provider.sendMessage(incomingMsg.externalId, responseText);
+      // Parse JSON da resposta
+      let intent: { intent: string; query?: string; response: string };
+      try {
+        // Tenta extrair JSON da resposta (pode vir com markdown)
+        const jsonMatch = intentResponse.message.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON found");
+        intent = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error("Erro ao parsear intent:", e);
+        // Fallback: usa a resposta como chat
+        intent = { intent: "chat", response: intentResponse.message };
+      }
 
-      // Inicia processamento do primeiro item
-      const firstItem = batchQueue[0];
-      firstItem.status = "processing";
+      console.log(`🎯 Intent: ${intent.intent}, Query: ${intent.query || "N/A"}`);
 
-      if (firstItem.type === "movie") {
-        const results = await enrichmentService.searchMovies(firstItem.query);
-
-        if (results.length === 1) {
-          // Match único, salva direto
-          const movie = results[0];
-          const metadata = await enrichmentService.enrich("movie", {
-            tmdbId: movie.id,
-          });
-
+      // Executa ação baseada na intenção
+      switch (intent.intent) {
+        case "search_movie": {
+          if (!intent.query) {
+            responseText = intent.response || "Qual filme você quer salvar?";
+            break;
+          }
+          
+          const results = await enrichmentService.searchMovies(intent.query);
+          
+          if (results.length === 0) {
+            responseText = `Não achei nenhum filme com "${intent.query}" 🤔 Tenta com outro nome?`;
+          } else if (results.length === 1) {
+            const movie = results[0];
+            const metadata = await enrichmentService.enrich("movie", { tmdbId: movie.id });
+            await itemService.createItem({
+              userId: user.id,
+              type: "movie",
+              title: movie.title,
+              metadata: metadata || undefined,
+            });
+            responseText = `✅ Pronto! Salvei "${movie.title}" (${movie.release_date?.split("-")[0]}) 🎬`;
+            // Limpa contexto após salvar
+            await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
+          } else {
+            // Múltiplos resultados
+            await conversationService.updateState(conversation.id, "awaiting_confirmation", {
+              candidates: results.slice(0, 5),
+              detected_type: "movie",
+            });
+            
+            const options = results.slice(0, 5).map((m, i) => 
+              `${i + 1}. ${m.title} (${m.release_date?.split("-")[0]})`
+            ).join("\n");
+            
+            responseText = `Achei alguns filmes com esse nome:\n\n${options}\n\nQual deles?`;
+          }
+          break;
+        }
+        
+        case "search_tv_show": {
+          if (!intent.query) {
+            responseText = intent.response || "Qual série você quer salvar?";
+            break;
+          }
+          
+          const results = await enrichmentService.searchTVShows(intent.query);
+          
+          if (results.length === 0) {
+            responseText = `Não achei nenhuma série com "${intent.query}" 🤔 Tenta com outro nome?`;
+          } else if (results.length === 1) {
+            const show = results[0];
+            const metadata = await enrichmentService.enrich("tv_show", { tmdbId: show.id });
+            await itemService.createItem({
+              userId: user.id,
+              type: "tv_show",
+              title: show.name,
+              metadata: metadata || undefined,
+            });
+            responseText = `✅ Pronto! Salvei "${show.name}" (${show.first_air_date?.split("-")[0]}) 📺`;
+            // Limpa contexto após salvar
+            await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
+          } else {
+            // Múltiplos resultados
+            await conversationService.updateState(conversation.id, "awaiting_confirmation", {
+              candidates: results.slice(0, 5),
+              detected_type: "tv_show",
+            });
+            
+            const options = results.slice(0, 5).map((s, i) => 
+              `${i + 1}. ${s.name} (${s.first_air_date?.split("-")[0]})`
+            ).join("\n");
+            
+            responseText = `Achei algumas séries com esse nome:\n\n${options}\n\nQual delas?`;
+          }
+          break;
+        }
+        
+        case "list_items": {
+          if (userItems.length === 0) {
+            responseText = "Você ainda não salvou nada! 📭\n\nMe manda um filme, série ou link que eu guardo pra você.";
+          } else {
+            // Agrupa por tipo
+            const byType: Record<string, typeof userItems> = {};
+            userItems.forEach(item => {
+              if (!byType[item.type]) byType[item.type] = [];
+              byType[item.type].push(item);
+            });
+            
+            const typeLabels: Record<string, string> = {
+              movie: "🎬 Filmes",
+              tv_show: "📺 Séries",
+              video: "🎥 Vídeos",
+              link: "🔗 Links",
+              note: "📝 Notas",
+            };
+            
+            responseText = "📚 Aqui tá sua coleção:\n\n";
+            for (const [type, items] of Object.entries(byType)) {
+              responseText += `${typeLabels[type] || type}:\n`;
+              items.slice(0, 10).forEach(item => {
+                const year = (item.metadata as any)?.year || (item.metadata as any)?.first_air_date || "";
+                responseText += `  • ${item.title}${year ? ` (${year})` : ""}\n`;
+              });
+              if (items.length > 10) responseText += `  ... e mais ${items.length - 10}\n`;
+              responseText += "\n";
+            }
+            responseText += `Total: ${userItems.length} item(s) 🎉`;
+          }
+          break;
+        }
+        
+        case "cancel": {
+          responseText = intent.response || "Beleza, cancelado! 👍";
+          await conversationService.updateState(conversation.id, "idle", {});
+          break;
+        }
+        
+        case "save_note": {
+          const noteContent = intent.query || messageText;
           await itemService.createItem({
             userId: user.id,
-            type: "movie",
-            title: movie.title,
-            metadata: metadata || undefined,
+            type: "note",
+            title: noteContent.slice(0, 100), // Limita título
+            metadata: {
+              full_content: noteContent,
+              created_via: "chat",
+            },
           });
-
-          firstItem.status = "confirmed";
-          responseText = `✅ [1/${batchQueue.length}] ${movie.title} (${
-            movie.release_date?.split("-")[0]
-          }) salvo!\n\n`;
-
-          // TODO: Continuar processando próximos itens
-          // Por enquanto, continua no próximo ciclo de mensagem
-        } else if (results.length > 1) {
-          // Múltiplos resultados, pede confirmação
-          await conversationService.updateState(
-            conversation.id,
-            "awaiting_batch_item",
-            {
-              batch_queue: batchQueue,
-              batch_current_index: 0,
-              batch_current_candidates: results.slice(0, 3),
-              batch_confirmed_items: [],
-            }
-          );
-
-          const options = results
-            .slice(0, 3)
-            .map(
-              (m, i) =>
-                `${i + 1}. ${m.title} (${m.release_date?.split("-")[0]})`
-            )
-            .join("\n");
-
-          responseText = `[1/${batchQueue.length}] **${
-            firstItem.query
-          }**\n\nEncontrei:\n${options}\n\nQual você quer? (Digite o número)\n\n📋 Depois confirmo os outros ${
-            batchQueue.length - 1
-          } filmes`;
-
-          await conversationService.addMessage(
-            conversation.id,
-            "assistant",
-            responseText
-          );
-          await provider.sendMessage(incomingMsg.externalId, responseText);
-          return;
-        } else {
-          // Não encontrou
-          firstItem.status = "skipped";
-          responseText = `❌ [1/${batchQueue.length}] Não encontrei "${firstItem.query}"\n\n`;
-        }
-      }
-
-      // Se chegou aqui sem retornar, continua processando próximos
-      // (implementação simplificada - ideal seria loop recursivo)
-      await conversationService.addMessage(
-        conversation.id,
-        "assistant",
-        responseText
-      );
-      await provider.sendMessage(incomingMsg.externalId, responseText);
-      return;
-    }
-
-    // 7. Se tem contexto recente E não detectou tipo claro, usa IA para analisar
-    // MAS: NÃO analisa contexto se usuário acabou de cancelar (última mensagem foi reset)
-    const lastBotMessage = recentMessages
-      .filter((m) => m.role === "assistant")
-      .pop();
-    const justCanceled = lastBotMessage?.content.includes("[Contexto anterior encerrado") || 
-                         lastBotMessage?.content.includes("[Pulando ") ||
-                         lastBotMessage?.content.includes("cancelado");
-    
-    if (
-      hasRecentContext &&
-      !justCanceled &&
-      detectedType === "note" &&
-      !classifierService.extractUrl(messageText)
-    ) {
-      try {
-        const history = await conversationService.getHistory(
-          conversation.id,
-          10
-        );
-        const contextAnalysis = await llmService.callLLM({
-          message: `ANÁLISE DE CONTEXTO:
-
-Histórico recente:
-${history
-  .slice(-6)
-  .map((m) => `${m.role === "user" ? "Usuário" : "Bot"}: ${m.content}`)
-  .join("\n")}
-
-Nova mensagem: "${messageText}"
-
-PERGUNTA: Esta nova mensagem é:
-A) Um REFINAMENTO/COMPLEMENTO da mensagem anterior (adiciona contexto, especifica detalhes como ano, ator, etc)
-B) Uma NOVA SOLICITAÇÃO independente (novo título de filme/conteúdo)
-
-IMPORTANTE: Se for nova solicitação, responda "NOVA_SOLICITACAO" e pronto.
-Se for refinamento, responda no formato:
-REFINAMENTO
-TITULO: [título limpo do filme/conteúdo, apenas o nome]
-
-Exemplos:
-- Mensagem "o de 1999" após "clube da luta" → REFINAMENTO / TITULO: Clube da Luta 1999
-- Mensagem "Interestelar" após cancelar → NOVA_SOLICITACAO
-- Mensagem "Interestelar, 2014" → NOVA_SOLICITACAO (é um título completo)`,
-          history: [],
-          systemPrompt:
-            "You extract movie titles. Respond ONLY in the requested format. NEVER include explanations, analysis, or context - just the clean title.",
-        });
-
-        const isRefinement = contextAnalysis.message
-          .toUpperCase()
-          .includes("REFINAMENTO");
-
-        if (isRefinement) {
-          // Extrai título limpo - procura pelo formato TITULO: xxx
-          const titleMatch = contextAnalysis.message.match(/TITULO:\s*(.+)/i);
-          if (titleMatch) {
-            const extractedTitle = titleMatch[1].trim()
-              // Remove aspas, colchetes e outros caracteres extras
-              .replace(/^["'\[\]]+|["'\[\]]+$/g, '')
-              .trim();
-            
-            // Valida que é um título válido (não é uma explicação)
-            if (extractedTitle.length > 0 && extractedTitle.length < 100 && 
-                !extractedTitle.toLowerCase().includes("usuário") &&
-                !extractedTitle.toLowerCase().includes("anteriormente")) {
-              processedMessage = extractedTitle;
-              // Reclassifica com o contexto combinado
-              detectedType = classifierService.detectType(processedMessage);
-              console.log(`🔄 Refinamento detectado: "${processedMessage}"`);
-            }
-          }
-        } else {
-          // Nova solicitação: usa a mensagem original sem modificações
-          console.log(`🆕 Nova solicitação detectada: "${messageText}"`);
-        }
-      } catch (error) {
-        console.error("Erro ao analisar contexto:", error);
-        // Se falhar análise, continua com detecção normal
-      }
-    }
-
-    // 7.5. Fallback: se detectou "note" mas mensagem parece título de filme (curta, simples)
-    if (detectedType === "note" && !classifierService.extractUrl(processedMessage)) {
-      const words = processedMessage.trim().split(/\s+/);
-      const hasYear = /\b(19|20)\d{2}\b/.test(processedMessage);
-      
-      // Lista de palavras que NÃO são títulos de filmes
-      const nonMovieWords = /^(oi|olá|ola|hey|ei|e aí|eai|obrigad[oa]|valeu|ok|beleza|sim|não|nao|cancelar|pular|listar|mostrar|ver|meus|minhas|ajuda|help)$/i;
-      
-      // Se mensagem tem 1-5 palavras E possivelmente um ano, E não é comando comum, assume filme
-      if ((words.length <= 5 || hasYear) && !nonMovieWords.test(processedMessage.trim())) {
-        console.log("🎬 Fallback: mensagem curta detectada como filme");
-        detectedType = "movie";
-      }
-    }
-
-    // 8. Processa baseado no tipo detectado (agora com contexto)
-
-    console.log(`🔍 Tipo detectado: ${detectedType}`);
-    console.log(`📝 Mensagem processada: "${processedMessage.substring(0, 100)}"`);
-
-    if (detectedType === "movie") {
-      // Extrai query - prefere processedMessage se foi refinada, senão usa messageText original
-      let query = classifierService.extractQuery(processedMessage, "movie");
-      
-      // Validação extra: se a query ainda parece uma análise de contexto, usa mensagem original
-      if (query.length > 80 || 
-          query.toLowerCase().includes("usuário") ||
-          query.toLowerCase().includes("anteriormente") ||
-          query.toLowerCase().includes("sugerindo")) {
-        console.warn("⚠️ Query inválida detectada, usando mensagem original");
-        query = classifierService.extractQuery(messageText, "movie");
-      }
-      
-      console.log(`🔎 Buscando filme: "${query}"`);
-      const results = await enrichmentService.searchMovies(query);
-
-      if (results.length === 0) {
-        responseText = `Não encontrei nenhum filme com "${query}". Pode tentar com outro nome?`;
-      } else if (results.length === 1) {
-        // Salva direto
-        const movie = results[0];
-        const metadata = await enrichmentService.enrich("movie", {
-          tmdbId: movie.id,
-        });
-
-        await itemService.createItem({
-          userId: user.id,
-          type: "movie",
-          title: movie.title,
-          metadata: metadata || undefined,
-        });
-
-        responseText = `✅ Salvo: ${movie.title} (${
-          movie.release_date?.split("-")[0]
-        })`;
-      } else {
-        // Múltiplos resultados - pede confirmação
-        await conversationService.updateState(
-          conversation.id,
-          "awaiting_confirmation",
-          {
-            candidates: results.slice(0, 3),
-            detected_type: "movie",
-          }
-        );
-
-        const options = results
-          .slice(0, 3)
-          .map(
-            (m, i) => `${i + 1}. ${m.title} (${m.release_date?.split("-")[0]})`
-          )
-          .join("\n");
-
-        responseText = `Encontrei vários filmes:\n\n${options}\n\nQual você quer salvar? (Digite o número)`;
-      }
-    } else if (detectedType === "video") {
-      const url = classifierService.extractUrl(processedMessage);
-      if (url) {
-        const metadata = await enrichmentService.enrich("video", { url });
-
-        await itemService.createItem({
-          userId: user.id,
-          type: "video",
-          title:
-            (metadata && "channel_name" in metadata
-              ? metadata.channel_name
-              : null) || "Vídeo",
-          metadata: metadata || undefined,
-        });
-
-        responseText = `✅ Vídeo salvo!`;
-      }
-    } else if (detectedType === "link") {
-      const url = classifierService.extractUrl(processedMessage);
-      if (url) {
-        const metadata = await enrichmentService.enrich("link", { url });
-
-        await itemService.createItem({
-          userId: user.id,
-          type: "link",
-          title:
-            (metadata && "og_title" in metadata ? metadata.og_title : null) ||
-            url,
-          metadata: metadata || undefined,
-        });
-
-        responseText = `✅ Link salvo!`;
-      }
-    } else {
-      // Nota ou mensagem genérica - usa AI
-      console.log("🧠 Chamando IA...");
-      
-      try {
-        // Se usuário acabou de cancelar, envia SEM histórico para evitar confusão
-        const shouldIncludeHistory = !justCanceled;
-        const history = shouldIncludeHistory 
-          ? await conversationService.getHistory(conversation.id, 6)
-          : [];
-        
-        if (!shouldIncludeHistory) {
-          console.log("🔄 Enviando sem histórico (contexto foi cancelado)");
+          responseText = intent.response || `✅ Anotado: "${noteContent.slice(0, 50)}${noteContent.length > 50 ? "..." : ""}"`;
+          // Limpa contexto após salvar
+          await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
+          break;
         }
         
-        const aiResponse = await llmService.callLLM({
-          message: messageText,
-          history,
-        });
-
-        console.log("💬 Resposta da IA:", aiResponse.message.substring(0, 100));
-
-        // Se a IA retornou tool_calls, processa antes de responder
-        if (aiResponse.tool_calls && aiResponse.tool_calls.length > 0) {
-          console.log(`🔧 Processando ${aiResponse.tool_calls.length} tool call(s)...`);
-          
-          const toolExecutor = new ToolExecutor({
-            userId: user.id,
-            externalId: incomingMsg.externalId,
-            conversationId: conversation.id,
-          });
-
-          // Transforma o formato da IA para o formato do executor
-          const toolCalls = aiResponse.tool_calls.map(tc => ({
-            id: tc.id,
-            name: tc.function.name,
-            arguments: JSON.parse(tc.function.arguments)
-          }));
-
-          const toolResults = await toolExecutor.executeCalls(toolCalls);
-          
-          console.log("✅ Tool calls executadas:", toolResults.length);
-          
-          // Log dos resultados
-          for (const result of toolResults) {
-            const output = JSON.parse(result.output);
-            if (result.success && output.success) {
-              console.log(`  ✅ ${result.tool_call_id}: ${result.output.substring(0, 80)}...`);
-            } else {
-              console.error(`  ❌ ${result.tool_call_id} falhou:`, output.error || output.message);
-            }
-          }
+        default: {
+          // Chat ou qualquer outra coisa
+          responseText = intent.response || "Posso te ajudar a salvar algum filme, série ou link?";
         }
-
-        // Verifica se a IA retornou uma resposta válida
-        if (
-          !aiResponse ||
-          !aiResponse.message ||
-          aiResponse.message.trim() === ""
-        ) {
-          console.warn("⚠️ IA retornou resposta vazia");
-          responseText =
-            "😅 Opa, fiquei sem resposta aqui meu brother! Tenta de novo ou me manda um filme, vídeo ou link que eu organizo pra você!";
-        } else {
-          responseText = aiResponse.message;
-        }
-      } catch (error) {
-        console.error("❌ Erro ao chamar AI:", error);
-        responseText =
-          "😅 Eita, dei um bug aqui meu brother! Mas não se preocupa, tenta de novo ou me manda algum conteúdo tipo:\n\n🎬 Nome de um filme\n🎥 Link do YouTube\n🔗 Qualquer link interessante";
       }
+      
+    } catch (error) {
+      console.error("❌ Erro ao processar:", error);
+      responseText = "Opa, tive um probleminha aqui 😅 Tenta de novo?";
     }
 
     // 9. Salva resposta do bot
