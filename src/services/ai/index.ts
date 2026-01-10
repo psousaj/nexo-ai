@@ -1,4 +1,5 @@
 import { env } from "@/config/env";
+import { CloudflareProvider } from "./cloudflare-provider";
 import { GeminiProvider } from "./gemini-provider";
 import { ClaudeProvider } from "./claude-provider";
 import type { AIProvider, AIProviderType, AIResponse, Message } from "./types";
@@ -6,20 +7,29 @@ import type { AIProvider, AIProviderType, AIResponse, Message } from "./types";
 /**
  * Serviço AI multi-provider com fallback automático
  *
- * Default: Gemini (mais rápido e barato)
- * Fallback: Claude (mais sofisticado)
+ * Ordem de prioridade:
+ * 1. Cloudflare Workers AI (default - rodando no edge)
+ * 2. Gemini (mais rápido e barato)
+ * 3. Claude (mais sofisticado)
  */
 export class AIService {
   private providers: Map<AIProviderType, AIProvider>;
   private defaultProvider: AIProviderType;
   private currentProvider: AIProviderType;
 
-  constructor(defaultProvider: AIProviderType = "gemini") {
+  constructor(defaultProvider: AIProviderType = "cloudflare") {
     this.providers = new Map();
     this.defaultProvider = defaultProvider;
     this.currentProvider = defaultProvider;
 
-    // Inicializa providers disponíveis
+    // Inicializa providers disponíveis (na ordem de prioridade)
+    if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
+      this.providers.set(
+        "cloudflare",
+        new CloudflareProvider(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_API_TOKEN)
+      );
+    }
+
     if (env.GOOGLE_API_KEY) {
       this.providers.set("gemini", new GeminiProvider(env.GOOGLE_API_KEY));
     }
@@ -31,7 +41,7 @@ export class AIService {
     // Valida que pelo menos um provider está disponível
     if (this.providers.size === 0) {
       console.warn(
-        "⚠️ Nenhum provider de IA configurado! Configure GOOGLE_API_KEY ou ANTHROPIC_API_KEY"
+        "⚠️ Nenhum provider de IA configurado! Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN, GOOGLE_API_KEY ou ANTHROPIC_API_KEY"
       );
     }
 
@@ -59,12 +69,16 @@ export class AIService {
     const { systemPrompt, ...rest } = params;
     const prompt = systemPrompt || this.getDefaultSystemPrompt();
 
+    console.log(`🤖 [AI] Chamando ${this.currentProvider}`);
+    console.log(`📝 [AI] Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);    console.log(`📚 [AI] Histórico: ${params.history?.length || 0} mensagens`);
+
     // Tenta com o provider atual
     const provider = this.providers.get(this.currentProvider);
     if (!provider) {
+      console.error("❌ [AI] Nenhum provider disponível");
       return {
         message:
-          "⚠️ Nenhum serviço de IA disponível. Configure GOOGLE_API_KEY ou ANTHROPIC_API_KEY no .env",
+          "⚠️ Nenhum serviço de IA disponível. Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN, GOOGLE_API_KEY ou ANTHROPIC_API_KEY no .env",
       };
     }
 
@@ -74,20 +88,22 @@ export class AIService {
         systemPrompt: prompt,
       });
 
+      console.log(`✅ [AI] Resposta de ${this.currentProvider}: "${response.message.substring(0, 150)}${response.message.length > 150 ? '...' : ''}"`);      
       // Se sucesso, mantém o provider atual
       return response;
     } catch (error) {
-      console.error(`Erro no provider ${this.currentProvider}:`, error);
+      console.error(`❌ [AI] Erro no provider ${this.currentProvider}:`, error);
 
       // Tenta fallback para outro provider
       const fallbackProvider = this.getFallbackProvider();
       if (fallbackProvider) {
-        console.log(`Tentando fallback para ${fallbackProvider}...`);
+        console.log(`🔄 [AI] Usando fallback para ${fallbackProvider}`);
         this.currentProvider = fallbackProvider;
         return this.callLLM({ ...rest, systemPrompt: prompt });
       }
 
       // Sem fallback disponível
+      console.error("❌ [AI] Nenhum fallback disponível");
       return {
         message:
           "⚠️ Todos os serviços de IA estão indisponíveis. Tente novamente mais tarde.",
@@ -130,37 +146,70 @@ export class AIService {
   }
 
   /**
-   * System prompt padrão
+   * Default system prompt
    */
   private getDefaultSystemPrompt(): string {
-    return `Você é um assistente pessoal que ajuda usuários a organizar conteúdo (filmes, vídeos, links, notas).
+    return `You are NEXO, a personal assistant that helps organize memories and content - movies, TV shows, videos, links, and notes.
 
-CAPACIDADES:
-- Identificar e classificar conteúdo (filme, vídeo, link, nota)
-- Entender contexto de mensagens anteriores
-- Distinguir entre novas solicitações e refinamentos/complementos
+**CRITICAL: ALL RESPONSES MUST BE IN BRAZILIAN PORTUGUESE (pt-BR)**
 
-COMPORTAMENTO COM MÚLTIPLAS MENSAGENS:
-1. Se a nova mensagem se refere ao conteúdo anterior (ex: "o de 1999", "quero o primeiro", "com o brad pitt"):
-   - Trate como REFINAMENTO do contexto anterior
-   - Use o histórico para entender a solicitação completa
-   - Exemplo: usuário disse "clube da luta" e depois "o de 1999" → buscar "Fight Club 1999"
+PERSONALITY:
+You're like that friend who knows everything about movies and always has a recommendation ready. You chat naturally, use Brazilian expressions and slang, and have a touch of light humor. You're not a robot - you show genuine interest in what the person wants to save.
 
-2. Se a nova mensagem é independente (ex: novo filme, novo link):
-   - Trate como NOVA SOLICITAÇÃO separada
-   - Processe normalmente
-   - Exemplo: usuário disse "clube da luta" e depois "matrix" → duas solicitações diferentes
+Characteristics:
+• Relaxed but helpful - not too formal
+• Curious - asks questions when something seems interesting
+• Empathetic - understands when someone is frustrated or confused
+• Brief - doesn't ramble, but isn't telegraphic either
+• Uses emojis sparingly (1-2 per message, when it makes sense)
 
-3. Quando em dúvida, analise:
-   - Presença de artigos definidos ("o", "a", "aquele")
-   - Pronomes demonstrativos ("esse", "este", "aquele")
-   - Números ordinais ("primeiro", "segundo")
-   - Complementos de informação (ano, ator, diretor)
+TONE EXAMPLES (in Portuguese):
+❌ "Item salvo com sucesso no banco de dados."
+✅ "Pronto! 🎬 Adicionei Interestelar na sua lista."
 
-Seja conciso, prestativo e natural. Sempre considere o histórico recente.`;
+❌ "Por favor, forneça o número correspondente à opção desejada."
+✅ "Qual desses você quer? Me manda o número!"
+
+❌ "Não foi possível identificar o conteúdo solicitado."
+✅ "Hmm, não achei esse... Pode me dar mais alguma dica? Tipo o ano ou algum ator?"
+
+HOW TO CONVERSE:
+
+When receiving a movie/series title:
+→ Search and confirm naturally
+→ If multiple results, list them and ask which one
+→ If not found, ask for more details (year, cast, director)
+
+When the person responds naturally ("o primeiro", "o de 2014", "esse aí"):
+→ Interpret the conversation context
+→ If still ambiguous, ask in a friendly way
+
+When the person says it's not what they wanted:
+→ Don't apologize excessively
+→ Ask what might help find it: "Lembra do ano?" or "Quem atua nele?"
+
+When the person wants to cancel:
+→ Be light: "Beleza, quando quiser é só mandar!" or "Tranquilo! 👍"
+
+TECHNICAL RULES (always follow, but don't mention to user):
+
+1. TITLE EXTRACTION:
+   - Extract ONLY the title from the current message
+   - NEVER include analysis like "the user previously..."
+   - Example: message "Interestelar, 2014" → extract "Interestelar 2014"
+
+2. CONTEXT:
+   - Use history to understand complements ("o de 1999" after "clube da luta")
+   - But if the person canceled/denied before, treat the next message as a new search
+
+3. OUT OF SCOPE:
+   - If asked about something unrelated to saving content
+   - Respond with something like: "Isso eu não manjo não 😅 Mas se quiser salvar algum filme ou link, tô aqui!"
+
+Be yourself - natural, helpful, and friendly! Remember: ALWAYS respond in Brazilian Portuguese.`;
   }
 }
 
-// Singleton com Gemini como default
-export const llmService = new AIService("gemini");
+// Singleton com Cloudflare como default
+export const llmService = new AIService("cloudflare");
 export type { AIProvider, AIProviderType, AIResponse, Message } from "./types";

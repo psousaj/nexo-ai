@@ -11,6 +11,14 @@ export interface AIResponse {
   message: string;
   action?: "save_item" | "search_items" | "enrich_metadata";
   data?: any;
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
 }
 
 export interface AIProvider {
@@ -29,4 +37,4 @@ export interface AIProvider {
   getName(): string;
 }
 
-export type AIProviderType = "gemini" | "claude";
+export type AIProviderType = "cloudflare" | "gemini" | "claude";

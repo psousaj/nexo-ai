@@ -87,6 +87,30 @@ export class ItemService {
   }
 
   /**
+   * Wrapper para buscar items do usuário (compatível com tool calling)
+   */
+  async getUserItems(userId: string, query?: string, type?: string, limit: number = 10) {
+    if (query) {
+      return this.searchItems(userId, query, limit);
+    }
+    
+    // Se não tiver query, retorna itens filtrados por tipo
+    const conditions = [eq(items.userId, userId)];
+    if (type) {
+      conditions.push(eq(items.type, type));
+    }
+
+    const results = await db
+      .select()
+      .from(items)
+      .where(and(...conditions))
+      .orderBy(desc(items.createdAt))
+      .limit(limit);
+
+    return results;
+  }
+
+  /**
    * Deleta item
    */
   async deleteItem(itemId: string, userId: string) {

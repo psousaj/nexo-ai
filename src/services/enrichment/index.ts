@@ -19,6 +19,12 @@ export class EnrichmentService {
           }
           return null;
 
+        case "tv_show":
+          if (data.tmdbId) {
+            return await tmdbService.enrichTVShow(data.tmdbId);
+          }
+          return null;
+
         case "video":
           if (data.url) {
             return await youtubeService.enrichYouTubeVideo(data.url);
@@ -49,6 +55,20 @@ export class EnrichmentService {
    */
   async searchMovies(query: string) {
     return tmdbService.searchMovies(query);
+  }
+
+  /**
+   * Busca séries no TMDB
+   */
+  async searchTVShows(query: string) {
+    return tmdbService.searchTVShows(query);
+  }
+
+  /**
+   * Busca provedores de streaming para um filme ou série
+   */
+  async getStreamingProviders(tmdbId: number, type: "movie" | "tv" = "movie") {
+    return tmdbService.getStreamingProviders(tmdbId, type);
   }
 }
 

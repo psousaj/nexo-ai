@@ -20,6 +20,10 @@ const envSchema = z.object({
   META_BUSINESS_ACCOUNT_ID: z.string().optional(),
 
   // AI (pelo menos um provider deve estar configurado)
+  // Cloudflare Workers AI (default)
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  // Outros providers
   ANTHROPIC_API_KEY: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
 

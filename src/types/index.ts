@@ -1,6 +1,6 @@
 // Types básicos do sistema
 
-export type ItemType = "movie" | "video" | "link" | "note";
+export type ItemType = "movie" | "tv_show" | "video" | "link" | "note";
 
 export type ConversationState =
   | "idle"
@@ -25,6 +25,24 @@ export interface MovieMetadata {
   }>;
   poster_url?: string;
   director?: string;
+  cast?: string[];
+}
+
+export interface TVShowMetadata {
+  tmdb_id: number;
+  first_air_date: number; // Ano de estreia
+  last_air_date?: number; // Ano do último episódio
+  number_of_seasons: number;
+  number_of_episodes: number;
+  status: string; // "Ended", "Returning Series", etc
+  genres: string[];
+  rating: number;
+  streaming?: Array<{
+    provider: string;
+    url: string;
+  }>;
+  poster_url?: string;
+  created_by?: string[];
   cast?: string[];
 }
 
@@ -53,6 +71,7 @@ export interface NoteMetadata {
 
 export type ItemMetadata =
   | MovieMetadata
+  | TVShowMetadata
   | VideoMetadata
   | LinkMetadata
   | NoteMetadata;

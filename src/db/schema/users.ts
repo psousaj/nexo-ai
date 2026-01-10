@@ -6,6 +6,7 @@ import {
   jsonb,
   index,
   varchar,
+  integer,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { items } from "./items";
@@ -22,6 +23,9 @@ export const users = pgTable("users", {
   email: varchar({ length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   password: varchar("password", { length: 256 }),
+  // Controle de timeout por comportamento ofensivo
+  timeoutUntil: timestamp("timeout_until"),
+  offenseCount: integer("offense_count").default(0).notNull(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({

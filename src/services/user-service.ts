@@ -92,6 +92,23 @@ export class UserService {
 
     return user;
   }
+
+  /**
+   * Atualiza timeout do usuário e incrementa contador de ofensas
+   */
+  async updateUserTimeout(
+    userId: string,
+    timeoutUntil: Date,
+    offenseCount: number
+  ) {
+    await db
+      .update(users)
+      .set({
+        timeoutUntil,
+        offenseCount,
+      })
+      .where(eq(users.id, userId));
+  }
 }
 
 export const userService = new UserService();
