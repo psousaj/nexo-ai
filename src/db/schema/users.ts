@@ -26,6 +26,8 @@ export const users = pgTable("users", {
   // Controle de timeout por comportamento ofensivo
   timeoutUntil: timestamp("timeout_until"),
   offenseCount: integer("offense_count").default(0).notNull(),
+  // Nome customizado para o assistente (definido pelo usuário)
+  assistantName: text("assistant_name"),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({

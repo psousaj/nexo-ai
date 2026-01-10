@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { conversations, messages } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import type {
   ConversationState,
   ConversationContext,
@@ -111,6 +111,18 @@ export class ConversationService {
    */
   async resetConversation(conversationId: string) {
     return this.updateState(conversationId, "idle", {});
+  }
+
+  /**
+   * Conta total de mensagens na conversação
+   */
+  async getMessageCount(conversationId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId));
+    
+    return result[0]?.count || 0;
   }
 }
 

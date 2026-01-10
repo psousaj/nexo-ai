@@ -109,6 +109,34 @@ export class UserService {
       })
       .where(eq(users.id, userId));
   }
+
+  /**
+   * Atualiza o nome do usuário (se fornecido pelo provider)
+   */
+  async updateUserName(userId: string, name: string) {
+    await db
+      .update(users)
+      .set({ name })
+      .where(eq(users.id, userId));
+  }
+
+  /**
+   * Extrai primeiro nome do nome completo
+   */
+  getFirstName(fullName?: string | null): string | null {
+    if (!fullName) return null;
+    return fullName.split(' ')[0];
+  }
+
+  /**
+   * Atualiza o nome customizado do assistente para o usuário
+   */
+  async updateAssistantName(userId: string, assistantName: string) {
+    await db
+      .update(users)
+      .set({ assistantName })
+      .where(eq(users.id, userId));
+  }
 }
 
 export const userService = new UserService();

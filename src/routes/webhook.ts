@@ -138,6 +138,15 @@ async function processMessage(
       incomingMsg.phoneNumber
     );
 
+    // 1a. Atualiza nome do usuário se provider enviou um diferente
+    if (incomingMsg.senderName && incomingMsg.senderName !== user.name) {
+      await userService.updateUserName(user.id, incomingMsg.senderName);
+      user.name = incomingMsg.senderName;
+    }
+
+    // Extrai primeiro nome para uso nos prompts
+    const userFirstName = userService.getFirstName(user.name);
+
     // 1b. Verifica se usuário está em timeout
     if (await isUserInTimeout(user.id, incomingMsg.externalId)) {
       const timeoutUntil = user.timeoutUntil || new Date(userTimeouts.get(incomingMsg.externalId)!);
@@ -599,37 +608,71 @@ Examples:
       // Busca itens do usuário (usado depois para list_items)
       const userItems = await itemService.getUserItems(user.id, undefined, undefined, 20);
       
-      const intentPrompt = `CURRENT MESSAGE TO ANALYZE: "${messageText}"
+      // Determina se é primeira interação
+      const messageCount = await conversationService.getMessageCount(conversation.id);
+      const isFirstInteraction = messageCount <= 1;
+      
+      // Busca histórico recente para contexto conversacional
+      const recentHistory = await conversationService.getHistory(conversation.id, 4);
+      const lastAssistantMessage = recentHistory.filter(m => m.role === 'assistant' && !m.content.startsWith('[')).pop();
+      
+      // Monta contexto de conversa (última pergunta do bot, se houver)
+      const conversationContext = lastAssistantMessage 
+        ? `LAST BOT MESSAGE: "${lastAssistantMessage.content.substring(0, 200)}"`
+        : '';
+      
+      // Monta contexto de nome para o LLM
+      const nameContext = userFirstName 
+        ? `USER NAME: "${userFirstName}" (use it occasionally in responses - ${isFirstInteraction ? 'MUST use in first greeting' : 'randomly, about 20% of the time'})`
+        : 'USER NAME: unknown (do not mention name)';
+      
+      // Nome do assistente (customizado pelo usuário ou padrão)
+      const assistantName = user.assistantName || 'Nexo';
+      const assistantContext = `ASSISTANT NAME: "${assistantName}" (this is YOUR name - use it if user asks your name)`;
+      
+      const intentPrompt = `${nameContext}
+${assistantContext}
+${conversationContext}
 
-Analyze ONLY this message and respond in JSON:
+CURRENT MESSAGE TO ANALYZE: "${messageText}"
+
+Analyze this message considering conversation context and respond in JSON:
 {
-  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "chat" | "cancel",
-  "query": "extracted title if search, or note content if save_note",
+  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "set_assistant_name" | "chat" | "cancel",
+  "query": "EXPANDED full ORIGINAL title (never abbreviations, never translated)",
+  "assistant_name": "new name for assistant (only if intent=set_assistant_name)",
   "response": "your natural response to the user in Brazilian Portuguese"
 }
 
 INTENT RULES:
-- "search_movie": user wants to save a MOVIE (extract ONLY the clean title in "query")
-- "search_tv_show": user wants to save a TV SERIES (extract ONLY the clean title in "query")
+- "search_movie": user wants to save a MOVIE
+- "search_tv_show": user wants to save a TV SERIES
 - "list_items": user wants to see what they've already saved
-- "save_note": user wants to save a reminder, task, or note (NOT a movie/series title!)
-- "chat": casual conversation, questions, or out of scope
+- "save_note": user wants to save a reminder, task, or note
+- "set_assistant_name": user is giving YOU (the assistant) a custom name
+- "chat": casual conversation, questions, or greetings
 - "cancel": user wants to cancel/give up on something
 
-CRITICAL - QUERY EXPANSION:
-If the user uses an abbreviation, nickname, or informal name, EXPAND it to the full official title in "query":
+CONVERSATION CONTEXT:
+- If the last bot message asked a QUESTION and user's response seems to answer it, interpret accordingly
+- Example: Bot asked "Como quer me chamar?" and user says "Lúcio" → intent: set_assistant_name, assistant_name: "Lúcio"
+- Example: Bot asked "Qual filme?" and user says "Matrix" → intent: search_movie, query: "The Matrix"
+
+CRITICAL - ABBREVIATION EXPANSION (ALWAYS expand to ORIGINAL title):
+- "hymim" or "HYMIM" → query: "How I Met Your Mother" (NOT "Como Conheci Sua Mãe")
 - "tbbt" → query: "The Big Bang Theory"
-- "got" → query: "Game of Thrones"  
-- "lotr" → query: "Lord of the Rings"
-- "senhor dos aneis" → query: "Lord of the Rings"
-- "vingadores" → query: "Avengers"
-The query field must contain the SEARCHABLE title, not the user's abbreviation.
+- "got" → query: "Game of Thrones"
+- "bb" or "breaking bad" → query: "Breaking Bad"
+- "lotr" → query: "The Lord of the Rings"
+- "sw" → query: "Star Wars"
+- "hp" → query: "Harry Potter"
+NEVER translate movie/series titles! Always use the ORIGINAL English title for search.
 
 CRITICAL DISTINCTIONS:
-- If the message looks like a TASK or REMINDER (e.g. "lembrar de...", "adicionar...", "fazer...") → save_note
-- If the message is a simple title that could be a movie/series → search_movie or search_tv_show
-- If the message is a QUESTION about features or how-to → chat
-- When in doubt between note and search, consider: would this make sense as a movie/series title?
+- Task/reminder text → save_note
+- Simple title/abbreviation → search_movie or search_tv_show
+- Greeting or question → chat
+- Single name after bot asked for name → set_assistant_name
 
 The "response" must be natural, friendly, in Brazilian Portuguese.`;
 
@@ -795,6 +838,17 @@ The "response" field MUST be in Brazilian Portuguese.`,
           responseText = intent.response || `✅ Anotado: "${noteContent.slice(0, 50)}${noteContent.length > 50 ? "..." : ""}"`;
           // Limpa contexto após salvar
           await conversationService.addMessage(conversation.id, "assistant", "[CONTEXT_CLEARED]");
+          break;
+        }
+        
+        case "set_assistant_name": {
+          const newName = (intent as any).assistant_name || intent.query;
+          if (newName) {
+            await userService.updateAssistantName(user.id, newName);
+            responseText = intent.response || `Pronto! Agora pode me chamar de ${newName} 😊`;
+          } else {
+            responseText = intent.response || "Qual nome você gostaria de me dar?";
+          }
           break;
         }
         

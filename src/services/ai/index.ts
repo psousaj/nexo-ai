@@ -149,7 +149,7 @@ export class AIService {
    * Default system prompt
    */
   private getDefaultSystemPrompt(): string {
-    return `You are NEXO, a personal assistant that helps organize memories and content - movies, TV shows, videos, links, and notes.
+    return `You are MAX, a personal assistant that helps organize memories and content - movies, TV shows, videos, links, and notes.
 
 **CRITICAL: ALL RESPONSES MUST BE IN BRAZILIAN PORTUGUESE (pt-BR)**
 
