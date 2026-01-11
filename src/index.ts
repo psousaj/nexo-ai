@@ -1,3 +1,5 @@
+// New Relic deve ser importado PRIMEIRO (antes de qualquer outro módulo)
+import 'newrelic';
 import app from '@/app';
 import { env } from '@/config/env';
 

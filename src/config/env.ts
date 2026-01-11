@@ -32,6 +32,10 @@ const envSchema = z.object({
 	TMDB_API_KEY: z.string(),
 	YOUTUBE_API_KEY: z.string(),
 
+	// Observability - New Relic (opcional)
+	NEW_RELIC_LICENSE_KEY: z.string().optional(),
+	NEW_RELIC_APP_NAME: z.string().optional().default('nexo-ai'),
+
 	// Application
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 	APP_URL: z.string().url().default('http://localhost:3000'),

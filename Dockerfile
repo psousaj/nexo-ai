@@ -28,13 +28,44 @@ COPY package.json pnpm-lock.yaml ./
 RUN npm install -g pnpm && \
     pnpm install --prod --frozen-lockfile
 
-# Copiar build do stage anterior
+# Copiar build do stage anterior (tsup resolveu os path aliases)
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/drizzle.config.ts ./
 
-# Variável de ambiente
+# Copiar configuração do New Relic
+COPY newrelic.cjs ./
+
+# Variáveis de ambiente padrão
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV NEW_RELIC_NO_CONFIG_FILE=false
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+ENV NEW_RELIC_LOG=stdout
+
+# ARGs para passar variáveis no build (Railway injeta automaticamente)
+ARG DATABASE_URL
+ARG TELEGRAM_BOT_TOKEN
+ARG CLOUDFLARE_ACCOUNT_ID
+ARG CLOUDFLARE_API_TOKEN
+ARG GOOGLE_API_KEY
+ARG TMDB_API_KEY
+ARG YOUTUBE_API_KEY
+ARG NEW_RELIC_LICENSE_KEY
+ARG NEW_RELIC_APP_NAME
+ARG APP_URL
+ARG PORT
+
+# Converter ARGs em ENVs
+ENV DATABASE_URL=$DATABASE_URL
+ENV TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+ENV CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID
+ENV CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
+ENV GOOGLE_API_KEY=$GOOGLE_API_KEY
+ENV TMDB_API_KEY=$TMDB_API_KEY
+ENV YOUTUBE_API_KEY=$YOUTUBE_API_KEY
+ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
+ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
+ENV APP_URL=$APP_URL
+ENV PORT=$PORT
+
 
 # Expor porta
 EXPOSE 3000
