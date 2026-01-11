@@ -1,258 +1,90 @@
+import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 import type { AIProvider, AIResponse, Message } from './types';
 import { availableTools } from './tools';
 
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
-
 /**
- * Interfaces para tipagem da API REST do Gemini
- */
-interface GeminiPart {
-	text?: string;
-	functionCall?: {
-		name: string;
-		args: Record<string, any>;
-	};
-	functionResponse?: {
-		name: string;
-		response: Record<string, any>;
-	};
-}
-
-interface GeminiContent {
-	role: 'user' | 'model';
-	parts: GeminiPart[];
-}
-
-interface GeminiFunctionDeclaration {
-	name: string;
-	description: string;
-	parameters: {
-		type: string;
-		properties: Record<string, any>;
-		required: string[];
-	};
-}
-
-interface GeminiRequest {
-	contents: GeminiContent[];
-	systemInstruction?: {
-		parts: { text: string }[];
-	};
-	tools?: {
-		functionDeclarations: GeminiFunctionDeclaration[];
-	}[];
-	generationConfig?: {
-		temperature?: number;
-		topK?: number;
-		topP?: number;
-		maxOutputTokens?: number;
-	};
-}
-
-interface GeminiCandidate {
-	content: {
-		parts: GeminiPart[];
-		role: string;
-	};
-	finishReason: string;
-}
-
-interface GeminiResponse {
-	candidates: GeminiCandidate[];
-	usageMetadata?: {
-		promptTokenCount: number;
-		candidatesTokenCount: number;
-		totalTokenCount: number;
-	};
-	error?: {
-		code: number;
-		message: string;
-		status: string;
-	};
-}
-
-/**
- * Erro customizado com status HTTP
- */
-class GeminiAPIError extends Error {
-	status: number;
-
-	constructor(message: string, status: number) {
-		super(message);
-		this.name = 'GeminiAPIError';
-		this.status = status;
-	}
-}
-
-/**
- * Provider para Google Gemini API (REST)
- * Usando a API REST diretamente sem SDK
+ * Gemini Provider usando SDK oficial
+ * Suporta function calling e conversação com histórico
  */
 export class GeminiProvider implements AIProvider {
-	private apiKey: string;
-	private model: string;
+	private readonly client: GoogleGenerativeAI;
+	private readonly model: GenerativeModel;
+	private readonly modelName: string = 'gemini-2.5-flash';
 
-	constructor(apiKey: string, model: string = 'gemini-2.0-flash') {
-		this.apiKey = apiKey;
-		this.model = model;
+	constructor(apiKey: string) {
+		if (!apiKey) {
+			throw new Error('Gemini API key não configurada');
+		}
+		this.client = new GoogleGenerativeAI(apiKey);
+		this.model = this.client.getGenerativeModel({
+			model: this.modelName,
+			tools: [
+				{
+					functionDeclarations: availableTools.map((tool) => ({
+						name: tool.name,
+						description: tool.description,
+						parameters: {
+							type: 'OBJECT' as any,
+							properties: tool.parameters.properties,
+							required: tool.parameters.required,
+						},
+					})),
+				},
+			],
+		});
+		console.log('✅ [AI] Google Gemini SDK configurado');
+	}
+
+	getName(): string {
+		return 'gemini';
 	}
 
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
 		const { message, history = [], systemPrompt } = params;
 
 		try {
-			// Converter tools para formato Gemini
-			const functionDeclarations: GeminiFunctionDeclaration[] = availableTools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				parameters: {
-					type: 'object',
-					properties: tool.parameters.properties,
-					required: tool.parameters.required,
-				},
-			}));
-
-			// Converter histórico para formato Gemini
-			let geminiHistory: GeminiContent[] = history.map((msg) => ({
-				role: msg.role === 'assistant' ? 'model' : 'user',
+			// Cria chat session com histórico
+			const chatHistory = history.map((msg) => ({
+				role: msg.role === 'user' ? 'user' : 'model',
 				parts: [{ text: msg.content }],
 			}));
 
-			// Gemini exige que histórico sempre comece com 'user'
-			while (geminiHistory.length > 0 && geminiHistory[0].role !== 'user') {
-				geminiHistory = geminiHistory.slice(1);
-			}
-
-			// Adicionar mensagem atual
-			const contents: GeminiContent[] = [
-				...geminiHistory,
-				{
-					role: 'user',
-					parts: [{ text: message }],
-				},
-			];
-
-			// Montar request body
-			const requestBody: GeminiRequest = {
-				contents,
+			const chat = this.model.startChat({
+				history: chatHistory as any,
 				generationConfig: {
-					temperature: 1.0, // Recomendado para Gemini 2.x/3.x
+					temperature: 0.7,
+					topK: 40,
+					topP: 0.95,
 					maxOutputTokens: 2048,
 				},
-			};
-
-			// Adicionar system instruction se fornecido
-			if (systemPrompt) {
-				requestBody.systemInstruction = {
-					parts: [{ text: systemPrompt }],
-				};
-			}
-
-			// Adicionar tools se disponíveis
-			if (functionDeclarations.length > 0) {
-				requestBody.tools = [{ functionDeclarations }];
-			}
-
-			// Fazer request para API REST
-			const url = `${GEMINI_BASE_URL}/models/${this.model}:generateContent`;
-
-			console.log(`🔗 [Gemini REST] Chamando ${this.model}`);
-
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'x-goog-api-key': this.apiKey,
-				},
-				body: JSON.stringify(requestBody),
+				systemInstruction: systemPrompt,
 			});
 
-			// Tratar erros HTTP
-			if (!response.ok) {
-				const errorData = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
-				const errorMessage = errorData?.error?.message || `HTTP ${response.status}`;
-				console.error(`❌ [Gemini REST] Erro HTTP ${response.status}:`, errorMessage);
-				throw new GeminiAPIError(errorMessage, response.status);
-			}
+			const result = await chat.sendMessage(message);
+			const response = result.response;
 
-			const data = (await response.json()) as GeminiResponse;
-
-			// Verificar se há erro na resposta
-			if (data.error) {
-				console.error(`❌ [Gemini REST] Erro na resposta:`, data.error);
-				throw new GeminiAPIError(data.error.message, data.error.code);
-			}
-
-			// Verificar se há candidatos
-			if (!data.candidates || data.candidates.length === 0) {
-				console.warn(`⚠️ [Gemini REST] Nenhum candidato retornado`);
+			// Verifica function calls
+			const functionCalls = response.functionCalls();
+			if (functionCalls && functionCalls.length > 0) {
 				return {
-					message: '😅 Hmm... não consegui processar isso. Pode reformular?',
-				};
-			}
-
-			const candidate = data.candidates[0];
-			const parts = candidate.content?.parts || [];
-
-			// Log de uso de tokens
-			if (data.usageMetadata) {
-				console.log(
-					`📊 [Gemini REST] Tokens: ${data.usageMetadata.promptTokenCount} prompt + ${data.usageMetadata.candidatesTokenCount} resposta = ${data.usageMetadata.totalTokenCount} total`
-				);
-			}
-
-			// Verificar se há function calls
-			const functionCallParts = parts.filter((p) => p.functionCall);
-			if (functionCallParts.length > 0) {
-				console.log(`🔧 [Gemini REST] ${functionCallParts.length} function call(s) detectado(s)`);
-				return {
-					message: '', // Vazio quando tem tool calls
-					tool_calls: functionCallParts.map((p, index) => ({
-						id: `call_${index}_${Date.now()}`,
-						type: 'function' as const,
+					message: '',
+					tool_calls: functionCalls.map((fc) => ({
+						id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+						type: 'function',
 						function: {
-							name: p.functionCall!.name,
-							arguments: JSON.stringify(p.functionCall!.args),
+							name: fc.name,
+							arguments: JSON.stringify(fc.args),
 						},
 					})),
 				};
 			}
 
-			// Resposta de texto normal
-			const textParts = parts.filter((p) => p.text);
-			const text = textParts.map((p) => p.text).join('');
-
-			if (!text) {
-				console.warn(`⚠️ [Gemini REST] Resposta vazia`);
-				return {
-					message: '😅 Hmm... algo deu errado. Pode tentar de novo?',
-				};
-			}
-
-			return {
-				message: text,
-			};
+			// Texto normal
+			const text = response.text();
+			return { message: text };
 		} catch (error: any) {
-			console.error('❌ [Gemini REST] Erro:', error);
-
-			// Propagar erros de API com status
-			if (error instanceof GeminiAPIError) {
-				throw error;
-			}
-
-			// Erro de rede ou outro
-			if (error?.message?.includes('fetch')) {
-				throw new GeminiAPIError('Erro de conexão com a API do Gemini', 503);
-			}
-
-			// Erro genérico
-			return {
-				message: '😅 Hmm... estou com problemas pra te responder no momento. Pode tentar novamente mais tarde?',
-			};
+			console.error('❌ Erro ao chamar Gemini SDK:', error);
+			throw error;
 		}
-	}
-
-	getName(): string {
-		return 'gemini';
 	}
 }

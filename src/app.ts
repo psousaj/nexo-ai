@@ -1,30 +1,88 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
+import { Elysia } from 'elysia';
+import { cors } from '@elysiajs/cors';
+import { openapi } from '@elysiajs/openapi';
+import { opentelemetry } from '@elysiajs/opentelemetry';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
+import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
 import { webhookRouter } from '@/routes/webhook';
 import { itemsRouter } from '@/routes/items';
 
-const app: Express = express();
+// OpenTelemetry exporter (Uptrace)
+const traceExporter = env.UPTRACE_DSN
+	? new OTLPTraceExporter({
+			url: 'https://otlp.uptrace.dev/v1/traces',
+			headers: {
+				'uptrace-dsn': env.UPTRACE_DSN,
+			},
+	  })
+	: undefined;
 
-// Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+const app = new Elysia()
+	.use(cors())
+	.use(
+		openapi({
+			documentation: {
+				info: {
+					title: 'Nexo AI API',
+					version: '0.2.5',
+					description: 'Assistente pessoal via WhatsApp/Telegram com IA',
+				},
+				tags: [
+					{ name: 'Health', description: 'Health check endpoints' },
+					{ name: 'Items', description: 'Items management' },
+					{ name: 'Webhook', description: 'Messaging webhooks' },
+				],
+			},
+		})
+	)
+	.use(
+		traceExporter
+			? opentelemetry({
+					serviceName: 'nexo-ai',
+					spanProcessors: [new BatchSpanProcessor(traceExporter)],
+			  })
+			: (app) => app
+	)
+	.onError(({ code, error, set }) => {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
 
-// Routes
-app.use(healthRouter);
-app.use('/webhook', webhookRouter);
-app.use('/items', itemsRouter);
+		console.error('[ERROR]', { code, message: errorMessage, stack: errorStack });
 
-// Error handling
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-	console.error('Error:', err);
-	res.status(err.status || 500).json({
-		error: err.message || 'Erro interno do servidor',
-	});
-});
+		// Validation errors com detalhes (apenas em dev)
+		if (code === 'VALIDATION') {
+			set.status = 400;
+			return {
+				error: 'Validation failed',
+				message: errorMessage,
+				type: 'validation',
+			};
+		}
 
-// 404 handler
-app.use((req: Request, res: Response) => {
-	res.status(404).json({ error: 'Rota não encontrada' });
-});
+		// Not found
+		if (code === 'NOT_FOUND') {
+			set.status = 404;
+			return { error: 'Route not found' };
+		}
+
+		// Parse errors
+		if (code === 'PARSE') {
+			set.status = 400;
+			return { error: 'Invalid request body', message: errorMessage };
+		}
+
+		// Internal server errors
+		set.status = 500;
+		return {
+			error: 'Internal server error',
+			// Só envia stack trace em dev
+			...(env.NODE_ENV !== 'production' && { message: errorMessage }),
+		};
+	})
+	.use(healthRouter)
+	.group('/webhook', (app) => app.use(webhookRouter))
+	.group('/items', (app) => app.use(itemsRouter));
 
 export default app;

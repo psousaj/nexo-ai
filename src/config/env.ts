@@ -28,6 +28,9 @@ const envSchema = z.object({
 	// Outros providers
 	GOOGLE_API_KEY: z.string().optional(),
 
+	// Observability
+	UPTRACE_DSN: z.string().optional(),
+
 	// Enrichment APIs
 	TMDB_API_KEY: z.string(),
 	YOUTUBE_API_KEY: z.string(),
@@ -39,7 +42,8 @@ const envSchema = z.object({
 	// Application
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 	APP_URL: z.string().url().default('http://localhost:3000'),
-	PORT: z.string().default('3000'),
+	// Railway atribui porta aleatória via PORT env var
+	PORT: z.coerce.number().default(3000),
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
 

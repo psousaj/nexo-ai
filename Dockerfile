@@ -1,78 +1,47 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM oven/bun AS build
 
 WORKDIR /app
 
-# Copiar package files
-COPY package.json pnpm-lock.yaml ./
+# Cache packages installation
+COPY package.json bun.lockb* ./
 
-# Instalar pnpm e dependências
-RUN npm install -g pnpm && \
-    pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
-# Copiar código fonte
-COPY . .
+# Copy source code
+COPY ./src ./src
+COPY ./drizzle.config.ts ./drizzle.config.ts
+COPY ./tsconfig.json ./tsconfig.json
 
-# Build TypeScript
-RUN pnpm build
-
-# Production stage
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Copiar package files
-COPY package.json pnpm-lock.yaml ./
-
-# Instalar apenas dependências de produção
-RUN npm install -g pnpm && \
-    pnpm install --prod --frozen-lockfile
-
-# Copiar build do stage anterior (tsup resolveu os path aliases)
-COPY --from=builder /app/dist ./dist
-
-# Copiar configuração do New Relic
-COPY newrelic.cjs ./
-
-# Variáveis de ambiente padrão
 ENV NODE_ENV=production
-ENV NEW_RELIC_NO_CONFIG_FILE=false
-ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
-ENV NEW_RELIC_LOG=stdout
 
-# ARGs para passar variáveis no build (Railway injeta automaticamente)
-ARG DATABASE_URL
-ARG TELEGRAM_BOT_TOKEN
-ARG CLOUDFLARE_ACCOUNT_ID
-ARG CLOUDFLARE_API_TOKEN
-ARG GOOGLE_API_KEY
-ARG TMDB_API_KEY
-ARG YOUTUBE_API_KEY
-ARG NEW_RELIC_LICENSE_KEY
-ARG NEW_RELIC_APP_NAME
-ARG APP_URL
-ARG PORT
+# Compile to binary (não usa --minify completo por causa do OpenTelemetry)
+# --minify-whitespace e --minify-syntax preservam nomes de funções
+RUN bun build \
+    --compile \
+    --minify-whitespace \
+    --minify-syntax \
+    --target bun-linux-x64 \
+    --outfile server \
+    src/index.ts
 
-# Converter ARGs em ENVs
-ENV DATABASE_URL=$DATABASE_URL
-ENV TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-ENV CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID
-ENV CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
-ENV GOOGLE_API_KEY=$GOOGLE_API_KEY
-ENV TMDB_API_KEY=$TMDB_API_KEY
-ENV YOUTUBE_API_KEY=$YOUTUBE_API_KEY
-ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
-ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
-ENV APP_URL=$APP_URL
-ENV PORT=$PORT
+# Production stage (Distroless - sem shell, menor superfície de ataque)
+FROM gcr.io/distroless/base
 
+WORKDIR /app
 
-# Expor porta
+# Copy binary from build stage
+COPY --from=build /app/server server
+
+ENV NODE_ENV=production
+
+# Railway atribui porta aleatória via PORT env var
+# Elysia já lê process.env.PORT automaticamente no index.ts
+
+# Distroless não tem shell, então não suporta HEALTHCHECK com CMD
+# Railway faz health checks via HTTP automaticamente
+
+# Expose port (Railway ignora isso e usa PORT env)
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
-# Rodar aplicação
-CMD ["node", "dist/index.js"]
+CMD ["./server"]

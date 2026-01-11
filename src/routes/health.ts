@@ -1,13 +1,20 @@
-import { Router, Request, Response } from 'express';
+import { Elysia } from 'elysia';
 
-export const healthRouter: Router = Router();
-
-/**
- * GET /health - Health check
- */
-healthRouter.get('/health', (req: Request, res: Response) => {
-	res.json({
-		status: 'ok',
-		timestamp: new Date().toISOString(),
-	});
-});
+export const healthRouter = new Elysia()
+	/**
+	 * GET /health - Health check
+	 */
+	.get(
+		'/health',
+		() => ({
+			status: 'ok',
+			timestamp: new Date().toISOString(),
+		}),
+		{
+			detail: {
+				tags: ['Health'],
+				summary: 'Health check',
+				description: 'Verifica se o serviço está rodando',
+			},
+		}
+	);

@@ -1,5 +1,85 @@
 # Nexo AI - Changelog
 
+## [0.2.6] - 2026-01-11
+
+### 🚀 Deploy & Production
+
+#### Dockerfile Otimizado
+
+- Compilação para binário usando `bun build --compile`
+- Flags `--minify-whitespace` e `--minify-syntax` (preserva nomes de funções para OpenTelemetry)
+- Base image `gcr.io/distroless/base` (20MB vs 100MB alpine)
+- Target `bun-linux-x64` específico para Linux
+- Suporte Railway via `PORT` env var dinâmico
+
+#### Railway Support
+
+- `PORT` agora é `z.coerce.number()` para aceitar env var do Railway
+- Documentação completa em `docs/RAILWAY.md`
+- Scripts `build:binary` e `start:binary` no package.json
+
+### 🛡️ Error Handling
+
+#### Robusto error handling no app.ts
+
+- Handler específico para `VALIDATION`, `NOT_FOUND`, `PARSE` errors
+- Stack traces apenas em development
+- Logging estruturado com contexto completo
+- Custom error responses seguindo patterns Elysia
+
+### ✅ Testes Melhorados
+
+#### Testes com app.handle()
+
+- URLs completas (`http://localhost/path`) ao invés de paths relativos
+- Teste adicional para 404 (rotas desconhecidas)
+- Melhor cobertura de edge cases
+- Segue patterns oficiais do Elysia
+
+### 📚 Documentação
+
+- `docs/RAILWAY.md` - Guia completo de deploy na Railway
+- Troubleshooting de issues comuns
+- Custos estimados e CI/CD setup
+
+## [0.2.5] - 2026-01-10
+
+### ✨ Novas Features
+
+#### Observabilidade com OpenTelemetry + Uptrace
+
+- Adicionado `@elysiajs/opentelemetry` para tracing distribuído
+- Integração com Uptrace para visualização de traces
+- Configuração condicional via `UPTRACE_DSN` env var
+- BatchSpanProcessor para envio otimizado de spans
+- Documentação completa em `docs/OPENTELEMETRY.md`
+
+#### API Documentation com Scalar UI
+
+- Migrado de `@elysiajs/swagger` para `@elysiajs/openapi`
+- Interface Scalar UI moderna e interativa em `/reference`
+- Melhor experiência de navegação na documentação
+
+#### Gemini SDK Integration
+
+- Migrado de API REST para SDK oficial `@google/generative-ai`
+- Simplificação do código (216 → 86 linhas em gemini-provider.ts)
+- Melhor suporte a function calling
+- Manutenção do fallback automático para Cloudflare Workers AI
+
+#### Testes
+
+- Criados testes básicos com Bun Test
+- Testes de endpoints (health, items)
+- Testes de fallback AI (Gemini → Cloudflare)
+- Coverage dos fluxos críticos
+
+### 🔧 Melhorias
+
+- Código mais limpo com SDK ao invés de fetch manual
+- Redução de dependências (removido swagger)
+- Melhor type safety com SDK oficial do Gemini
+
 ## [0.1.1] - 2026-01-06
 
 ### 🔧 Melhorias

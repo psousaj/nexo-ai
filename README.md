@@ -72,7 +72,7 @@ bun run dev
 ```
 
 API disponível em `http://localhost:3000`  
-Documentação em `http://localhost:3000/swagger`
+**Documentação OpenAPI (Scalar UI)** em `http://localhost:3000/reference`
 
 ## 📁 Estrutura
 
@@ -95,17 +95,19 @@ Ver [docs/ESTRUTURA.md](docs/ESTRUTURA.md) para detalhes completos.
 
 ## 🛠️ Stack Tecnológico
 
-| Categoria      | Tecnologia                                |
-| -------------- | ----------------------------------------- |
-| **Runtime**    | Bun                                       |
-| **Framework**  | Elysia                                    |
-| **Database**   | PostgreSQL (Supabase)                     |
-| **ORM**        | Drizzle                                   |
-| **Deploy**     | Cloudflare Workers                        |
-| **Chat**       | Telegram Bot API (padrão)                 |
-| **WhatsApp**   | Meta WhatsApp API (feature futura)        |
-| **AI**         | Cloudflare Workers AI + Gemini (Fallback) |
-| **Enrichment** | TMDB, YouTube Data API, OpenGraph         |
+| Categoria         | Tecnologia                                  |
+| ----------------- | ------------------------------------------- |
+| **Runtime**       | Bun                                         |
+| **Framework**     | Elysia                                      |
+| **Database**      | PostgreSQL (Supabase)                       |
+| **ORM**           | Drizzle                                     |
+| **Deploy**        | Cloudflare Workers / Docker                 |
+| **Chat**          | Telegram Bot API (padrão)                   |
+| **WhatsApp**      | Meta WhatsApp API (feature futura)          |
+| **AI**            | Google Gemini (SDK) + Cloudflare (Fallback) |
+| **Enrichment**    | TMDB, YouTube Data API, OpenGraph           |
+| **Docs**          | OpenAPI/Scalar via @elysiajs/openapi        |
+| **Observability** | OpenTelemetry + Uptrace                     |
 
 ## ��� Documentação
 
