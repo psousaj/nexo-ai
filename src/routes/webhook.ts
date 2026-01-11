@@ -92,6 +92,25 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 	return timeoutMinutes;
 }
 
+function isAckMessage(text: string): boolean {
+	const normalized = text
+		.trim()
+		.toLowerCase()
+		.replace(/[\s]+/g, ' ')
+		.replace(/[.!?…]+$/g, '');
+
+	if (!normalized) return false;
+
+	const ackSet = new Set(['ok', 'okk', 'okay', 'ta', 'tá', 'blz', 'beleza', 'show', 'fechou', 'valeu', 'boa', 'legal', 'top']);
+
+	if (ackSet.has(normalized)) return true;
+
+	// risadas comuns
+	if (/^(k{2,}|rs{2,}|ha(ha)+)$/i.test(normalized)) return true;
+
+	return false;
+}
+
 /**
  * Processa mensagem de qualquer provider (provider-agnostic)
  */
@@ -170,6 +189,14 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			await conversationService.updateState(conversation.id, 'idle', {});
 			conversation.state = 'idle';
 			conversation.context = {};
+		}
+
+		// Mensagens curtas de confirmação/ack não devem iniciar fluxos
+		if (conversation.state === 'idle' && isAckMessage(messageText)) {
+			responseText = 'Fechou.';
+			await conversationService.addMessage(conversation.id, 'assistant', responseText);
+			await provider.sendMessage(incomingMsg.externalId, responseText);
+			return;
 		}
 
 		// 5. Se está aguardando confirmação de item em batch, processa
@@ -386,6 +413,16 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			const candidates = context.candidates || [];
 			const detectedType = context.detected_type || 'movie';
 
+			if (isAckMessage(messageText)) {
+				const isBatch = context.batch_queue && context.batch_queue.length > 0;
+				responseText = isBatch
+					? 'Fechou — me manda o número da opção (ou "pular").'
+					: 'Fechou — me manda o número da opção (ou diga "nenhum desses").';
+				await conversationService.addMessage(conversation.id, 'assistant', responseText);
+				await provider.sendMessage(incomingMsg.externalId, responseText);
+				return;
+			}
+
 			// Monta lista de candidatos para o LLM
 			const candidatesList = candidates
 				.map((c: any, i: number) => {
@@ -421,8 +458,8 @@ Respond in JSON:
   "action": "select" | "ambiguous" | "cancel" | "skip" | "change_subject" | "unclear",
   "selected": option number (if action=select),
   "options": [numbers] (if action=ambiguous),
-  "new_intent": "search_movie" | "search_tv_show" | "chat" | null (only if action=change_subject),
-  "new_query": "the new movie/series title" (only if action=change_subject and new_intent is search_*),
+	"new_intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "set_assistant_name" | "chat" | null (only if action=change_subject),
+	"new_query": "the new title/query" (only if action=change_subject and new_intent is search_* or save_note),
   "reason": "short explanation in Brazilian Portuguese",
   "response": "natural response to user in Brazilian Portuguese"
 }
@@ -439,7 +476,9 @@ Examples:
 - "o primeiro" → {"action":"select","selected":1}
 - "pular" → {"action":"skip"}
 - "não é esse, é o clube da luta de 1999" → {"action":"change_subject","new_intent":"search_movie","new_query":"Fight Club 1999"}
-- "deixa pra lá, me fala das séries que eu tenho" → {"action":"change_subject","new_intent":"chat"}
+- "me dá a lista salva" → {"action":"change_subject","new_intent":"list_items"}
+- "anota: comprar leite" → {"action":"change_subject","new_intent":"save_note","new_query":"comprar leite"}
+- "me chama de Max" → {"action":"change_subject","new_intent":"set_assistant_name","new_query":"Max"}
 - "nenhum desses" → {"action":"cancel"}`,
 					history: [],
 					systemPrompt:
@@ -697,6 +736,64 @@ Examples:
 						await conversationService.updateState(conversation.id, 'idle', {});
 						await conversationService.addMessage(conversation.id, 'assistant', '[CONTEXT_CLEARED]');
 
+						if (result.new_intent === 'list_items') {
+							const items = await itemService.getUserItems(user.id, undefined, undefined, 20);
+							if (items.length === 0) {
+								responseText = 'Você ainda não salvou nada! 📭\n\nMe manda um filme, série ou link que eu guardo pra você.';
+								break;
+							}
+
+							const byType: Record<string, typeof items> = {};
+							items.forEach((item) => {
+								if (!byType[item.type]) byType[item.type] = [];
+								byType[item.type].push(item);
+							});
+
+							const typeLabels: Record<string, string> = {
+								movie: '🎬 Filmes',
+								tv_show: '📺 Séries',
+								video: '🎥 Vídeos',
+								link: '🔗 Links',
+								note: '📝 Notas',
+							};
+
+							responseText = '📚 Aqui tá sua coleção:\n\n';
+							for (const [type, typeItems] of Object.entries(byType)) {
+								responseText += `${typeLabels[type] || type}:\n`;
+								typeItems.slice(0, 10).forEach((item) => {
+									const year = (item.metadata as any)?.year || (item.metadata as any)?.first_air_date || '';
+									responseText += `  • ${item.title}${year ? ` (${year})` : ''}\n`;
+								});
+								if (typeItems.length > 10) responseText += `  ... e mais ${typeItems.length - 10}\n`;
+								responseText += '\n';
+							}
+							responseText += `Total: ${items.length} item(s) 🎉`;
+							break;
+						}
+
+						if (result.new_intent === 'save_note') {
+							const noteContent = result.new_query || messageText;
+							await itemService.createItem({
+								userId: user.id,
+								type: 'note',
+								title: noteContent.slice(0, 100),
+								metadata: { full_content: noteContent, created_via: 'chat' },
+							});
+							responseText = `✅ Anotado: "${noteContent.slice(0, 50)}${noteContent.length > 50 ? '...' : ''}"`;
+							break;
+						}
+
+						if (result.new_intent === 'set_assistant_name') {
+							const newName = result.new_query;
+							if (newName) {
+								await userService.updateAssistantName(user.id, newName);
+								responseText = `Pronto! Agora pode me chamar de ${newName} 😊`;
+							} else {
+								responseText = 'Qual nome você gostaria de me dar?';
+							}
+							break;
+						}
+
 						// Se tem uma nova query, processa
 						if (result.new_intent === 'search_movie' && result.new_query) {
 							const newResults = await enrichmentService.searchMovies(result.new_query);
@@ -837,9 +934,11 @@ Examples:
 			const messageCount = await conversationService.getMessageCount(conversation.id);
 			const isFirstInteraction = messageCount <= 1;
 
-			// Busca histórico recente para contexto conversacional
-			const recentHistory = await conversationService.getHistory(conversation.id, 6);
-			const lastMessages = recentHistory.slice(-3); // Últimas 3 mensagens para contexto
+			const isInternalMarker = (content: string) => content.trim() === '[CONTEXT_CLEARED]';
+
+			// Busca histórico recente para contexto conversacional (filtra markers internos)
+			const recentHistory = (await conversationService.getHistory(conversation.id, 12)).filter((m) => !isInternalMarker(m.content));
+			const lastMessages = recentHistory.slice(-6); // Mais contexto, mas sem poluir
 
 			// Monta contexto de conversa recente (mostra as últimas trocas)
 			let conversationContext = '';
@@ -851,162 +950,88 @@ Examples:
 				});
 			}
 
-			// Monta contexto de nome para o LLM
-			const nameContext = userFirstName
-				? `USER NAME: "${userFirstName}" (use it occasionally in responses - ${
-						isFirstInteraction ? 'MUST use in first greeting' : 'randomly, about 20% of the time'
-				  })`
-				: 'USER NAME: unknown (do not mention name)';
-
 			// Nome do assistente (customizado pelo usuário ou padrão)
 			const assistantName = user.assistantName || 'Nexo';
 
-			const intentPrompt = `# CONTEXTO
-Você é ${assistantName}, um assistente de memória pessoal em português brasileiro.
-${userFirstName ? `Nome do usuário: ${userFirstName}` : ''}
+			const intentPrompt = `Você é um roteador de intenções do assistente ${assistantName}.
 
-# CONVERSA RECENTE
-${conversationContext || '(primeira mensagem)'}
+CONVERSA RECENTE (se houver):
+${conversationContext || '(sem histórico relevante)'}
 
-# MENSAGEM ATUAL
+MENSAGEM ATUAL:
 "${messageText}"
 
-# TAREFA
-Analise a mensagem e retorne APENAS um JSON válido (sem markdown, sem explicações):
-
+RETORNE APENAS JSON VÁLIDO (sem markdown, sem explicações), no formato:
 {
-  "intent": "<intent>",
-  "query": "<título expandido se aplicável>",
-  "response": "<sua resposta natural em português brasileiro>"
+  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "set_assistant_name" | "chat" | "cancel",
+  "query"?: string,
+  "assistant_name"?: string
 }
 
-# INTENTS DISPONÍVEIS
-- search_movie: usuário quer SALVAR um FILME (palavras-chave: salva, registra, anota + título de filme)
-- search_tv_show: usuário quer SALVAR uma SÉRIE de TV (palavras-chave: salva, registra + título de série)
-- list_items: usuário quer VER o que já salvou
-- save_note: usuário quer salvar uma NOTA/LEMBRETE (não é filme nem série)
-- set_assistant_name: usuário quer te dar um NOVO NOME (ex: "te chamo de Max")
-- chat: conversa casual, saudação, pergunta, piada
-- cancel: usuário quer CANCELAR operação atual (palavras: cancela, deixa pra lá, nenhum)
-- skip: usuário quer PULAR item atual em batch (palavras: pula, próximo, skip)
+REGRAS IMPORTANTES:
+- Se a pessoa pedir a LISTA ("me dá a lista", "o que eu salvei") → intent=list_items
+- Se a pessoa pedir pra SALVAR filme/série → use search_movie/search_tv_show e coloque em query o(s) título(s)
+- Se o usuário só mandar confirmação/ack ("ta", "ok", "beleza", "legal", "kkk") → intent=chat (sem query)
+- Se o usuário cancelar ("cancela", "deixa", "nenhum") → intent=cancel
 
-# REGRAS CRÍTICAS
+EXPANSÃO DE SIGLAS (sempre expandir para título original em inglês):
+- tbbt → The Big Bang Theory (série)
+- himym → How I Met Your Mother (série)
+- got → Game of Thrones (série)
+- bb → Breaking Bad (série)
+- lotr → The Lord of the Rings (filme)
+- hp → Harry Potter (filme)
+- sw → Star Wars (filme)
 
-## 1. CONTEXTO DE CONVERSA
-- Se o bot PERGUNTOU "é filme ou série?" e usuário responde "filme" → intent=search_movie, query=título anterior
-- Se o bot MOSTROU opções e usuário responde "isso", "sim", "1" → confirmar item, não é novo search
-- Se usuário diz "nenhum", "cancela", "deixa" → intent=cancel
-
-## 2. EXPANSÃO DE SIGLAS (SEMPRE expandir para título ORIGINAL em inglês)
-| Sigla | Título Original | Tipo |
-|-------|-----------------|------|
-| tbbt | The Big Bang Theory | série |
-| himym | How I Met Your Mother | série |
-| got | Game of Thrones | série |
-| bb | Breaking Bad | série |
-| friends | Friends | série |
-| narcos | Narcos | série |
-| the office | The Office | série |
-| lotr | The Lord of the Rings | filme |
-| hp | Harry Potter | filme |
-| sw | Star Wars | filme |
-| madagascar | Madagascar | filme |
-
-## 3. DETECÇÃO SÉRIE vs FILME
-- Se sigla está na tabela acima → usar tipo correspondente
-- Se título conhecido como série (sitcom, drama seriado) → search_tv_show
-- Se título conhecido como filme → search_movie
-- Na dúvida, pergunte ao usuário
-
-## 4. MÚLTIPLOS TÍTULOS
-- "salva X e Y" ou "X, Y" → query: "X, Y" (separados por vírgula)
-
-## 5. RESPOSTA NATURAL
-- Seja breve e amigável
-- Use português brasileiro coloquial
-- NÃO repita a mensagem do usuário de volta
-- NÃO faça perguntas desnecessárias se já sabe a intenção
-
-# EXEMPLOS
-
-User: "tbbt"
-→ {"intent": "search_tv_show", "query": "The Big Bang Theory", "response": "Buscando The Big Bang Theory pra você!"}
-
-User: "salva madagascar"  
-→ {"intent": "search_movie", "query": "Madagascar", "response": "Vou buscar Madagascar!"}
-
-User: "The Big Bang Theory e Narcos, registra aí"
-→ {"intent": "search_tv_show", "query": "The Big Bang Theory, Narcos", "response": "Salvando The Big Bang Theory e Narcos!"}
-
-User: "cancela" / "nenhum" / "deixa pra lá"
-→ {"intent": "cancel", "response": "Beleza, cancelado!"}
-
-User: "oi" / "e aí"
-→ {"intent": "chat", "response": "E aí! Como posso ajudar?"}
-
-User: "o que eu salvei?"
-→ {"intent": "list_items", "response": "Vou ver o que você tem salvo!"}
-
-Bot perguntou "é filme ou série?" / User: "série"
-→ {"intent": "search_tv_show", "query": "<título do contexto>", "response": "Beleza, buscando a série!"}`;
+Se identificar múltiplos títulos, retorne query com eles separados por vírgula.`;
 
 			const intentResponse = await llmService.callLLM({
 				message: intentPrompt,
 				history: [],
-				systemPrompt: `Você é um classificador de intenções. Responda APENAS com JSON válido, sem markdown.
-Se não tiver certeza do tipo (filme/série), pergunte ao usuário.
-SEMPRE expanda siglas para títulos originais em inglês.
-Seja conciso nas respostas.`,
+				systemPrompt: 'Você é um roteador. Responda APENAS com JSON válido. Não escreva texto fora do JSON. Não inclua o campo response.',
 			});
 
 			// Parse JSON da resposta
-			let intent: { intent: string; query?: string; response: string };
+			let intent: { intent: string; query?: string; assistant_name?: string };
 			try {
 				// Tenta extrair JSON da resposta (pode vir com markdown ou texto adicional)
 				const jsonMatch = intentResponse.message.match(/\{[\s\S]*\}/);
 				if (!jsonMatch) {
-					console.log('⚠️ Resposta não contém JSON, usando como chat');
+					console.log('⚠️ Resposta não contém JSON, usando chat');
 					throw new Error('No JSON found');
 				}
 
 				intent = JSON.parse(jsonMatch[0]);
 				console.log(`✅ Intent parseado: ${intent.intent}`);
-
-				// Valida que tem os campos necessários
-				if (!intent.response) {
-					console.warn('⚠️ JSON sem campo "response", usando mensagem completa');
-					intent.response = intentResponse.message;
-				}
 			} catch (e) {
 				console.error('Erro ao parsear intent:', e);
 				console.log('📄 Resposta original:', intentResponse.message.substring(0, 200));
-
-				// Fallback: tenta extrair apenas o texto se vier JSON malformado
-				// Se a mensagem começa com '{', pode ser JSON sem escape correto
-				if (intentResponse.message.trim().startsWith('{')) {
-					console.log('⚠️ Possível JSON malformado detectado, extraindo texto');
-					// Tenta extrair o campo response do JSON malformado
-					const responseMatch = intentResponse.message.match(/"response"\s*:\s*"([^"]+)"/);
-					if (responseMatch) {
-						intent = { intent: 'chat', response: responseMatch[1] };
-					} else {
-						// JSON muito malformado, usa mensagem genérica
-						intent = { intent: 'chat', response: 'Desculpa, não entendi direito. Pode reformular?' };
-					}
-				} else {
-					// Não é JSON, usa a resposta direta
-					intent = { intent: 'chat', response: intentResponse.message };
-				}
+				intent = { intent: 'chat' };
 			}
 
 			console.log(`🎯 Intent: ${intent.intent}, Query: ${intent.query || 'N/A'}`);
-			console.log(`💬 Response extraído: "${intent.response.substring(0, 100)}${intent.response.length > 100 ? '...' : ''}"`);
+
+			const buildLibrarySnapshot = () => {
+				if (!userItems || userItems.length === 0) return 'Biblioteca: (vazia)';
+				const byType: Record<string, string[]> = {};
+				for (const item of userItems) {
+					if (!byType[item.type]) byType[item.type] = [];
+					byType[item.type].push(item.title);
+				}
+				const parts: string[] = [];
+				if (byType.movie?.length) parts.push(`Filmes: ${byType.movie.slice(0, 6).join(', ')}`);
+				if (byType.tv_show?.length) parts.push(`Séries: ${byType.tv_show.slice(0, 6).join(', ')}`);
+				if (byType.video?.length) parts.push(`Vídeos: ${byType.video.slice(0, 4).join(', ')}`);
+				if (byType.link?.length) parts.push(`Links: ${byType.link.slice(0, 4).join(', ')}`);
+				if (byType.note?.length) parts.push(`Notas: ${byType.note.length} nota(s)`);
+				return parts.length ? `Biblioteca (amostra):\n- ${parts.join('\n- ')}` : 'Biblioteca: (vazia)';
+			};
 
 			// Executa ação baseada na intenção
 			switch (intent.intent) {
 				case 'search_movie': {
 					if (!intent.query) {
-						responseText = intent.response || 'Qual filme você quer salvar?';
+						responseText = 'Qual filme você quer salvar?';
 						break;
 					}
 
@@ -1216,7 +1241,7 @@ Seja conciso nas respostas.`,
 
 				case 'search_tv_show': {
 					if (!intent.query) {
-						responseText = intent.response || 'Qual série você quer salvar?';
+						responseText = 'Qual série você quer salvar?';
 						break;
 					}
 
@@ -1389,7 +1414,7 @@ Seja conciso nas respostas.`,
 				}
 
 				case 'cancel': {
-					responseText = intent.response || 'Beleza, cancelado! 👍';
+					responseText = 'Beleza, cancelado! 👍';
 					await conversationService.updateState(conversation.id, 'idle', {});
 					break;
 				}
@@ -1405,7 +1430,7 @@ Seja conciso nas respostas.`,
 							created_via: 'chat',
 						},
 					});
-					responseText = intent.response || `✅ Anotado: "${noteContent.slice(0, 50)}${noteContent.length > 50 ? '...' : ''}"`;
+					responseText = `✅ Anotado: "${noteContent.slice(0, 50)}${noteContent.length > 50 ? '...' : ''}"`;
 					// Limpa contexto após salvar
 					await conversationService.addMessage(conversation.id, 'assistant', '[CONTEXT_CLEARED]');
 					break;
@@ -1415,16 +1440,34 @@ Seja conciso nas respostas.`,
 					const newName = (intent as any).assistant_name || intent.query;
 					if (newName) {
 						await userService.updateAssistantName(user.id, newName);
-						responseText = intent.response || `Pronto! Agora pode me chamar de ${newName} 😊`;
+						responseText = `Pronto! Agora pode me chamar de ${newName} 😊`;
 					} else {
-						responseText = intent.response || 'Qual nome você gostaria de me dar?';
+						responseText = 'Qual nome você gostaria de me dar?';
 					}
 					break;
 				}
 
 				default: {
-					// Chat ou qualquer outra coisa
-					responseText = intent.response || 'Posso te ajudar a salvar algum filme, série ou link?';
+					// Chat normal (LLM), com histórico + amostra da biblioteca do usuário
+					const chatHistory = (await conversationService.getHistory(conversation.id, 12)).filter((m) => !isInternalMarker(m.content));
+					const chatSystemPrompt = `Você é ${assistantName}, um assistente de memória pessoal.
+
+Regras de conversa:
+- Responda sempre em pt-BR.
+- Não reinicie a conversa nem fique repetindo "Como posso ajudar?" a cada mensagem.
+- Para confirmações curtas ("ta", "ok", "beleza", "legal", risadas), responda com uma confirmação curta e, no máximo, uma pergunta objetiva.
+- Se o usuário pedir a lista, responda pedindo para ele mandar "lista" (ou trate como intenção list_items quando o roteador acertar).
+- Seja natural e direto.
+
+Você pode usar este contexto como referência (não cite literalmente):\n${buildLibrarySnapshot()}`;
+
+					const chatResponse = await llmService.callLLM({
+						message: messageText,
+						history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
+						systemPrompt: chatSystemPrompt,
+					});
+
+					responseText = chatResponse.message?.trim() || 'Fechou. Quer salvar algo ou ver sua lista?';
 				}
 			}
 		} catch (error) {
