@@ -737,17 +737,45 @@ The "response" field MUST be in Brazilian Portuguese.`,
 			// Parse JSON da resposta
 			let intent: { intent: string; query?: string; response: string };
 			try {
-				// Tenta extrair JSON da resposta (pode vir com markdown)
+				// Tenta extrair JSON da resposta (pode vir com markdown ou texto adicional)
 				const jsonMatch = intentResponse.message.match(/\{[\s\S]*\}/);
-				if (!jsonMatch) throw new Error('No JSON found');
+				if (!jsonMatch) {
+					console.log('⚠️ Resposta não contém JSON, usando como chat');
+					throw new Error('No JSON found');
+				}
+
 				intent = JSON.parse(jsonMatch[0]);
+				console.log(`✅ Intent parseado: ${intent.intent}`);
+
+				// Valida que tem os campos necessários
+				if (!intent.response) {
+					console.warn('⚠️ JSON sem campo "response", usando mensagem completa');
+					intent.response = intentResponse.message;
+				}
 			} catch (e) {
 				console.error('Erro ao parsear intent:', e);
-				// Fallback: usa a resposta como chat
-				intent = { intent: 'chat', response: intentResponse.message };
+				console.log('📄 Resposta original:', intentResponse.message.substring(0, 200));
+
+				// Fallback: tenta extrair apenas o texto se vier JSON malformado
+				// Se a mensagem começa com '{', pode ser JSON sem escape correto
+				if (intentResponse.message.trim().startsWith('{')) {
+					console.log('⚠️ Possível JSON malformado detectado, extraindo texto');
+					// Tenta extrair o campo response do JSON malformado
+					const responseMatch = intentResponse.message.match(/"response"\s*:\s*"([^"]+)"/);
+					if (responseMatch) {
+						intent = { intent: 'chat', response: responseMatch[1] };
+					} else {
+						// JSON muito malformado, usa mensagem genérica
+						intent = { intent: 'chat', response: 'Desculpa, não entendi direito. Pode reformular?' };
+					}
+				} else {
+					// Não é JSON, usa a resposta direta
+					intent = { intent: 'chat', response: intentResponse.message };
+				}
 			}
 
 			console.log(`🎯 Intent: ${intent.intent}, Query: ${intent.query || 'N/A'}`);
+			console.log(`💬 Response extraído: "${intent.response.substring(0, 100)}${intent.response.length > 100 ? '...' : ''}"`);
 
 			// Executa ação baseada na intenção
 			switch (intent.intent) {
