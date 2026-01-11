@@ -10,6 +10,10 @@ Registro de decisões arquiteturais do Nexo AI.
 - [ADR-004](004-state-machine.md) - State machine para conversação
 - [ADR-005](005-ai-agnostic.md) - Arquitetura AI-agnostic
 - [ADR-006](006-meta-whatsapp-api.md) - Meta WhatsApp API oficial
+- [ADR-007](007-multi-provider-support.md) - Multi-provider messaging architecture
+- [ADR-008](008-advanced-state-machine.md) - Advanced state machine (postponed until v1.0+)
+- [ADR-009](009-no-mcp-mvp.md) - MCP Server é opcional no MVP
+- [ADR-010](010-sync-enrichment-mvp.md) - Enriquecimento síncrono no MVP
 
 ## Template
 
