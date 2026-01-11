@@ -1,12 +1,12 @@
-import { Hono } from 'hono';
+import { Router, Request, Response } from 'express';
 
-export const healthRoutes = new Hono();
+export const healthRouter: Router = Router();
 
 /**
  * GET /health - Health check
  */
-healthRoutes.get('/health', (c) => {
-	return c.json({
+healthRouter.get('/health', (req: Request, res: Response) => {
+	res.json({
 		status: 'ok',
 		timestamp: new Date().toISOString(),
 	});

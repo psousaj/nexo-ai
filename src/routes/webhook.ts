@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Router, Request, Response } from 'express';
 import { userService } from '@/services/user-service';
 import { conversationService } from '@/services/conversation-service';
 import { classifierService } from '@/services/classifier-service';
@@ -957,83 +957,71 @@ The "response" field MUST be in Brazilian Portuguese.`,
 	}
 }
 
-export const webhookRoutes = new Hono();
+export const webhookRouter: Router = Router();
 
 /**
  * POST /telegram - Recebe mensagens do Telegram (PADRÃO)
  */
-webhookRoutes.post('/telegram', async (c) => {
+webhookRouter.post('/telegram', async (req: Request, res: Response) => {
 	try {
-		const body = await c.req.json();
-
 		// Verifica autenticidade
-		if (!telegramAdapter.verifyWebhook({ body })) {
-			return c.json({ error: 'Forbidden' }, 403);
+		if (!telegramAdapter.verifyWebhook(req)) {
+			return res.status(403).json({ error: 'Forbidden' });
 		}
 
 		// Parse mensagem
-		const incomingMsg = telegramAdapter.parseIncomingMessage(body);
+		const incomingMsg = telegramAdapter.parseIncomingMessage(req.body);
 
 		if (incomingMsg) {
 			await processMessage(incomingMsg, telegramAdapter);
 		}
 
-		return c.json({ ok: true }); // Telegram espera "ok: true"
+		return res.json({ ok: true }); // Telegram espera "ok: true"
 	} catch (error) {
 		console.error('Erro no webhook Telegram:', error);
-		return c.json({ error: 'Internal error' }, 500);
+		return res.status(500).json({ error: 'Internal error' });
 	}
 });
 
 /**
  * POST /whatsapp - Recebe mensagens do WhatsApp
  */
-webhookRoutes.post('/whatsapp', async (c) => {
+webhookRouter.post('/whatsapp', async (req: Request, res: Response) => {
 	try {
-		// Captura raw body ANTES de parsear JSON (necessário para validação HMAC)
-		const rawBody = await c.req.text();
-		const body = JSON.parse(rawBody);
-		const signature = c.req.header('x-hub-signature-256') || '';
-
 		// Verifica autenticidade
-		const isValid = await whatsappAdapter.verifyWebhook({
-			body,
-			rawBody,
-			signature,
-		});
-
+		const isValid = await whatsappAdapter.verifyWebhook(req);
 		if (!isValid) {
 			console.warn('⚠️ Webhook WhatsApp com signature inválida');
-			return c.json({ error: 'Forbidden' }, 403);
+			return res.status(403).json({ error: 'Forbidden' });
 		}
 
 		// Parse mensagem
-		const incomingMsg = whatsappAdapter.parseIncomingMessage(body);
+		const incomingMsg = whatsappAdapter.parseIncomingMessage(req.body);
 
 		if (incomingMsg) {
 			await processMessage(incomingMsg, whatsappAdapter);
 		}
 
-		return c.json({ success: true });
+		return res.json({ success: true });
 	} catch (error) {
 		console.error('Erro no webhook WhatsApp:', error);
-		return c.json({ error: 'Internal error' }, 500);
+		return res.status(500).json({ error: 'Internal error' });
 	}
 });
 
 /**
  * GET /whatsapp - Verificação do webhook WhatsApp
  */
-webhookRoutes.get('/whatsapp', (c) => {
-	const mode = c.req.query('hub.mode');
-	const token = c.req.query('hub.verify_token');
-	const challenge = c.req.query('hub.challenge');
+webhookRouter.get('/whatsapp', (req: Request, res: Response) => {
+	const mode = req.query['hub.mode'];
+	const token = req.query['hub.verify_token'];
+	const challenge = req.query['hub.challenge'];
 
 	if (mode === 'subscribe' && token === env.META_VERIFY_TOKEN) {
 		console.log('✅ Webhook WhatsApp verificado com sucesso!');
-		return c.text(challenge || '');
+		return res.send(challenge);
 	}
 
 	console.warn('⚠️ Falha na verificação do webhook WhatsApp');
-	return c.text('Forbidden', 403);
+	return res.status(403).send('Forbidden');
 });

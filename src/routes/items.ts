@@ -1,18 +1,18 @@
-import { Hono } from 'hono';
+import { Router, Request, Response } from 'express';
 import { itemService } from '@/services/item-service';
 
-export const itemsRoutes = new Hono();
+export const itemsRouter: Router = Router();
 
 /**
  * GET / - Lista items do usuário
  */
-itemsRoutes.get('/', async (c) => {
-	const userId = c.req.query('userId');
-	const type = c.req.query('type');
-	const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : 20;
+itemsRouter.get('/', async (req: Request, res: Response) => {
+	const userId = req.query.userId as string;
+	const type = req.query.type as string | undefined;
+	const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
 
 	if (!userId) {
-		return c.json({ error: 'userId é obrigatório' }, 400);
+		return res.status(400).json({ error: 'userId é obrigatório' });
 	}
 
 	const items = await itemService.listItems({
@@ -21,38 +21,36 @@ itemsRoutes.get('/', async (c) => {
 		limit,
 	});
 
-	return c.json({ items });
+	return res.json({ items });
 });
 
 /**
  * GET /:id - Busca item por ID
  */
-itemsRoutes.get('/:id', async (c) => {
-	const userId = c.req.query('userId');
-	const id = c.req.param('id');
+itemsRouter.get('/:id', async (req: Request, res: Response) => {
+	const userId = req.query.userId as string;
 
 	if (!userId) {
-		return c.json({ error: 'userId é obrigatório' }, 400);
+		return res.status(400).json({ error: 'userId é obrigatório' });
 	}
 
-	const item = await itemService.getItemById(id, userId);
+	const item = await itemService.getItemById(req.params.id as string, userId);
 
 	if (!item) {
-		return c.json({ error: 'Item não encontrado' }, 404);
+		return res.status(404).json({ error: 'Item não encontrado' });
 	}
 
-	return c.json({ item });
+	return res.json({ item });
 });
 
 /**
  * POST /search - Busca semântica
  */
-itemsRoutes.post('/search', async (c) => {
-	const body = await c.req.json();
-	const { userId, query, limit = 20 } = body;
+itemsRouter.post('/search', async (req: Request, res: Response) => {
+	const { userId, query, limit = 20 } = req.body;
 
 	if (!userId || !query) {
-		return c.json({ error: 'userId e query são obrigatórios' }, 400);
+		return res.status(400).json({ error: 'userId e query são obrigatórios' });
 	}
 
 	const items = await itemService.searchItems({
@@ -61,23 +59,22 @@ itemsRoutes.post('/search', async (c) => {
 		limit,
 	});
 
-	return c.json({ items });
+	return res.json({ items });
 });
 
 /**
  * DELETE /:id - Deleta item
  */
-itemsRoutes.delete('/:id', async (c) => {
-	const userId = c.req.query('userId');
-	const id = c.req.param('id');
+itemsRouter.delete('/:id', async (req: Request, res: Response) => {
+	const userId = req.query.userId as string;
 
 	if (!userId) {
-		return c.json({ error: 'userId é obrigatório' }, 400);
+		return res.status(400).json({ error: 'userId é obrigatório' });
 	}
 
-	console.log('DELETE request:', { id, userId });
-	await itemService.deleteItem(id, userId);
+	console.log('DELETE request:', { params: req.params, query: req.query });
+	await itemService.deleteItem(req.params.id as string, userId);
 	const response = { success: true };
 	console.log('DELETE response:', response);
-	return c.json(response);
+	return res.json(response);
 });

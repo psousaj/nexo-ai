@@ -11,26 +11,22 @@
         "db:push": "drizzle-kit push",
         "db:studio": "drizzle-kit studio",
         "test": "node --test",
-        "lint": "tsc --noEmit",
-        "cf:deploy": "wrangler deploy",
-        "cf:dev": "wrangler dev --port 3000 --host 0.0.0.0",
-        "cf:start": "wrangler dev",
-        "cf-typegen": "wrangler types"
+        "lint": "tsc --noEmit"
     },
     "dependencies": {
         "dotenv": "^17.2.3",
         "drizzle-orm": "^0.45.1",
-        "hono": "^4.11.3",
+        "express": "^5.2.1",
         "pg": "^8.16.3",
         "postgres": "^3.4.7",
         "zod": "^3.25.76"
     },
     "devDependencies": {
+        "@types/express": "^5.0.6",
         "@types/node": "^20.11.0",
         "@types/pg": "^8.16.0",
         "drizzle-kit": "^0.31.8",
         "tsx": "^4.21.0",
-        "typescript": "^5.9.3",
-        "wrangler": "^4.58.0"
+        "typescript": "^5.9.3"
     }
 }

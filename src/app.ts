@@ -1,28 +1,30 @@
-import { Hono } from 'hono';
-import { logger } from 'hono/logger';
-import { healthRoutes } from '@/routes/health';
-import { webhookRoutes } from '@/routes/webhook';
-import { itemsRoutes } from '@/routes/items';
+import express, { Express, Request, Response, NextFunction } from 'express';
+import { healthRouter } from '@/routes/health';
+import { webhookRouter } from '@/routes/webhook';
+import { itemsRouter } from '@/routes/items';
 
-const app = new Hono();
+const app: Express = express();
 
 // Middleware
-app.use('*', logger());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.route('/', healthRoutes);
-app.route('/webhook', webhookRoutes);
-app.route('/items', itemsRoutes);
+app.use(healthRouter);
+app.use('/webhook', webhookRouter);
+app.use('/items', itemsRouter);
 
 // Error handling
-app.onError((err, c) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 	console.error('Error:', err);
-	return c.json({ error: err.message || 'Erro interno do servidor' }, 500);
+	res.status(err.status || 500).json({
+		error: err.message || 'Erro interno do servidor',
+	});
 });
 
 // 404 handler
-app.notFound((c) => {
-	return c.json({ error: 'Rota não encontrada' }, 404);
+app.use((req: Request, res: Response) => {
+	res.status(404).json({ error: 'Rota não encontrada' });
 });
 
 export default app;
