@@ -79,21 +79,31 @@ export class AIService {
 		} catch (error: any) {
 			console.error(`❌ [AI] Erro no provider ${this.currentProvider}:`, error);
 
-			// Verifica se é erro 4xx ou 5xx (rate limit, server error, etc)
-			const isHttpError = error?.status >= 400 && error?.status < 600;
-			const shouldFallback = isHttpError || error?.message?.includes('rate limit') || error?.message?.includes('quota');
+			// Verifica se é erro que deve fazer fallback
+			const status = error?.status || error?.response?.status;
+			const isRateLimit = error?.message?.toLowerCase().includes('rate limit') || error?.message?.toLowerCase().includes('quota');
+			const isHttpError = status && status >= 400 && status < 600;
+
+			console.log(`🔍 [AI] Análise do erro: status=${status}, isRateLimit=${isRateLimit}, isHttpError=${isHttpError}`);
+
+			const shouldFallback = isHttpError || isRateLimit;
 
 			if (shouldFallback) {
 				// Tenta fallback para outro provider
 				const fallbackProvider = this.getFallbackProvider();
 				if (fallbackProvider) {
-					console.log(`🔄 [AI] Erro ${error?.status || 'HTTP'} detectado. Usando fallback para ${fallbackProvider}`);
+					console.log(
+						`🔄 [AI] Erro ${status || 'rate limit'} detectado em ${this.currentProvider}. Tentando fallback para ${fallbackProvider}`
+					);
 					const originalProvider = this.currentProvider;
 					this.currentProvider = fallbackProvider;
 					try {
-						return await this.callLLM({ ...rest, systemPrompt: prompt });
+						const fallbackResponse = await this.callLLM({ ...rest, systemPrompt: prompt });
+						console.log(`✅ [AI] Fallback para ${fallbackProvider} foi bem-sucedido!`);
+						return fallbackResponse;
 					} catch (fallbackError) {
 						// Se fallback também falhar, restaura provider original
+						console.error(`❌ [AI] Fallback para ${fallbackProvider} também falhou:`, fallbackError);
 						this.currentProvider = originalProvider;
 						throw fallbackError;
 					}
