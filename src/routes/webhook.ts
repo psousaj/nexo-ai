@@ -860,81 +860,103 @@ Examples:
 
 			// Nome do assistente (customizado pelo usuário ou padrão)
 			const assistantName = user.assistantName || 'Nexo';
-			const assistantContext = `ASSISTANT NAME: "${assistantName}" (this is YOUR name - use it if user asks your name)`;
 
-			const intentPrompt = `${nameContext}
-${assistantContext}
-${conversationContext}
+			const intentPrompt = `# CONTEXTO
+Você é ${assistantName}, um assistente de memória pessoal em português brasileiro.
+${userFirstName ? `Nome do usuário: ${userFirstName}` : ''}
 
-CURRENT MESSAGE TO ANALYZE: "${messageText}"
+# CONVERSA RECENTE
+${conversationContext || '(primeira mensagem)'}
 
-Analyze this message considering conversation context and respond in JSON:
+# MENSAGEM ATUAL
+"${messageText}"
+
+# TAREFA
+Analise a mensagem e retorne APENAS um JSON válido (sem markdown, sem explicações):
+
 {
-  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "set_assistant_name" | "chat" | "cancel",
-  "query": "EXPANDED full ORIGINAL title (never abbreviations, never translated)",
-  "assistant_name": "new name for assistant (only if intent=set_assistant_name)",
-  "response": "your natural response to the user in Brazilian Portuguese"
+  "intent": "<intent>",
+  "query": "<título expandido se aplicável>",
+  "response": "<sua resposta natural em português brasileiro>"
 }
 
-INTENT RULES:
-- "search_movie": user wants to save a MOVIE
-- "search_tv_show": user wants to save a TV SERIES
-- "list_items": user wants to see what they've already saved
-- "save_note": user wants to save a reminder, task, or note
-- "set_assistant_name": user is giving YOU (the assistant) a custom name
-- "chat": casual conversation, questions, or greetings
-- "cancel": user wants to cancel/give up on something
+# INTENTS DISPONÍVEIS
+- search_movie: usuário quer SALVAR um FILME (palavras-chave: salva, registra, anota + título de filme)
+- search_tv_show: usuário quer SALVAR uma SÉRIE de TV (palavras-chave: salva, registra + título de série)
+- list_items: usuário quer VER o que já salvou
+- save_note: usuário quer salvar uma NOTA/LEMBRETE (não é filme nem série)
+- set_assistant_name: usuário quer te dar um NOVO NOME (ex: "te chamo de Max")
+- chat: conversa casual, saudação, pergunta, piada
+- cancel: usuário quer CANCELAR operação atual (palavras: cancela, deixa pra lá, nenhum)
+- skip: usuário quer PULAR item atual em batch (palavras: pula, próximo, skip)
 
-CONVERSATION CONTEXT RULES:
-- If last bot message asked "É série ou filme?" and user says "filme" → Keep intent as search_movie with the PREVIOUS query mentioned
-- If last bot message confirmed something like "Você quer Madagascar?" and user says "isso/sim/exato" → Confirm with intent search_movie, query: "Madagascar"
-- If user says title directly like "madagascar" → intent: search_movie, query: "Madagascar"
-- User's response "filme" or "série" ALONE is clarification, not a new search - maintain previous context
-- If bot suggested series/movies in previous message and user says "registra X e Y" or "salva X e Y" → intent: search_tv_show (or search_movie), extract titles from user message
-- If user says "registra/salva/anota essa informação" referring to items from PREVIOUS messages → search for those titles in conversation history
+# REGRAS CRÍTICAS
 
-EXAMPLES:
-1. User: "salva madagascar" → {"intent": "search_movie", "query": "Madagascar", "response": "Vou buscar Madagascar pra você!"}
-2. Bot: "É filme ou série?" / User: "filme" → {"intent": "search_movie", "query": "Madagascar", "response": "Beleza, buscando o filme Madagascar!"}
-3. Bot: "Você quer Madagascar 1999?" / User: "isso" → {"intent": "search_movie", "query": "Madagascar", "response": "Perfeito! Salvando Madagascar pra você"}
-4. Bot: "Recomendo Friends e Breaking Bad" / User: "salva Friends pra mim" → {"intent": "search_tv_show", "query": "Friends", "response": "Salvando Friends!"}
-5. User: "The Big Bang Theory and Narcos registra essa informção" → {"intent": "search_tv_show", "query": "The Big Bang Theory, Narcos", "response": "Vou salvar The Big Bang Theory e Narcos pra você!"}
+## 1. CONTEXTO DE CONVERSA
+- Se o bot PERGUNTOU "é filme ou série?" e usuário responde "filme" → intent=search_movie, query=título anterior
+- Se o bot MOSTROU opções e usuário responde "isso", "sim", "1" → confirmar item, não é novo search
+- Se usuário diz "nenhum", "cancela", "deixa" → intent=cancel
 
-CRITICAL - ABBREVIATION EXPANSION (ALWAYS expand to ORIGINAL title):
-- "himym" or "HIMYM" → query: "How I Met Your Mother" (NOT "Como Conheci Sua Mãe")
-- "tbbt" → query: "The Big Bang Theory"
-- "got" → query: "Game of Thrones"
-- "bb" or "breaking bad" → query: "Breaking Bad"
-- "lotr" → query: "The Lord of the Rings"
-- "sw" → query: "Star Wars"
-- "hp" → query: "Harry Potter"
-NEVER translate movie/series titles! Always use the ORIGINAL English title for search.
+## 2. EXPANSÃO DE SIGLAS (SEMPRE expandir para título ORIGINAL em inglês)
+| Sigla | Título Original | Tipo |
+|-------|-----------------|------|
+| tbbt | The Big Bang Theory | série |
+| himym | How I Met Your Mother | série |
+| got | Game of Thrones | série |
+| bb | Breaking Bad | série |
+| friends | Friends | série |
+| narcos | Narcos | série |
+| the office | The Office | série |
+| lotr | The Lord of the Rings | filme |
+| hp | Harry Potter | filme |
+| sw | Star Wars | filme |
+| madagascar | Madagascar | filme |
 
-CRITICAL DISTINCTIONS:
-- Task/reminder text → save_note
-- Simple title/abbreviation → search_movie or search_tv_show
-- Greeting or question → chat
-- Single name after bot asked for name → set_assistant_name
+## 3. DETECÇÃO SÉRIE vs FILME
+- Se sigla está na tabela acima → usar tipo correspondente
+- Se título conhecido como série (sitcom, drama seriado) → search_tv_show
+- Se título conhecido como filme → search_movie
+- Na dúvida, pergunte ao usuário
 
-The "response" must be natural, friendly, in Brazilian Portuguese.`;
+## 4. MÚLTIPLOS TÍTULOS
+- "salva X e Y" ou "X, Y" → query: "X, Y" (separados por vírgula)
+
+## 5. RESPOSTA NATURAL
+- Seja breve e amigável
+- Use português brasileiro coloquial
+- NÃO repita a mensagem do usuário de volta
+- NÃO faça perguntas desnecessárias se já sabe a intenção
+
+# EXEMPLOS
+
+User: "tbbt"
+→ {"intent": "search_tv_show", "query": "The Big Bang Theory", "response": "Buscando The Big Bang Theory pra você!"}
+
+User: "salva madagascar"  
+→ {"intent": "search_movie", "query": "Madagascar", "response": "Vou buscar Madagascar!"}
+
+User: "The Big Bang Theory e Narcos, registra aí"
+→ {"intent": "search_tv_show", "query": "The Big Bang Theory, Narcos", "response": "Salvando The Big Bang Theory e Narcos!"}
+
+User: "cancela" / "nenhum" / "deixa pra lá"
+→ {"intent": "cancel", "response": "Beleza, cancelado!"}
+
+User: "oi" / "e aí"
+→ {"intent": "chat", "response": "E aí! Como posso ajudar?"}
+
+User: "o que eu salvei?"
+→ {"intent": "list_items", "response": "Vou ver o que você tem salvo!"}
+
+Bot perguntou "é filme ou série?" / User: "série"
+→ {"intent": "search_tv_show", "query": "<título do contexto>", "response": "Beleza, buscando a série!"}`;
 
 			const intentResponse = await llmService.callLLM({
 				message: intentPrompt,
-				history: [], // Não passa histórico completo, apenas contexto no prompt
-				systemPrompt: `You are an intent classifier for MAX, a Brazilian Portuguese memory assistant.
-
-CRITICAL RULES:
-1. Analyze the CURRENT MESSAGE in context of the RECENT CONVERSATION shown
-2. If the bot asked a question and the user is responding, interpret the response accordingly
-3. ALWAYS extract the query from the user's ACTUAL words in the current message
-4. The "response" field MUST be in Brazilian Portuguese and feel natural
-5. Respond ONLY with valid JSON. No markdown, no extra text.
-
-EXAMPLES:
-- User says "madagascar" after bot asked nothing → search_movie, query: "Madagascar"  
-- User says "isso" after bot asked "Você quer Madagascar?" → search_movie, query: "Madagascar"
-- User says "filme" after bot asked "É série ou filme?" → Keep previous context, intent stays same
-- User says "sim" to confirm something → Use context to understand what to confirm`,
+				history: [],
+				systemPrompt: `Você é um classificador de intenções. Responda APENAS com JSON válido, sem markdown.
+Se não tiver certeza do tipo (filme/série), pergunte ao usuário.
+SEMPRE expanda siglas para títulos originais em inglês.
+Seja conciso nas respostas.`,
 			});
 
 			// Parse JSON da resposta
@@ -1112,7 +1134,48 @@ EXAMPLES:
 					const results = await enrichmentService.searchMovies(intent.query);
 
 					if (results.length === 0) {
-						responseText = `Não achei nenhum filme com "${intent.query}" 🤔 Tenta com outro nome?`;
+						// Tenta buscar como série automaticamente
+						console.log(`🔄 Não achei "${intent.query}" como filme, tentando como série...`);
+						const tvResults = await enrichmentService.searchTVShows(intent.query);
+
+						if (tvResults.length > 0) {
+							// Encontrou como série! Oferece automaticamente
+							await provider.sendMessage(incomingMsg.externalId, `Não achei como filme, mas achei como série! 📺`);
+
+							if (tvResults.length === 1) {
+								const show = tvResults[0];
+								const metadata = await enrichmentService.enrich('tv_show', { tmdbId: show.id });
+
+								const saveResult = await itemService.createItem({
+									userId: user.id,
+									type: 'tv_show',
+									title: show.name,
+									metadata: metadata || undefined,
+								});
+
+								if (saveResult.isDuplicate) {
+									responseText = `⚠️ Você já tem "${show.name}" salvo!`;
+								} else {
+									responseText = `✅ Salvei "${show.name}" (${show.first_air_date?.split('-')[0]}) 📺`;
+								}
+								await conversationService.addMessage(conversation.id, 'assistant', '[CONTEXT_CLEARED]');
+							} else {
+								// Múltiplos resultados de série
+								await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+									candidates: tvResults.slice(0, 5),
+									detected_type: 'tv_show',
+								});
+
+								const options = tvResults
+									.slice(0, 5)
+									.map((s, i) => `${i + 1}. ${s.name} (${s.first_air_date?.split('-')[0]})`)
+									.join('\n');
+
+								responseText = `Achei estas séries:\n\n${options}\n\nQual delas?`;
+							}
+						} else {
+							responseText = `Não achei "${intent.query}" nem como filme nem como série 🤔 Tenta com outro nome?`;
+						}
 					} else if (results.length === 1) {
 						const movie = results[0];
 						const metadata = await enrichmentService.enrich('movie', { tmdbId: movie.id });
@@ -1211,7 +1274,48 @@ EXAMPLES:
 					const results = await enrichmentService.searchTVShows(intent.query);
 
 					if (results.length === 0) {
-						responseText = `Não achei nenhuma série com "${intent.query}" 🤔 Tenta com outro nome?`;
+						// Tenta buscar como filme automaticamente
+						console.log(`🔄 Não achei "${intent.query}" como série, tentando como filme...`);
+						const movieResults = await enrichmentService.searchMovies(intent.query);
+
+						if (movieResults.length > 0) {
+							// Encontrou como filme! Oferece automaticamente
+							await provider.sendMessage(incomingMsg.externalId, `Não achei como série, mas achei como filme! 🎬`);
+
+							if (movieResults.length === 1) {
+								const movie = movieResults[0];
+								const metadata = await enrichmentService.enrich('movie', { tmdbId: movie.id });
+
+								const saveResult = await itemService.createItem({
+									userId: user.id,
+									type: 'movie',
+									title: movie.title,
+									metadata: metadata || undefined,
+								});
+
+								if (saveResult.isDuplicate) {
+									responseText = `⚠️ Você já tem "${movie.title}" salvo!`;
+								} else {
+									responseText = `✅ Salvei "${movie.title}" (${movie.release_date?.split('-')[0]}) 🎬`;
+								}
+								await conversationService.addMessage(conversation.id, 'assistant', '[CONTEXT_CLEARED]');
+							} else {
+								// Múltiplos resultados de filme
+								await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+									candidates: movieResults.slice(0, 5),
+									detected_type: 'movie',
+								});
+
+								const options = movieResults
+									.slice(0, 5)
+									.map((m, i) => `${i + 1}. ${m.title} (${m.release_date?.split('-')[0]})`)
+									.join('\n');
+
+								responseText = `Achei estes filmes:\n\n${options}\n\nQual deles?`;
+							}
+						} else {
+							responseText = `Não achei "${intent.query}" nem como série nem como filme 🤔 Tenta com outro nome?`;
+						}
 					} else if (results.length === 1) {
 						const show = results[0];
 						const metadata = await enrichmentService.enrich('tv_show', { tmdbId: show.id });
