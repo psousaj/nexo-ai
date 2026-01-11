@@ -14,7 +14,7 @@
         "db:studio": "drizzle-kit studio",
         "test": "bun test",
         "lint": "tsc --noEmit",
-        "merge-pr": "./scripts/merge-pr.sh"
+        "merge-pr": "bash ./scripts/merge-pr.sh"
     },
     "dependencies": {
         "@elysiajs/cors": "^1.1.1",
