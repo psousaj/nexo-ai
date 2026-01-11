@@ -76,7 +76,7 @@ export class YouTubeService {
 			throw new Error(`YouTube API error: ${response.statusText}`);
 		}
 
-		const data: YouTubeAPIResponse = await response.json();
+		const data = (await response.json()) as YouTubeAPIResponse;
 
 		if (!data.items || data.items.length === 0) {
 			throw new Error('Vídeo não encontrado');

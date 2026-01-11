@@ -28,11 +28,11 @@
         }
     },
     "include": [
-        "src/**/*.ts",
-        "landing/**/*.ts"
+        "src/**/*.ts"
     ],
     "exclude": [
         "node_modules",
         "dist",
+        "landing"
     ]
 }
