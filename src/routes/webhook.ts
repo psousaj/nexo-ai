@@ -410,6 +410,43 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 		// 5b. Se está aguardando confirmação simples, processa resposta
 		if (conversation.state === 'awaiting_confirmation') {
 			const context = conversation.context as any;
+			
+			// Caso especial: confirmação de nota oferecida
+			if (context.pending_note_content && !context.candidates) {
+				const lowerResponse = messageText.toLowerCase().trim();
+				const isConfirmation = /^(sim|s|yes|y|pode|ok|salva|quero|anota|guarda)$/i.test(lowerResponse);
+				const isDenial = /^(n[aã]o|n|nop|deixa|não precisa|esquece)$/i.test(lowerResponse);
+
+				if (isConfirmation) {
+					// Usuário confirmou - salva a nota
+					const noteContent = context.pending_note_content;
+					await itemService.createItem({
+						userId: user.id,
+						type: 'note',
+						title: noteContent.slice(0, 100),
+						metadata: {
+							full_content: noteContent,
+							created_via: 'chat',
+						},
+					});
+					responseText = `✅ Salvei! Já tá guardado aqui.`;
+					await conversationService.updateState(conversation.id, 'idle', {});
+					await conversationService.addMessage(conversation.id, 'assistant', '[CONTEXT_CLEARED]');
+					await conversationService.addMessage(conversation.id, 'assistant', responseText);
+					await provider.sendMessage(incomingMsg.externalId, responseText);
+					return;
+				} else if (isDenial) {
+					// Usuário negou - cancela
+					responseText = `Beleza, deixa pra lá então! 👍`;
+					await conversationService.updateState(conversation.id, 'idle', {});
+					await conversationService.addMessage(conversation.id, 'assistant', '[CONTEXT_CLEARED]');
+					await conversationService.addMessage(conversation.id, 'assistant', responseText);
+					await provider.sendMessage(incomingMsg.externalId, responseText);
+					return;
+				}
+				// Se não for sim/não claro, continua pro processamento normal
+			}
+			
 			const candidates = context.candidates || [];
 			const detectedType = context.detected_type || 'movie';
 
@@ -963,16 +1000,24 @@ MENSAGEM ATUAL:
 
 RETORNE APENAS JSON VÁLIDO (sem markdown, sem explicações), no formato:
 {
-  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "set_assistant_name" | "chat" | "cancel",
+  "intent": "search_movie" | "search_tv_show" | "list_items" | "save_note" | "offer_save_note" | "set_assistant_name" | "chat" | "cancel",
   "query"?: string,
   "assistant_name"?: string
 }
 
 REGRAS IMPORTANTES:
 - Se a pessoa pedir a LISTA ("me dá a lista", "o que eu salvei") → intent=list_items
+- Se a pessoa pedir EXPLICITAMENTE pra SALVAR ("salva isso", "anota", "guarda") → intent=save_note, query=texto completo
 - Se a pessoa pedir pra SALVAR filme/série → use search_movie/search_tv_show e coloque em query o(s) título(s)
+- Se a mensagem contém INFORMAÇÃO ÚTIL sem pedido explícito (lista de coisas, dica, lembrete, receita, etc) → intent=offer_save_note, query=texto completo
 - Se o usuário só mandar confirmação/ack ("ta", "ok", "beleza", "legal", "kkk") → intent=chat (sem query)
 - Se o usuário cancelar ("cancela", "deixa", "nenhum") → intent=cancel
+
+EXEMPLOS DE offer_save_note:
+- "Não pode dar pro cachorro: chocolate, uva, cebola" → intent=offer_save_note
+- "Receita de bolo: 3 ovos, 2 xícaras de açúcar..." → intent=offer_save_note
+- "Senha do wifi: abc123" → intent=offer_save_note
+- "Telefone do dentista: (11) 99999-9999" → intent=offer_save_note
 
 EXPANSÃO DE SIGLAS (sempre expandir para título original em inglês):
 - tbbt → The Big Bang Theory (série)
@@ -1416,6 +1461,35 @@ Se identificar múltiplos títulos, retorne query com eles separados por vírgul
 				case 'cancel': {
 					responseText = 'Beleza, cancelado! 👍';
 					await conversationService.updateState(conversation.id, 'idle', {});
+					break;
+				}
+
+				case 'offer_save_note': {
+					// Detectou informação útil sem pedido explícito - oferece salvar
+					const noteContent = intent.query || messageText;
+					
+					// Cria estado de confirmação
+					await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+						pending_note_content: noteContent,
+						detected_type: 'note',
+					});
+
+					// Gera comentário humanizado usando LLM
+					const commentPrompt = `O usuário compartilhou: "${noteContent.slice(0, 200)}"
+
+Crie UMA frase curta (máx 15 palavras) oferecendo salvar isso como nota. 
+Seja natural e humanizado, como: "Isso parece importante! Quer que eu guarde isso pra você?"
+
+Retorne APENAS a frase, sem aspas, sem explicações.`;
+
+					const commentResponse = await llmService.callLLM({
+						message: commentPrompt,
+						history: [],
+						systemPrompt: 'Seja natural e breve. Apenas uma frase oferecendo ajuda.',
+					});
+
+					const offerText = commentResponse.message.trim().replace(/^["']|["']$/g, '');
+					responseText = offerText;
 					break;
 				}
 
