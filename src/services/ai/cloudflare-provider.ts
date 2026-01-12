@@ -20,25 +20,8 @@ export class CloudflareProvider implements AIProvider {
 		try {
 			console.log('☁️ [Cloudflare] Montando prompt');
 
-			// Montar o prompt completo com histórico e contexto
-			let fullPrompt = '';
-
-			if (systemPrompt) {
-				fullPrompt += `${systemPrompt}\n\n`;
-			}
-
-			// Adicionar histórico
-			if (history.length > 0) {
-				fullPrompt += 'Histórico da conversa:\n';
-				history.forEach((msg) => {
-					const role = msg.role === 'user' ? 'Usuário' : 'Assistente';
-					fullPrompt += `${role}: ${msg.content}\n`;
-				});
-				fullPrompt += '\n';
-			}
-
-			// Adicionar mensagem atual
-			fullPrompt += `Usuário: ${message}\nAssistente:`;
+			// Montar payload baseado no tipo de modelo
+			const payload = this.buildPayload(message, history, systemPrompt);
 
 			console.log(`☁️ [Cloudflare] Enviando para ${this.model}`);
 
@@ -48,9 +31,7 @@ export class CloudflareProvider implements AIProvider {
 					Authorization: `Bearer ${this.apiToken}`,
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify({
-					prompt: fullPrompt,
-				}),
+				body: JSON.stringify(payload),
 			});
 
 			if (!response.ok) {
@@ -99,5 +80,81 @@ export class CloudflareProvider implements AIProvider {
 
 	getName(): string {
 		return 'cloudflare';
+	}
+
+	/**
+	 * Constrói payload baseado no tipo de modelo
+	 * - Modelos gpt-oss esperam formato "input"
+	 * - Modelos OpenAI esperam formato "messages"
+	 * - Modelos Llama/Meta esperam formato "prompt"
+	 */
+	private buildPayload(message: string, history: Message[], systemPrompt?: string): any {
+		// Modelo gpt-oss usa formato "input" (text generation)
+		if (this.model.includes('gpt-oss')) {
+			let fullPrompt = '';
+
+			if (systemPrompt) {
+				fullPrompt += `${systemPrompt}\n\n`;
+			}
+
+			// Adicionar histórico
+			if (history.length > 0) {
+				fullPrompt += 'Histórico da conversa:\n';
+				history.forEach((msg) => {
+					const role = msg.role === 'user' ? 'Usuário' : 'Assistente';
+					fullPrompt += `${role}: ${msg.content}\n`;
+				});
+				fullPrompt += '\n';
+			}
+
+			// Adicionar mensagem atual
+			fullPrompt += `Usuário: ${message}\nAssistente:`;
+
+			return { input: fullPrompt };
+		}
+
+		// Modelos OpenAI (@cf/openai/whisper, etc) usam formato "messages"
+		if (this.model.includes('openai') && !this.model.includes('gpt-oss')) {
+			const messages: Array<{ role: string; content: string }> = [];
+
+			if (systemPrompt) {
+				messages.push({ role: 'system', content: systemPrompt });
+			}
+
+			// Adicionar histórico
+			history.forEach((msg) => {
+				messages.push({
+					role: msg.role === 'user' ? 'user' : 'assistant',
+					content: msg.content,
+				});
+			});
+
+			// Adicionar mensagem atual
+			messages.push({ role: 'user', content: message });
+
+			return { messages };
+		}
+
+		// Modelos Llama/Meta usam formato "prompt"
+		let fullPrompt = '';
+
+		if (systemPrompt) {
+			fullPrompt += `${systemPrompt}\n\n`;
+		}
+
+		// Adicionar histórico
+		if (history.length > 0) {
+			fullPrompt += 'Histórico da conversa:\n';
+			history.forEach((msg) => {
+				const role = msg.role === 'user' ? 'Usuário' : 'Assistente';
+				fullPrompt += `${role}: ${msg.content}\n`;
+			});
+			fullPrompt += '\n';
+		}
+
+		// Adicionar mensagem atual
+		fullPrompt += `Usuário: ${message}\nAssistente:`;
+
+		return { prompt: fullPrompt };
 	}
 }

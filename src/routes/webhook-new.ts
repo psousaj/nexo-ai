@@ -142,7 +142,7 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 		// 6. ENVIA RESPOSTA (se houver)
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
 			await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-			console.log(`✅ Resposta enviada: "${agentResponse.message.substring(0, 80)}..."`);
+			console.log(`✅ Resposta enviada (${agentResponse.message.length} chars)`);
 		} else {
 			console.log('🚫 NOOP - nenhuma mensagem enviada ao usuário');
 		}

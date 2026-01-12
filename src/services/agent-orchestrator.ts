@@ -35,6 +35,7 @@ import {
 	formatItemsList,
 } from '@/config/prompts';
 import type { ConversationState, AgentLLMResponse } from '@/types';
+import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
 
 export interface AgentContext {
 	userId: string;
@@ -124,7 +125,7 @@ export class AgentOrchestrator {
 		await conversationService.addMessage(conversation.id, 'user', context.message);
 		await conversationService.addMessage(conversation.id, 'assistant', response.message);
 
-		console.log(`✅ [Agent] Resposta gerada: "${response.message.substring(0, 100)}..."`);
+		console.log(`✅ [Agent] Resposta gerada (${response.message?.length || 0} chars)`);
 		return response;
 	}
 
@@ -193,11 +194,17 @@ export class AgentOrchestrator {
 		let nextState: ConversationState = 'idle';
 
 		try {
-			// 1. Parsear JSON da resposta
-			const agentResponse = JSON.parse(llmResponse.message);
+			// 1. Parsear JSON da resposta (remove markdown code blocks)
+			const agentResponse = parseJSONFromLLM(llmResponse.message);
+			
+			// 2. Validar schema
+			if (!isValidAgentResponse(agentResponse)) {
+				throw new Error('Resposta LLM não segue schema AgentLLMResponse');
+			}
+			
 			console.log(`🤖 [Agent] LLM action: ${agentResponse.action}`);
-
-			// 2. Validar schema_version
+4
+			// 3. Validar schema_version
 			if (agentResponse.schema_version !== '1.0') {
 				console.warn(`⚠️ [Agent] Schema version incompatível: ${agentResponse.schema_version}`);
 			}
@@ -231,12 +238,20 @@ export class AgentOrchestrator {
 								awaiting_selection: true,
 								detected_type: agentResponse.tool.replace('enrich_', ''),
 							});
+						} else if (result.data?.results && result.data.results.length === 1) {
+							// Um único resultado - salvar automaticamente
+							const item = result.data.results[0];
+							responseMessage = `✅ Salvo: ${item.title} ${item.year ? `(${item.year})` : ''}`;
+						} else if (result.message) {
+							// Mensagem específica da tool
+							responseMessage = result.message;
 						} else {
-							// Sucesso simples
-							responseMessage = result.message || `✅ ${agentResponse.tool} executada com sucesso!`;
+							// Mensagens genéricas amigáveis baseadas na tool
+							responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
 						}
 					} else {
-						responseMessage = result.error || '❌ Erro ao executar ação.';
+						// Erro - mensagem amigável
+						responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
 					}
 					break;
 
@@ -249,28 +264,18 @@ export class AgentOrchestrator {
 					// Nada a fazer
 					console.log('🚫 [Agent] NOOP - nenhuma ação necessária');
 					responseMessage = null as any; // Sem resposta
+					break;
+				
+				default:
 					console.error(`❌ [Agent] Action desconhecida: ${agentResponse.action}`);
 					responseMessage = 'Desculpe, não entendi o que fazer.';
 			}
 		} catch (parseError) {
-			// Fallback: se não for JSON, usar resposta direta (legacy)
-			console.warn('⚠️ [Agent] Resposta não é JSON válido, usando texto direto');
-			responseMessage = llmResponse.message;
-
-			// Tentar executar tools legadas (Gemini function calling)
-			if (llmResponse.tool_calls && llmResponse.tool_calls.length > 0) {
-				console.log(`🔧 [Agent] Executando ${llmResponse.tool_calls.length} tool calls (legacy)`);
-
-				for (const toolCall of llmResponse.tool_calls) {
-					const result = await executeTool(toolCall.function.name as any, toolContext, JSON.parse(toolCall.function.arguments));
-					toolsUsed.push(toolCall.function.name);
-				}
-			}
-
-			// Detectar confirmação heurística
-			if (llmResponse.message.includes('Qual') || llmResponse.message.includes('qual')) {
-				nextState = 'awaiting_confirmation';
-			}
+			// Fallback: NUNCA enviar JSON cru ao usuário
+			console.error('❌ [Agent] Erro ao processar resposta LLM:', parseError);
+			console.error('🔍 [Agent] Resposta original:', llmResponse.message.substring(0, 500));
+			
+			responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
 		}
 
 		return {
@@ -521,6 +526,37 @@ export class AgentOrchestrator {
 	 */
 	private async handleDirect(context: AgentContext, intent: IntentResult): Promise<AgentResponse> {
 		return this.handleSearch(context, intent);
+	}
+}
+
+/**
+ * Gera mensagem amigável baseada na tool executada
+ */
+function getSuccessMessageForTool(tool: string, data?: any): string {
+	switch (tool) {
+		case 'save_note':
+			return '✅ Nota salva!';
+		case 'save_movie':
+			return `✅ Filme salvo!`;
+		case 'save_tv_show':
+			return `✅ Série salva!`;
+		case 'save_video':
+			return '✅ Vídeo salvo!';
+		case 'save_link':
+			return '✅ Link salvo!';
+		case 'search_items':
+			const count = data?.count || 0;
+			if (count === 0) {
+				return 'Não encontrei nada 😕';
+			}
+			return `Encontrei ${count} item(ns)`;
+		case 'delete_memory':
+			return '✅ Item deletado!';
+		case 'delete_all_memories':
+			const deleted = data?.deleted_count || 0;
+			return deleted > 0 ? `✅ ${deleted} item(ns) deletado(s)` : 'Nada para deletar';
+		default:
+			return '✅ Feito!';
 	}
 }
 

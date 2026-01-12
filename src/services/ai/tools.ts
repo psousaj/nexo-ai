@@ -1,5 +1,6 @@
 /**
  * Definições de Tools para AI com Function Calling
+ * Tools específicas alinhadas com /src/services/tools/index.ts
  */
 
 export interface Tool {
@@ -12,141 +13,196 @@ export interface Tool {
 	};
 }
 
-/**
- * Tool: Salvar item na biblioteca do usuário
- */
-export const saveItemTool: Tool = {
-	name: 'save_item',
-	description:
-		'Salva um filme, série, vídeo, link ou nota na biblioteca do usuário. Use quando o usuário pedir para salvar/guardar/adicionar algo.',
+// ============================================================================
+// SAVE TOOLS - Específicas por tipo
+// ============================================================================
+
+export const saveNoteTool: Tool = {
+	name: 'save_note',
+	description: 'Salva uma nota/anotação/lembrete pessoal do usuário. Use para ideias, lembretes, pensamentos.',
 	parameters: {
 		type: 'object',
 		properties: {
-			type: {
+			content: {
 				type: 'string',
-				enum: ['movie', 'tv_show', 'video', 'link', 'note'],
-				description: 'Tipo do item a ser salvo',
-			},
-			title: {
-				type: 'string',
-				description: 'Título do item (nome do filme, série, vídeo, etc)',
-			},
-			metadata: {
-				type: 'object',
-				description: 'Metadados adicionais (tmdbId para filmes/séries, url para links/vídeos)',
-				properties: {
-					tmdbId: {
-						type: 'number',
-						description: 'ID do TMDB para filmes e séries',
-					},
-					url: {
-						type: 'string',
-						description: 'URL para links ou vídeos',
-					},
-				},
+				description: 'Conteúdo completo da nota',
 			},
 		},
-		required: ['type', 'title'],
+		required: ['content'],
 	},
 };
 
-/**
- * Tool: Buscar itens salvos
- */
+export const saveMovieTool: Tool = {
+	name: 'save_movie',
+	description: 'Salva um filme na biblioteca. Use após enrich_movie confirmar qual filme.',
+	parameters: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Título do filme',
+			},
+			year: {
+				type: 'number',
+				description: 'Ano de lançamento',
+			},
+			tmdb_id: {
+				type: 'number',
+				description: 'ID do TMDB (obrigatório após enrichment)',
+			},
+		},
+		required: ['title'],
+	},
+};
+
+export const saveTVShowTool: Tool = {
+	name: 'save_tv_show',
+	description: 'Salva uma série na biblioteca. Use após enrich_tv_show confirmar qual série.',
+	parameters: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Título da série',
+			},
+			year: {
+				type: 'number',
+				description: 'Ano de estreia',
+			},
+			tmdb_id: {
+				type: 'number',
+				description: 'ID do TMDB (obrigatório após enrichment)',
+			},
+		},
+		required: ['title'],
+	},
+};
+
+export const saveVideoTool: Tool = {
+	name: 'save_video',
+	description: 'Salva um vídeo do YouTube/Vimeo.',
+	parameters: {
+		type: 'object',
+		properties: {
+			url: {
+				type: 'string',
+				description: 'URL completa do vídeo',
+			},
+			title: {
+				type: 'string',
+				description: 'Título do vídeo (opcional)',
+			},
+		},
+		required: ['url'],
+	},
+};
+
+export const saveLinkTool: Tool = {
+	name: 'save_link',
+	description: 'Salva um link/URL genérico (artigos, sites, etc).',
+	parameters: {
+		type: 'object',
+		properties: {
+			url: {
+				type: 'string',
+				description: 'URL completa',
+			},
+			description: {
+				type: 'string',
+				description: 'Descrição do link (opcional)',
+			},
+		},
+		required: ['url'],
+	},
+};
+
+// ============================================================================
+// SEARCH TOOLS
+// ============================================================================
+
 export const searchItemsTool: Tool = {
 	name: 'search_items',
-	description:
-		"Busca itens já salvos na biblioteca do usuário. Use quando o usuário perguntar 'o que eu salvei?', 'quais filmes tenho?', etc.",
+	description: 'Busca itens salvos na biblioteca do usuário.',
 	parameters: {
 		type: 'object',
 		properties: {
 			query: {
 				type: 'string',
-				description: 'Termo de busca (opcional, vazio = retorna todos)',
-			},
-			type: {
-				type: 'string',
-				enum: ['movie', 'tv_show', 'video', 'link', 'note', 'all'],
-				description: 'Filtrar por tipo (opcional)',
+				description: 'Termo de busca (opcional)',
 			},
 			limit: {
 				type: 'number',
-				description: 'Número máximo de resultados (padrão: 10)',
+				description: 'Máximo de resultados (padrão: 10)',
 			},
 		},
 		required: [],
 	},
 };
 
-/**
- * Tool: Enriquecer metadados (buscar informações em APIs externas)
- */
-export const enrichMetadataTool: Tool = {
-	name: 'enrich_metadata',
-	description:
-		'Busca informações detalhadas sobre um filme/série/vídeo em APIs externas (TMDB, YouTube). Use quando o usuário pedir detalhes sobre algo.',
-	parameters: {
-		type: 'object',
-		properties: {
-			type: {
-				type: 'string',
-				enum: ['movie', 'tv_show', 'video'],
-				description: 'Tipo do conteúdo',
-			},
-			query: {
-				type: 'string',
-				description: 'Nome do filme/série ou URL do vídeo',
-			},
-		},
-		required: ['type', 'query'],
-	},
-};
+// ============================================================================
+// ENRICHMENT TOOLS
+// ============================================================================
 
-/**
- * Tool: Aplicar timeout ao usuário (quando for ofensivo)
- */
-export const applyUserTimeoutTool: Tool = {
-	name: 'apply_user_timeout',
-	description:
-		'Aplica um timeout de 5 minutos para um usuário que está sendo ofensivo ou desrespeitoso. Use APENAS quando detectar xingamentos, ofensas ou desrespeito.',
+export const enrichMovieTool: Tool = {
+	name: 'enrich_movie',
+	description: 'Busca informações de um filme no TMDB. SEMPRE use antes de save_movie.',
 	parameters: {
 		type: 'object',
 		properties: {
-			reason: {
+			title: {
 				type: 'string',
-				description: "Motivo do timeout (ex: 'linguagem ofensiva')",
+				description: 'Título do filme',
 			},
-		},
-		required: ['reason'],
-	},
-};
-
-/**
- * Tool: Obter provedores de streaming
- */
-export const getStreamingProvidersTool: Tool = {
-	name: 'get_streaming_providers',
-	description:
-		'Verifica onde um filme está disponível para assistir (Netflix, Prime, Disney+, etc) e se precisa baixar via torrent. Use quando o usuário perguntar onde assistir.',
-	parameters: {
-		type: 'object',
-		properties: {
-			tmdbId: {
+			year: {
 				type: 'number',
-				description: 'ID do filme no TMDB',
+				description: 'Ano (opcional, ajuda a filtrar)',
 			},
 		},
-		required: ['tmdbId'],
+		required: ['title'],
 	},
 };
 
-/**
- * Tool: Deletar itens da biblioteca
- */
+export const enrichTVShowTool: Tool = {
+	name: 'enrich_tv_show',
+	description: 'Busca informações de uma série no TMDB. SEMPRE use antes de save_tv_show.',
+	parameters: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Título da série',
+			},
+			year: {
+				type: 'number',
+				description: 'Ano (opcional)',
+			},
+		},
+		required: ['title'],
+	},
+};
+
+export const enrichVideoTool: Tool = {
+	name: 'enrich_video',
+	description: 'Busca metadata de um vídeo do YouTube.',
+	parameters: {
+		type: 'object',
+		properties: {
+			url: {
+				type: 'string',
+				description: 'URL do vídeo',
+			},
+		},
+		required: ['url'],
+	},
+};
+
+// ============================================================================
+// DELETE TOOLS
+// ============================================================================
+
 export const deleteItemsTool: Tool = {
 	name: 'delete_items',
-	description:
-		'Deleta itens específicos ou todos os itens da biblioteca do usuário. Use quando o usuário pedir para deletar/remover/apagar algo.',
+	description: 'Deleta itens específicos da biblioteca.',
 	parameters: {
 		type: 'object',
 		properties: {
@@ -155,26 +211,30 @@ export const deleteItemsTool: Tool = {
 				items: {
 					type: 'string',
 				},
-				description: 'IDs dos itens a serem deletados. Se vazio, deletar tudo.',
-			},
-			deleteAll: {
-				type: 'boolean',
-				description: 'Se true, deleta TODOS os itens da biblioteca.',
+				description: 'IDs dos itens a deletar',
 			},
 		},
-		required: [],
+		required: ['itemIds'],
 	},
 };
 
 /**
- * Lista de todas as tools disponíveis
+ * Lista de todas as tools disponíveis (alinhada com tools/index.ts)
  */
 export const availableTools: Tool[] = [
-	saveItemTool,
+	// Save tools específicas
+	saveNoteTool,
+	saveMovieTool,
+	saveTVShowTool,
+	saveVideoTool,
+	saveLinkTool,
+	// Search
 	searchItemsTool,
-	enrichMetadataTool,
-	applyUserTimeoutTool,
-	getStreamingProvidersTool,
+	// Enrichment
+	enrichMovieTool,
+	enrichTVShowTool,
+	enrichVideoTool,
+	// Delete
 	deleteItemsTool,
 ];
 
@@ -182,7 +242,7 @@ export const availableTools: Tool[] = [
  * Retorna definições de tools no formato esperado por cada provider
  */
 export function getToolsForProvider(provider: 'gemini' | 'cloudflare'): Tool[] {
-	// Cloudflare não suporta tools ainda, retorna vazio
+	// Cloudflare não suporta function calling, retorna vazio
 	if (provider === 'cloudflare') {
 		return [];
 	}

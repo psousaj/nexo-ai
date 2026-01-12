@@ -1,10 +1,10 @@
 import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 import type { AIProvider, AIResponse, Message } from './types';
-import { availableTools } from './tools';
 
 /**
  * Gemini Provider usando SDK oficial
- * Suporta function calling e conversação com histórico
+ * Modo JSON APENAS - sem function calling
+ * Alinhado com arquitetura determinística v0.3.0
  */
 export class GeminiProvider implements AIProvider {
 	private readonly client: GoogleGenerativeAI;
@@ -16,23 +16,14 @@ export class GeminiProvider implements AIProvider {
 			throw new Error('Gemini API key não configurada');
 		}
 		this.client = new GoogleGenerativeAI(apiKey);
+		// SEM tools - força resposta JSON
 		this.model = this.client.getGenerativeModel({
 			model: this.modelName,
-			tools: [
-				{
-					functionDeclarations: availableTools.map((tool) => ({
-						name: tool.name,
-						description: tool.description,
-						parameters: {
-							type: 'OBJECT' as any,
-							properties: tool.parameters.properties,
-							required: tool.parameters.required,
-						},
-					})),
-				},
-			],
+			generationConfig: {
+				responseMimeType: 'application/json',
+			},
 		});
-		console.log('✅ [AI] Google Gemini SDK configurado');
+		console.log('✅ [AI] Google Gemini configurado (modo JSON)');
 	}
 
 	getName(): string {
@@ -49,37 +40,31 @@ export class GeminiProvider implements AIProvider {
 				parts: [{ text: msg.content }],
 			}));
 
-			const chat = this.model.startChat({
-				history: chatHistory as any,
+			// Configura o chat com ou sem system instruction
+			const chatConfig: any = {
+				history: chatHistory,
 				generationConfig: {
 					temperature: 0.7,
 					topK: 40,
 					topP: 0.95,
 					maxOutputTokens: 2048,
 				},
-				systemInstruction: systemPrompt,
-			});
+			};
+
+			// Só adiciona systemInstruction se fornecido (formato Content)
+			if (systemPrompt) {
+				chatConfig.systemInstruction = {
+					role: 'system',
+					parts: [{ text: systemPrompt }],
+				};
+			}
+
+			const chat = this.model.startChat(chatConfig);
 
 			const result = await chat.sendMessage(message);
 			const response = result.response;
 
-			// Verifica function calls
-			const functionCalls = response.functionCalls();
-			if (functionCalls && functionCalls.length > 0) {
-				return {
-					message: '',
-					tool_calls: functionCalls.map((fc) => ({
-						id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-						type: 'function',
-						function: {
-							name: fc.name,
-							arguments: JSON.stringify(fc.args),
-						},
-					})),
-				};
-			}
-
-			// Texto normal
+			// Retorna texto JSON (sem function calling)
 			const text = response.text();
 			return { message: text };
 		} catch (error: any) {
