@@ -35,6 +35,10 @@ const envSchema = z.object({
 	TMDB_API_KEY: z.string(),
 	YOUTUBE_API_KEY: z.string(),
 
+	// Cache - Upstash Redis
+	UPSTASH_REDIS_URL: z.string().url().optional(),
+	UPSTASH_REDIS_TOKEN: z.string().optional(),
+
 	// Observability - New Relic (opcional)
 	NEW_RELIC_LICENSE_KEY: z.string().optional(),
 	NEW_RELIC_APP_NAME: z.string().optional().default('nexo-ai'),

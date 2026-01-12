@@ -1,6 +1,6 @@
 {
     "name": "nexo-ai",
-    "version": "0.2.7",
+    "version": "0.3.0",
     "description": "Assistente pessoal via WhatsApp com IA",
     "type": "module",
     "scripts": {
@@ -23,6 +23,7 @@
         "@google/generative-ai": "^0.24.1",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.209.0",
         "@opentelemetry/sdk-trace-node": "^2.3.0",
+        "@upstash/redis": "^1.36.1",
         "dotenv": "^17.2.3",
         "drizzle-orm": "^0.45.1",
         "elysia": "^1.1.33",

@@ -1,5 +1,8 @@
 import { env } from '@/config/env';
 import type { MovieMetadata, TVShowMetadata } from '@/types';
+import { cacheGet, cacheSet } from '@/config/redis';
+import { fetchWithRetry } from '@/utils/retry';
+import { loggers } from '@/utils/logger';
 
 export interface TMDBMovie {
 	id: number;
@@ -57,74 +60,142 @@ export class TMDBService {
 	 * Busca filmes por título
 	 */
 	async searchMovies(query: string): Promise<TMDBMovie[]> {
+		const cacheKey = `tmdb:search:movie:${query.toLowerCase()}`;
+		
+		// Tenta cache primeiro
+		const cached = await cacheGet<TMDBMovie[]>(cacheKey);
+		if (cached) {
+			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+			return cached;
+		}
+
 		const url = new URL(`${this.baseUrl}/search/movie`);
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('query', query);
 		url.searchParams.set('language', 'pt-BR');
 
-		const response = await fetch(url.toString());
+		const response = await fetchWithRetry(url.toString(), undefined, {
+			maxRetries: 2,
+			delayMs: 500,
+		});
 
 		if (!response.ok) {
 			throw new Error(`TMDB API error: ${response.statusText}`);
 		}
 
 		const data = (await response.json()) as { results: TMDBMovie[] };
-		return data.results || [];
+		const results = data.results || [];
+
+		// Cache por 24h
+		await cacheSet(cacheKey, results, 86400);
+
+		return results;
 	}
 
 	/**
 	 * Busca séries por título
 	 */
 	async searchTVShows(query: string): Promise<TMDBTVShow[]> {
+		const cacheKey = `tmdb:search:tv:${query.toLowerCase()}`;
+		
+		// Tenta cache primeiro
+		const cached = await cacheGet<TMDBTVShow[]>(cacheKey);
+		if (cached) {
+			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+			return cached;
+		}
+
 		const url = new URL(`${this.baseUrl}/search/tv`);
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('query', query);
 		url.searchParams.set('language', 'pt-BR');
 
-		const response = await fetch(url.toString());
+		const response = await fetchWithRetry(url.toString(), undefined, {
+			maxRetries: 2,
+			delayMs: 500,
+		});
 
 		if (!response.ok) {
 			throw new Error(`TMDB API error: ${response.statusText}`);
 		}
 
 		const data = (await response.json()) as { results: TMDBTVShow[] };
-		return data.results || [];
+		const results = data.results || [];
+
+		// Cache por 24h
+		await cacheSet(cacheKey, results, 86400);
+
+		return results;
 	}
 
 	/**
 	 * Busca detalhes completos de um filme
 	 */
 	async getMovieDetails(tmdbId: number): Promise<TMDBMovieDetails> {
+		const cacheKey = `tmdb:movie:${tmdbId}`;
+		
+		// Tenta cache primeiro
+		const cached = await cacheGet<TMDBMovieDetails>(cacheKey);
+		if (cached) {
+			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+			return cached;
+		}
+
 		const url = new URL(`${this.baseUrl}/movie/${tmdbId}`);
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('language', 'pt-BR');
 		url.searchParams.set('append_to_response', 'credits');
 
-		const response = await fetch(url.toString());
+		const response = await fetchWithRetry(url.toString(), undefined, {
+			maxRetries: 2,
+			delayMs: 500,
+		});
 
 		if (!response.ok) {
 			throw new Error(`TMDB API error: ${response.statusText}`);
 		}
 
-		return (await response.json()) as TMDBMovieDetails;
+		const details = (await response.json()) as TMDBMovieDetails;
+
+		// Cache por 24h
+		await cacheSet(cacheKey, details, 86400);
+
+		return details;
 	}
 
 	/**
 	 * Busca detalhes completos de uma série
 	 */
 	async getTVShowDetails(tmdbId: number): Promise<TMDBTVShowDetails> {
+		const cacheKey = `tmdb:tv:${tmdbId}`;
+		
+		// Tenta cache primeiro
+		const cached = await cacheGet<TMDBTVShowDetails>(cacheKey);
+		if (cached) {
+			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+			return cached;
+		}
+
 		const url = new URL(`${this.baseUrl}/tv/${tmdbId}`);
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('language', 'pt-BR');
 		url.searchParams.set('append_to_response', 'credits');
 
-		const response = await fetch(url.toString());
+		const response = await fetchWithRetry(url.toString(), undefined, {
+			maxRetries: 2,
+			delayMs: 500,
+		});
 
 		if (!response.ok) {
 			throw new Error(`TMDB API error: ${response.statusText}`);
 		}
 
-		return (await response.json()) as TMDBTVShowDetails;
+		const details = (await response.json()) as TMDBTVShowDetails;
+
+		// Cache por 24h
+		await cacheSet(cacheKey, details, 86400);
+
+		return details;
 	}
 
 	/**
@@ -192,10 +263,27 @@ export class TMDBService {
 			type: 'flatrate' | 'rent' | 'buy';
 		}>
 	> {
+		const cacheKey = `tmdb:streaming:${type}:${tmdbId}`;
+		
+		// Tenta cache primeiro
+		const cached = await cacheGet<Array<{
+			provider_id: number;
+			provider_name: string;
+			logo_path: string;
+			type: 'flatrate' | 'rent' | 'buy';
+		}>>(cacheKey);
+		if (cached) {
+			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+			return cached;
+		}
+
 		const url = new URL(`${this.baseUrl}/${type}/${tmdbId}/watch/providers`);
 		url.searchParams.set('api_key', this.apiKey);
 
-		const response = await fetch(url.toString());
+		const response = await fetchWithRetry(url.toString(), undefined, {
+			maxRetries: 2,
+			delayMs: 500,
+		});
 
 		if (!response.ok) {
 			throw new Error(`TMDB API error: ${response.statusText}`);
@@ -252,6 +340,9 @@ export class TMDBService {
 				});
 			});
 		}
+
+		// Cache por 24h
+		await cacheSet(cacheKey, providers, 86400);
 
 		return providers;
 	}

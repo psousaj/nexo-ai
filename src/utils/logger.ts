@@ -34,4 +34,19 @@ export const loggers = {
 	gemini: logger.child({ context: 'gemini' }),
 	db: logger.child({ context: 'db' }),
 	enrichment: logger.child({ context: 'enrichment' }),
+	cache: logger.child({ context: 'cache' }),
+	retry: logger.child({ context: 'retry' }),
 };
+
+/**
+ * Helper para logar erros com contexto estruturado
+ */
+export function logError(error: unknown, context: Record<string, any> = {}) {
+	const err = error as Error;
+	logger.error({
+		message: err.message,
+		stack: err.stack,
+		...context,
+	});
+}
+

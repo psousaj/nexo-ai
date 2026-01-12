@@ -141,9 +141,42 @@ export const getStreamingProvidersTool: Tool = {
 };
 
 /**
+ * Tool: Deletar itens da biblioteca
+ */
+export const deleteItemsTool: Tool = {
+	name: 'delete_items',
+	description:
+		'Deleta itens específicos ou todos os itens da biblioteca do usuário. Use quando o usuário pedir para deletar/remover/apagar algo.',
+	parameters: {
+		type: 'object',
+		properties: {
+			itemIds: {
+				type: 'array',
+				items: {
+					type: 'string',
+				},
+				description: 'IDs dos itens a serem deletados. Se vazio, deletar tudo.',
+			},
+			deleteAll: {
+				type: 'boolean',
+				description: 'Se true, deleta TODOS os itens da biblioteca.',
+			},
+		},
+		required: [],
+	},
+};
+
+/**
  * Lista de todas as tools disponíveis
  */
-export const availableTools: Tool[] = [saveItemTool, searchItemsTool, enrichMetadataTool, applyUserTimeoutTool, getStreamingProvidersTool];
+export const availableTools: Tool[] = [
+	saveItemTool,
+	searchItemsTool,
+	enrichMetadataTool,
+	applyUserTimeoutTool,
+	getStreamingProvidersTool,
+	deleteItemsTool,
+];
 
 /**
  * Retorna definições de tools no formato esperado por cada provider

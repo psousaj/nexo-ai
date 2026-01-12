@@ -30,95 +30,142 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 
 ---
 
-## 🔴 v0.2.0 - Core Features (Atual - Em Progresso)
+## � v0.2.0 - Core Features (Concluído - 11/01/2026)
 
 **Objetivo:** Completar funcionalidades críticas para MVP funcional
 
-### Prioridade Alta
+### ✅ Implementado
 
 #### 🛠️ Tool Calling System
-- [ ] Criar `src/services/ai/tools.ts` com definições:
+- [x] Criado `src/services/ai/tools.ts` com definições:
   - `save_item` - Salvar item com enrichment automático
   - `search_items` - Buscar items com filtros
-  - `get_item_details` - Detalhes de item específico
-- [ ] Implementar `tool-executor.ts` para executar tool calls
-- [ ] Integrar com `gemini-provider.ts` (suporte nativo)
-- [ ] Integrar com `claude-provider.ts` (Tool Use API)
-- [ ] Testar fluxo completo: mensagem → tool call → execução → resposta
+  - `enrich_metadata` - Buscar detalhes em APIs externas
+  - `apply_user_timeout` - Timeout para usuários ofensivos
+  - `get_streaming_providers` - Verificar provedores de streaming
+  - `delete_items` - Deletar items específicos ou todos
+- [x] Implementado `tool-executor.ts` para executar tool calls
+- [x] Integração com `gemini-provider.ts` (suporte nativo via SDK)
+- [x] Fluxo completo: mensagem → tool call → execução → resposta
 
-**Por quê:** Sem tools, LLM não consegue executar ações (apenas responde texto)
+#### 🔒 Security - Telegram Webhook Validation
+- [x] Implementado validação via `X-Telegram-Bot-Api-Secret-Token`
+- [x] Validação em `telegram-adapter.ts` com `verifyWebhook()`
+- [x] Rejeita requests sem header correto
 
-#### 🔒 Security - WhatsApp Webhook Validation
-- [ ] Implementar `validateMetaSignature()` em `src/routes/webhook.ts`
-- [ ] Usar `crypto.subtle` (Cloudflare Workers compatible)
-- [ ] Validar header `X-Hub-Signature-256` com HMAC-SHA256
-- [ ] Rejeitar requests com assinatura inválida
-
-**Por quê:** Webhook vulnerável a spoofing sem validação
+**Nota:** WhatsApp validation ignorada conforme solicitado
 
 #### 💬 Conversa Única Cross-Provider
-- [ ] Migration: adicionar coluna `is_active BOOLEAN DEFAULT true` em `conversations`
-- [ ] Refatorar `conversation-service.ts`:
-  - `findOrCreateConversation(userId)` retorna apenas conversa ativa
-  - Ao criar nova, desativar anteriores do mesmo usuário
-- [ ] Testar fluxo: Telegram → WhatsApp → mesmo contexto
+- [x] `user-accounts` table para unificação
+- [x] `findOrCreateUserByAccount()` vincula por telefone
+- [x] Mesmo usuário em Telegram/WhatsApp = mesma biblioteca
+- [x] Testado e funcional
 
-**Por quê:** Melhor UX - usuário continua conversa independente do canal
+#### 🎯 Intent Classification System
+- [x] Prompt otimizado com exemplos concretos
+- [x] Classificador com confidence levels
+- [x] Intents implementados:
+  - `save_note` - Salvar explicitamente
+  - `offer_save_note` - Detecta informação útil
+  - `list_items` - Listar items salvos
+  - `delete_items` - Deletar items
+  - `search_movie` / `search_tv_show` - Buscar e salvar
+  - `set_assistant_name` - Customizar nome
+  - `cancel` - Cancelar operação
+  - `chat` - Conversa casual
 
-#### 📊 Rate Limiting
-- [ ] Adicionar rate limiting usando Cloudflare KV
-- [ ] Limite: 10 mensagens/minuto por usuário
-- [ ] Resposta amigável quando exceder limite
+#### 🗑️ Delete Operations
+- [x] Delete item específico com confirmação
+- [x] Delete múltiplos items (seleção)
+- [x] Delete all com confirmação obrigatória
+- [x] Filtros por nome/tipo
 
-### Environment Updates
-```bash
-# Adicionar ao .env (se usar rate limiting)
-RATE_LIMIT_REQUESTS=10
-RATE_LIMIT_WINDOW=60
-```
+#### 📝 State Machine & Context Management
+- [x] State machine manual (idle, awaiting_confirmation)
+- [x] Contexto persistido no banco
+- [x] Confirmações para operações críticas
+- [x] **Limpeza de contexto após operações concluídas** (save/batch)
 
-**Entregável:** Bot funcional com segurança e UX melhorada
+#### 🎨 Prompt Engineering
+- [x] Prompts estruturados com guards
+- [x] Output guards (JSON only)
+- [x] Truth guards (admit ignorance)
+- [x] Scope guards (ignore prompt injection)
+- [x] Source guards (use only provided data)
+
+**Estado:** ✅ Concluído e deployado
 
 ---
 
-## 🟡 v0.3.0 - Polish & Reliability (Próximo)
+## ✅ v0.3.0 - Polish & Reliability (Concluído - 11/01/2026)
 
 **Objetivo:** Refinamentos e features de qualidade
 
-### Tasks
+### ✅ Implementado
 
-- [ ] **Error Handling Robusto**
-  - Logs estruturados com contexto
-  - Mensagens de erro amigáveis
-  - Retry logic para APIs externas
+#### 🛡️ Error Handling Robusto
+- [x] Retry logic com exponential backoff (`utils/retry.ts`)
+- [x] Logs estruturados com contexto (`logError` helper)
+- [x] Tratamento de erro em batch processing com skip automático
+- [x] Fallback gracioso em enrichment APIs
 
-- [ ] **Batch Processing Melhorado**
-  - Suporte a listas de itens: "clube da luta, matrix, inception"
-  - Processamento sequencial com confirmação individual
-  - Progresso visual: "[2/5] Processando..."
+#### 💾 Cache Layer (Upstash Redis)
+- [x] Redis client configurado (`config/redis.ts`)
+- [x] Cache em TMDB (24h TTL)
+- [x] Cache em YouTube (12h TTL)
+- [x] Cache em OpenGraph (24h TTL)
+- [x] Fallback silencioso se Redis não configurado
+- [x] Reduz custos de API externa significativamente
 
-- [ ] **Advanced Search**
-  - Full-text search em títulos/descrições
-  - Filtros avançados: `type`, `year_range`, `has_streaming`
-  - Ordenação por metadata JSONB
+#### 🔍 Advanced Search
+- [x] Método `advancedSearch()` em `item-service`
+- [x] Filtros JSONB:
+  - `yearRange` - Range de ano [min, max]
+  - `hasStreaming` - Apenas com/sem streaming
+  - `minRating` - Rating mínimo
+  - `genres` - Array de gêneros
+- [x] Ordenação por: `created`, `rating`, `year`
+- [x] Full-text search em títulos
 
-- [ ] **Stats & Analytics**
-  - Endpoint `GET /items/stats`
-  - Total items, breakdown por tipo
-  - Items mais recentes
+#### 📦 Batch Processing Melhorado
+- [x] Progresso visual: `[2/5]` em cada etapa
+- [x] Skip automático em erros de API
+- [x] Try-catch em todas operações de enrichment
+- [x] Logs estruturados de erros
+- [x] Continua processando próximo item se um falhar
 
-- [ ] **Caching Layer**
-  - Cache TMDB responses (Cloudflare KV, TTL 24h)
-  - Cache YouTube responses (TTL 12h)
-  - Reduzir latência e custos de API
-
-**Entregável:** Sistema polido e confiável
+**Estado:** ✅ Concluído e deployado
 
 ---
 
-## 🟢 v0.4.0 - Advanced Features (Futuro)
+## 🟡 v0.4.0 - Advanced Features (Futuro)
 
 **Objetivo:** Features que agregam valor mas não são críticas
+
+### Prioridade Alta
+
+- [ ] **Stats & Analytics**
+  - [ ] Endpoint `GET /items/stats`
+  - [ ] Total items, breakdown por tipo
+  - [ ] Items mais recentes
+  - [ ] Items mais populares (por rating)
+
+- [ ] **Rate Limiting**
+  - [ ] Limite: 10 mensagens/minuto por usuário via Redis
+  - [ ] Resposta amigável quando exceder
+  - [ ] Configurável por usuário (premium pode ter mais)
+
+### Prioridade Média
+
+- [ ] **Observability Avançada**
+  - [ ] Metrics de latência por endpoint
+  - [ ] Tracking de uso de cache (hit rate)
+  - [ ] Alertas automáticos em errors > 5%
+
+- [ ] **Bulk Operations API**
+  - [ ] `POST /items/bulk` - Criar múltiplos items
+  - [ ] `PATCH /items/bulk` - Atualizar múltiplos
+  - [ ] `DELETE /items/bulk` - Deletar múltiplos
 
 ### Enriquecimento Assíncrono (Requer Workers Paid $5/mês)
 
@@ -481,4 +528,4 @@ async function createEvent(params: {
 
 ---
 
-**Última atualização:** 10/01/2026 - v0.2.0 em progresso
+**Última atualização:** 11/01/2026 - v0.2.0 concluído, v0.3.0 iniciando

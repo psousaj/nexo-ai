@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { memoryItems } from "@/db/schema";
-import { eq, and, desc, sql, or } from "drizzle-orm";
+import { eq, and, desc, sql, or, inArray } from "drizzle-orm";
 import type { ItemType, ItemMetadata } from "@/types";
 
 /**
@@ -219,6 +219,120 @@ export class ItemService {
   }
 
   /**
+   * Busca avançada com filtros JSONB
+   * @param params - Filtros de busca
+   * @param params.yearRange - Filtra por range de ano [min, max]
+   * @param params.hasStreaming - true = apenas com streaming, false = sem streaming
+   * @param params.minRating - Rating mínimo (0-10)
+   * @param params.genres - Array de gêneros para filtrar
+   * @param params.orderBy - Campo para ordenação: 'created' | 'rating' | 'year'
+   */
+  async advancedSearch(params: {
+    userId: string;
+    query?: string;
+    type?: ItemType;
+    yearRange?: [number, number];
+    hasStreaming?: boolean;
+    minRating?: number;
+    genres?: string[];
+    orderBy?: 'created' | 'rating' | 'year';
+    limit?: number;
+  }) {
+    const { 
+      userId, 
+      query, 
+      type, 
+      yearRange, 
+      hasStreaming, 
+      minRating,
+      genres,
+      orderBy = 'created', 
+      limit = 20 
+    } = params;
+
+    const conditions = [eq(memoryItems.userId, userId)];
+
+    // Filtro por tipo
+    if (type) {
+      conditions.push(eq(memoryItems.type, type));
+    }
+
+    // Filtro por query (full-text search em título)
+    if (query) {
+      conditions.push(
+        sql`LOWER(${memoryItems.title}) LIKE LOWER(${"%" + query + "%"})`
+      );
+    }
+
+    // Filtro por ano (movies/tv_shows)
+    if (yearRange) {
+      const [minYear, maxYear] = yearRange;
+      conditions.push(
+        sql`(
+          (${memoryItems.type} = 'movie' AND 
+           (${memoryItems.metadata}->>'year')::int BETWEEN ${minYear} AND ${maxYear})
+          OR 
+          (${memoryItems.type} = 'tv_show' AND 
+           (${memoryItems.metadata}->>'first_air_date')::int BETWEEN ${minYear} AND ${maxYear})
+        )`
+      );
+    }
+
+    // Filtro por streaming disponível
+    if (hasStreaming !== undefined) {
+      if (hasStreaming) {
+        conditions.push(
+          sql`${memoryItems.metadata}->'streaming' IS NOT NULL AND 
+              jsonb_array_length(${memoryItems.metadata}->'streaming') > 0`
+        );
+      } else {
+        conditions.push(
+          sql`(${memoryItems.metadata}->'streaming' IS NULL OR 
+               jsonb_array_length(${memoryItems.metadata}->'streaming') = 0)`
+        );
+      }
+    }
+
+    // Filtro por rating mínimo
+    if (minRating !== undefined) {
+      conditions.push(
+        sql`(${memoryItems.metadata}->>'rating')::float >= ${minRating}`
+      );
+    }
+
+    // Filtro por gêneros (OR: item tem pelo menos um dos gêneros)
+    if (genres && genres.length > 0) {
+      const genreConditions = genres.map(genre => 
+        sql`${memoryItems.metadata}->'genres' @> ${JSON.stringify([genre])}`
+      );
+      conditions.push(or(...genreConditions)!);
+    }
+
+    // Ordenação
+    let orderClause;
+    switch (orderBy) {
+      case 'rating':
+        orderClause = sql`(${memoryItems.metadata}->>'rating')::float DESC NULLS LAST`;
+        break;
+      case 'year':
+        orderClause = sql`COALESCE(
+          (${memoryItems.metadata}->>'year')::int,
+          (${memoryItems.metadata}->>'first_air_date')::int
+        ) DESC NULLS LAST`;
+        break;
+      default:
+        orderClause = desc(memoryItems.createdAt);
+    }
+
+    return await db
+      .select()
+      .from(memoryItems)
+      .where(and(...conditions))
+      .orderBy(orderClause)
+      .limit(limit);
+  }
+
+  /**
    * Wrapper para buscar memórias do usuário (compatível com tool calling)
    */
   async getUserItems(userId: string, query?: string, type?: string, limit: number = 10) {
@@ -240,6 +354,35 @@ export class ItemService {
     await db
       .delete(memoryItems)
       .where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)));
+  }
+
+  /**
+   * Deleta múltiplos itens
+   */
+  async deleteMultipleItems(itemIds: string[], userId: string): Promise<number> {
+    if (itemIds.length === 0) return 0;
+    
+    const result = await db
+      .delete(memoryItems)
+      .where(
+        and(
+          eq(memoryItems.userId, userId),
+          inArray(memoryItems.id, itemIds)
+        )
+      );
+    
+    return result.rowCount || 0;
+  }
+
+  /**
+   * Deleta TODOS os itens do usuário
+   */
+  async deleteAllItems(userId: string): Promise<number> {
+    const result = await db
+      .delete(memoryItems)
+      .where(eq(memoryItems.userId, userId));
+    
+    return result.rowCount || 0;
   }
 }
 
