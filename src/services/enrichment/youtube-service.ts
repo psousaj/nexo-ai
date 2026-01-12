@@ -1,5 +1,8 @@
 import { env } from '@/config/env';
 import type { VideoMetadata } from '@/types';
+import { cacheGet, cacheSet } from '@/config/redis';
+import { fetchWithRetry } from '@/utils/retry';
+import { loggers } from '@/utils/logger';
 
 interface YouTubeVideoSnippet {
 	title: string;
@@ -65,12 +68,24 @@ export class YouTubeService {
 	 * Busca detalhes de um vídeo
 	 */
 	async getVideoDetails(videoId: string): Promise<VideoMetadata> {
+		const cacheKey = `youtube:video:${videoId}`;
+		
+		// Tenta cache primeiro
+		const cached = await cacheGet<VideoMetadata>(cacheKey);
+		if (cached) {
+			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+			return cached;
+		}
+
 		const url = new URL(`${this.baseUrl}/videos`);
 		url.searchParams.set('key', this.apiKey);
 		url.searchParams.set('id', videoId);
 		url.searchParams.set('part', 'snippet,statistics,contentDetails');
 
-		const response = await fetch(url.toString());
+		const response = await fetchWithRetry(url.toString(), undefined, {
+			maxRetries: 2,
+			delayMs: 500,
+		});
 
 		if (!response.ok) {
 			throw new Error(`YouTube API error: ${response.statusText}`);
@@ -87,7 +102,7 @@ export class YouTubeService {
 		const statistics: YouTubeVideoStatistics = video.statistics;
 		const contentDetails: YouTubeVideoContentDetails = video.contentDetails;
 
-		return {
+		const metadata: VideoMetadata = {
 			video_id: videoId,
 			platform: 'youtube',
 			channel_name: snippet.channelTitle,
@@ -95,6 +110,11 @@ export class YouTubeService {
 			views: parseInt(statistics.viewCount || '0'),
 			thumbnail_url: snippet.thumbnails.high.url,
 		};
+
+		// Cache por 12h
+		await cacheSet(cacheKey, metadata, 43200);
+
+		return metadata;
 	}
 
 	/**

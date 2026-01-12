@@ -1,4 +1,7 @@
 import type { LinkMetadata } from "@/types";
+import { cacheGet, cacheSet } from '@/config/redis';
+import { fetchWithRetry } from '@/utils/retry';
+import { loggers } from '@/utils/logger';
 
 interface OpenGraphData {
   ogTitle?: string;
@@ -12,11 +15,23 @@ export class OpenGraphService {
    * Extrai OpenGraph metadata de uma URL
    */
   async fetchMetadata(url: string): Promise<LinkMetadata> {
+    const cacheKey = `opengraph:${url}`;
+    
+    // Tenta cache primeiro
+    const cached = await cacheGet<LinkMetadata>(cacheKey);
+    if (cached) {
+      loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
+      return cached;
+    }
+
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithRetry(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; NexoAI/1.0)",
         },
+      }, {
+        maxRetries: 2,
+        delayMs: 500,
       });
 
       if (!response.ok) {
@@ -27,19 +42,29 @@ export class OpenGraphService {
       const og = this.parseOpenGraph(html);
       const domain = new URL(url).hostname;
 
-      return {
+      const metadata: LinkMetadata = {
         url,
         og_title: og.ogTitle,
         og_description: og.ogDescription,
         og_image: og.ogImage,
         domain,
       };
+
+      // Cache por 24h
+      await cacheSet(cacheKey, metadata, 86400);
+
+      return metadata;
     } catch (error) {
       // Fallback em caso de erro
-      return {
+      const fallback: LinkMetadata = {
         url,
         domain: new URL(url).hostname,
       };
+      
+      // Cache fallback por 1h apenas
+      await cacheSet(cacheKey, fallback, 3600);
+      
+      return fallback;
     }
   }
 

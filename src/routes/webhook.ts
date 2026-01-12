@@ -7,6 +7,7 @@ import { itemService } from '@/services/item-service';
 import { llmService } from '@/services/ai';
 import { ToolExecutor } from '@/services/ai/tool-executor';
 import { env } from '@/config/env';
+import { logger, loggers } from '@/utils/logger';
 import type { ItemType, ConversationContext } from '@/types';
 import { whatsappAdapter, telegramAdapter, type MessagingProvider, type IncomingMessage } from '@/adapters/messaging';
 
