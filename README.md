@@ -2,8 +2,16 @@
 
 Assistente pessoal via Telegram que organiza, categoriza e enriquece automaticamente conteúdo usando IA.
 
+**v0.3.0** - Arquitetura Determinística Completa ✅
+
+- ✅ **Controle runtime determinístico** - LLM apenas planeja, código executa
+- ✅ **Schema JSON único** - `AgentLLMResponse` validado
+- ✅ **11 tools específicas** - Contratos fortes (save_note, save_movie, enrich_movie, etc)
+- ✅ **Zero conversação livre** - LLM nunca pergunta "quer que eu salve?"
+- ✅ **Ações determinísticas** - delete_all, list_all sem LLM
+- 📖 [Ver refatoração completa](docs/REFACTORING-v0.3.0.md)
+
 v0.2.0: Dashboard web para linking manual de contas
-v0.3.0: Suporte a Discord (provider sem telefone)
 Futuro: Ativar WhatsApp quando houver demanda
 
 ## 🎯 O que faz?

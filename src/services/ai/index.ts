@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
 import { CloudflareProvider } from './cloudflare-provider';
 import { GeminiProvider } from './gemini-provider';
 import type { AIProvider, AIProviderType, AIResponse, Message } from './types';
@@ -60,7 +61,7 @@ export class AIService {
 	 */
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
 		const { systemPrompt, ...rest } = params;
-		const prompt = systemPrompt || this.getDefaultSystemPrompt();
+		const prompt = systemPrompt || AGENT_SYSTEM_PROMPT;
 
 		console.log(`🤖 [AI] Chamando ${this.currentProvider}`);
 		console.log(`📝 [AI] Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
@@ -163,31 +164,6 @@ export class AIService {
 	 */
 	getAvailableProviders(): AIProviderType[] {
 		return Array.from(this.providers.keys());
-	}
-
-	/**
-	 * Default system prompt
-	 */
-	private getDefaultSystemPrompt(): string {
-		return `# IDENTIDADE
-Você é o Nexo, assistente de memória pessoal.
-
-# MISSÃO
-Ajudar usuário a organizar conteúdos: filmes, séries, vídeos, links, notas.
-
-# FORMATO DE SAÍDA
-Texto em pt-BR, respostas curtas (máx 3 frases).
-
-# COMPORTAMENTO
-- Confirmações curtas → resposta curta
-- Ambiguidade → peça UMA clarificação objetiva
-- Fora do escopo → redirecione gentilmente
-
-# GUARDS
-- BEHAVIOR: Nunca reinicie conversa. Nunca repita saudações.
-- SCOPE: Você organiza memórias. Não é assistente geral.
-- OUTPUT: Respostas diretas. Sem listas longas não solicitadas.
-- TRUTH: Se não souber, diga "não sei" ao invés de inventar.`;
 	}
 }
 

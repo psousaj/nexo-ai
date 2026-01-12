@@ -7,10 +7,12 @@ export interface Message {
 	content: string;
 }
 
+import type { AgentLLMResponse } from '@/types';
+
 export interface AIResponse {
+	// Resposta em texto bruto (pode ser JSON string)
 	message: string;
-	action?: 'save_item' | 'search_items' | 'enrich_metadata';
-	data?: any;
+	// Tool calls legado (ainda usado por Gemini SDK)
 	tool_calls?: Array<{
 		id: string;
 		type: 'function';
@@ -19,6 +21,8 @@ export interface AIResponse {
 			arguments: string;
 		};
 	}>;
+	// JSON parsed (AgentLLMResponse) - será preenchido pelo service
+	parsedResponse?: AgentLLMResponse;
 }
 
 export interface AIProvider {

@@ -14,6 +14,7 @@ Registro de decisões arquiteturais do Nexo AI.
 - [ADR-008](008-advanced-state-machine.md) - Advanced state machine (postponed until v1.0+)
 - [ADR-009](009-no-mcp-mvp.md) - MCP Server é opcional no MVP
 - [ADR-010](010-sync-enrichment-mvp.md) - Enriquecimento síncrono no MVP
+- [ADR-011](011-deterministic-runtime-control.md) - Controle runtime determinístico (v0.3.0)
 
 ## Template
 

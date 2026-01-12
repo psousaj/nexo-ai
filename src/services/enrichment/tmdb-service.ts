@@ -8,9 +8,12 @@ export interface TMDBMovie {
 	id: number;
 	title: string;
 	release_date: string;
+	year?: number;
 	vote_average: number;
+	rating?: number;
 	genre_ids: number[];
 	poster_path: string | null;
+	overview?: string;
 }
 
 interface TMDBMovieDetails {
@@ -31,8 +34,10 @@ export interface TMDBTVShow {
 	name: string;
 	first_air_date: string;
 	vote_average: number;
+	rating?: number;
 	genre_ids: number[];
 	poster_path: string | null;
+	overview?: string;
 }
 
 interface TMDBTVShowDetails {
@@ -61,7 +66,7 @@ export class TMDBService {
 	 */
 	async searchMovies(query: string): Promise<TMDBMovie[]> {
 		const cacheKey = `tmdb:search:movie:${query.toLowerCase()}`;
-		
+
 		// Tenta cache primeiro
 		const cached = await cacheGet<TMDBMovie[]>(cacheKey);
 		if (cached) {
@@ -97,7 +102,7 @@ export class TMDBService {
 	 */
 	async searchTVShows(query: string): Promise<TMDBTVShow[]> {
 		const cacheKey = `tmdb:search:tv:${query.toLowerCase()}`;
-		
+
 		// Tenta cache primeiro
 		const cached = await cacheGet<TMDBTVShow[]>(cacheKey);
 		if (cached) {
@@ -133,7 +138,7 @@ export class TMDBService {
 	 */
 	async getMovieDetails(tmdbId: number): Promise<TMDBMovieDetails> {
 		const cacheKey = `tmdb:movie:${tmdbId}`;
-		
+
 		// Tenta cache primeiro
 		const cached = await cacheGet<TMDBMovieDetails>(cacheKey);
 		if (cached) {
@@ -168,7 +173,7 @@ export class TMDBService {
 	 */
 	async getTVShowDetails(tmdbId: number): Promise<TMDBTVShowDetails> {
 		const cacheKey = `tmdb:tv:${tmdbId}`;
-		
+
 		// Tenta cache primeiro
 		const cached = await cacheGet<TMDBTVShowDetails>(cacheKey);
 		if (cached) {
@@ -264,14 +269,16 @@ export class TMDBService {
 		}>
 	> {
 		const cacheKey = `tmdb:streaming:${type}:${tmdbId}`;
-		
+
 		// Tenta cache primeiro
-		const cached = await cacheGet<Array<{
-			provider_id: number;
-			provider_name: string;
-			logo_path: string;
-			type: 'flatrate' | 'rent' | 'buy';
-		}>>(cacheKey);
+		const cached = await cacheGet<
+			Array<{
+				provider_id: number;
+				provider_name: string;
+				logo_path: string;
+				type: 'flatrate' | 'rent' | 'buy';
+			}>
+		>(cacheKey);
 		if (cached) {
 			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
 			return cached;

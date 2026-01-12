@@ -6,7 +6,7 @@ import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
-import { webhookRouter } from '@/routes/webhook';
+import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
 
 // OpenTelemetry exporter (Uptrace)
@@ -82,7 +82,7 @@ const app = new Elysia()
 		};
 	})
 	.use(healthRouter)
-	.group('/webhook', (app) => app.use(webhookRouter))
+	.use(webhookRouter)
 	.group('/items', (app) => app.use(itemsRouter));
 
 export default app;
