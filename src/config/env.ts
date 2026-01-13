@@ -39,6 +39,12 @@ const envSchema = z.object({
 	UPSTASH_REDIS_URL: z.string().url().optional(),
 	UPSTASH_REDIS_TOKEN: z.string().optional(),
 
+	// Redis (para Bull queue) - OBRIGATÓRIO
+	REDIS_HOST: z.string().min(1, 'REDIS_HOST é obrigatório'),
+	REDIS_PORT: z.coerce.number().default(6379),
+	REDIS_PASSWORD: z.string().min(1, 'REDIS_PASSWORD é obrigatório'),
+	REDIS_TLS: z.coerce.boolean().default(true),
+
 	// Observability - New Relic (opcional)
 	NEW_RELIC_LICENSE_KEY: z.string().optional(),
 	NEW_RELIC_APP_NAME: z.string().optional().default('nexo-ai'),

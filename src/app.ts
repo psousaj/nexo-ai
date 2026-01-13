@@ -8,6 +8,26 @@ import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
+import { runConversationCloseCron } from '@/services/queue-service';
+
+// ============================================================================
+// CRON DE BACKUP - Fecha conversas que deveriam estar fechadas
+// ============================================================================
+
+// Roda a cada 1 minuto
+setInterval(async () => {
+	try {
+		await runConversationCloseCron();
+	} catch (error) {
+		console.error('❌ [Cron] Erro ao rodar cron de fechamento:', error);
+	}
+}, 60 * 1000); // 1 minuto
+
+console.log('🕐 [Cron] Backup de fechamento de conversas ativado (1 min)');
+
+// ============================================================================
+// OPENTELEMETRY
+// ============================================================================
 
 // OpenTelemetry exporter (Uptrace)
 const traceExporter = env.UPTRACE_DSN

@@ -11,6 +11,7 @@ export const conversations = pgTable("conversations", {
     .references(() => users.id, { onDelete: "cascade" }),
   state: text("state").$type<ConversationState>().default("idle").notNull(),
   context: jsonb("context").$type<ConversationContext>(),
+  closeAt: timestamp("close_at"), // Timestamp para auto-fechamento
   isActive: boolean("is_active").default(true).notNull(), // Apenas 1 conversa ativa por usuário
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

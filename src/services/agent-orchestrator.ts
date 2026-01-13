@@ -36,6 +36,7 @@ import {
 } from '@/config/prompts';
 import type { ConversationState, AgentLLMResponse } from '@/types';
 import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
+import { scheduleConversationClose } from './queue-service';
 
 export interface AgentContext {
 	userId: string;
@@ -124,6 +125,13 @@ export class AgentOrchestrator {
 		// 6. SALVAR MENSAGENS
 		await conversationService.addMessage(conversation.id, 'user', context.message);
 		await conversationService.addMessage(conversation.id, 'assistant', response.message);
+
+		// 7. AGENDAR FECHAMENTO SE A AÇÃO FINALIZOU
+		// Fecha conversa em 3min se estado voltar para 'open' (idle)
+		if (response.state === 'idle' && action !== 'handle_casual') {
+			await scheduleConversationClose(conversation.id);
+			console.log(`📅 [Agent] Fechamento agendado para ${conversation.id} em 3min`);
+		}
 
 		console.log(`✅ [Agent] Resposta gerada (${response.message?.length || 0} chars)`);
 		return response;

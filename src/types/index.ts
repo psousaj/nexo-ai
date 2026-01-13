@@ -3,13 +3,11 @@
 export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note';
 
 export type ConversationState =
-	| 'idle'
-	| 'awaiting_confirmation'
-	| 'batch_processing' // Processando lista de itens
-	| 'awaiting_batch_item' // Aguardando confirmação de item da lista
-	| 'enriching'
-	| 'saving'
-	| 'error';
+	| 'idle' // Conversa inativa, pronta para receber comandos
+	| 'processing' // Ação em andamento (evita concorrência)
+	| 'awaiting_confirmation' // Aguardando confirmação do usuário
+	| 'waiting_close' // Ação finalizada, timer de 3min agendado
+	| 'closed'; // Conversa encerrada, contexto limpo
 
 export type MessageRole = 'user' | 'assistant';
 
