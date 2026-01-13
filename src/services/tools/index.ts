@@ -465,10 +465,10 @@ export async function update_user_settings(
 	}
 ): Promise<ToolOutput> {
 	try {
-		const { userService } = await import('@/services/user-service');
+		const { preferencesService } = await import('@/services/preferences-service');
 
 		if (params.assistantName !== undefined) {
-			await userService.updateAssistantName(context.userId, params.assistantName);
+			await preferencesService.setAssistantName(context.userId, params.assistantName);
 
 			return {
 				success: true,
@@ -482,6 +482,32 @@ export async function update_user_settings(
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao atualizar',
+		};
+	}
+}
+
+// ============================================================================
+// PREFERENCES TOOLS
+// ============================================================================
+
+/**
+ * Tool: get_assistant_name
+ * Retorna o nome customizado do assistente (ou null para default)
+ */
+export async function get_assistant_name(context: ToolContext, params: {}): Promise<ToolOutput> {
+	try {
+		const { preferencesService } = await import('@/services/preferences-service');
+		const name = await preferencesService.getAssistantName(context.userId);
+
+		return {
+			success: true,
+			data: { name: name || 'Nexo' },
+		};
+	} catch (error) {
+		console.error('❌ [Tool] Erro ao buscar nome do assistente:', error);
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao buscar preferências',
 		};
 	}
 }
@@ -510,7 +536,8 @@ export const AVAILABLE_TOOLS = {
 	delete_memory,
 	delete_all_memories,
 
-	// Update tools
+	// Preferences tools
+	get_assistant_name,
 	update_user_settings,
 } as const;
 

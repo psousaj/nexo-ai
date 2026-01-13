@@ -73,11 +73,15 @@ CLASSIFICATION RULES:
    Examples: "posso te chamar de outro nome?", "quero te chamar de Maria", "muda seu nome para João"
    Use quando usuário quer MUDAR configurações: nome do assistente, preferências
 
-9. INFO REQUEST → {"intent":"get_info","action":"get_details","confidence":0.85,"entities":{"query":"..."}}
+9. GET ASSISTANT NAME → {"intent":"get_info","action":"get_assistant_name","confidence":0.95}
+   Examples: "qual é seu nome?", "como você se chama?", "você tem nome?"
+   Use quando usuário PERGUNTA qual é o nome do assistente
+
+10. INFO REQUEST → {"intent":"get_info","action":"get_details","confidence":0.85,"entities":{"query":"..."}}
    Examples: "o que você faz?", "como funciona?", "o que é isso?"
    Use quando usuário pergunta SOBRE o sistema, não quer salvar/buscar/mudar
 
-10. UNKNOWN → {"intent":"unknown","action":"unknown","confidence":0.5}
+11. UNKNOWN → {"intent":"unknown","action":"unknown","confidence":0.5}
    When message is ambiguous or doesn't match any pattern
 
 CRITICAL: Respond ONLY with valid JSON. NO explanations, NO markdown, NO extra text.`;

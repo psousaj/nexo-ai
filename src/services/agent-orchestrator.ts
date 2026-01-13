@@ -109,6 +109,10 @@ export class AgentOrchestrator {
 				response = await this.handleCasual(context);
 				break;
 
+			case 'handle_get_assistant_name':
+				response = await this.handleGetAssistantName(context);
+				break;
+
 			default:
 				response = {
 					message: 'Não entendi. Pode reformular?',
@@ -162,6 +166,8 @@ export class AgentOrchestrator {
 			case 'greet':
 			case 'thank':
 				return 'handle_casual';
+			case 'get_assistant_name':
+				return 'handle_get_assistant_name';
 		}
 
 		// Resto: delega para LLM
@@ -401,6 +407,25 @@ export class AgentOrchestrator {
 		return {
 			message: response,
 			state: 'idle',
+		};
+	}
+
+	/**
+	 * Responde com o nome do assistente (customizado ou default)
+	 */
+	private async handleGetAssistantName(context: AgentContext): Promise<AgentResponse> {
+		const toolContext: ToolContext = {
+			userId: context.userId,
+			conversationId: context.conversationId,
+		};
+
+		const result = await executeTool('get_assistant_name', toolContext, {});
+		const name = result.data?.name || 'Nexo';
+
+		return {
+			message: `Meu nome é ${name}! 😊`,
+			state: 'idle',
+			toolsUsed: ['get_assistant_name'],
 		};
 	}
 

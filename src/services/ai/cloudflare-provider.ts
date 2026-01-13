@@ -41,33 +41,34 @@ export class CloudflareProvider implements AIProvider {
 				contextContent = `Histórico da conversa em formato TOON (tab-separated):\n\n\`\`\`toon\n${toonHistory}\n\`\`\`\n\nMensagem atual: ${message}`;
 			}
 
-			// Enviar tudo como uma única mensagem user
-			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-				{
-					role: 'user',
-					content: contextContent,
-				},
-			];
+			// Montar messages no formato padrão OpenAI
+			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+
+			// System prompt como primeira mensagem (padrão OpenAI)
+			if (systemPrompt) {
+				messages.push({
+					role: 'system',
+					content: systemPrompt,
+				});
+			}
+
+			// Mensagem do usuário com contexto
+			messages.push({
+				role: 'user',
+				content: contextContent,
+			});
 
 			// Chamar API usando SDK OpenAI
 			const response = await this.client.chat.completions.create({
 				model: this.model,
 				messages,
-				// System prompt como instructions (parâmetro específico do Workers AI)
-				...(systemPrompt && {
-					// @ts-ignore - instructions não é oficial na tipagem OpenAI mas funciona no Workers AI
-					instructions: systemPrompt,
-				}),
 				// Forçar resposta em JSON
 				response_format: { type: 'json_object' },
-				// Tool choice para reduzir tokens de entrada
-				// @ts-ignore - tool_choice "auto" reduz overhead sem tools definidas
-				tool_choice: 'auto',
 			});
 
 			const text = response.choices[0]?.message?.content || '';
 			console.log('☁️ [Cloudflare] Resposta recebida');
-
+			console.log(response);
 			if (!text) {
 				console.warn('⚠️ [Cloudflare] Resposta vazia!');
 			}

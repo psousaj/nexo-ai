@@ -33,6 +33,7 @@ export type ActionVerb =
 	| 'update_item'
 	| 'update_settings' // Atualizar configurações do usuário (nome do assistente, etc)
 	| 'get_details'
+	| 'get_assistant_name' // Usuário pergunta "qual é seu nome?"
 	| 'confirm'
 	| 'deny'
 	| 'greet'
@@ -189,7 +190,17 @@ export class IntentClassifier {
 			return result;
 		}
 
-		// 4. SOLICITAR INFORMAÇÕES
+		// 4. PERGUNTAR NOME DO ASSISTENTE (antes de info request genérico)
+		if (this.isAskingAssistantName(lowerMsg)) {
+			console.log(`🎯 [Intent] get_info (get_assistant_name, regex) - conf: 0.95`);
+			return {
+				intent: 'get_info',
+				action: 'get_assistant_name',
+				confidence: 0.95,
+			};
+		}
+
+		// 5. SOLICITAR INFORMAÇÕES
 		if (this.isInfoRequest(lowerMsg)) {
 			console.log(`🎯 [Intent] get_info (regex) - conf: 0.85`);
 			return {
@@ -319,6 +330,24 @@ export class IntentClassifier {
 		];
 
 		return searchKeywords.some((kw) => msg.includes(kw));
+	}
+
+	/**
+	 * Verifica se usuário está perguntando o nome do assistente
+	 */
+	private isAskingAssistantName(msg: string): boolean {
+		const namePatterns = [
+			/qual (é |e )?(o )?seu nome/i,
+			/como (você|vc|tu) se chama/i,
+			/você tem nome/i,
+			/tem nome/i,
+			/seu nome é/i,
+			/^qual seu nome/i,
+			/^como te chamo/i,
+			/posso saber seu nome/i,
+		];
+
+		return namePatterns.some((pattern) => pattern.test(msg));
 	}
 
 	/**

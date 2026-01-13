@@ -71,7 +71,6 @@ export class GeminiProvider implements AIProvider {
 			// System prompt continua como texto (não TOON)
 			if (systemPrompt) {
 				chatConfig.systemInstruction = {
-					role: 'system',
 					parts: [{ text: systemPrompt }],
 				};
 			}
