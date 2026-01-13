@@ -98,10 +98,6 @@ export class IntentClassifier {
 						content: message,
 					},
 				],
-				// Forçar resposta JSON
-				response_format: {
-					type: 'json_object',
-				},
 				temperature: 0.1, // Muito baixo para consistência
 				max_tokens: 200, // Reduzido, JSON é pequeno
 			});

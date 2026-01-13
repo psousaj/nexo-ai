@@ -26,7 +26,9 @@ SYSTEM CAPABILITIES:
 - Delete: remove specific items or all content
 - Enrich: automatically fetch metadata (TMDB, YouTube, OpenGraph)
 
-Analyze the user's message and respond ONLY with valid JSON following this exact schema:
+YOUR ONLY OUTPUT FORMAT IS JSON. NO TEXT BEFORE OR AFTER JSON. START YOUR RESPONSE WITH { AND END WITH }.
+
+Analyze the user's message and respond with this exact JSON schema:
 
 {
   "intent": "save_content" | "search_content" | "delete_content" | "update_content" | "get_info" | "confirm" | "deny" | "casual_chat" | "unknown",
