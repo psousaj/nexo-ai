@@ -1,8 +1,9 @@
 import { db } from '@/db';
 import { memoryItems } from '@/db/schema';
-import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, or, inArray, cosineDistance } from 'drizzle-orm';
 import type { ItemType, ItemMetadata } from '@/types';
 import { createHash } from 'crypto';
+import { embeddingService } from './ai/embedding-service';
 
 /**
  * Resultado da verificação de duplicata
@@ -181,6 +182,24 @@ export class ItemService {
 	}
 
 	/**
+	 * Prepara um texto rico para gerar embedding
+	 */
+	private prepareTextForEmbedding(params: { type: ItemType; title: string; metadata?: ItemMetadata }): string {
+		const { type, title, metadata } = params;
+		let text = `Tipo: ${type}. Título: ${title}.`;
+
+		if (metadata) {
+			if ('overview' in metadata && metadata.overview) text += ` Descrição: ${metadata.overview}`;
+			if ('director' in metadata && metadata.director) text += ` Diretor: ${metadata.director}`;
+			if ('cast' in metadata && Array.isArray(metadata.cast)) text += ` Elenco: ${metadata.cast.join(', ')}`;
+			if ('genres' in metadata && Array.isArray(metadata.genres)) text += ` Gêneros: ${metadata.genres.join(', ')}`;
+			if ('full_content' in metadata && metadata.full_content) text += ` Conteúdo: ${metadata.full_content}`;
+		}
+
+		return text;
+	}
+
+	/**
 	 * Cria nova memória (com validação de duplicata)
 	 * Retorna { item, isDuplicate, existingItem }
 	 */
@@ -223,6 +242,16 @@ export class ItemService {
 			}
 		}
 
+		// Gera embedding semântico
+		let embedding: number[] | null = null;
+		try {
+			const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+			embedding = await embeddingService.generateEmbedding(textToEmbed);
+			console.log(`🧠 [Embedding] Vetor gerado para "${title.substring(0, 30)}..."`);
+		} catch (error) {
+			console.error('⚠️ [Embedding] Falha ao gerar embedding, salvando sem vetor:', error);
+		}
+
 		// Cria nova memória
 		const [item] = await db
 			.insert(memoryItems)
@@ -233,6 +262,7 @@ export class ItemService {
 				externalId,
 				contentHash,
 				metadata,
+				embedding,
 			})
 			.returning();
 
@@ -274,10 +304,43 @@ export class ItemService {
 	/**
 	 * Busca semântica
 	 */
+	/**
+	 * Busca semântica (Hybrid Search: Vector + Keyword)
+	 */
 	async searchItems(params: { userId: string; query: string; limit?: number }) {
 		const { userId, query, limit = 10 } = params;
 		const searchPattern = `%${query}%`;
 
+		try {
+			// 1. TENTA BUSCA VETORIAL (Semântica)
+			const queryEmbedding = await embeddingService.generateEmbedding(query);
+			
+			// Cálculo de similaridade: 1 - cosine_distance
+			const similarity = sql<number>`1 - (${cosineDistance(memoryItems.embedding, queryEmbedding)})`;
+
+			const vectorResults = await db
+				.select()
+				.from(memoryItems)
+				.where(
+					and(
+						eq(memoryItems.userId, userId),
+						sql`${memoryItems.embedding} IS NOT NULL`,
+						sql`1 - (${cosineDistance(memoryItems.embedding, queryEmbedding)}) > 0.3` // Threshold de similaridade
+					)
+				)
+				.orderBy(desc(similarity))
+				.limit(limit);
+
+			if (vectorResults.length > 0) {
+				console.log(`🧠 [Search] Encontrados ${vectorResults.length} resultados via pgvector`);
+				return vectorResults;
+			}
+		} catch (error) {
+			console.warn('⚠️ [Search] Falha na busca vetorial, usando fallback literal:', error);
+		}
+
+		// 2. FALLBACK: BUSCA KEYWORD (Literal)
+		console.log(`🔍 [Search] Usando busca literal para: "${query}"`);
 		return await db
 			.select()
 			.from(memoryItems)
