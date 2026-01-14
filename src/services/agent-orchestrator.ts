@@ -34,7 +34,7 @@ import {
 	GENERIC_ERROR,
 	formatItemsList,
 } from '@/config/prompts';
-import type { ConversationState, AgentLLMResponse } from '@/types';
+import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
 import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
 import { scheduleConversationClose } from './queue-service';
 
@@ -324,10 +324,16 @@ export class AgentOrchestrator {
 					conversationId: context.conversationId,
 				};
 
-				// TODO: Determinar qual tool específica usar baseado no tipo
-				const toolName = selected.type === 'movie' ? 'save_movie' : 'save_note';
+				// Determinar qual tool usar (prioriza tipo do item, fallback para tipo detectado no contexto)
+				const itemType = selected.type || contextData.detected_type || 'note';
+				
+				let toolName: ToolName = 'save_note';
+				if (itemType === 'movie') toolName = 'save_movie';
+				else if (itemType === 'tv_show') toolName = 'save_tv_show';
+				else if (itemType === 'video') toolName = 'save_video';
+				else if (itemType === 'link') toolName = 'save_link';
+
 				await executeTool(toolName as any, toolContext, {
-					title: selected.title,
 					...selected,
 				});
 

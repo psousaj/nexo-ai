@@ -72,6 +72,8 @@ export async function save_movie(
 		title: string;
 		year?: number;
 		tmdb_id?: number;
+		rating?: number;
+		genres?: string[];
 	}
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
@@ -79,16 +81,30 @@ export async function save_movie(
 	}
 
 	try {
+		let metadata: MovieMetadata = {
+			tmdb_id: params.tmdb_id || 0,
+			year: params.year || new Date().getFullYear(),
+			genres: params.genres || [],
+			rating: params.rating || 0,
+		};
+
+		// Se tem tmdb_id, busca detalhes completos (diretor, elenco, etc)
+		if (params.tmdb_id) {
+			try {
+				const enriched = await enrichmentService.enrich('movie', { tmdbId: params.tmdb_id });
+				if (enriched) {
+					metadata = { ...metadata, ...enriched } as MovieMetadata;
+				}
+			} catch (enrichError) {
+				console.warn(`⚠️ [Tool] Falha ao enriquecer filme ${params.tmdb_id}:`, enrichError);
+			}
+		}
+
 		const item = await itemService.createItem({
 			userId: context.userId,
 			type: 'movie',
 			title: params.title,
-			metadata: {
-				tmdb_id: params.tmdb_id || 0,
-				year: params.year || new Date().getFullYear(),
-				genres: [],
-				rating: 0,
-			} as MovieMetadata,
+			metadata,
 		});
 
 		return {
@@ -113,6 +129,8 @@ export async function save_tv_show(
 		title: string;
 		year?: number;
 		tmdb_id?: number;
+		rating?: number;
+		genres?: string[];
 	}
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
@@ -120,19 +138,33 @@ export async function save_tv_show(
 	}
 
 	try {
+		let metadata: TVShowMetadata = {
+			tmdb_id: params.tmdb_id || 0,
+			first_air_date: params.year || new Date().getFullYear(),
+			number_of_seasons: 0,
+			number_of_episodes: 0,
+			status: 'Unknown',
+			genres: params.genres || [],
+			rating: params.rating || 0,
+		};
+
+		// Se tem tmdb_id, busca detalhes completos
+		if (params.tmdb_id) {
+			try {
+				const enriched = await enrichmentService.enrich('tv_show', { tmdbId: params.tmdb_id });
+				if (enriched) {
+					metadata = { ...metadata, ...enriched } as TVShowMetadata;
+				}
+			} catch (enrichError) {
+				console.warn(`⚠️ [Tool] Falha ao enriquecer série ${params.tmdb_id}:`, enrichError);
+			}
+		}
+
 		const item = await itemService.createItem({
 			userId: context.userId,
 			type: 'tv_show',
 			title: params.title,
-			metadata: {
-				tmdb_id: params.tmdb_id || 0,
-				first_air_date: params.year || new Date().getFullYear(),
-				number_of_seasons: 0,
-				number_of_episodes: 0,
-				status: 'Unknown',
-				genres: [],
-				rating: 0,
-			} as TVShowMetadata,
+			metadata,
 		});
 
 		return {
@@ -296,6 +328,7 @@ export async function enrich_movie(
 			success: true,
 			data: {
 				results: results.map((r) => ({
+					type: 'movie' as const,
 					title: r.title,
 					year: r.release_date ? parseInt(r.release_date.split('-')[0]) : undefined,
 					tmdb_id: r.id,
@@ -341,6 +374,7 @@ export async function enrich_tv_show(
 			success: true,
 			data: {
 				results: results.map((r) => ({
+					type: 'tv_show' as const,
 					title: r.name,
 					year: r.first_air_date,
 					tmdb_id: r.id,
