@@ -110,42 +110,56 @@ export class IntentClassifier {
 			});
 
 			const content = response.choices[0]?.message?.content;
-			if (!content || typeof content !== 'string') {
-				console.warn('⚠️ [Intent] Resposta vazia ou inválida, usando fallback');
+			if (!content) {
+				console.warn('⚠️ [Intent] Resposta vazia, usando fallback');
 				console.log('🔍 [Intent] Response completo:', JSON.stringify(response, null, 2));
 				return this.classifyWithRegex(message);
 			}
 
 			console.log('📥 [Intent] ===== RESPOSTA BRUTA DO LLM =====');
-			console.log(content);
+			console.log('Tipo:', typeof content);
+			console.log('Valor:', typeof content === 'string' ? content : JSON.stringify(content, null, 2));
 			console.log('📥 [Intent] ===== FIM RESPOSTA BRUTA =====');
 
-			// Limpar tags <think>, <answer>, etc (modelos de reasoning)
-			let jsonContent = content
-				.replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove blocos <think>...</think>
-				.replace(/<answer>/gi, '') // Remove tag <answer>
-				.replace(/<\/answer>/gi, '') // Remove tag </answer>
-				.trim();
+			let result: IntentResult;
 
-			// Se não começa com {, tentar encontrar JSON no texto
-			if (!jsonContent.startsWith('{')) {
-				console.log('⚠️ [Intent] Resposta não começa com {, tentando extrair JSON...');
-				const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
-				if (jsonMatch) {
-					jsonContent = jsonMatch[0];
-					console.log('✅ [Intent] JSON extraído com sucesso');
-				} else {
-					console.warn('❌ [Intent] Resposta não contém JSON válido:');
-					console.log(content);
-					return this.classifyWithRegex(message);
+			// Cloudflare Workers AI pode retornar content como objeto OU string
+			if (typeof content === 'object') {
+				// Já é um objeto JSON parseado
+				console.log('✅ [Intent] Content já é objeto, usando direto');
+				result = content as IntentResult;
+			} else if (typeof content === 'string') {
+				// É string, precisa parsear
+				console.log('🔄 [Intent] Content é string, fazendo parse...');
+
+				// Limpar tags <think>, <answer>, etc (modelos de reasoning)
+				let jsonContent = content
+					.replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove blocos <think>...</think>
+					.replace(/<answer>/gi, '') // Remove tag <answer>
+					.replace(/<\/answer>/gi, '') // Remove tag </answer>
+					.trim();
+
+				// Se não começa com {, tentar encontrar JSON no texto
+				if (!jsonContent.startsWith('{')) {
+					console.log('⚠️ [Intent] Resposta não começa com {, tentando extrair JSON...');
+					const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+					if (jsonMatch) {
+						jsonContent = jsonMatch[0];
+						console.log('✅ [Intent] JSON extraído com sucesso');
+					} else {
+						console.warn('❌ [Intent] Resposta não contém JSON válido:');
+						console.log(content);
+						return this.classifyWithRegex(message);
+					}
 				}
+
+				console.log('🧹 [Intent] JSON limpo para parse:', jsonContent);
+				result = JSON.parse(jsonContent);
+			} else {
+				console.warn('⚠️ [Intent] Tipo de content inesperado:', typeof content);
+				return this.classifyWithRegex(message);
 			}
 
-			console.log('🧹 [Intent] ===== JSON LIMPO PARA PARSE =====');
-			console.log(jsonContent);
-			console.log('🧹 [Intent] ===== FIM JSON LIMPO =====');
-
-			const result: IntentResult = JSON.parse(jsonContent);
 			console.log('✅ [Intent] ===== RESULTADO PARSEADO =====');
 			console.log(JSON.stringify(result, null, 2));
 			console.log('✅ [Intent] ===== FIM RESULTADO =====');
