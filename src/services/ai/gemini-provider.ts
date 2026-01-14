@@ -54,7 +54,13 @@ export class GeminiProvider implements AIProvider {
 
 				const toonHistory = encode(historyData, { delimiter: '\t' });
 
-				userMessage = `Histórico da conversa em formato TOON (tab-separated):\n\n\`\`\`toon\n${toonHistory}\n\`\`\`\n\nMensagem atual: ${message}`;
+				userMessage = `Histórico da conversa em formato TOON (tab-separated):
+
+\`\`\`toon
+${toonHistory}
+\`\`\`
+
+Mensagem atual: ${message}`;
 			}
 
 			// Configura o chat SEM histórico (tudo vai na mensagem)
@@ -81,14 +87,14 @@ export class GeminiProvider implements AIProvider {
 			const response = result.response;
 
 			// Retorna texto JSON (sem function calling)
-			const text = response.text();
+			const text = String(response.text() || '');
 			console.log('🤖 [Gemini] Resposta recebida');
 
 			if (!text) {
 				console.warn('⚠️ [Gemini] Resposta vazia!');
 			}
 
-			return { message: text };
+			return { message: text.trim() };
 		} catch (error: any) {
 			console.error('❌ Erro ao chamar Gemini SDK:', error);
 			throw error;

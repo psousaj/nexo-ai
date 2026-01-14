@@ -38,7 +38,13 @@ export class CloudflareProvider implements AIProvider {
 
 				const toonHistory = encode(historyData, { delimiter: '\t' });
 
-				contextContent = `Histórico da conversa em formato TOON (tab-separated):\n\n\`\`\`toon\n${toonHistory}\n\`\`\`\n\nMensagem atual: ${message}`;
+				contextContent = `Histórico da conversa em formato TOON (tab-separated):
+
+\`\`\`toon
+${toonHistory}
+\`\`\`
+
+Mensagem atual: ${message}`;
 			}
 
 			// Montar messages no formato padrão OpenAI
@@ -65,7 +71,9 @@ export class CloudflareProvider implements AIProvider {
 				messages,
 			});
 
-			const text = response.choices[0]?.message?.content || '';
+			const rawContent = response.choices[0]?.message?.content;
+			const text = typeof rawContent === 'string' ? rawContent : '';
+
 			console.log('☁️ [Cloudflare] Resposta recebida');
 			if (!text) {
 				console.warn('⚠️ [Cloudflare] Resposta vazia!');
