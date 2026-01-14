@@ -71,7 +71,12 @@ export class AgentOrchestrator {
 
 		// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
 		const action = this.decideAction(intent, conversation.state);
-		console.log(`⚡ [Agent] Ação decidida: ${action}`);
+		console.log('⚡ [Agent] ===== DECISÃO DE AÇÃO =====');
+		console.log(`Estado: ${conversation.state}`);
+		console.log(`Intent: ${intent.intent}`);
+		console.log(`Action verb: ${intent.action}`);
+		console.log(`Ação decidida: ${action}`);
+		console.log('⚡ [Agent] ===== FIM DECISÃO =====');
 
 		// 4. EXECUTAR AÇÃO
 		let response: AgentResponse;

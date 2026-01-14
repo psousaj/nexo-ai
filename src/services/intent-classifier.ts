@@ -112,10 +112,13 @@ export class IntentClassifier {
 			const content = response.choices[0]?.message?.content;
 			if (!content || typeof content !== 'string') {
 				console.warn('⚠️ [Intent] Resposta vazia ou inválida, usando fallback');
+				console.log('🔍 [Intent] Response completo:', JSON.stringify(response, null, 2));
 				return this.classifyWithRegex(message);
 			}
 
-			console.log(`📥 [Intent] Resposta bruta: ${content.substring(0, 200)}`);
+			console.log('📥 [Intent] ===== RESPOSTA BRUTA DO LLM =====');
+			console.log(content);
+			console.log('📥 [Intent] ===== FIM RESPOSTA BRUTA =====');
 
 			// Limpar tags <think>, <answer>, etc (modelos de reasoning)
 			let jsonContent = content
@@ -126,21 +129,34 @@ export class IntentClassifier {
 
 			// Se não começa com {, tentar encontrar JSON no texto
 			if (!jsonContent.startsWith('{')) {
+				console.log('⚠️ [Intent] Resposta não começa com {, tentando extrair JSON...');
 				const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
 				if (jsonMatch) {
 					jsonContent = jsonMatch[0];
+					console.log('✅ [Intent] JSON extraído com sucesso');
 				} else {
-					console.warn('⚠️ [Intent] Resposta não é JSON:', content.substring(0, 100));
+					console.warn('❌ [Intent] Resposta não contém JSON válido:');
+					console.log(content);
 					return this.classifyWithRegex(message);
 				}
 			}
 
+			console.log('🧹 [Intent] ===== JSON LIMPO PARA PARSE =====');
+			console.log(jsonContent);
+			console.log('🧹 [Intent] ===== FIM JSON LIMPO =====');
+
 			const result: IntentResult = JSON.parse(jsonContent);
-			console.log(`🎯 [Intent] ${result.intent} (${result.action}) - conf: ${result.confidence}`);
+			console.log('✅ [Intent] ===== RESULTADO PARSEADO =====');
+			console.log(JSON.stringify(result, null, 2));
+			console.log('✅ [Intent] ===== FIM RESULTADO =====');
 
 			return result;
 		} catch (error) {
-			console.error('❌ [Intent] Erro ao classificar:', error);
+			console.error('❌ [Intent] ===== ERRO AO CLASSIFICAR =====');
+			console.error('Tipo do erro:', error instanceof Error ? error.constructor.name : typeof error);
+			console.error('Mensagem:', error instanceof Error ? error.message : String(error));
+			console.error('Stack:', error instanceof Error ? error.stack : 'N/A');
+			console.error('❌ [Intent] ===== FIM ERRO =====');
 			return this.classifyWithRegex(message);
 		}
 	}
