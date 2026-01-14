@@ -276,11 +276,20 @@ export class ItemService {
 	 */
 	async searchItems(params: { userId: string; query: string; limit?: number }) {
 		const { userId, query, limit = 10 } = params;
+		const searchPattern = `%${query}%`;
 
 		return await db
 			.select()
 			.from(memoryItems)
-			.where(and(eq(memoryItems.userId, userId), sql`LOWER(${memoryItems.title}) LIKE LOWER(${'%' + query + '%'})`))
+			.where(
+				and(
+					eq(memoryItems.userId, userId),
+					or(
+						sql`LOWER(${memoryItems.title}) LIKE LOWER(${searchPattern})`,
+						sql`CAST(${memoryItems.metadata} AS TEXT) ILIKE ${searchPattern}`
+					)
+				)
+			)
 			.orderBy(desc(memoryItems.createdAt))
 			.limit(limit);
 	}
@@ -411,18 +420,24 @@ export class ItemService {
 	async deleteMultipleItems(itemIds: string[], userId: string): Promise<number> {
 		if (itemIds.length === 0) return 0;
 
-		const result = await db.delete(memoryItems).where(and(eq(memoryItems.userId, userId), inArray(memoryItems.id, itemIds)));
+		const result = await db
+			.delete(memoryItems)
+			.where(and(eq(memoryItems.userId, userId), inArray(memoryItems.id, itemIds)))
+			.returning();
 
-		return result.rowCount || 0;
+		return result.length;
 	}
 
 	/**
 	 * Deleta TODOS os itens do usuário
 	 */
 	async deleteAllItems(userId: string): Promise<number> {
-		const result = await db.delete(memoryItems).where(eq(memoryItems.userId, userId));
+		const result = await db
+			.delete(memoryItems)
+			.where(eq(memoryItems.userId, userId))
+			.returning();
 
-		return result.rowCount || 0;
+		return result.length;
 	}
 }
 
