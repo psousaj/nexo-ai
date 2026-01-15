@@ -1,6 +1,6 @@
 {
     "name": "nexo-ai",
-    "version": "0.3.11",
+    "version": "0.3.12",
     "description": "Assistente pessoal via WhatsApp com IA",
     "type": "module",
     "scripts": {
