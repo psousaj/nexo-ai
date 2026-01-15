@@ -6,6 +6,7 @@
  */
 
 import { Elysia } from 'elysia';
+import Sentiment from 'sentiment';
 import { userService } from '@/services/user-service';
 import { conversationService } from '@/services/conversation-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
@@ -20,20 +21,40 @@ import { cancelConversationClose } from '@/services/queue-service';
 export const userTimeouts = new Map<string, number>();
 
 /**
- * Detecta conteúdo ofensivo
+ * Detecta conteúdo ofensivo usando Sentiment JS
  */
+const sentiment = new Sentiment();
+sentiment.registerLanguage('pt', {
+	labels: {
+		'fdp': -5,
+		'filho da puta': -5,
+		'puta que pariu': -5,
+		'vai tomar no cu': -5,
+		'vtmnc': -5,
+		'vsf': -5,
+		'vai se fuder': -5,
+		'cu': -3,
+		'caralho': -3,
+		'porra': -3,
+		'merda': -3,
+		'bosta': -3,
+		'burro': -2,
+		'idiota': -2,
+		'imbecil': -2,
+		'retardado': -2,
+		'estúpido': -2,
+		'cala a boca': -4,
+		'cala boca': -4,
+		'lixo': -2,
+		'inútil': -2,
+		'incompetente': -2
+	}
+});
+
 function containsOffensiveContent(message: string): boolean {
-	const lowerMsg = message.toLowerCase();
-
-	const offensivePatterns = [
-		/\b(fdp|filho da puta|puta que pariu|vai tomar no cu|vtmnc|vsf|vai se fuder)\b/i,
-		/\b(cu|caralho|porra|merda|bosta)\b.*\b(de|seu|sua|esse|essa)\b/i,
-		/\b(burro|idiota|imbecil|retardado|estúpido)\b/i,
-		/\bcala a? boca\b/i,
-		/\b(lixo|inútil|incompetente)\b/i,
-	];
-
-	return offensivePatterns.some((pattern) => pattern.test(lowerMsg));
+	const result = sentiment.analyze(message, { language: 'pt' });
+	console.log(`🛡️ Sentiment Analysis: Score=${result.score} | Msg="${message}"`);
+	return result.score < 0;
 }
 
 /**
