@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { encode } from '@toon-format/toon';
+import { loggers } from '@/utils/logger';
 import type { AIProvider, AIResponse, Message } from './types';
 
 /**
@@ -25,7 +26,7 @@ export class CloudflareProvider implements AIProvider {
 		const { message, history = [], systemPrompt } = params;
 
 		try {
-			console.log(`☁️ [Cloudflare] Enviando para ${this.model}`);
+			loggers.cloudflare.info(`🚀 Enviando para ${this.model}`);
 
 			// Converter histórico para TOON (economiza 30-60% tokens)
 			let contextContent = message;
@@ -65,7 +66,7 @@ Mensagem atual: ${message}`;
 			});
 
 			// Chamar API usando SDK OpenAI
-			// NOTA: response_format pode causar erro 400 em alguns modelos Cloudflare
+			// NOTA: response_format pode causar erro 400 em some modelos Cloudflare
 			const response = await this.client.chat.completions.create({
 				model: this.model,
 				messages,
@@ -74,10 +75,10 @@ Mensagem atual: ${message}`;
 			const rawContent = response.choices[0]?.message?.content;
 			const text = typeof rawContent === 'string' ? rawContent : '';
 
-			console.log('☁️ [Cloudflare] Resposta recebida');
-			
+			loggers.cloudflare.info('📥 Resposta recebida');
+
 			if (!text || text.trim().length === 0) {
-				console.error('⚠️ [Cloudflare] Resposta vazia - modelo não retornou conteúdo!');
+				loggers.cloudflare.error('⚠️ Resposta vazia - modelo não retornou conteúdo!');
 				throw new Error('Cloudflare returned empty response');
 			}
 
@@ -85,7 +86,7 @@ Mensagem atual: ${message}`;
 				message: text.trim(),
 			};
 		} catch (error: any) {
-			console.error('❌ [Cloudflare] Erro:', error);
+			loggers.cloudflare.error({ err: error }, '❌ Erro');
 			// Re-throw todos os erros para ativar fallback no AIService
 			throw error;
 		}

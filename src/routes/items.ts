@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { itemService } from '@/services/item-service';
+import { logger } from '@/utils/logger';
 
 export const itemsRouter = new Elysia()
 	/**
@@ -118,10 +119,10 @@ export const itemsRouter = new Elysia()
 				return { error: 'userId é obrigatório' };
 			}
 
-			console.log('DELETE request:', { params, query });
+			logger.info({ params, query }, '🗑️ DELETE request');
 			await itemService.deleteItem(params.id, userId);
 			const response = { success: true };
-			console.log('DELETE response:', response);
+			logger.info(response, '✅ DELETE response');
 			return response;
 		},
 		{

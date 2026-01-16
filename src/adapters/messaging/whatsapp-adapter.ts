@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { loggers } from '@/utils/logger';
 import type { MessagingProvider, IncomingMessage, ProviderType } from './types';
 
 /**
@@ -58,7 +59,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 			}
 
 			if (!signature) {
-				console.warn('⚠️ Webhook sem signature X-Hub-Signature-256');
+				loggers.webhook.warn('Webhook sem signature X-Hub-Signature-256');
 				return false;
 			}
 
@@ -72,7 +73,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 			} else if (request.body && typeof request.body === 'object') {
 				bodyText = JSON.stringify(request.body);
 			} else {
-				console.error('❌ Body inválido para validação');
+				loggers.webhook.error('Body inválido para validação');
 				return false;
 			}
 
@@ -80,12 +81,12 @@ export class WhatsAppAdapter implements MessagingProvider {
 			const isValid = await this.validateSignature(signature, bodyText);
 
 			if (!isValid) {
-				console.warn('⚠️ Signature inválida no webhook WhatsApp');
+				loggers.webhook.warn('Signature inválida no webhook WhatsApp');
 			}
 
 			return isValid;
 		} catch (error) {
-			console.error('❌ Erro ao verificar webhook:', error);
+			loggers.webhook.error({ err: error }, 'Erro ao verificar webhook');
 			return false;
 		}
 	}
@@ -117,7 +118,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 			// Compara signatures (timing-safe comparison)
 			return signatureHash.toLowerCase() === expectedHash.toLowerCase();
 		} catch (error) {
-			console.error('❌ Erro ao validar signature:', error);
+			loggers.webhook.error({ err: error }, 'Erro ao validar signature');
 			return false;
 		}
 	}
@@ -171,6 +172,4 @@ export class WhatsAppAdapter implements MessagingProvider {
 }
 
 // Só instancia se token estiver configurado
-export const whatsappAdapter = env.META_WHATSAPP_TOKEN 
-	? new WhatsAppAdapter() 
-	: null;
+export const whatsappAdapter = env.META_WHATSAPP_TOKEN ? new WhatsAppAdapter() : null;

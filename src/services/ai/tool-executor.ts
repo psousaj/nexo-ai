@@ -1,5 +1,6 @@
 import { itemService } from '@/services/item-service';
 import { enrichmentService } from '@/services/enrichment';
+import { loggers } from '@/utils/logger';
 import type { ItemType } from '@/types';
 
 /**
@@ -43,8 +44,8 @@ export class ToolExecutor {
 
 		for (const call of toolCalls) {
 			try {
-				console.log(`🔧 Executando tool: ${call.name}`);
-				console.log(`📋 Args:`, JSON.stringify(call.arguments));
+				loggers.ai.info(`Executando tool: ${call.name}`);
+				loggers.ai.info({ args: call.arguments }, 'Args');
 
 				const output = await this.executeOne(call);
 
@@ -54,9 +55,9 @@ export class ToolExecutor {
 					success: true,
 				});
 
-				console.log(`✅ Tool ${call.name} executada com sucesso`);
+				loggers.ai.info(`Tool ${call.name} executada com sucesso`);
 			} catch (error) {
-				console.error(`❌ Erro ao executar tool ${call.name}:`, error);
+				loggers.ai.error({ err: error }, `Erro ao executar tool ${call.name}`);
 
 				results.push({
 					tool_call_id: call.id,
@@ -203,7 +204,7 @@ export class ToolExecutor {
 
 		userTimeouts.set(this.context.externalId, timeoutUntil);
 
-		console.warn(`⏱️ Timeout aplicado: ${this.context.externalId} - Motivo: ${args.reason}`);
+		loggers.ai.warn({ externalId: this.context.externalId, reason: args.reason }, 'Timeout aplicado');
 
 		return {
 			success: true,

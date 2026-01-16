@@ -12,6 +12,7 @@ import { conversationService } from '@/services/conversation-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { whatsappAdapter, telegramAdapter, type IncomingMessage, type MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { loggers } from '@/utils/logger';
 import { TIMEOUT_MESSAGE, GENERIC_ERROR } from '@/config/prompts';
 import { cancelConversationClose } from '@/services/queue-service';
 
@@ -26,34 +27,34 @@ export const userTimeouts = new Map<string, number>();
 const sentiment = new Sentiment();
 sentiment.registerLanguage('pt', {
 	labels: {
-		'fdp': -5,
+		fdp: -5,
 		'filho da puta': -5,
 		'puta que pariu': -5,
 		'vai tomar no cu': -5,
-		'vtmnc': -5,
-		'vsf': -5,
+		vtmnc: -5,
+		vsf: -5,
 		'vai se fuder': -5,
-		'cu': -3,
-		'caralho': -3,
-		'porra': -3,
-		'merda': -3,
-		'bosta': -3,
-		'burro': -2,
-		'idiota': -2,
-		'imbecil': -2,
-		'retardado': -2,
-		'estúpido': -2,
+		cu: -3,
+		caralho: -3,
+		porra: -3,
+		merda: -3,
+		bosta: -3,
+		burro: -2,
+		idiota: -2,
+		imbecil: -2,
+		retardado: -2,
+		estúpido: -2,
 		'cala a boca': -4,
 		'cala boca': -4,
-		'lixo': -2,
-		'inútil': -2,
-		'incompetente': -2
-	}
+		lixo: -2,
+		inútil: -2,
+		incompetente: -2,
+	},
 });
 
 function containsOffensiveContent(message: string): boolean {
 	const result = sentiment.analyze(message, { language: 'pt' });
-	console.log(`🛡️ Sentiment Analysis: Score=${result.score} | Msg="${message}"`);
+	loggers.webhook.info({ score: result.score, message }, '🛡️ Sentiment Analysis');
 	return result.score < 0;
 }
 
@@ -96,7 +97,7 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 	await userService.updateUserTimeout(userId, timeoutUntil, offenseCount);
 	userTimeouts.set(externalId, timeoutUntil.getTime());
 
-	console.log(`⏱️ Timeout #${offenseCount} aplicado: ${timeoutMinutes}min`);
+	loggers.webhook.info({ offenseCount, timeoutMinutes }, '⏳ Timeout aplicado');
 	return timeoutMinutes;
 }
 
@@ -108,7 +109,10 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider) {
 	const messageText = incomingMsg.text;
 
-	console.log(`\n📨 [${provider.getProviderName()}] ${incomingMsg.externalId}: "${messageText}"`);
+	loggers.webhook.info(
+		{ provider: provider.getProviderName(), externalId: incomingMsg.externalId, message: messageText },
+		'📥 Mensagem recebida'
+	);
 
 	try {
 		// 1. DETECTA OFENSAS (regra determinística, não LLM)
@@ -124,7 +128,7 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			const response = TIMEOUT_MESSAGE(timeoutMinutes);
 
 			await provider.sendMessage(incomingMsg.externalId, response);
-			console.warn('⚠️ Conteúdo ofensivo detectado');
+			loggers.webhook.warn('🛡️ Conteúdo ofensivo detectado');
 			return;
 		}
 
@@ -143,7 +147,7 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 
 		// 3. VERIFICA TIMEOUT
 		if (await isUserInTimeout(user.id, incomingMsg.externalId)) {
-			console.log('⏸️ Usuário em timeout, ignorando');
+			loggers.webhook.info('⏳ Usuário em timeout, ignorando');
 			return;
 		}
 
@@ -159,7 +163,7 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 		// cancelConversationClose já atualiza estado para idle automaticamente
 		if (conversation.state === 'waiting_close') {
 			await cancelConversationClose(conversation.id);
-			console.log(`🔄 [Webhook] Fechamento cancelado`);
+			loggers.webhook.info('🔄 Fechamento de conversa cancelado');
 		}
 
 		// 5. DELEGA PARA ORQUESTRADOR (toda lógica aqui)
@@ -173,16 +177,16 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 		// 6. ENVIA RESPOSTA (se houver)
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
 			await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-			console.log(`✅ Resposta enviada (${agentResponse.message.length} chars)`);
+			loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
 		} else {
-			console.log('🚫 NOOP - nenhuma mensagem enviada ao usuário');
+			loggers.webhook.info('🚫 NOOP - nenhuma mensagem enviada ao usuário');
 		}
 
 		if (agentResponse.toolsUsed && agentResponse.toolsUsed.length > 0) {
-			console.log(`🔧 Tools usadas: ${agentResponse.toolsUsed.join(', ')}`);
+			loggers.webhook.info({ tools: agentResponse.toolsUsed }, '🔧 Tools usadas');
 		}
 	} catch (error) {
-		console.error('❌ Erro ao processar mensagem:', error);
+		loggers.webhook.error({ err: error }, '❌ Erro ao processar mensagem');
 
 		const errorMsg = GENERIC_ERROR;
 		await provider.sendMessage(incomingMsg.externalId, errorMsg);
@@ -195,8 +199,8 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 export const webhookRoutes = new Elysia({ prefix: '/webhook' })
 	// TELEGRAM
 	.post('/telegram', async ({ body }) => {
-		console.log('📥 [Webhook] Telegram recebido');
-		
+		loggers.webhook.info('🔹 Telegram recebido');
+
 		if (!env.TELEGRAM_BOT_TOKEN) {
 			return { error: 'Telegram not configured' };
 		}
@@ -208,7 +212,7 @@ export const webhookRoutes = new Elysia({ prefix: '/webhook' })
 			}
 			return { ok: true };
 		} catch (error) {
-			console.error('❌ Erro Telegram webhook:', error);
+			loggers.webhook.error({ err: error }, '❌ Erro Telegram webhook');
 			return { ok: false };
 		}
 	})
@@ -220,7 +224,7 @@ export const webhookRoutes = new Elysia({ prefix: '/webhook' })
 		const challenge = query['hub.challenge'];
 
 		if (mode === 'subscribe' && token === env.META_VERIFY_TOKEN) {
-			console.log('✅ Webhook WhatsApp verificado');
+			loggers.webhook.info('✅ Webhook WhatsApp verificado');
 			return new Response(challenge);
 		}
 
@@ -238,7 +242,7 @@ export const webhookRoutes = new Elysia({ prefix: '/webhook' })
 			}
 			return { status: 'ok' };
 		} catch (error) {
-			console.error('❌ Erro WhatsApp webhook:', error);
+			loggers.webhook.error({ err: error }, '❌ Erro WhatsApp webhook');
 			return { status: 'error' };
 		}
 	});

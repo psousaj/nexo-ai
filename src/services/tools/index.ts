@@ -7,6 +7,7 @@
 
 import { itemService } from '@/services/item-service';
 import { enrichmentService } from '@/services/enrichment';
+import { loggers } from '@/utils/logger';
 import type { ItemType, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@/types';
 import { toolLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 
@@ -36,21 +37,21 @@ export async function save_note(
 		content: string;
 	}
 ): Promise<ToolOutput> {
-	console.log(
-		getRandomLogMessage(toolLogs.executing, { tool: 'save_note' })
-	);
-	console.log(
-		getRandomLogMessage(toolLogs.params, {
-			params: JSON.stringify({ content: params.content?.substring(0, 100) + '...' }),
-		})
+	loggers.ai.info('🔧 ' + getRandomLogMessage(toolLogs.executing, { tool: 'save_note' }));
+	loggers.ai.info(
+		'📦 ' +
+			getRandomLogMessage(toolLogs.params, {
+				params: JSON.stringify({ content: params.content?.substring(0, 100) + '...' }),
+			})
 	);
 
 	if (!params.content?.trim()) {
-		console.error(
-			getRandomLogMessage(toolLogs.error, {
-				tool: 'save_note',
-				error: 'Conteúdo vazio',
-			})
+		loggers.ai.error(
+			'❌ ' +
+				getRandomLogMessage(toolLogs.error, {
+					tool: 'save_note',
+					error: 'Conteúdo vazio',
+				})
 		);
 		return { success: false, error: 'Conteúdo vazio' };
 	}
@@ -68,7 +69,7 @@ export async function save_note(
 
 		// Verificar se é duplicata
 		if (result.isDuplicate && result.existingItem) {
-			console.log('⚠️ [Tool] Nota duplicada detectada');
+			loggers.ai.warn('⚠️ Nota duplicada detectada');
 			return {
 				success: false,
 				error: 'duplicate',
@@ -78,36 +79,36 @@ export async function save_note(
 
 		// Verificar se item foi criado com sucesso
 		if (!result.item) {
-			console.error(
-				getRandomLogMessage(toolLogs.error, {
-					tool: 'save_note',
-					error: 'itemService.createItem retornou null sem ser duplicata',
-				})
+			loggers.ai.error(
+				'❌ ' +
+					getRandomLogMessage(toolLogs.error, {
+						tool: 'save_note',
+						error: 'itemService.createItem retornou null sem ser duplicata',
+					})
 			);
-			console.error('❌ [Tool] itemService retornou:', result);
+			loggers.ai.error({ result }, '❌ Erro ao criar nota no banco de dados');
 			return {
 				success: false,
 				error: 'Erro ao criar nota no banco de dados',
 			};
 		}
 
-		console.log(
-			getRandomLogMessage(toolLogs.success, { tool: 'save_note' })
-		);
-		console.log(`✅ [Tool] Nota salva: ${result.item.id}`);
+		loggers.ai.info('✅ ' + getRandomLogMessage(toolLogs.success, { tool: 'save_note' }));
+		loggers.ai.info({ id: result.item.id }, '📝 Nota salva');
 
 		return {
 			success: true,
 			data: { id: result.item.id, title: result.item.title },
 		};
 	} catch (error) {
-		console.error(
-			getRandomLogMessage(toolLogs.error, {
-				tool: 'save_note',
-				error: error instanceof Error ? error.message : 'Erro desconhecido',
-			})
+		loggers.ai.error(
+			{ err: error },
+			'❌ ' +
+				getRandomLogMessage(toolLogs.error, {
+					tool: 'save_note',
+					error: error instanceof Error ? error.message : 'Erro desconhecido',
+				})
 		);
-		console.error('❌ [Tool] Stack:', error instanceof Error ? error.stack : 'N/A');
 
 		return {
 			success: false,
@@ -150,7 +151,7 @@ export async function save_movie(
 					metadata = { ...metadata, ...enriched } as MovieMetadata;
 				}
 			} catch (enrichError) {
-				console.warn(`⚠️ [Tool] Falha ao enriquecer filme ${params.tmdb_id}:`, enrichError);
+				loggers.ai.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer filme');
 			}
 		}
 
@@ -210,7 +211,7 @@ export async function save_tv_show(
 					metadata = { ...metadata, ...enriched } as TVShowMetadata;
 				}
 			} catch (enrichError) {
-				console.warn(`⚠️ [Tool] Falha ao enriquecer série ${params.tmdb_id}:`, enrichError);
+				loggers.ai.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer série');
 			}
 		}
 
@@ -326,12 +327,7 @@ export async function collectContextTool(input: {
 	if (!input.detectedType || input.detectedType === 'note') {
 		// Se não detectou nada ou é apenas uma nota (genérico), oferece opções
 		return {
-			clarificationOptions: [
-				'Salvar como nota',
-				'Salvar como filme',
-				'Salvar como série',
-				'Outro (especifique)',
-			],
+			clarificationOptions: ['Salvar como nota', 'Salvar como filme', 'Salvar como série', 'Outro (especifique)'],
 		};
 	}
 	return { clarificationOptions: [] };
@@ -592,7 +588,7 @@ export async function update_user_settings(
 
 		return { success: false, error: 'Nenhuma configuração fornecida' };
 	} catch (error) {
-		console.error('❌ [Tool] Erro ao atualizar configurações:', error);
+		loggers.ai.error({ err: error }, '❌ Erro ao atualizar configurações');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao atualizar',
@@ -618,7 +614,7 @@ export async function get_assistant_name(context: ToolContext, params: {}): Prom
 			data: { name: name || 'Nexo' },
 		};
 	} catch (error) {
-		console.error('❌ [Tool] Erro ao buscar nome do assistente:', error);
+		loggers.ai.error({ err: error }, '❌ Erro ao buscar nome do assistente');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao buscar preferências',
@@ -670,15 +666,15 @@ export async function executeTool(toolName: ToolName, context: ToolContext, para
 		};
 	}
 
-	console.log(`🔧 [Tool] Executando: ${toolName}`);
-	console.log(`📋 [Tool] Params:`, JSON.stringify(params, null, 2));
+	loggers.ai.info({ toolName }, '🔧 Executando tool');
+	loggers.ai.info({ params }, '📦 Params da tool');
 
 	try {
 		const result = await tool(context, params);
-		console.log(`✅ [Tool] ${toolName} executada:`, result.success ? 'sucesso' : 'falha');
+		loggers.ai.info({ toolName, success: result.success }, '✅ Tool executada');
 		return result;
 	} catch (error) {
-		console.error(`❌ [Tool] Erro ao executar ${toolName}:`, error);
+		loggers.ai.error({ err: error, toolName }, '❌ Erro ao executar tool');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro desconhecido',

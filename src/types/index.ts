@@ -1,3 +1,5 @@
+import { loggers } from '@/utils/logger';
+
 // Types básicos do sistema
 
 export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note';
@@ -51,7 +53,7 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 
 	// Validar schema_version
 	if (response.schema_version !== CURRENT_SCHEMA_VERSION) {
-		console.warn(`[Schema] Versão incompatível: ${response.schema_version}, esperado: ${CURRENT_SCHEMA_VERSION}`);
+		loggers.ai.warn({ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION }, 'Versão de schema incompatível');
 	}
 
 	if (!['CALL_TOOL', 'RESPOND', 'NOOP'].includes(response.action)) return false;
@@ -63,7 +65,7 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 	// Validar tamanho de RESPOND (máx 200 chars)
 	if (response.action === 'RESPOND' && response.message) {
 		if (response.message.length > 200) {
-			console.warn(`[Schema] RESPOND muito longo: ${response.message.length} chars`);
+			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo');
 			response.message = response.message.substring(0, 197) + '...';
 		}
 	}

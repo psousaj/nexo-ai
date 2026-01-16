@@ -1,21 +1,30 @@
-import { Redis } from '@upstash/redis';
+import { Redis } from 'redis';
 import { env } from './env';
-import { logger } from '@/utils/logger';
+import { loggers } from '../utils/logger';
 
 let redis: Redis | null = null;
 
-export function getRedisClient(): Redis | null {
-	if (!env.UPSTASH_REDIS_URL || !env.UPSTASH_REDIS_TOKEN) {
-		logger.warn('Redis não configurado - cache desabilitado');
+export async function getRedisClient(): Redis | null {
+	if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {
+		loggers.cache.warn('Redis não configurado - cache desabilitado');
 		return null;
 	}
 
 	if (!redis) {
-		redis = new Redis({
-			url: env.UPSTASH_REDIS_URL,
-			token: env.UPSTASH_REDIS_TOKEN,
+		const client = createClient({
+			username: env.REDIS_USER,
+			password: env.REDIS_PASSWORD,
+			socket: {
+				host: env.REDIS_HOST,
+				port: env.REDIS_PORT,
+			},
 		});
-		logger.info('Redis conectado');
+
+		client.on('error', (err) => loggers.cache.error({ err }, 'Redis Client Error'));
+
+		await client.connect();
+
+		loggers.cache.info('Redis conectado');
 	}
 
 	return redis;
@@ -25,17 +34,17 @@ export function getRedisClient(): Redis | null {
  * Cache helper com fallback silencioso
  */
 export async function cacheGet<T>(key: string): Promise<T | null> {
-	const client = getRedisClient();
+	const client = await getRedisClient();
 	if (!client) return null;
 
 	try {
 		const value = await client.get<T>(key);
 		if (value) {
-			logger.debug(`Cache HIT: ${key}`);
+			loggers.cache.debug(`Cache HIT: ${key}`);
 		}
 		return value;
 	} catch (error) {
-		logger.error({ key, error }, 'Redis GET error');
+		loggers.cache.error({ key, error }, 'Redis GET error');
 		return null;
 	}
 }
@@ -46,9 +55,9 @@ export async function cacheSet<T>(key: string, value: T, ttlSeconds: number): Pr
 
 	try {
 		await client.set(key, value, { ex: ttlSeconds });
-		logger.debug(`Cache SET: ${key} (TTL: ${ttlSeconds}s)`);
+		loggers.cache.debug(`Cache SET: ${key} (TTL: ${ttlSeconds}s)`);
 	} catch (error) {
-		logger.error({ key, error }, 'Redis SET error');
+		loggers.cache.error({ key, error }, 'Redis SET error');
 	}
 }
 
@@ -58,8 +67,8 @@ export async function cacheDelete(key: string): Promise<void> {
 
 	try {
 		await client.del(key);
-		logger.debug(`Cache DELETE: ${key}`);
+		loggers.cache.debug(`Cache DELETE: ${key}`);
 	} catch (error) {
-		logger.error({ key, error }, 'Redis DELETE error');
+		loggers.cache.error({ key, error }, 'Redis DELETE error');
 	}
 }

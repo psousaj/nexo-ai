@@ -1,8 +1,8 @@
 /**
  * Queue Service - Bull + Redis (Upstash)
- * 
+ *
  * Gerencia fechamento automático de conversas com delayed jobs.
- * 
+ *
  * Arquitetura:
  * - Redis (Upstash) = aceleração
  * - DB = source of truth
@@ -14,6 +14,9 @@ import { env } from '@/config/env';
 import { db } from '@/db';
 import { conversations } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
+import { logger } from '@/utils/logger';
+
+const queueLogger = logger.child({ context: 'queue' });
 
 // ============================================================================
 // QUEUE SETUP
@@ -36,12 +39,9 @@ const REDIS_CONFIG = {
 /**
  * Queue para fechamento de conversas
  */
-export const closeConversationQueue = new Queue<{ conversationId: string }>(
-	'close-conversation',
-	REDIS_CONFIG
-);
+export const closeConversationQueue = new Queue<{ conversationId: string }>('close-conversation', REDIS_CONFIG);
 
-console.log(`✅ [Queue] Bull configurado com Redis (${env.REDIS_HOST})`);
+queueLogger.info(`✅ Bull configurado com Redis (${env.REDIS_HOST})`);
 
 // ============================================================================
 // WORKER - Processa fechamento de conversas
@@ -54,7 +54,7 @@ closeConversationQueue.process('close-conversation', async (job) => {
 	const { conversationId } = job.data;
 
 	try {
-		console.log(`🔄 [Queue] Processando fechamento: ${conversationId}`);
+		queueLogger.info({ conversationId }, '🔄 Processando fechamento');
 
 		// UPDATE CONDICIONAL - previne race condition
 		// Só fecha se state='waiting_close' E close_at <= now
@@ -66,23 +66,17 @@ closeConversationQueue.process('close-conversation', async (job) => {
 				closeJobId: null,
 				updatedAt: new Date(),
 			})
-			.where(
-				and(
-					eq(conversations.id, conversationId),
-					eq(conversations.state, 'waiting_close'),
-					lte(conversations.closeAt, new Date())
-				)
-			)
+			.where(and(eq(conversations.id, conversationId), eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, new Date())))
 			.returning({ id: conversations.id });
 
 		if (result.length === 0) {
-			console.log(`⚠️ [Queue] Conversa ${conversationId} já foi fechada/cancelada`);
+			queueLogger.warn({ conversationId }, '⚠️ Conversa já foi fechada/cancelada');
 			return;
 		}
 
-		console.log(`✅ [Queue] Conversa ${conversationId} fechada com sucesso`);
+		queueLogger.info({ conversationId }, '✅ Conversa fechada com sucesso');
 	} catch (error) {
-		console.error(`❌ [Queue] Erro ao fechar conversa ${conversationId}:`, error);
+		queueLogger.error({ conversationId, err: error }, '❌ Erro ao fechar conversa');
 		throw error; // Bull vai fazer retry
 	}
 });
@@ -110,7 +104,7 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			})
 			.where(eq(conversations.id, conversationId));
 
-		console.log(`📅 [Queue] Banco atualizado: ${conversationId} fecha em ${closeAt.toISOString()}`);
+		queueLogger.info({ conversationId, closeAt: closeAt.toISOString() }, '📅 Banco atualizado: conversa aguardando fechamento');
 
 		// 2. Enfileira job delayed com jobId customizado
 		await closeConversationQueue.add(
@@ -125,9 +119,9 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			}
 		);
 
-		console.log(`✅ [Queue] Job ${jobId} agendado`);
+		queueLogger.info({ jobId }, '✅ Job agendado');
 	} catch (error) {
-		console.error(`❌ [Queue] Erro ao agendar fechamento de ${conversationId}:`, error);
+		queueLogger.error({ conversationId, err: error }, '❌ Erro ao agendar fechamento');
 		// Não joga erro pra cima: o cron de backup vai pegar
 	}
 }
@@ -156,18 +150,18 @@ export async function cancelConversationClose(conversationId: string): Promise<v
 			})
 			.where(eq(conversations.id, conversationId));
 
-		console.log(`🔄 [Queue] Banco atualizado: ${conversationId} voltou pra idle`);
+		queueLogger.info({ conversationId }, '🔄 Banco atualizado: conversa voltou pra idle');
 
 		// 3. Remove job da fila com O(1) usando jobId salvo
 		if (convo?.closeJobId) {
 			const job = await closeConversationQueue.getJob(convo.closeJobId);
 			if (job) {
 				await job.remove();
-				console.log(`🗑️ [Queue] Job ${convo.closeJobId} removido`);
+				queueLogger.info({ jobId: convo.closeJobId }, '🗑️ Job removido');
 			}
 		}
 	} catch (error) {
-		console.error(`❌ [Queue] Erro ao cancelar fechamento de ${conversationId}:`, error);
+		queueLogger.error({ conversationId, err: error }, '❌ Erro ao cancelar fechamento');
 		// Não joga erro: o worker vai checar o estado e não vai fechar
 	}
 }
@@ -175,7 +169,7 @@ export async function cancelConversationClose(conversationId: string): Promise<v
 /**
  * Cron de backup: fecha conversas que deveriam estar fechadas
  * Roda a cada 1 minuto
- * 
+ *
  * Salva o sistema se:
  * - Redis cair
  * - Bull travar
@@ -194,23 +188,18 @@ export async function runConversationCloseCron(): Promise<number> {
 				closeJobId: null,
 				updatedAt: now,
 			})
-			.where(
-				and(
-					eq(conversations.state, 'waiting_close'),
-					lte(conversations.closeAt, now)
-				)
-			)
+			.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
 			.returning({ id: conversations.id });
 
 		const count = result.length;
 
 		if (count > 0) {
-			console.log(`[CRON] Closed ${count} stale conversations`);
+			queueLogger.info({ count }, '⏰ CRON: Conversas expiradas fechadas');
 		}
 
 		return count;
 	} catch (error) {
-		console.error('❌ [Cron] Erro no cron de fechamento:', error);
+		queueLogger.error({ err: error }, '❌ Erro no cron de fechamento');
 		return 0;
 	}
 }
@@ -234,23 +223,18 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 				context: null,
 				updatedAt: now,
 			})
-			.where(
-				and(
-					eq(conversations.state, 'awaiting_confirmation'),
-					lte(conversations.updatedAt, thirtyMinutesAgo)
-				)
-			)
+			.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
 			.returning({ id: conversations.id });
 
 		const count = result.length;
 
 		if (count > 0) {
-			console.log(`[CRON] Closed ${count} stale awaiting_confirmation conversations`);
+			queueLogger.info({ count }, '⏰ CRON: Conversas em awaiting_confirmation expiradas fechadas');
 		}
 
 		return count;
 	} catch (error) {
-		console.error('❌ [Cron] Erro no timeout de awaiting_confirmation:', error);
+		queueLogger.error({ err: error }, '❌ Erro no timeout de awaiting_confirmation');
 		return 0;
 	}
 }
@@ -260,11 +244,11 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 // ============================================================================
 
 process.on('SIGTERM', async () => {
-	console.log('🛑 [Queue] Recebido SIGTERM, fechando queue...');
+	queueLogger.info('🛑 Recebido SIGTERM, fechando queue...');
 	await closeConversationQueue.close();
 });
 
 process.on('SIGINT', async () => {
-	console.log('🛑 [Queue] Recebido SIGINT, fechando queue...');
+	queueLogger.info('🛑 Recebido SIGINT, fechando queue...');
 	await closeConversationQueue.close();
 });

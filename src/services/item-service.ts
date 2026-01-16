@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { memoryItems } from '@/db/schema';
 import { eq, and, desc, sql, or, inArray, cosineDistance } from 'drizzle-orm';
+import { loggers } from '@/utils/logger';
 import type { ItemType, ItemMetadata } from '@/types';
 import { createHash } from 'crypto';
 import { embeddingService } from './ai/embedding-service';
@@ -247,9 +248,9 @@ export class ItemService {
 		try {
 			const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
 			embedding = await embeddingService.generateEmbedding(textToEmbed);
-			console.log(`🧠 [Embedding] Vetor gerado para "${title.substring(0, 30)}..."`);
+			loggers.db.info({ title: title.substring(0, 30) }, '✨ Vetor gerado');
 		} catch (error) {
-			console.error('⚠️ [Embedding] Falha ao gerar embedding, salvando sem vetor:', error);
+			loggers.db.warn({ err: error }, '⚠️ Falha ao gerar embedding, salvando sem vetor');
 		}
 
 		// Cria nova memória
@@ -314,7 +315,7 @@ export class ItemService {
 		try {
 			// 1. TENTA BUSCA VETORIAL (Semântica)
 			const queryEmbedding = await embeddingService.generateEmbedding(query);
-			
+
 			// Cálculo de similaridade: 1 - cosine_distance
 			const similarity = sql<number>`1 - (${cosineDistance(memoryItems.embedding, queryEmbedding)})`;
 
@@ -332,15 +333,15 @@ export class ItemService {
 				.limit(limit);
 
 			if (vectorResults.length > 0) {
-				console.log(`🧠 [Search] Encontrados ${vectorResults.length} resultados via pgvector`);
+				loggers.db.info({ count: vectorResults.length }, '🔍 Encontrados resultados via pgvector');
 				return vectorResults;
 			}
 		} catch (error) {
-			console.warn('⚠️ [Search] Falha na busca vetorial, usando fallback literal:', error);
+			loggers.db.warn({ err: error }, '⚠️ Falha na busca vetorial, usando fallback literal');
 		}
 
 		// 2. FALLBACK: BUSCA KEYWORD (Literal)
-		console.log(`🔍 [Search] Usando busca literal para: "${query}"`);
+		loggers.db.info({ query }, '📜 Usando busca literal');
 		return await db
 			.select()
 			.from(memoryItems)
@@ -495,10 +496,7 @@ export class ItemService {
 	 * Deleta TODOS os itens do usuário
 	 */
 	async deleteAllItems(userId: string): Promise<number> {
-		const result = await db
-			.delete(memoryItems)
-			.where(eq(memoryItems.userId, userId))
-			.returning();
+		const result = await db.delete(memoryItems).where(eq(memoryItems.userId, userId)).returning();
 
 		return result.length;
 	}

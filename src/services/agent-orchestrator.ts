@@ -34,15 +34,16 @@ import {
 	GENERIC_ERROR,
 	formatItemsList,
 } from '@/config/prompts';
+import { loggers } from '@/utils/logger';
 import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
 import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
 import { scheduleConversationClose } from './queue-service';
-import { 
-	confirmationMessages, 
-	enrichmentMessages, 
+import {
+	confirmationMessages,
+	enrichmentMessages,
 	cancellationMessages,
 	clarificationOptions,
-	getRandomMessage 
+	getRandomMessage,
 } from './conversation/messageTemplates';
 
 export interface AgentContext {
@@ -66,44 +67,44 @@ export class AgentOrchestrator {
 	 * Processa mensagem do usuário
 	 */
 	async processMessage(context: AgentContext): Promise<AgentResponse> {
-		console.log('🎯 [Agent] Processando mensagem:', context.message);
+		loggers.ai.info({ message: context.message }, '🎯 Processando mensagem');
 
 		// 0. BUSCAR ESTADO ATUAL
 		const conversation = await conversationService.findOrCreateConversation(context.userId);
-		console.log(`📊 [Agent] Estado atual: ${conversation.state}`);
+		loggers.ai.info({ state: conversation.state }, '📊 Estado atual');
 
-        // A. TRATAR ESTADO AWAITING_CONTEXT (Clarificação)
+		// A. TRATAR ESTADO AWAITING_CONTEXT (Clarificação)
 		if (conversation.state === 'awaiting_context') {
 			return this.handleClarificationResponse(context, conversation);
 		}
 
 		// 1. CLASSIFICAR INTENÇÃO (determinístico)
 		const intent = await intentClassifier.classify(context.message);
-		console.log(`🧠 [Agent] Intenção detectada: ${intent.intent} (${intent.confidence})`);
+		loggers.ai.info({ intent: intent.intent, confidence: intent.confidence }, '🧠 Intenção detectada');
 
-        // B. CHECAR AMBIGUIDADE (se estado for idle)
+		// B. CHECAR AMBIGUIDADE (se estado for idle)
 		if (conversation.state === 'idle' && intent.intent !== 'casual_chat') {
-            const isAmbiguous = await conversationService.handleAmbiguousMessage(
-                conversation.id,
-                context.message
-            );
-            
-            if (isAmbiguous) {
-                return {
-                    message: null as any, // Mensagem já enviada pelo conversationService
-                    state: 'awaiting_context', // Estado atualizado pelo service
-                };
-            }
-        }
+			const isAmbiguous = await conversationService.handleAmbiguousMessage(conversation.id, context.message);
+
+			if (isAmbiguous) {
+				return {
+					message: null as any, // Mensagem já enviada pelo conversationService
+					state: 'awaiting_context', // Estado atualizado pelo service
+				};
+			}
+		}
 
 		// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
 		const action = this.decideAction(intent, conversation.state);
-		console.log('⚡ [Agent] ===== DECISÃO DE AÇÃO =====');
-		console.log(`Estado: ${conversation.state}`);
-		console.log(`Intent: ${intent.intent}`);
-		console.log(`Action verb: ${intent.action}`);
-		console.log(`Ação decidida: ${action}`);
-		console.log('⚡ [Agent] ===== FIM DECISÃO =====');
+		loggers.ai.info(
+			{
+				state: conversation.state,
+				intent: intent.intent,
+				action: intent.action,
+				actionDecided: action,
+			},
+			'⚡ Decisão de ação'
+		);
 
 		// 4. EXECUTAR AÇÃO
 		let response: AgentResponse;
@@ -159,21 +160,21 @@ export class AgentOrchestrator {
 		});
 
 		// 6. SALVAR MENSAGENS
-        // Se a resposta for nula (ex: handleAmbiguousMessage), não salva resposta vazia
-        // Mas a mensagem do user SEMPRE deve ser salva
+		// Se a resposta for nula (ex: handleAmbiguousMessage), não salva resposta vazia
+		// Mas a mensagem do user SEMPRE deve ser salva
 		await conversationService.addMessage(conversation.id, 'user', context.message);
-        if (response.message) {
-		    await conversationService.addMessage(conversation.id, 'assistant', response.message);
-        }
+		if (response.message) {
+			await conversationService.addMessage(conversation.id, 'assistant', response.message);
+		}
 
 		// 7. AGENDAR FECHAMENTO SE A AÇÃO FINALIZOU
 		// Fecha conversa em 3min se estado voltar para 'open' (idle)
 		if (response.state === 'idle' && action !== 'handle_casual') {
 			await scheduleConversationClose(conversation.id);
-			console.log(`📅 [Agent] Fechamento agendado para ${conversation.id} em 3min`);
+			loggers.ai.info({ conversationId: conversation.id }, '📅 Fechamento agendado');
 		}
 
-		console.log(`✅ [Agent] Resposta gerada (${response.message?.length || 0} chars)`);
+		loggers.ai.info({ charCount: response.message?.length || 0 }, '✅ Resposta gerada');
 		return response;
 	}
 
@@ -243,41 +244,43 @@ export class AgentOrchestrator {
 		let responseMessage: string = '';
 		let nextState: ConversationState = 'idle';
 
-	// DETECTA MENSAGEM DE ERRO ANTES DE PARSEAR JSON
-	if (llmResponse.message.trim().startsWith('😅') || 
-		llmResponse.message.trim().startsWith('⚠️') || 
-		llmResponse.message.trim().startsWith('❌')) {
-		console.log('⚠️ [Agent] LLM retornou mensagem de erro ao invés de JSON');
-		return {
-			message: llmResponse.message.trim(),
-			state: 'idle',
-		};
-	}
-
-	try {
-		// 1. Parsear JSON da resposta (remove markdown code blocks)
-		const agentResponse = parseJSONFromLLM(llmResponse.message);
-
-		// 2. Validar schema
-		if (!isValidAgentResponse(agentResponse)) {
-			throw new Error('Resposta LLM não segue schema AgentLLMResponse');
+		// DETECTA MENSAGEM DE ERRO ANTES DE PARSEAR JSON
+		if (
+			llmResponse.message.trim().startsWith('😅') ||
+			llmResponse.message.trim().startsWith('⚠️') ||
+			llmResponse.message.trim().startsWith('❌')
+		) {
+			loggers.ai.warn('⚠️ LLM retornou mensagem de erro ao invés de JSON');
+			return {
+				message: llmResponse.message.trim(),
+				state: 'idle',
+			};
 		}
 
-		console.log(`🤖 [Agent] LLM action: ${agentResponse.action}`);
+		try {
+			// 1. Parsear JSON da resposta (remove markdown code blocks)
+			const agentResponse = parseJSONFromLLM(llmResponse.message);
 
-		// 3. Validar schema_version
-		if (agentResponse.schema_version !== '1.0') {
-			console.warn(`⚠️ [Agent] Schema version incompatível: ${agentResponse.schema_version}`);
-		}
+			// 2. Validar schema
+			if (!isValidAgentResponse(agentResponse)) {
+				throw new Error('Resposta LLM não segue schema AgentLLMResponse');
+			}
 
-		// 4. Executar baseado na ação
-		switch (agentResponse.action) {
+			loggers.ai.info({ action: agentResponse.action }, '🤖 LLM action');
+
+			// 3. Validar schema_version
+			if (agentResponse.schema_version !== '1.0') {
+				loggers.ai.warn({ version: agentResponse.schema_version }, '⚠️ Schema version incompatível');
+			}
+
+			// 4. Executar baseado na ação
+			switch (agentResponse.action) {
 				case 'CALL_TOOL':
 					if (!agentResponse.tool) {
 						throw new Error('action=CALL_TOOL requer tool');
 					}
 
-					console.log(`🔧 [Agent] Executando tool: ${agentResponse.tool}`);
+					loggers.ai.info({ tool: agentResponse.tool }, '🔧 Executando tool');
 					const result = await executeTool(agentResponse.tool as any, toolContext, agentResponse.args || {});
 
 					toolsUsed.push(agentResponse.tool);
@@ -312,8 +315,8 @@ export class AgentOrchestrator {
 						}
 					} else {
 						// Erro - tratar casos específicos
-						console.error(`❌ [Agent] Tool ${agentResponse.tool} falhou:`, result.error);
-						
+						loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou');
+
 						// Casos especiais de erro
 						if (result.error === 'duplicate') {
 							// Duplicata detectada - usar mensagem da tool ou padrão
@@ -335,18 +338,17 @@ export class AgentOrchestrator {
 
 				case 'NOOP':
 					// Nada a fazer
-					console.log('🚫 [Agent] NOOP - nenhuma ação necessária');
+					loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
 					responseMessage = null as any; // Sem resposta
 					break;
 
 				default:
-					console.error(`❌ [Agent] Action desconhecida: ${agentResponse.action}`);
+					loggers.ai.error({ action: agentResponse.action }, '❌ Action desconhecida');
 					responseMessage = 'Desculpe, não entendi o que fazer.';
 			}
 		} catch (parseError) {
 			// Fallback: NUNCA enviar JSON cru ao usuário
-			console.error('❌ [Agent] Erro ao processar resposta LLM:', parseError);
-			console.error('🔍 [Agent] Resposta original:', llmResponse.message.substring(0, 500));
+			loggers.ai.error({ err: parseError, originalMessage: llmResponse.message.substring(0, 500) }, '❌ Erro ao processar resposta LLM');
 
 			responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
 		}
@@ -380,21 +382,21 @@ export class AgentOrchestrator {
 
 				// Determinar qual tool usar (prioriza tipo do item, fallback para tipo detectado no contexto)
 				const itemType = selected.type || contextData.detected_type || 'note';
-				
+
 				let toolName: ToolName = 'save_note';
 				if (itemType === 'movie') toolName = 'save_movie';
 				else if (itemType === 'tv_show') toolName = 'save_tv_show';
 				else if (itemType === 'video') toolName = 'save_video';
 				else if (itemType === 'link') toolName = 'save_link';
 
-                // Mensagem de enrichment
-                // FIX: Usando enrichmentMessages apenas se for um tipo enriquecível
-                if (['movie', 'tv_show'].includes(itemType)) {
-                    const enrichMsg = enrichmentMessages[Math.floor(Math.random() * enrichmentMessages.length)];
-                    // Aqui seria ideal enviar uma mensagem intermediária, mas a arquitetura atual retorna apenas uma resposta
-                    // Vamos apenas logar ou confiar que a tool fará seu trabalho rápido
-                    console.log(`[Validation] ${enrichMsg}`);
-                }
+				// Mensagem de enrichment
+				// FIX: Usando enrichmentMessages apenas se for um tipo enriquecível
+				if (['movie', 'tv_show'].includes(itemType)) {
+					const enrichMsg = enrichmentMessages[Math.floor(Math.random() * enrichmentMessages.length)];
+					// Aqui seria ideal enviar uma mensagem intermediária, mas a arquitetura atual retorna apenas uma resposta
+					// Vamos apenas logar ou confiar que a tool fará seu trabalho rápido
+					loggers.ai.info({ validation: enrichMsg }, '🔍 Validation log');
+				}
 
 				await executeTool(toolName as any, toolContext, {
 					...selected,
@@ -408,9 +410,12 @@ export class AgentOrchestrator {
 
 				// Lista itens após salvar
 				const listResult = await executeTool('search_items', toolContext, { limit: 5 });
-				const itemsList = listResult.success && listResult.data?.length > 0
-					? `\n\n📋 Últimos itens salvos:\n${listResult.data.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`).join('\n')}`
-					: '';
+				const itemsList =
+					listResult.success && listResult.data?.length > 0
+						? `\n\n📋 Últimos itens salvos:\n${listResult.data
+								.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`)
+								.join('\n')}`
+						: '';
 
 				return {
 					message: `✅ ${selected.title} salvo!${itemsList}`,
@@ -450,7 +455,7 @@ export class AgentOrchestrator {
 					break;
 			}
 
-			console.log(`🔧 [Agent] Salvando como ${contextData.forcedType}:`, params);
+			loggers.ai.info({ forcedType: contextData.forcedType, params }, '🔧 Salvando via forcedType');
 
 			const result = await executeTool(toolName, toolContext, params);
 
@@ -463,9 +468,12 @@ export class AgentOrchestrator {
 			if (result.success) {
 				// Lista itens após salvar
 				const listResult = await executeTool('search_items', toolContext, { limit: 5 });
-				const itemsList = listResult.success && listResult.data?.length > 0
-					? `\n\n📋 Últimos 5 itens salvos:\n${listResult.data.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`).join('\n')}`
-					: '';
+				const itemsList =
+					listResult.success && listResult.data?.length > 0
+						? `\n\n📋 Últimos 5 itens salvos:\n${listResult.data
+								.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`)
+								.join('\n')}`
+						: '';
 
 				return {
 					message: result.message || `✅ Salvei!${itemsList}`,
@@ -481,7 +489,7 @@ export class AgentOrchestrator {
 		}
 
 		// Confirmação genérica (fallback)
-        const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
+		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
 		return {
 			message: confirmMsg,
 			state: 'idle',
@@ -722,14 +730,14 @@ export class AgentOrchestrator {
 		const { pendingClarification } = conversation.context || {};
 
 		if (!pendingClarification) {
-			console.warn('⚠️ [Agent] Nenhuma clarificação pendente');
+			loggers.ai.warn('⚠️ Nenhuma clarificação pendente');
 			return {
 				message: 'Desculpe, não entendi. O que você precisa?',
 				state: 'idle',
 			};
 		}
 
-		console.log('🔍 [Agent] Processando resposta de clarificação');
+		loggers.ai.info('🔍 Processando resposta de clarificação');
 
 		// Mapeia escolha do usuário (1-5)
 		const message = context.message.trim();
@@ -751,7 +759,7 @@ export class AgentOrchestrator {
 				break;
 			case 5:
 				// Cancela
-				console.log('❌ [Agent] Usuário cancelou clarificação');
+				loggers.ai.info('❌ Usuário cancelou clarificação');
 				await conversationService.updateState(conversation.id, 'idle', {
 					pendingClarification: undefined,
 				});
@@ -760,27 +768,25 @@ export class AgentOrchestrator {
 					state: 'idle',
 				};
 			default:
-				console.warn(`⚠️ [Agent] Escolha inválida: ${message}`);
-				
+				loggers.ai.warn({ choice: message }, '⚠️ Escolha inválida de clarificação');
+
 				// Re-envia as opções quando a escolha é inválida
-				const optionsText = clarificationOptions
-					.map((opt: string, i: number) => `${i + 1}. ${opt}`)
-					.join('\n');
-				
+				const optionsText = clarificationOptions.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
+
 				return {
 					message: `❓ Por favor, escolha uma das opções:\n\n${optionsText}`,
 					state: 'awaiting_context',
 				};
 		}
 
-		console.log(`✅ [Agent] Usuário escolheu tipo: ${detectedType}`);
+		loggers.ai.info({ detectedType }, '✅ Usuário escolheu tipo');
 
 		// Mapeia tipo para português
 		const typeNames: Record<string, string> = {
 			note: 'nota',
 			movie: 'filme',
 			series: 'série',
-			link: 'link'
+			link: 'link',
 		};
 
 		// Atualiza contexto com tipo forçado
@@ -792,7 +798,7 @@ export class AgentOrchestrator {
 		// Confirma com o usuário antes de salvar
 		const typePt = typeNames[detectedType] || detectedType;
 		const confirmMsg = getRandomMessage(confirmationMessages, { type: typePt });
-		
+
 		await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
 			forcedType: detectedType,
 			originalMessage: pendingClarification.originalMessage,
