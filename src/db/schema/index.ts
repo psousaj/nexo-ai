@@ -5,3 +5,4 @@ export * from './items';
 export * from './conversations';
 export * from './messages';
 export * from './user-preferences';
+export * from './semantic-external-items';

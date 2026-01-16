@@ -57,6 +57,13 @@
       "when": 1768434128648,
       "tag": "0007_red_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1768521131534,
+      "tag": "0008_certain_cable",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, timestamp, jsonb, index, uniqueIndex, vector } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
+import { semanticExternalItems } from './semantic-external-items';
 import type { ItemMetadata, ItemType } from '@/types';
 
 /**
@@ -23,6 +24,8 @@ export const memoryItems = pgTable(
 		metadata: jsonb('metadata').$type<ItemMetadata>(),
 		/** Vetor para busca semântica (Qwen 2.5 Embedding = 1024 dims) */
 		embedding: vector('embedding', { dimensions: 1024 }),
+		/** Referência para cache semântico externo (reuso de metadata/embedding) */
+		semanticExternalItemId: uuid('semantic_external_item_id').references(() => semanticExternalItems.id),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 	},
 	(table) => ({
@@ -45,6 +48,10 @@ export const memoryItemsRelations = relations(memoryItems, ({ one }) => ({
 	user: one(users, {
 		fields: [memoryItems.userId],
 		references: [users.id],
+	}),
+	semanticExternalItem: one(semanticExternalItems, {
+		fields: [memoryItems.semanticExternalItemId],
+		references: [semanticExternalItems.id],
 	}),
 }));
 
