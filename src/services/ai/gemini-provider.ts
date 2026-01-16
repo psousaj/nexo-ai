@@ -14,7 +14,7 @@ import { aiProviderLogs, getRandomLogMessage } from '@/services/conversation/log
 export class GeminiProvider implements AIProvider {
 	private readonly client: GoogleGenerativeAI;
 	private readonly model: GenerativeModel;
-	private readonly modelName: string = 'gemini-2.5-flash';
+	private readonly modelName: string = 'gemini-2.5-flash-lite';
 
 	constructor(apiKey: string) {
 		if (!apiKey) {

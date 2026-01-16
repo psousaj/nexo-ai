@@ -14,9 +14,9 @@ import { env } from '@/config/env';
 import { db } from '@/db';
 import { conversations } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
-import { logger } from '@/utils/logger';
+import { loggers } from '@/utils/logger';
 
-const queueLogger = logger.child({ context: 'queue' });
+const queueLogger = loggers.queue;
 
 // ============================================================================
 // QUEUE SETUP

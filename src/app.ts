@@ -10,6 +10,7 @@ import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
 import { runConversationCloseCron, runAwaitingConfirmationTimeoutCron } from '@/services/queue-service';
+import pkg from '../package.json';
 
 // ============================================================================
 // OPENTELEMETRY
@@ -18,11 +19,11 @@ import { runConversationCloseCron, runAwaitingConfirmationTimeoutCron } from '@/
 // OpenTelemetry exporter (Uptrace)
 const traceExporter = env.UPTRACE_DSN
 	? new OTLPTraceExporter({
-		url: 'https://otlp.uptrace.dev/v1/traces',
-		headers: {
-			'uptrace-dsn': env.UPTRACE_DSN,
-		},
-	})
+			url: 'https://otlp.uptrace.dev/v1/traces',
+			headers: {
+				'uptrace-dsn': env.UPTRACE_DSN,
+			},
+	  })
 	: undefined;
 
 const app = new Elysia()
@@ -61,7 +62,7 @@ const app = new Elysia()
 			documentation: {
 				info: {
 					title: 'Nexo AI API',
-					version: '0.2.5',
+					version: pkg.version,
 					description: 'Assistente pessoal via WhatsApp/Telegram com IA',
 				},
 				tags: [
@@ -75,9 +76,9 @@ const app = new Elysia()
 	.use(
 		traceExporter
 			? opentelemetry({
-				serviceName: 'nexo-ai',
-				spanProcessors: [new BatchSpanProcessor(traceExporter)],
-			})
+					serviceName: 'nexo-ai',
+					spanProcessors: [new BatchSpanProcessor(traceExporter)],
+			  })
 			: (app) => app
 	)
 	.onError(({ code, error, set }) => {
