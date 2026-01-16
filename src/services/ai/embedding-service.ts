@@ -1,5 +1,6 @@
 import { env } from '@/config/env';
 import OpenAI from 'openai';
+import { inspect } from 'util';
 
 /**
  * Serviço de Embeddings usando Cloudflare Workers AI
@@ -30,6 +31,19 @@ export class EmbeddingService {
 				model: this.model,
 				input: text,
 			});
+
+			// Logar a resposta inteira da API para inspeção
+			try {
+				console.log('🧾 [Embedding] Resposta bruta da API:');
+				console.log(inspect(response, { depth: null }));
+			} catch (e) {
+				// Fallback caso exista problema ao inspecionar
+				try {
+					console.log('🧾 [Embedding] Resposta (JSON):', JSON.stringify(response, null, 2));
+				} catch (_) {
+					console.log('🧾 [Embedding] Resposta não pôde ser serializada para log');
+				}
+			}
 
 			return response.data[0].embedding;
 		} catch (error) {
