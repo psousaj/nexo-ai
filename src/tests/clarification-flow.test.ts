@@ -1,0 +1,166 @@
+import { describe, test, expect, beforeEach } from 'bun:test';
+import { ConversationService } from '@/services/conversation-service';
+import { AgentOrchestrator } from '@/services/agent-orchestrator';
+import type { ConversationContext } from '@/types';
+
+/**
+ * Testes para o fluxo de clarificação (Anamnese N1/N2)
+ * 
+ * Valida que mensagens longas/ambíguas disparam solicitação de clarificação
+ * e que o sistema processa corretamente a resposta do usuário.
+ */
+
+describe('Clarification Flow (N1/N2)', () => {
+	const mockUserId = 'test-user-123';
+	const mockConversationId = 'test-conv-456';
+
+	test('deve detectar mensagem longa sem verbo de ação como ambígua', async () => {
+		const longMessage =
+			'Salvar info tmdb como vector na base de dados ao salvar e ao buscar enrichment para seleção do usuário para referências como "o da zebra com o leão na ilha" para a query "madagascar"';
+
+		const conversationService = new ConversationService();
+		
+		// Simula detecção de ambiguidade
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			longMessage
+		);
+
+		expect(isAmbiguous).toBe(true);
+	});
+
+	test('não deve considerar mensagem com verbo de ação claro como ambígua', async () => {
+		const actionMessage = 'salva inception';
+
+		const conversationService = new ConversationService();
+		
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			actionMessage
+		);
+
+		expect(isAmbiguous).toBe(false);
+	});
+
+	test('não deve considerar mensagem curta como ambígua', async () => {
+		const shortMessage = 'isso é um teste curto';
+
+		const conversationService = new ConversationService();
+		
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			shortMessage
+		);
+
+		expect(isAmbiguous).toBe(false);
+	});
+
+	test('deve processar escolha "1" (nota) corretamente', async () => {
+		// Mock: conversa em estado awaiting_context
+		const mockConversation = {
+			id: mockConversationId,
+			userId: mockUserId,
+			state: 'awaiting_context' as const,
+			context: {
+				pendingClarification: {
+					originalMessage: 'mensagem longa aqui',
+					detectedType: null,
+					clarificationOptions: ['Salvar como nota', 'Salvar como filme'],
+				},
+			},
+		};
+
+		const orchestrator = new AgentOrchestrator();
+		
+		// Simula resposta do usuário escolhendo opção 1
+		const response = await orchestrator.processMessage({
+			userId: mockUserId,
+			conversationId: mockConversationId,
+			externalId: 'test-external-123',
+			message: '1',
+		});
+
+		// Deve transitar para awaiting_confirmation
+		expect(response.state).toBe('awaiting_confirmation');
+		expect(response.message).toContain('nota'); // Mensagem de confirmação deve mencionar "nota"
+	});
+
+	test('deve processar escolha "5" (cancelar) corretamente', async () => {
+		const mockConversation = {
+			id: mockConversationId,
+			userId: mockUserId,
+			state: 'awaiting_context' as const,
+			context: {
+				pendingClarification: {
+					originalMessage: 'mensagem longa aqui',
+					detectedType: null,
+					clarificationOptions: [],
+				},
+			},
+		};
+
+		const orchestrator = new AgentOrchestrator();
+		
+		const response = await orchestrator.processMessage({
+			userId: mockUserId,
+			conversationId: mockConversationId,
+			externalId: 'test-external-123',
+			message: '5',
+		});
+
+		// Deve cancelar e voltar para idle
+		expect(response.state).toBe('idle');
+		expect(response.message).toMatch(/cancel|cancelad/i);
+	});
+
+	test('deve rejeitar escolha inválida (não numérica)', async () => {
+		const mockConversation = {
+			id: mockConversationId,
+			userId: mockUserId,
+			state: 'awaiting_context' as const,
+			context: {
+				pendingClarification: {
+					originalMessage: 'mensagem longa aqui',
+					detectedType: null,
+					clarificationOptions: [],
+				},
+			},
+		};
+
+		const orchestrator = new AgentOrchestrator();
+		
+		const response = await orchestrator.processMessage({
+			userId: mockUserId,
+			conversationId: mockConversationId,
+			externalId: 'test-external-123',
+			message: 'abc',
+		});
+
+		// Deve permanecer em awaiting_context e pedir escolha válida
+		expect(response.state).toBe('awaiting_context');
+		expect(response.message).toMatch(/escolha|opção/i);
+	});
+});
+
+describe('Message Templates', () => {
+	test('getRandomMessage deve substituir placeholders corretamente', () => {
+		const { getRandomMessage } = require('@/services/conversation/messageTemplates');
+		
+		const templates = ['Teste {name} com {value}'];
+		const result = getRandomMessage(templates, {
+			name: 'João',
+			value: '123',
+		});
+
+		expect(result).toBe('Teste João com 123');
+	});
+
+	test('getRandomMessage deve retornar template sem substituição se não houver replacements', () => {
+		const { getRandomMessage } = require('@/services/conversation/messageTemplates');
+		
+		const templates = ['Teste sem placeholder'];
+		const result = getRandomMessage(templates);
+
+		expect(result).toBe('Teste sem placeholder');
+	});
+});

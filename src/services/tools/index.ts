@@ -8,6 +8,7 @@
 import { itemService } from '@/services/item-service';
 import { enrichmentService } from '@/services/enrichment';
 import type { ItemType, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@/types';
+import { toolLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 
 export interface ToolContext {
 	userId: string;
@@ -35,12 +36,27 @@ export async function save_note(
 		content: string;
 	}
 ): Promise<ToolOutput> {
+	console.log(
+		getRandomLogMessage(toolLogs.executing, { tool: 'save_note' })
+	);
+	console.log(
+		getRandomLogMessage(toolLogs.params, {
+			params: JSON.stringify({ content: params.content?.substring(0, 100) + '...' }),
+		})
+	);
+
 	if (!params.content?.trim()) {
+		console.error(
+			getRandomLogMessage(toolLogs.error, {
+				tool: 'save_note',
+				error: 'Conteúdo vazio',
+			})
+		);
 		return { success: false, error: 'Conteúdo vazio' };
 	}
 
 	try {
-		const item = await itemService.createItem({
+		const result = await itemService.createItem({
 			userId: context.userId,
 			type: 'note',
 			title: params.content.slice(0, 100),
@@ -50,11 +66,49 @@ export async function save_note(
 			} as NoteMetadata,
 		});
 
+		// Verificar se é duplicata
+		if (result.isDuplicate && result.existingItem) {
+			console.log('⚠️ [Tool] Nota duplicada detectada');
+			return {
+				success: false,
+				error: 'duplicate',
+				message: `⚠️ Esta nota já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+			};
+		}
+
+		// Verificar se item foi criado com sucesso
+		if (!result.item) {
+			console.error(
+				getRandomLogMessage(toolLogs.error, {
+					tool: 'save_note',
+					error: 'itemService.createItem retornou null sem ser duplicata',
+				})
+			);
+			console.error('❌ [Tool] itemService retornou:', result);
+			return {
+				success: false,
+				error: 'Erro ao criar nota no banco de dados',
+			};
+		}
+
+		console.log(
+			getRandomLogMessage(toolLogs.success, { tool: 'save_note' })
+		);
+		console.log(`✅ [Tool] Nota salva: ${result.item.id}`);
+
 		return {
 			success: true,
-			data: { id: item.item.id, title: item.item.title },
+			data: { id: result.item.id, title: result.item.title },
 		};
 	} catch (error) {
+		console.error(
+			getRandomLogMessage(toolLogs.error, {
+				tool: 'save_note',
+				error: error instanceof Error ? error.message : 'Erro desconhecido',
+			})
+		);
+		console.error('❌ [Tool] Stack:', error instanceof Error ? error.stack : 'N/A');
+
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao salvar nota',

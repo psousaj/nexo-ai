@@ -8,16 +8,16 @@ import type {
 } from "@/types";
 import { classifierService } from "@/services/classifier-service";
 import { whatsappService } from "@/services/whatsapp";
-import { collectContextTool } from "@/services/tools";
-import { clarificationMessages } from "@/services/conversation/messageTemplates";
+import { clarificationMessages, clarificationOptions, getRandomMessage } from "@/services/conversation/messageTemplates";
+import { processingLogs, getRandomLogMessage } from "@/services/conversation/logMessages";
 
 export class ConversationService {
   /**
    * Busca ou cria conversação ativa para o usuário
-   * Garante que apenas 1 conversa está ativa por usuário (cross-provider)
+   * Conversas 'closed' são consideradas inativas e uma nova é criada
    */
   async findOrCreateConversation(userId: string) {
-    // Busca conversa ativa (única por usuário)
+    // Busca conversa ativa que NÃO esteja fechada
     const [existing] = await db
       .select()
       .from(conversations)
@@ -30,11 +30,36 @@ export class ConversationService {
       .orderBy(desc(conversations.updatedAt))
       .limit(1);
 
+    // Se encontrou conversa ativa mas está closed, desativa e cria nova
+    if (existing && existing.state === 'closed') {
+      console.log(`🔄 [Conversation] Conversa ${existing.id.substring(0, 8)} está closed, criando nova`);
+      
+      await db
+        .update(conversations)
+        .set({ isActive: false })
+        .where(eq(conversations.id, existing.id));
+      
+      // Cria nova conversa
+      const [newConv] = await db
+        .insert(conversations)
+        .values({
+          userId,
+          state: "idle",
+          context: {},
+          isActive: true,
+        })
+        .returning();
+
+      console.log(`🆕 [Conversation] Nova conversa criada: ${newConv.id.substring(0, 8)}`);
+      return newConv;
+    }
+
+    // Se tem conversa ativa e não está closed, retorna ela
     if (existing) {
       return existing;
     }
 
-    // Desativa todas as conversas antigas antes de criar nova
+    // Se não tem nenhuma conversa ativa, desativa todas antigas e cria nova
     await db
       .update(conversations)
       .set({ isActive: false })
@@ -51,6 +76,7 @@ export class ConversationService {
       })
       .returning();
 
+    console.log(`🆕 [Conversation] Primeira conversa criada: ${newConv.id.substring(0, 8)}`);
     return newConv;
   }
 
@@ -64,10 +90,21 @@ export class ConversationService {
   ) {
     // Busca contexto atual para fazer merge
     const [current] = await db
-      .select({ context: conversations.context })
+      .select({ context: conversations.context, state: conversations.state })
       .from(conversations)
       .where(eq(conversations.id, conversationId))
       .limit(1);
+
+    const oldState = current?.state || 'unknown';
+
+    // Log: transição de estado
+    console.log(
+      getRandomLogMessage(processingLogs.stateChange, {
+        conversationId: conversationId.substring(0, 8),
+        from: oldState,
+        to: state,
+      })
+    );
 
     const mergedContext = {
       ...(current?.context || {}),
@@ -85,6 +122,55 @@ export class ConversationService {
       .returning();
 
     return updated;
+  }
+
+  /**
+   * Detecta mensagens longas/ambíguas e solicita clarificação
+   * Retorna true se clarificação foi solicitada
+   */
+  async handleAmbiguousMessage(
+    conversationId: string,
+    message: string
+  ): Promise<boolean> {
+    // Detecta mensagens longas (>150 chars) sem verbos de ação claros
+    // Verbo deve estar no início E ser um comando direto (ex: "salva inception")
+    // "Salvar info tmdb..." é uma descrição técnica, não um comando
+    const hasDirectCommand = /^(salva|adiciona|busca|lista|deleta|procura|mostra|remove)\s+\w+/i.test(
+      message.trim()
+    );
+    
+    // Mensagens muito longas (>150 chars) provavelmente são notas/descrições
+    // mesmo que comecem com palavras como "Salvar"
+    const isLongMessage = message.length > 150;
+
+    if (isLongMessage && !hasDirectCommand) {
+      console.log("🔍 [Conversation] Mensagem longa detectada, solicitando clarificação");
+
+      // Atualiza estado para awaiting_context
+      await this.updateState(conversationId, "awaiting_context", {
+        pendingClarification: {
+          originalMessage: message,
+          detectedType: null,
+          clarificationOptions,
+        },
+      });
+
+      // Envia mensagem de clarificação ao usuário
+      const msg = getRandomMessage(clarificationMessages);
+      const optionsText = clarificationOptions
+        .map((opt: string, i: number) => `${i + 1}. ${opt}`)
+        .join("\n");
+
+      // TODO: Adaptar para multi-provider (não só whatsapp)
+      await whatsappService.sendMessage(
+        conversationId,
+        `${msg}\n\n${optionsText}`
+      );
+
+      return true; // Clarificação solicitada
+    }
+
+    return false; // Não é ambíguo
   }
 
   /**
@@ -154,38 +240,6 @@ export class ConversationService {
       .where(eq(messages.conversationId, conversationId));
     
     return result[0]?.count || 0;
-  }
-
-  /**
-   * Trata mensagens ambíguas solicitando contexto ao usuário
-   */
-  async handleAmbiguousMessage(conversationId: string, message: string) {
-    const detectedType = await classifierService.detectType(message);
-    
-    // Se não detectou tipo ou mensagem muito longa (possível texto complexo sem intenção clara)
-    // E type == 'note' que é o default/fallback
-    if (!detectedType || (detectedType === 'note' && message.length > 50)) {
-      const { clarificationOptions } = await collectContextTool({ message, detectedType });
-      
-      await this.updateState(conversationId, "awaiting_context", {
-        pendingClarification: {
-          originalMessage: message,
-          detectedType,
-          clarificationOptions
-        }
-      });
-
-      // Escolhe uma mensagem aleatória para evitar repetição
-      const msg = clarificationMessages[Math.floor(Math.random() * clarificationMessages.length)];
-      
-      await whatsappService.sendMessage(conversationId, 
-        `${msg}\n${clarificationOptions.map((o, i) => `${i + 1}. ${o}`).join("\n")}`
-      );
-      
-      return true; // Tratado como ambíguo
-    }
-    
-    return false; // Não ambíguo, seguir fluxo normal
   }
 }
 

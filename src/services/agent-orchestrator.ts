@@ -37,7 +37,13 @@ import {
 import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
 import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
 import { scheduleConversationClose } from './queue-service';
-import { confirmationMessages, enrichmentMessages } from './conversation/messageTemplates';
+import { 
+	confirmationMessages, 
+	enrichmentMessages, 
+	cancellationMessages,
+	clarificationOptions,
+	getRandomMessage 
+} from './conversation/messageTemplates';
 
 export interface AgentContext {
 	userId: string;
@@ -237,24 +243,35 @@ export class AgentOrchestrator {
 		let responseMessage: string = '';
 		let nextState: ConversationState = 'idle';
 
-		try {
-			// 1. Parsear JSON da resposta (remove markdown code blocks)
-			const agentResponse = parseJSONFromLLM(llmResponse.message);
+	// DETECTA MENSAGEM DE ERRO ANTES DE PARSEAR JSON
+	if (llmResponse.message.trim().startsWith('😅') || 
+		llmResponse.message.trim().startsWith('⚠️') || 
+		llmResponse.message.trim().startsWith('❌')) {
+		console.log('⚠️ [Agent] LLM retornou mensagem de erro ao invés de JSON');
+		return {
+			message: llmResponse.message.trim(),
+			state: 'idle',
+		};
+	}
 
-			// 2. Validar schema
-			if (!isValidAgentResponse(agentResponse)) {
-				throw new Error('Resposta LLM não segue schema AgentLLMResponse');
-			}
+	try {
+		// 1. Parsear JSON da resposta (remove markdown code blocks)
+		const agentResponse = parseJSONFromLLM(llmResponse.message);
 
-			console.log(`🤖 [Agent] LLM action: ${agentResponse.action}`);
-			4;
-			// 3. Validar schema_version
-			if (agentResponse.schema_version !== '1.0') {
-				console.warn(`⚠️ [Agent] Schema version incompatível: ${agentResponse.schema_version}`);
-			}
+		// 2. Validar schema
+		if (!isValidAgentResponse(agentResponse)) {
+			throw new Error('Resposta LLM não segue schema AgentLLMResponse');
+		}
 
-			// 3. Executar baseado na ação
-			switch (agentResponse.action) {
+		console.log(`🤖 [Agent] LLM action: ${agentResponse.action}`);
+
+		// 3. Validar schema_version
+		if (agentResponse.schema_version !== '1.0') {
+			console.warn(`⚠️ [Agent] Schema version incompatível: ${agentResponse.schema_version}`);
+		}
+
+		// 4. Executar baseado na ação
+		switch (agentResponse.action) {
 				case 'CALL_TOOL':
 					if (!agentResponse.tool) {
 						throw new Error('action=CALL_TOOL requer tool');
@@ -294,8 +311,20 @@ export class AgentOrchestrator {
 							responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
 						}
 					} else {
-						// Erro - mensagem amigável
-						responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+						// Erro - tratar casos específicos
+						console.error(`❌ [Agent] Tool ${agentResponse.tool} falhou:`, result.error);
+						
+						// Casos especiais de erro
+						if (result.error === 'duplicate') {
+							// Duplicata detectada - usar mensagem da tool ou padrão
+							responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
+						} else if (result.message) {
+							// Tool forneceu mensagem de erro específica
+							responseMessage = result.message;
+						} else {
+							// Erro genérico
+							responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+						}
 					}
 					break;
 
@@ -377,99 +406,87 @@ export class AgentOrchestrator {
 					awaiting_selection: false,
 				} as any);
 
+				// Lista itens após salvar
+				const listResult = await executeTool('search_items', toolContext, { limit: 5 });
+				const itemsList = listResult.success && listResult.data?.length > 0
+					? `\n\n📋 Últimos itens salvos:\n${listResult.data.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`).join('\n')}`
+					: '';
+
 				return {
-					message: `✅ ${selected.title} salvo!`,
+					message: `✅ ${selected.title} salvo!${itemsList}`,
 					state: 'idle',
 					toolsUsed: [toolName],
 				};
 			}
 		}
 
-		// Confirmação genérica
+		// Se há forcedType (veio do fluxo de clarificação)
+		if (contextData.forcedType && contextData.originalMessage) {
+			const toolContext: ToolContext = {
+				userId: context.userId,
+				conversationId: context.conversationId,
+			};
+
+			let toolName: ToolName = 'save_note';
+			const params: any = {};
+
+			// Mapeia tipo para tool apropriada
+			switch (contextData.forcedType) {
+				case 'note':
+					toolName = 'save_note';
+					params.content = contextData.originalMessage;
+					break;
+				case 'movie':
+					toolName = 'save_movie';
+					params.title = contextData.originalMessage;
+					break;
+				case 'series':
+					toolName = 'save_tv_show';
+					params.title = contextData.originalMessage;
+					break;
+				case 'link':
+					toolName = 'save_link';
+					params.url = contextData.originalMessage;
+					break;
+			}
+
+			console.log(`🔧 [Agent] Salvando como ${contextData.forcedType}:`, params);
+
+			const result = await executeTool(toolName, toolContext, params);
+
+			// Limpar contexto
+			await conversationService.updateState(conversation.id, 'idle', {
+				forcedType: null,
+				originalMessage: null,
+			} as any);
+
+			if (result.success) {
+				// Lista itens após salvar
+				const listResult = await executeTool('search_items', toolContext, { limit: 5 });
+				const itemsList = listResult.success && listResult.data?.length > 0
+					? `\n\n📋 Últimos 5 itens salvos:\n${listResult.data.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`).join('\n')}`
+					: '';
+
+				return {
+					message: result.message || `✅ Salvei!${itemsList}`,
+					state: 'idle',
+					toolsUsed: [toolName],
+				};
+			} else {
+				return {
+					message: result.message || '❌ Ops, algo deu errado.',
+					state: 'idle',
+				};
+			}
+		}
+
+		// Confirmação genérica (fallback)
         const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
 		return {
 			message: confirmMsg,
 			state: 'idle',
 		};
 	}
-
-    /**
-     * Trata resposta de clarificação
-     */
-    private async handleClarificationResponse(context: AgentContext, conversation: any): Promise<AgentResponse> {
-        const userInput = context.message.toLowerCase();
-        const pendingContext = conversation.context?.pendingClarification;
-
-        if (!pendingContext) {
-            // Estado inválido, reseta
-            return {
-                message: "Ocorreu um erro no fluxo. O que deseja fazer?",
-                state: "idle"
-            };
-        }
-
-        const originalMsg = pendingContext.originalMessage;
-        let selectedTool: ToolName = 'save_note';
-        let itemType = 'note';
-
-        // Mapeia números ou palavras-chave para tipos
-        if (userInput.includes('1') || userInput.includes('not')) {
-            selectedTool = 'save_note';
-            itemType = 'nota';
-        } else if (userInput.includes('2') || userInput.includes('film') || userInput.includes('movie')) {
-            selectedTool = 'save_movie';
-            itemType = 'filme';
-        } else if (userInput.includes('3') || userInput.includes('séri') || userInput.includes('seri')) {
-            selectedTool = 'save_tv_show';
-            itemType = 'série';
-        } else {
-            // Se não entendeu, assume nota mas avisa
-             selectedTool = 'save_note';
-             itemType = 'nota';
-        }
-
-        // Executa a ação
-        const toolContext: ToolContext = {
-            userId: context.userId,
-            conversationId: context.conversationId,
-        };
-
-        // Usa LLM para extrair parâmetros estruturados do texto original se necessário
-        // Por simplificação KISS, vamos tentar salvar direto com o texto original como título/conteúdo
-        // Idealmente, aqui chamaríamos o handleWithLLM forçando a tool específica
-        
-        // Vamos usar handleWithLLM mas injetando um system instruction para usar a tool escolhida
-        // Ou mais simples: chamar executeTool direto com o texto original
-        
-        let result: any;
-        if (selectedTool === 'save_note') {
-             result = await executeTool(selectedTool, toolContext, { content: originalMsg });
-        } else {
-             // Filmes e séries precisam de titulo
-             result = await executeTool(selectedTool, toolContext, { title: originalMsg });
-        }
-
-        // Limpa contexto de clarificação
-        await conversationService.updateState(conversation.id, 'idle', {
-            pendingClarification: null
-        } as any);
-
-        const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', itemType);
-        
-        if (result.success) {
-             return {
-                message: `${confirmMsg} (Salvo: ${originalMsg})`,
-                state: 'idle',
-                toolsUsed: [selectedTool]
-            };
-        } else {
-             return {
-                message: `Erro ao salvar como ${itemType}. Tente novamente.`,
-                state: 'idle'
-            };
-        }
-
-    }
 
 	/**
 	 * Trata negação do usuário
@@ -695,6 +712,96 @@ export class AgentOrchestrator {
 	 */
 	private async handleDirect(context: AgentContext, intent: IntentResult): Promise<AgentResponse> {
 		return this.handleSearch(context, intent);
+	}
+
+	/**
+	 * Handler para resposta de clarificação (estado awaiting_context)
+	 * Processa escolha do usuário e prossegue para ação apropriada
+	 */
+	private async handleClarificationResponse(context: AgentContext, conversation: any): Promise<AgentResponse> {
+		const { pendingClarification } = conversation.context || {};
+
+		if (!pendingClarification) {
+			console.warn('⚠️ [Agent] Nenhuma clarificação pendente');
+			return {
+				message: 'Desculpe, não entendi. O que você precisa?',
+				state: 'idle',
+			};
+		}
+
+		console.log('🔍 [Agent] Processando resposta de clarificação');
+
+		// Mapeia escolha do usuário (1-5)
+		const message = context.message.trim();
+		const choice = parseInt(message);
+		let detectedType: string | null = null;
+
+		switch (choice) {
+			case 1:
+				detectedType = 'note';
+				break;
+			case 2:
+				detectedType = 'movie';
+				break;
+			case 3:
+				detectedType = 'series';
+				break;
+			case 4:
+				detectedType = 'link';
+				break;
+			case 5:
+				// Cancela
+				console.log('❌ [Agent] Usuário cancelou clarificação');
+				await conversationService.updateState(conversation.id, 'idle', {
+					pendingClarification: undefined,
+				});
+				return {
+					message: getRandomMessage(cancellationMessages),
+					state: 'idle',
+				};
+			default:
+				console.warn(`⚠️ [Agent] Escolha inválida: ${message}`);
+				
+				// Re-envia as opções quando a escolha é inválida
+				const optionsText = clarificationOptions
+					.map((opt: string, i: number) => `${i + 1}. ${opt}`)
+					.join('\n');
+				
+				return {
+					message: `❓ Por favor, escolha uma das opções:\n\n${optionsText}`,
+					state: 'awaiting_context',
+				};
+		}
+
+		console.log(`✅ [Agent] Usuário escolheu tipo: ${detectedType}`);
+
+		// Mapeia tipo para português
+		const typeNames: Record<string, string> = {
+			note: 'nota',
+			movie: 'filme',
+			series: 'série',
+			link: 'link'
+		};
+
+		// Atualiza contexto com tipo forçado
+		await conversationService.updateState(conversation.id, 'processing', {
+			pendingClarification: undefined,
+			forcedType: detectedType,
+		});
+
+		// Confirma com o usuário antes de salvar
+		const typePt = typeNames[detectedType] || detectedType;
+		const confirmMsg = getRandomMessage(confirmationMessages, { type: typePt });
+		
+		await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+			forcedType: detectedType,
+			originalMessage: pendingClarification.originalMessage,
+		});
+
+		return {
+			message: confirmMsg,
+			state: 'awaiting_confirmation',
+		};
 	}
 }
 

@@ -115,10 +115,18 @@ export class TelegramAdapter implements MessagingProvider {
 
     if (!response.ok) {
       const errorData = await response.json() as { error_code?: number; description?: string };
+      console.error(`❌ [Telegram] Erro ao enviar mensagem:`, {
+        error_code: errorData.error_code,
+        description: errorData.description,
+        chatId,
+        textLength: text.length
+      });
       throw new Error(
         `Telegram API error [${errorData.error_code}]: ${errorData.description}`
       );
     }
+    
+    console.log(`📤 [Telegram] Mensagem enviada para ${chatId}`);
   }
 
   /**

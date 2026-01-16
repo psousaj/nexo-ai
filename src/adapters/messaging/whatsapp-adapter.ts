@@ -170,4 +170,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 	}
 }
 
-export const whatsappAdapter = new WhatsAppAdapter();
+// Só instancia se token estiver configurado
+export const whatsappAdapter = env.META_WHATSAPP_TOKEN 
+	? new WhatsAppAdapter() 
+	: null;

@@ -75,8 +75,10 @@ Mensagem atual: ${message}`;
 			const text = typeof rawContent === 'string' ? rawContent : '';
 
 			console.log('☁️ [Cloudflare] Resposta recebida');
-			if (!text) {
-				console.warn('⚠️ [Cloudflare] Resposta vazia!');
+			
+			if (!text || text.trim().length === 0) {
+				console.error('⚠️ [Cloudflare] Resposta vazia - modelo não retornou conteúdo!');
+				throw new Error('Cloudflare returned empty response');
 			}
 
 			return {

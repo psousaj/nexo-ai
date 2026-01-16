@@ -147,7 +147,8 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			return;
 		}
 
-		// 4. BUSCA CONVERSAÇÃO
+		// 4. BUSCA/CRIA CONVERSAÇÃO
+		// Se conversa está closed, findOrCreateConversation cria uma nova automaticamente
 		const conversation = await conversationService.findOrCreateConversation(user.id);
 		if (!conversation) {
 			throw new Error('Falha ao obter conversação');
@@ -155,9 +156,10 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 
 		// 4.1. CANCELA FECHAMENTO SE ESTAVA AGENDADO
 		// Nova mensagem = usuário voltou, cancela o timer de 3min
+		// cancelConversationClose já atualiza estado para idle automaticamente
 		if (conversation.state === 'waiting_close') {
 			await cancelConversationClose(conversation.id);
-			console.log(`🔄 [Webhook] Fechamento cancelado para ${conversation.id}`);
+			console.log(`🔄 [Webhook] Fechamento cancelado`);
 		}
 
 		// 5. DELEGA PARA ORQUESTRADOR (toda lógica aqui)
@@ -193,6 +195,8 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 export const webhookRoutes = new Elysia({ prefix: '/webhook' })
 	// TELEGRAM
 	.post('/telegram', async ({ body }) => {
+		console.log('📥 [Webhook] Telegram recebido');
+		
 		if (!env.TELEGRAM_BOT_TOKEN) {
 			return { error: 'Telegram not configured' };
 		}
@@ -223,7 +227,7 @@ export const webhookRoutes = new Elysia({ prefix: '/webhook' })
 		return new Response('Verification failed', { status: 403 });
 	})
 	.post('/meta', async ({ body }) => {
-		if (!env.META_WHATSAPP_TOKEN) {
+		if (!whatsappAdapter) {
 			return { error: 'WhatsApp not configured' };
 		}
 

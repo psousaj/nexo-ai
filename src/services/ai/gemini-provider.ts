@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 import { encode } from '@toon-format/toon';
 import type { AIProvider, AIResponse, Message } from './types';
+import { aiProviderLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 
 /**
  * Gemini Provider usando SDK oficial
@@ -35,8 +36,15 @@ export class GeminiProvider implements AIProvider {
 
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
 		const { message, history = [], systemPrompt } = params;
+		const startTime = Date.now();
 
 		try {
+			// Log: requisição iniciada
+			console.log(
+				getRandomLogMessage(aiProviderLogs.requesting, {
+					provider: 'Gemini',
+				})
+			);
 			console.log(`🤖 [Gemini] Enviando para ${this.modelName}`);
 
 			// Converter histórico para TOON (economiza 30-60% tokens)
@@ -88,7 +96,16 @@ Mensagem atual: ${message}`;
 
 			// Retorna texto JSON (sem function calling)
 			const text = String(response.text() || '');
-			console.log('🤖 [Gemini] Resposta recebida');
+			
+			const duration = Date.now() - startTime;
+
+			// Log: resposta recebida
+			console.log(
+				getRandomLogMessage(aiProviderLogs.success, {
+					provider: 'Gemini',
+					duration,
+				})
+			);
 
 			if (!text) {
 				console.warn('⚠️ [Gemini] Resposta vazia!');
@@ -96,6 +113,15 @@ Mensagem atual: ${message}`;
 
 			return { message: text.trim() };
 		} catch (error: any) {
+			const duration = Date.now() - startTime;
+
+			// Log: erro
+			console.error(
+				getRandomLogMessage(aiProviderLogs.error, {
+					provider: 'Gemini',
+					error: error instanceof Error ? error.message : String(error),
+				})
+			);
 			console.error('❌ Erro ao chamar Gemini SDK:', error);
 			throw error;
 		}
