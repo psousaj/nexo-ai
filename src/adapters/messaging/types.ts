@@ -31,6 +31,12 @@ export interface IncomingMessage {
   
   /** Número de telefone (se disponível) para detecção cross-provider */
   phoneNumber?: string;
+  
+  /** ID do callback query (Telegram inline buttons) */
+  callbackQueryId?: string;
+  
+  /** Dados do callback (texto do botão clicado) */
+  callbackData?: string;
 }
 
 /**

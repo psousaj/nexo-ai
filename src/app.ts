@@ -1,123 +1,102 @@
-import { Elysia } from 'elysia';
-import { cors } from '@elysiajs/cors';
-import { cron } from '@elysiajs/cron';
-import { openapi } from '@elysiajs/openapi';
-import { opentelemetry } from '@elysiajs/opentelemetry';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
-import { runConversationCloseCron, runAwaitingConfirmationTimeoutCron } from '@/services/queue-service';
+import {
+	runConversationCloseCron,
+	runAwaitingConfirmationTimeoutCron,
+	messageQueue,
+	closeConversationQueue,
+} from '@/services/queue-service';
+import pkg from '../package.json';
+import cron from 'node-cron';
+import { createBullBoard } from '@bull-board/api';
+import { BullAdapter } from '@bull-board/api/bullAdapter';
+import { HonoAdapter } from '@bull-board/hono';
+import { serveStatic } from '@hono/node-server/serve-static';
+
+const app = new Hono();
+
+// CORS
+app.use('*', cors());
 
 // ============================================================================
-// OPENTELEMETRY
+// BULL BOARD - Dashboard para filas
 // ============================================================================
+console.log('🎯 Configurando Bull Board...');
 
-// OpenTelemetry exporter (Uptrace)
-const traceExporter = env.UPTRACE_DSN
-	? new OTLPTraceExporter({
-		url: 'https://otlp.uptrace.dev/v1/traces',
-		headers: {
-			'uptrace-dsn': env.UPTRACE_DSN,
-		},
-	})
-	: undefined;
+// Criar adapter COM serveStatic (necessário!)
+const serverAdapter = new HonoAdapter(serveStatic);
 
-const app = new Elysia()
-	.use(cors())
-	// ============================================================================
-	// CRON JOBS - Fechamento automático de conversas
-	// ============================================================================
-	.use(
-		cron({
-			name: 'conversation-close-backup',
-			pattern: '* * * * *', // A cada 1 minuto
-			async run() {
-				try {
-					await runConversationCloseCron();
-				} catch (error) {
-					console.error('❌ [Cron] Erro no backup de fechamento:', error);
-				}
-			},
-		})
-	)
-	.use(
-		cron({
-			name: 'awaiting-confirmation-timeout',
-			pattern: '*/5 * * * *', // A cada 5 minutos
-			async run() {
-				try {
-					await runAwaitingConfirmationTimeoutCron();
-				} catch (error) {
-					console.error('❌ [Cron] Erro no timeout awaiting_confirmation:', error);
-				}
-			},
-		})
-	)
-	.use(
-		openapi({
-			documentation: {
-				info: {
-					title: 'Nexo AI API',
-					version: '0.2.5',
-					description: 'Assistente pessoal via WhatsApp/Telegram com IA',
-				},
-				tags: [
-					{ name: 'Health', description: 'Health check endpoints' },
-					{ name: 'Items', description: 'Items management' },
-					{ name: 'Webhook', description: 'Messaging webhooks' },
-				],
-			},
-		})
-	)
-	.use(
-		traceExporter
-			? opentelemetry({
-				serviceName: 'nexo-ai',
-				spanProcessors: [new BatchSpanProcessor(traceExporter)],
-			})
-			: (app) => app
-	)
-	.onError(({ code, error, set }) => {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const errorStack = error instanceof Error ? error.stack : undefined;
+// Criar Bull Board com as filas
+createBullBoard({
+	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue)],
+	serverAdapter,
+});
 
-		console.error('[ERROR]', { code, message: errorMessage, stack: errorStack });
+// Configurar base path
+serverAdapter.setBasePath('/admin/queues');
 
-		// Validation errors com detalhes (apenas em dev)
-		if (code === 'VALIDATION') {
-			set.status = 400;
-			return {
-				error: 'Validation failed',
-				message: errorMessage,
-				type: 'validation',
-			};
+// IMPORTANTE: Registrar antes de outras rotas
+app.route('/admin/queues', serverAdapter.registerPlugin());
+
+console.log('✅ Bull Board configurado em http://localhost:3000/admin/queues');
+
+// ============================================================================
+// CRON JOBS - Fechamento automático de conversas
+// ============================================================================
+if (env.NODE_ENV !== 'test') {
+	// A cada 1 minuto
+	cron.schedule('* * * * *', async () => {
+		try {
+			await runConversationCloseCron();
+		} catch (error) {
+			console.error('❌ [Cron] Erro no backup de fechamento:', error);
 		}
+	});
 
-		// Not found
-		if (code === 'NOT_FOUND') {
-			set.status = 404;
-			return { error: 'Route not found' };
+	// A cada 5 minutos
+	cron.schedule('*/5 * * * *', async () => {
+		try {
+			await runAwaitingConfirmationTimeoutCron();
+		} catch (error) {
+			console.error('❌ [Cron] Erro no timeout awaiting_confirmation:', error);
 		}
+	});
+}
 
-		// Parse errors
-		if (code === 'PARSE') {
-			set.status = 400;
-			return { error: 'Invalid request body', message: errorMessage };
-		}
+// Error Handler
+app.onError((error, c) => {
+	const errorMessage = error instanceof Error ? error.message : String(error);
+	const errorStack = error instanceof Error ? error.stack : undefined;
 
-		// Internal server errors
-		set.status = 500;
-		return {
+	console.error('[ERROR]', { message: errorMessage, stack: errorStack });
+
+	// Not found handlers are usually handled separately in Hono, but internal errors go here
+	const status = 500;
+	return c.json(
+		{
 			error: 'Internal server error',
-			// Só envia stack trace em dev
 			...(env.NODE_ENV !== 'production' && { message: errorMessage }),
-		};
-	})
-	.use(healthRouter)
-	.use(webhookRouter)
-	.group('/items', (app) => app.use(itemsRouter));
+		},
+		status,
+	);
+});
+
+// Routes
+app.route('/health', healthRouter);
+app.route('/webhook', webhookRouter);
+app.route('/items', itemsRouter);
+
+// Root point for compatibility/version check
+app.get('/', (c) =>
+	c.json({
+		name: 'Nexo AI API',
+		version: pkg.version,
+		description: 'Assistente pessoal via WhatsApp/Telegram com IA',
+	}),
+);
 
 export default app;

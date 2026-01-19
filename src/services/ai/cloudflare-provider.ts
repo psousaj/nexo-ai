@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { encode } from '@toon-format/toon';
+import { loggers } from '@/utils/logger';
 import type { AIProvider, AIResponse, Message } from './types';
 
 /**
@@ -25,9 +26,9 @@ export class CloudflareProvider implements AIProvider {
 		const { message, history = [], systemPrompt } = params;
 
 		try {
-			console.log(`☁️ [Cloudflare] Enviando para ${this.model}`);
+			loggers.cloudflare.info(`🚀 Enviando para ${this.model}`);
 
-			// Converter histórico para TOON (economiza 30-60% tokens)
+			// Converter histórico para TOON (economiza 30–60% tokens)
 			let contextContent = message;
 
 			if (history.length > 0) {
@@ -47,10 +48,9 @@ ${toonHistory}
 Mensagem atual: ${message}`;
 			}
 
-			// Montar messages no formato padrão OpenAI
+			// Montar messages no formato OpenAI
 			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-			// System prompt como primeira mensagem (padrão OpenAI)
 			if (systemPrompt) {
 				messages.push({
 					role: 'system',
@@ -58,33 +58,77 @@ Mensagem atual: ${message}`;
 				});
 			}
 
-			// Mensagem do usuário com contexto
 			messages.push({
 				role: 'user',
 				content: contextContent,
 			});
 
-			// Chamar API usando SDK OpenAI
-			// NOTA: response_format pode causar erro 400 em alguns modelos Cloudflare
+			// Chamada à API (compat OpenAI do Workers AI)
 			const response = await this.client.chat.completions.create({
 				model: this.model,
 				messages,
 			});
 
+			// DEBUG: Log estruturado da resposta
 			const rawContent = response.choices[0]?.message?.content;
-			const text = typeof rawContent === 'string' ? rawContent : '';
+			const contentType = typeof rawContent;
+			let contentPreview = '';
+			let contentLength = 0;
+			if (typeof rawContent === 'string') {
+				contentPreview = rawContent.substring(0, 200);
+				contentLength = rawContent.length;
+			} else if (rawContent !== undefined && rawContent !== null) {
+				contentPreview = JSON.stringify(rawContent).substring(0, 200);
+				contentLength = JSON.stringify(rawContent).length;
+			}
 
-			console.log('☁️ [Cloudflare] Resposta recebida');
-			if (!text) {
-				console.warn('⚠️ [Cloudflare] Resposta vazia!');
+			loggers.cloudflare.info(
+				{
+					response: {
+						id: response.id,
+						model: response.model,
+						choices: response.choices.length,
+						firstChoice: {
+							index: response.choices[0]?.index,
+							finishReason: response.choices[0]?.finish_reason,
+							messageRole: response.choices[0]?.message?.role,
+							contentType,
+							contentLength,
+							contentPreview,
+						},
+						usage: response.usage,
+					},
+				},
+				'🔍 [DEBUG] Resposta Cloudflare completa',
+			);
+
+			let text = '';
+			if (typeof rawContent === 'string') {
+				text = rawContent;
+			} else if (typeof rawContent === 'object' && rawContent !== null) {
+				// Se já veio como objeto, serializa para string JSON
+				text = JSON.stringify(rawContent);
+			}
+
+			loggers.cloudflare.info({ textLength: text.length, hasText: !!text, contentType }, '📥 Resposta recebida');
+
+			if (!text || text.trim().length === 0) {
+				loggers.cloudflare.error(
+					{
+						rawContent,
+						contentType,
+						responseChoices: response.choices,
+					},
+					'⚠️ Resposta vazia ou inválida - modelo não retornou conteúdo string ou objeto!',
+				);
+				throw new Error('Cloudflare returned empty or invalid response');
 			}
 
 			return {
 				message: text.trim(),
 			};
-		} catch (error: any) {
-			console.error('❌ [Cloudflare] Erro:', error);
-			// Re-throw todos os erros para ativar fallback no AIService
+		} catch (error) {
+			loggers.cloudflare.error({ error }, '❌ Erro ao chamar Cloudflare Workers AI');
 			throw error;
 		}
 	}

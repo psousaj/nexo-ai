@@ -7,7 +7,9 @@
 
 import { itemService } from '@/services/item-service';
 import { enrichmentService } from '@/services/enrichment';
+import { loggers, logError } from '@/utils/logger';
 import type { ItemType, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@/types';
+import { toolLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 
 export interface ToolContext {
 	userId: string;
@@ -35,12 +37,27 @@ export async function save_note(
 		content: string;
 	}
 ): Promise<ToolOutput> {
+	loggers.ai.info('🔧 ' + getRandomLogMessage(toolLogs.executing, { tool: 'save_note' }));
+	loggers.ai.info(
+		'📦 ' +
+			getRandomLogMessage(toolLogs.params, {
+				params: JSON.stringify({ content: params.content?.substring(0, 100) + '...' }),
+			})
+	);
+
 	if (!params.content?.trim()) {
+		loggers.ai.error(
+			'❌ ' +
+				getRandomLogMessage(toolLogs.error, {
+					tool: 'save_note',
+					error: 'Conteúdo vazio',
+				})
+		);
 		return { success: false, error: 'Conteúdo vazio' };
 	}
 
 	try {
-		const item = await itemService.createItem({
+		const result = await itemService.createItem({
 			userId: context.userId,
 			type: 'note',
 			title: params.content.slice(0, 100),
@@ -50,11 +67,49 @@ export async function save_note(
 			} as NoteMetadata,
 		});
 
+		// Verificar se é duplicata
+		if (result.isDuplicate && result.existingItem) {
+			loggers.ai.warn('⚠️ Nota duplicada detectada');
+			return {
+				success: false,
+				error: 'duplicate',
+				message: `⚠️ Esta nota já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+			};
+		}
+
+		// Verificar se item foi criado com sucesso
+		if (!result.item) {
+			loggers.ai.error(
+				'❌ ' +
+					getRandomLogMessage(toolLogs.error, {
+						tool: 'save_note',
+						error: 'itemService.createItem retornou null sem ser duplicata',
+					})
+			);
+			loggers.ai.error({ result }, '❌ Erro ao criar nota no banco de dados');
+			return {
+				success: false,
+				error: 'Erro ao criar nota no banco de dados',
+			};
+		}
+
+		loggers.ai.info('✅ ' + getRandomLogMessage(toolLogs.success, { tool: 'save_note' }));
+		loggers.ai.info({ id: result.item.id }, '📝 Nota salva');
+
 		return {
 			success: true,
-			data: { id: item.item.id, title: item.item.title },
+			data: { id: result.item.id, title: result.item.title },
 		};
 	} catch (error) {
+		loggers.ai.error(
+			{ err: error },
+			'❌ ' +
+				getRandomLogMessage(toolLogs.error, {
+					tool: 'save_note',
+					error: error instanceof Error ? error.message : 'Erro desconhecido',
+				})
+		);
+
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao salvar nota',
@@ -96,7 +151,7 @@ export async function save_movie(
 					metadata = { ...metadata, ...enriched } as MovieMetadata;
 				}
 			} catch (enrichError) {
-				console.warn(`⚠️ [Tool] Falha ao enriquecer filme ${params.tmdb_id}:`, enrichError);
+				loggers.ai.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer filme');
 			}
 		}
 
@@ -156,7 +211,7 @@ export async function save_tv_show(
 					metadata = { ...metadata, ...enriched } as TVShowMetadata;
 				}
 			} catch (enrichError) {
-				console.warn(`⚠️ [Tool] Falha ao enriquecer série ${params.tmdb_id}:`, enrichError);
+				loggers.ai.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer série');
 			}
 		}
 
@@ -255,6 +310,27 @@ export async function save_link(
 			error: error instanceof Error ? error.message : 'Erro ao salvar link',
 		};
 	}
+}
+
+// ============================================================================
+// CONTEXT TOOLS
+// ============================================================================
+
+/**
+ * Tool: collect_context
+ * Gera opções de clarificação para mensagens ambíguas
+ */
+export async function collectContextTool(input: {
+	message: string;
+	detectedType: string | null;
+}): Promise<{ clarificationOptions: string[] }> {
+	if (!input.detectedType || input.detectedType === 'note') {
+		// Se não detectou nada ou é apenas uma nota (genérico), oferece opções
+		return {
+			clarificationOptions: ['Salvar como nota', 'Salvar como filme', 'Salvar como série', 'Outro (especifique)'],
+		};
+	}
+	return { clarificationOptions: [] };
 }
 
 // ============================================================================
@@ -512,7 +588,7 @@ export async function update_user_settings(
 
 		return { success: false, error: 'Nenhuma configuração fornecida' };
 	} catch (error) {
-		console.error('❌ [Tool] Erro ao atualizar configurações:', error);
+		loggers.ai.error({ err: error }, '❌ Erro ao atualizar configurações');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao atualizar',
@@ -538,7 +614,7 @@ export async function get_assistant_name(context: ToolContext, params: {}): Prom
 			data: { name: name || 'Nexo' },
 		};
 	} catch (error) {
-		console.error('❌ [Tool] Erro ao buscar nome do assistente:', error);
+		loggers.ai.error({ err: error }, '❌ Erro ao buscar nome do assistente');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao buscar preferências',
@@ -590,15 +666,15 @@ export async function executeTool(toolName: ToolName, context: ToolContext, para
 		};
 	}
 
-	console.log(`🔧 [Tool] Executando: ${toolName}`);
-	console.log(`📋 [Tool] Params:`, JSON.stringify(params, null, 2));
+	loggers.ai.info({ toolName }, '🔧 Executando tool');
+	loggers.ai.info({ params }, '📦 Params da tool');
 
 	try {
 		const result = await tool(context, params);
-		console.log(`✅ [Tool] ${toolName} executada:`, result.success ? 'sucesso' : 'falha');
+		loggers.ai.info({ toolName, success: result.success }, '✅ Tool executada');
 		return result;
 	} catch (error) {
-		console.error(`❌ [Tool] Erro ao executar ${toolName}:`, error);
+		logError(error, { toolName, context: 'AI' });
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro desconhecido',

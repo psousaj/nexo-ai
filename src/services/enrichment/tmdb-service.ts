@@ -23,6 +23,11 @@ interface TMDBMovieDetails {
 	vote_average: number;
 	genres: Array<{ id: number; name: string }>;
 	poster_path: string | null;
+	overview?: string;
+	tagline?: string;
+	keywords?: {
+		keywords: Array<{ id: number; name: string }>;
+	};
 	credits?: {
 		crew: Array<{ job: string; name: string }>;
 		cast: Array<{ name: string; order: number }>;
@@ -51,6 +56,11 @@ interface TMDBTVShowDetails {
 	vote_average: number;
 	genres: Array<{ id: number; name: string }>;
 	poster_path: string | null;
+	overview?: string;
+	tagline?: string;
+	keywords?: {
+		results: Array<{ id: number; name: string }>;
+	};
 	created_by: Array<{ name: string }>;
 	credits?: {
 		cast: Array<{ name: string; order: number }>;
@@ -149,7 +159,7 @@ export class TMDBService {
 		const url = new URL(`${this.baseUrl}/movie/${tmdbId}`);
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('language', 'pt-BR');
-		url.searchParams.set('append_to_response', 'credits');
+		url.searchParams.set('append_to_response', 'credits,keywords'); // 🔥 keywords adicionado
 
 		const response = await fetchWithRetry(url.toString(), undefined, {
 			maxRetries: 2,
@@ -184,7 +194,7 @@ export class TMDBService {
 		const url = new URL(`${this.baseUrl}/tv/${tmdbId}`);
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('language', 'pt-BR');
-		url.searchParams.set('append_to_response', 'credits');
+		url.searchParams.set('append_to_response', 'credits,keywords'); // 🔥 keywords adicionado
 
 		const response = await fetchWithRetry(url.toString(), undefined, {
 			maxRetries: 2,
@@ -215,6 +225,9 @@ export class TMDBService {
 			.slice(0, 5)
 			.map((c) => c.name);
 
+		// 🔥 Extrai keywords (crítico para busca semântica)
+		const keywords = details.keywords?.keywords?.map((k) => k.name) || [];
+
 		return {
 			tmdb_id: details.id,
 			year: parseInt(details.release_date?.split('-')[0] || '0'),
@@ -223,6 +236,10 @@ export class TMDBService {
 			poster_url: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : undefined,
 			director: director?.name,
 			cast,
+			// 🔥 Campos semânticos
+			overview: details.overview,
+			tagline: details.tagline,
+			keywords: keywords.length > 0 ? keywords : undefined,
 		};
 	}
 
@@ -237,6 +254,9 @@ export class TMDBService {
 			.slice(0, 5)
 			.map((c) => c.name);
 
+		// 🔥 Extrai keywords (crítico para busca semântica)
+		const keywords = details.keywords?.results?.map((k) => k.name) || [];
+
 		return {
 			tmdb_id: details.id,
 			first_air_date: parseInt(details.first_air_date?.split('-')[0] || '0'),
@@ -249,6 +269,10 @@ export class TMDBService {
 			poster_url: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : undefined,
 			created_by: details.created_by?.map((c) => c.name),
 			cast,
+			// 🔥 Campos semânticos
+			overview: details.overview,
+			tagline: details.tagline,
+			keywords: keywords.length > 0 ? keywords : undefined,
 		};
 	}
 

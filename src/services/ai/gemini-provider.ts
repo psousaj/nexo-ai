@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 import { encode } from '@toon-format/toon';
+import { loggers } from '@/utils/logger';
 import type { AIProvider, AIResponse, Message } from './types';
+import { aiProviderLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 
 /**
  * Gemini Provider usando SDK oficial
@@ -12,7 +14,7 @@ import type { AIProvider, AIResponse, Message } from './types';
 export class GeminiProvider implements AIProvider {
 	private readonly client: GoogleGenerativeAI;
 	private readonly model: GenerativeModel;
-	private readonly modelName: string = 'gemini-2.5-flash';
+	private readonly modelName: string = 'gemini-2.5-flash-lite';
 
 	constructor(apiKey: string) {
 		if (!apiKey) {
@@ -26,7 +28,7 @@ export class GeminiProvider implements AIProvider {
 				responseMimeType: 'application/json',
 			},
 		});
-		console.log('✅ [AI] Google Gemini configurado (modo JSON)');
+		loggers.gemini.info('✅ Google Gemini configurado (modo JSON)');
 	}
 
 	getName(): string {
@@ -35,9 +37,17 @@ export class GeminiProvider implements AIProvider {
 
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
 		const { message, history = [], systemPrompt } = params;
+		const startTime = Date.now();
 
 		try {
-			console.log(`🤖 [Gemini] Enviando para ${this.modelName}`);
+			// Log: requisição iniciada
+			loggers.gemini.info(
+				'📤 ' +
+					getRandomLogMessage(aiProviderLogs.requesting, {
+						provider: 'Gemini',
+					})
+			);
+			loggers.gemini.info(`🚀 Enviando para ${this.modelName}`);
 
 			// Converter histórico para TOON (economiza 30-60% tokens)
 			let userMessage = message;
@@ -88,15 +98,35 @@ Mensagem atual: ${message}`;
 
 			// Retorna texto JSON (sem function calling)
 			const text = String(response.text() || '');
-			console.log('🤖 [Gemini] Resposta recebida');
+
+			const duration = Date.now() - startTime;
+
+			// Log: resposta recebida
+			loggers.gemini.info(
+				'📥 ' +
+					getRandomLogMessage(aiProviderLogs.success, {
+						provider: 'Gemini',
+						duration,
+					})
+			);
 
 			if (!text) {
-				console.warn('⚠️ [Gemini] Resposta vazia!');
+				loggers.gemini.warn('⚠️ Resposta vazia!');
 			}
 
 			return { message: text.trim() };
 		} catch (error: any) {
-			console.error('❌ Erro ao chamar Gemini SDK:', error);
+			const duration = Date.now() - startTime;
+
+			// Log: erro
+			loggers.gemini.error(
+				{ err: error },
+				'❌ ' +
+					getRandomLogMessage(aiProviderLogs.error, {
+						provider: 'Gemini',
+						error: error instanceof Error ? error.message : String(error),
+					})
+			);
 			throw error;
 		}
 	}

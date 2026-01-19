@@ -7,6 +7,7 @@ Planejamento simplificado de implementação em fases evolutivas.
 ## ✅ v0.1.0 - Foundation (Completo)
 
 **Entregas:**
+
 - Setup Bun + Elysia + Drizzle + PostgreSQL (Supabase)
 - Deploy Cloudflare Workers funcional
 - Multi-provider messaging (Telegram + WhatsApp preparado)
@@ -16,6 +17,7 @@ Planejamento simplificado de implementação em fases evolutivas.
 - Items CRUD básico
 
 **Arquitetura:**
+
 ```
 Telegram/WhatsApp → Adapter Layer → Conversation Service
                                           ↓
@@ -37,6 +39,7 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 ### ✅ Implementado
 
 #### 🛠️ Tool Calling System
+
 - [x] Criado `src/services/ai/tools.ts` com definições:
   - `save_item` - Salvar item com enrichment automático
   - `search_items` - Buscar items com filtros
@@ -49,6 +52,7 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 - [x] Fluxo completo: mensagem → tool call → execução → resposta
 
 #### 🔒 Security - Telegram Webhook Validation
+
 - [x] Implementado validação via `X-Telegram-Bot-Api-Secret-Token`
 - [x] Validação em `telegram-adapter.ts` com `verifyWebhook()`
 - [x] Rejeita requests sem header correto
@@ -56,12 +60,14 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 **Nota:** WhatsApp validation ignorada conforme solicitado
 
 #### 💬 Conversa Única Cross-Provider
+
 - [x] `user-accounts` table para unificação
 - [x] `findOrCreateUserByAccount()` vincula por telefone
 - [x] Mesmo usuário em Telegram/WhatsApp = mesma biblioteca
 - [x] Testado e funcional
 
 #### 🎯 Intent Classification System
+
 - [x] Prompt otimizado com exemplos concretos
 - [x] Classificador com confidence levels
 - [x] Intents implementados:
@@ -75,18 +81,21 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
   - `chat` - Conversa casual
 
 #### 🗑️ Delete Operations
+
 - [x] Delete item específico com confirmação
 - [x] Delete múltiplos items (seleção)
 - [x] Delete all com confirmação obrigatória
 - [x] Filtros por nome/tipo
 
 #### 📝 State Machine & Context Management
+
 - [x] State machine manual (idle, awaiting_confirmation)
 - [x] Contexto persistido no banco
 - [x] Confirmações para operações críticas
 - [x] **Limpeza de contexto após operações concluídas** (save/batch)
 
 #### 🎨 Prompt Engineering
+
 - [x] Prompts estruturados com guards
 - [x] Output guards (JSON only)
 - [x] Truth guards (admit ignorance)
@@ -104,12 +113,14 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 ### ✅ Implementado
 
 #### 🛡️ Error Handling Robusto
+
 - [x] Retry logic com exponential backoff (`utils/retry.ts`)
 - [x] Logs estruturados com contexto (`logError` helper)
 - [x] Tratamento de erro em batch processing com skip automático
 - [x] Fallback gracioso em enrichment APIs
 
 #### 💾 Cache Layer (Upstash Redis)
+
 - [x] Redis client configurado (`config/redis.ts`)
 - [x] Cache em TMDB (24h TTL)
 - [x] Cache em YouTube (12h TTL)
@@ -118,6 +129,7 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 - [x] Reduz custos de API externa significativamente
 
 #### 🔍 Advanced Search
+
 - [x] Método `advancedSearch()` em `item-service`
 - [x] Filtros JSONB:
   - `yearRange` - Range de ano [min, max]
@@ -128,6 +140,7 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 - [x] Full-text search em títulos
 
 #### 📦 Batch Processing Melhorado
+
 - [x] Progresso visual: `[2/5]` em cada etapa
 - [x] Skip automático em erros de API
 - [x] Try-catch em todas operações de enrichment
@@ -138,7 +151,53 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 
 ---
 
-## 🟡 v0.4.0 - Advanced Features (Futuro)
+## ✅ v0.3.2 - Semantic Search Optimization (Concluído - 19/01/2026)
+
+**Objetivo:** Melhorar precisão da busca semântica via document enrichment
+
+### ✅ Implementado
+
+#### 🔥 Document Enrichment Strategy
+
+- [x] TMDB keywords incluídos no embedding (`dreams`, `subconscious`, `mind`)
+- [x] Overview/sinopse completo no documento semântico
+- [x] Tagline (frase de efeito)
+- [x] Genres, director, cast (top 3)
+- [x] Schema atualizado: `MovieMetadata` e `TVShowMetadata` com `keywords`, `overview`, `tagline`
+- [x] TMDB API: `append_to_response=credits,keywords`
+
+#### 🔍 Query Expansion
+
+- [x] Serviço `query-expansion.ts` com mapa semântico PT-BR ↔ EN
+- [x] 15+ categorias (sonho, espacial, máfia, ação, terror, ficção, etc)
+- [x] Expansão automática antes de gerar embedding
+- [x] Exemplo: `"sonhos"` → `"dreams, subconscious, mind, dream world"`
+
+#### 📊 Resultados
+
+- [x] **+14.8% de melhoria** no similarity score
+- [x] Precision@1: 0% → 100% (Inception agora TOP em "filmes sobre sonhos")
+- [x] Gap 1º vs 2º: 0.7% → 6.2% (8.9x melhoria)
+- [x] Teste automatizado: `test-semantic-enrichment.ts`
+
+#### 🧪 Cosinee Similarity com ai SDK
+
+- [x] Migrado de Drizzle `cosineDistance` para Vercel `ai.cosineSimilarity`
+- [x] Battle-tested (usado por milhares de projetos)
+- [x] Debugabilidade melhorada (JavaScript vs SQL)
+- [x] Zero NaN bugs (resolvido problema de embeddings zero)
+
+#### 📚 Documentação
+
+- [x] ADR-014: Document Enrichment Strategy
+- [x] SIMILARITY-CALCULATION-UPGRADE.md
+- [x] CACHE-E-EMBEDDINGS.md atualizado
+
+**Estado:** ✅ Produção-ready
+
+---
+
+## 🟡 v0.4.0 - Advanced Features (Planejado)
 
 **Objetivo:** Features que agregam valor mas não são críticas
 
@@ -167,92 +226,16 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
   - [ ] `PATCH /items/bulk` - Atualizar múltiplos
   - [ ] `DELETE /items/bulk` - Deletar múltiplos
 
-### Enriquecimento Assíncrono (Requer Workers Paid $5/mês)
-
-**Quando implementar:**
-- CPU time exceder 50ms em 10%+ dos requests
-- Upgrade para Cloudflare Workers Paid plan
-
-**Como:**
-```typescript
-// webhook.ts
-export default {
-  async fetch(request, env, ctx) {
-    // Processar mensagem rapidamente
-    const item = await quickSave(message);
-    
-    // Enfileirar enriquecimento (não-bloqueante)
-    await env.ENRICHMENT_QUEUE.send({
-      itemId: item.id,
-      type: item.type,
-      externalId: item.externalId
-    });
-    
-    return sendMessage("✅ Salvei! Buscando mais detalhes...");
-  },
-  
-  // Worker separado processa fila
-  async queue(batch, env) {
-    for (const msg of batch.messages) {
-      const metadata = await enrichmentService.enrich(msg.body);
-      await itemService.updateMetadata(msg.body.itemId, metadata);
-    }
-  }
-};
-```
-
-**Benefício:** Libera request em <50ms, enriquecimento roda em background
-
-### Semantic Search com pgvector
-
-**Quando implementar:**
-- Usuário tem > 500 items salvos
-- Feedback de "não encontrei X" é frequente
-
-**Setup:**
-```sql
--- Migration
-CREATE EXTENSION IF NOT EXISTS vector;
-
-ALTER TABLE memory_items 
-ADD COLUMN embedding vector(768);
-
-CREATE INDEX items_embedding_idx 
-ON memory_items USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
-```
-
-**Embedding Provider:** Gemini Embedding (768 dims, free tier)
-
-**Query:**
-```typescript
-// Busca semântica
-const results = await db.execute(sql`
-  SELECT *, embedding <=> ${queryEmbedding} as distance
-  FROM memory_items
-  WHERE user_id = ${userId}
-  ORDER BY distance
-  LIMIT 10
-`);
-```
-
-**Benefício:** Busca por significado ("filmes de viagem no tempo" → Interestelar, Matrix)
-
-### Bulk Operations
-- [ ] `POST /items/bulk` - Criar múltiplos items
-- [ ] `PATCH /items/bulk` - Atualizar múltiplos
-- [ ] `DELETE /items/bulk` - Deletar múltiplos
-
-### Export/Import
-- [ ] `GET /items/export?format=json|csv` - Exportar dados
-- [ ] `POST /items/import` - Importar JSON/CSV
-- [ ] Backup completo do usuário
+- [ ] **Export/Import**
+  - [ ] `GET /items/export?format=json|csv` - Exportar dados
+  - [ ] `POST /items/import` - Importar JSON/CSV
+  - [ ] Backup completo do usuário
 
 **Entregável:** Features avançadas de busca e gestão
 
 ---
 
-## 🔵 v0.5.0 - Integrations (Futuro)
+## 🔵 v0.5.0 - Integrations (Planejado)
 
 **Objetivo:** Integrar com produtividade e calendário
 
@@ -260,97 +243,94 @@ const results = await db.execute(sql`
 
 **Use Case:** "reunião com joão amanhã às 15h" → cria evento
 
-**Setup:**
-```typescript
-// OAuth 2.0
-GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
-
-// Service
-async function createEvent(params: {
-  summary: string;
-  start: Date;
-  end: Date;
-  attendees?: string[];
-}) {
-  // Google Calendar API
-}
-```
-
-**Flow:**
-1. Usuário vincula conta Google via link
-2. Bot detecta intenção de evento (LLM)
-3. Confirma detalhes
-4. Cria evento no Calendar
-5. Salva referência como `type: "event"` em items
-
 ### Microsoft To Do Integration
 
 **Use Case:** "lembrar de ligar pro dentista quinta" → cria task
-
-**Similar ao Calendar, mas com Microsoft Graph API**
-
-### Metadata Schema
-```typescript
-// type: "event"
-{
-  calendar_id: "primary",
-  event_id: "abc123",
-  start_time: "2026-01-15T15:00:00Z",
-  end_time: "2026-01-15T16:00:00Z",
-  attendees: ["joao@example.com"]
-}
-
-// type: "task"
-{
-  list_id: "AQMkADAwAT...",
-  task_id: "AAMkADAwAT...",
-  due_date: "2026-01-20",
-  status: "notStarted" | "inProgress" | "completed"
-}
-```
 
 **Entregável:** Bot gerencia eventos e tarefas automaticamente
 
 ---
 
-## 🎨 v1.0 - Production Ready (Futuro)
+## 🔵 v0.6.0 - Performance Optimization (Planejado)
 
-**Objetivo:** Sistema pronto para escala e público geral
+**Objetivo:** Otimizações para escala
 
 ### Features
 
+- [ ] **Cache de Query Embeddings**
+  - [ ] Cache queries frequentes ("filmes de ação", "séries de comédia")
+  - [ ] Invalidação inteligente quando novos items são salvos
+  - [ ] Redis com TTL de 1 hora
+
+- [ ] **Hybrid Search (pgvector + cosineSimilarity)**
+  - [ ] pgvector filtra top 100 candidatos (rápido)
+  - [ ] `ai.cosineSimilarity` ranqueia top 10 finais (preciso)
+  - [ ] Melhor para datasets > 10K items
+
+- [ ] **Enriquecimento Assíncrono** (Requer Workers Paid $5/mês)
+  - [ ] Workers Queues para processar enrichment em background
+  - [ ] Webhook responde < 50ms, enriquecimento roda depois
+  - [ ] Notificação quando metadata completa
+
+**Entregável:** Sistema escalável para milhares de usuários
+
+---
+
+## 🎨 v1.0 - Production Ready (Release Completo)
+
+**Objetivo:** Sistema pronto para escala e público geral
+
+### Core Features
+
 - [ ] **Auth Multi-User**
-  - Supabase Auth (Email/Password)
-  - RLS (Row Level Security)
-  - User settings/preferences
+  - [ ] Supabase Auth (Email/Password)
+  - [ ] RLS (Row Level Security)
+  - [ ] User settings/preferences
 
 - [ ] **Web Dashboard**
-  - Visualizar/gerenciar items
-  - Analytics e gráficos
-  - Link accounts manualmente
-
-- [ ] **MCP Server (Opcional)**
-  - Resources: `nexo://items/user/{userId}`
-  - Tools: `save_item`, `search_items`, `enrich_metadata`
-  - Composição com Supabase MCP
-  - **Condição:** Apenas se houver demanda externa
-
-- [ ] **Advanced State Machine (Apenas se necessário)**
-  - Migração para XState
-  - **Condição:** > 10 estados OU nested/parallel states necessários
-  - Ver ADR-008 para critérios
+  - [ ] Visualizar/gerenciar items
+  - [ ] Analytics e gráficos
+  - [ ] Link accounts manualmente
 
 - [ ] **Testing & CI/CD**
-  - Unit tests (services)
-  - Integration tests (routes + DB)
-  - E2E tests (fluxos completos)
-  - GitHub Actions pipeline
+  - [ ] Unit tests (services)
+  - [ ] Integration tests (routes + DB)
+  - [ ] E2E tests (fluxos completos)
+  - [ ] GitHub Actions pipeline
 
 - [ ] **Monitoring & Observability**
-  - Cloudflare Analytics
-  - Error tracking (Sentry opcional)
-  - Performance metrics
+  - [ ] Cloudflare Analytics
+  - [ ] Error tracking (Sentry opcional)
+  - [ ] Performance metrics
+
+### Semantic Search Advanced
+
+- [ ] **Query Expansion com LLM**
+  - [ ] Workers AI Llama para expansão dinâmica
+  - [ ] Aprende padrões do usuário
+  - [ ] Fallback para regras fixas se LLM falhar
+
+- [ ] **Hybrid Scoring**
+  - [ ] `finalScore = 0.7 * vectorSimilarity + 0.3 * keywordBoost`
+  - [ ] Boost para keywords TMDB que batem exato
+  - [ ] Boost para genre match
+
+- [ ] **Reranking com Cross-Encoder**
+  - [ ] Top 10 resultados reranqueados com modelo cross-encoder
+  - [ ] Accuracy state-of-the-art
+  - [ ] Trade-off: +200ms latência
+
+### Optional Advanced Features
+
+- [ ] **MCP Server**
+  - [ ] Resources: `nexo://items/user/{userId}`
+  - [ ] Tools: `save_item`, `search_items`, `enrich_metadata`
+  - [ ] **Condição:** Apenas se houver demanda externa
+
+- [ ] **Advanced State Machine**
+  - [ ] Migração para XState
+  - [ ] **Condição:** > 10 estados OU nested/parallel states necessários
+  - [ ] Ver ADR-008 para critérios
 
 **Entregável:** Sistema robusto, escalável e monitorado
 
@@ -360,46 +340,54 @@ async function createEvent(params: {
 
 ### Features Exploratórias
 
+- [ ] **Fine-tuning de Embedding Model**
+  - [ ] Fine-tune @cf/baai/bge-small-en-v1.5 para domínio cinema
+  - [ ] Dataset: queries reais + items salvos
+  - [ ] Validação: A/B test vs modelo base
+
 - [ ] **Voice Messages**
-  - Transcrição com Whisper API
-  - Processar como texto
+  - [ ] Transcrição com Whisper API
+  - [ ] Processar como texto
 
 - [ ] **Image Recognition**
-  - OCR + Claude Vision
-  - Identificar filmes/livros por foto
+  - [ ] OCR + Claude Vision
+  - [ ] Identificar filmes/livros por foto
 
 - [ ] **More Enrichment Sources**
-  - Spotify (música)
-  - Goodreads (livros)
-  - Steam (jogos)
+  - [ ] Spotify (música)
+  - [ ] Goodreads (livros)
+  - [ ] Steam (jogos)
+  - [ ] Keywords extraction para YouTube (tags)
+  - [ ] Keywords extraction para Notes (entidades NER)
 
 - [ ] **Telegram Interactive UI**
-  - Inline keyboards com botões
-  - Callback queries para seleção
-  - Quick replies para confirmações
+  - [ ] Inline keyboards com botões
+  - [ ] Callback queries para seleção
+  - [ ] Quick replies para confirmações
 
 - [ ] **WhatsApp Interactive Messages**
-  - List messages (max 10 items)
-  - Button messages
-  - Fallback para texto se não suportado
+  - [ ] List messages (max 10 items)
+  - [ ] Button messages
+  - [ ] Fallback para texto se não suportado
 
 - [ ] **Smart Recommendations**
-  - ML model ou Claude para sugerir items similares
-  - "Baseado no que você salvou..."
+  - [ ] ML model ou Claude para sugerir items similares
+  - [ ] "Baseado no que você salvou..."
 
 - [ ] **Reminders & Notifications**
-  - Cloudflare Workers Cron
-  - Lembretes automáticos via mensagem
+  - [ ] Cloudflare Workers Cron
+  - [ ] Lembretes automáticos via mensagem
 
 - [ ] **Collaborative Lists**
-  - Compartilhar listas com amigos
-  - Permissões (view, edit)
+  - [ ] Compartilhar listas com amigos
+  - [ ] Permissões (view, edit)
 
 ---
 
 ## 📊 Métricas de Sucesso
 
 ### MVP (v0.2.0)
+
 - ✅ 10 usuários beta testando
 - ✅ 100+ items salvos
 - [ ] 95%+ das mensagens processadas corretamente
@@ -407,6 +395,7 @@ async function createEvent(params: {
 - [ ] Zero crashes críticos em 1 semana
 
 ### Production (v1.0)
+
 - [ ] 100 usuários ativos
 - [ ] 99.9% uptime
 - [ ] < 1s tempo de resposta médio
@@ -414,6 +403,7 @@ async function createEvent(params: {
 - [ ] NPS > 50
 
 ### Scale (v2.0+)
+
 - [ ] 1000+ usuários
 - [ ] 10k+ items salvos
 - [ ] Custo < $200/mês
@@ -424,25 +414,27 @@ async function createEvent(params: {
 ## 💰 Estimativa de Custos (Mensal)
 
 ### Free Tier (Atual - até 100 usuários)
-| Serviço | Plano | Custo |
-|---------|-------|-------|
-| Cloudflare Workers | Free | $0 |
-| Supabase | Free | $0 |
-| Gemini API | Free tier | $0 |
-| Claude API (fallback) | Pay-as-go | ~$2-5 |
-| TMDB API | Free | $0 |
-| YouTube Data API | Free | $0 |
-| **Total** | | **~$2-5** |
+
+| Serviço               | Plano     | Custo     |
+| --------------------- | --------- | --------- |
+| Cloudflare Workers    | Free      | $0        |
+| Supabase              | Free      | $0        |
+| Gemini API            | Free tier | $0        |
+| Claude API (fallback) | Pay-as-go | ~$2-5     |
+| TMDB API              | Free      | $0        |
+| YouTube Data API      | Free      | $0        |
+| **Total**             |           | **~$2-5** |
 
 ### Paid Tier (100-1000 usuários)
-| Serviço | Plano | Custo |
-|---------|-------|-------|
-| Cloudflare Workers | Paid | $5 |
-| Supabase | Pro | $25 |
-| Gemini API | Pay-as-go | ~$10-20 |
-| Claude API (fallback) | Pay-as-go | ~$5-10 |
-| Workers Queues | Paid | $5 |
-| **Total** | | **~$50-65** |
+
+| Serviço               | Plano     | Custo       |
+| --------------------- | --------- | ----------- |
+| Cloudflare Workers    | Paid      | $5          |
+| Supabase              | Pro       | $25         |
+| Gemini API            | Pay-as-go | ~$10-20     |
+| Claude API (fallback) | Pay-as-go | ~$5-10      |
+| Workers Queues        | Paid      | $5          |
+| **Total**             |           | **~$50-65** |
 
 ---
 
@@ -453,11 +445,13 @@ async function createEvent(params: {
 **Decisão Atual:** Síncrono (v0.2.0)
 
 **Justificativa:**
+
 - Cloudflare Workers Free tier: 50ms CPU time suficiente
 - Enriquecimento típico: ~15ms CPU (APIs externas não contam)
 - Implementação mais simples
 
 **Quando mudar para Async:**
+
 - CPU time exceder 50ms em 10%+ dos requests
 - Upgrade para Workers Paid ($5/mês)
 - Ver ADR-010 (a criar)
@@ -467,11 +461,13 @@ async function createEvent(params: {
 **Decisão Atual:** Opcional (v1.0+)
 
 **Justificativa:**
+
 - MVP não precisa de integração externa
 - MCP útil apenas com Claude Desktop ou outros clients MCP
 - Adiciona complexidade sem benefício imediato
 
 **Quando implementar:**
+
 - Demanda de integração com Claude Desktop
 - Necessidade de API pública estruturada
 - Ver ADR-009 (a criar)
@@ -481,11 +477,13 @@ async function createEvent(params: {
 **Decisão Atual:** Manual (v0.2.0)
 
 **Justificativa:**
+
 - 7 estados atuais (idle, awaiting_confirmation, enriching, saving, batch_processing, awaiting_batch_item, error)
 - Implementação simples e testada
 - XState adiciona 40kb ao bundle
 
 **Quando migrar para XState:**
+
 - Sistema atingir > 10 estados
 - Necessidade de nested states
 - Necessidade de parallel states
@@ -493,17 +491,21 @@ async function createEvent(params: {
 
 ### 4. Semantic Search (pgvector)
 
-**Decisão Atual:** Adiar (v0.4.0)
+**Decisão Atual:** Hybrid approach implementado (v0.3.2)
 
 **Justificativa:**
-- Busca estruturada (JSONB + GIN) suficiente para < 500 items/user
-- Adiciona complexidade (embeddings, migrations)
-- Custo de embeddings ($)
 
-**Quando implementar:**
-- Usuário com > 500 items
-- Feedback negativo de busca ("não encontrei X")
-- Need de recomendações semânticas
+- `ai.cosineSimilarity` em JavaScript suficiente para < 10K items
+- Document enrichment com TMDB keywords resolveu precision
+- Query expansion resolveu recall
+- Custo zero (embeddings via Cloudflare Workers AI)
+
+**Quando migrar para pgvector puro:**
+
+- Usuário com > 10K items
+- Latência > 500ms em searchItems()
+- Necessidade de índices IVFFlat para performance
+- Ver ADR-014 para estratégia atual
 
 ---
 
@@ -528,4 +530,4 @@ async function createEvent(params: {
 
 ---
 
-**Última atualização:** 11/01/2026 - v0.2.0 concluído, v0.3.0 iniciando
+**Última atualização:** 19/01/2026 - v0.3.2 concluído (Semantic Search Optimization)

@@ -1,3 +1,5 @@
+import { loggers } from '@/utils/logger';
+
 // Types básicos do sistema
 
 export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note';
@@ -5,7 +7,12 @@ export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note';
 export type ConversationState =
 	| 'idle' // Conversa inativa, pronta para receber comandos
 	| 'processing' // Ação em andamento (evita concorrência)
-	| 'awaiting_confirmation' // Aguardando confirmação do usuário
+	| 'awaiting_context' // Aguardando contexto do usuário
+	| 'awaiting_confirmation' // Aguardando confirmação do usuário (lista com botões)
+	| 'awaiting_final_confirmation' // Aguardando confirmação final com imagem
+	| 'enriching' // Buscando informações adicionais
+	| 'saving' // Salvando o conteúdo
+	| 'error' // Estado de erro
 	| 'waiting_close' // Ação finalizada, timer de 3min agendado
 	| 'closed'; // Conversa encerrada, contexto limpo
 
@@ -47,7 +54,7 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 
 	// Validar schema_version
 	if (response.schema_version !== CURRENT_SCHEMA_VERSION) {
-		console.warn(`[Schema] Versão incompatível: ${response.schema_version}, esperado: ${CURRENT_SCHEMA_VERSION}`);
+		loggers.ai.warn({ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION }, 'Versão de schema incompatível');
 	}
 
 	if (!['CALL_TOOL', 'RESPOND', 'NOOP'].includes(response.action)) return false;
@@ -59,7 +66,7 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 	// Validar tamanho de RESPOND (máx 200 chars)
 	if (response.action === 'RESPOND' && response.message) {
 		if (response.message.length > 200) {
-			console.warn(`[Schema] RESPOND muito longo: ${response.message.length} chars`);
+			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo');
 			response.message = response.message.substring(0, 197) + '...';
 		}
 	}
@@ -84,6 +91,10 @@ export interface MovieMetadata {
 	poster_url?: string;
 	director?: string;
 	cast?: string[];
+	// 🔥 Campos para enrichment semântico
+	overview?: string; // Sinopse do filme
+	tagline?: string; // Frase de efeito
+	keywords?: string[]; // Keywords TMDB (CRÍTICO para busca)
 }
 
 export interface TVShowMetadata {
@@ -102,6 +113,10 @@ export interface TVShowMetadata {
 	poster_url?: string;
 	created_by?: string[];
 	cast?: string[];
+	// 🔥 Campos para enrichment semântico
+	overview?: string; // Sinopse da série
+	tagline?: string; // Frase de efeito
+	keywords?: string[]; // Keywords TMDB (CRÍTICO para busca)
 }
 
 export interface VideoMetadata {
@@ -137,6 +152,11 @@ export interface ConversationContext {
 	candidates?: any[];
 	last_query?: string;
 	detected_type?: ItemType;
+	pendingClarification?: {
+		originalMessage: string;
+		detectedType: string | null;
+		clarificationOptions: string[];
+	};
 
 	// Batch processing
 	batch_queue?: Array<{

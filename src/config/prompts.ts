@@ -25,6 +25,7 @@ SYSTEM CAPABILITIES:
 - Search: find saved items by title, genre, or type
 - Delete: remove specific items or all content
 - Enrich: automatically fetch metadata (TMDB, YouTube, OpenGraph)
+- Context: Clarify ambiguous messages automatically
 
 YOUR ONLY OUTPUT FORMAT IS JSON. NO TEXT BEFORE OR AFTER JSON. START YOUR RESPONSE WITH { AND END WITH }.
 
@@ -106,7 +107,7 @@ TODA resposta deve ser JSON neste formato:
 {
   "schema_version": "1.0",
   "action": "CALL_TOOL" | "RESPOND" | "NOOP",
-  "tool": "save_note" | "save_movie" | "save_tv_show" | "save_video" | "save_link" | "search_items" | "enrich_movie" | "enrich_tv_show" | "enrich_video" | "update_user_settings" | null,
+  "tool": "save_note" | "save_movie" | "save_tv_show" | "save_video" | "save_link" | "search_items" | "enrich_movie" | "enrich_tv_show" | "enrich_video" | "update_user_settings" | "collect_context" | null,
   "args": { ...params } | null,
   "message": "texto em português" | null
 }
@@ -150,6 +151,9 @@ TODA resposta deve ser JSON neste formato:
 
 ## Update
 - update_user_settings(assistantName?: string) → Use para: mudar nome do assistente (ex: "quero te chamar de Maria")
+
+## Context
+- collect_context(message: string, detectedType: string | null) → Use para: gerar opções quando o usuário envia mensagem ambígua
 
 # COMPORTAMENTO
 
@@ -242,12 +246,29 @@ export const ALREADY_SAVED_PROMPT = (title: string, type: string) => `📝 "${ti
 export const TIMEOUT_MESSAGE = (minutes: number) =>
 	`🚫 Por favor, mantenha uma comunicação respeitosa. Vou dar um tempo de ${minutes} minutos antes de continuar te ajudando.`;
 
+// Respostas casuais por categoria
+export const CASUAL_RESPONSES = {
+	greetings: ['Oi! 👋', 'Olá! 👋', 'E aí! 👋', 'Opa! 👋'],
+	thanks: ['Por nada! 😊', 'Disponha! 😊', 'Tmj! 🤝', 'Sempre! 😊'],
+	farewell: ['Até logo! 👋', 'Falou! 👋', 'Até mais! 👋'],
+	default: ['Oi! 👋', 'Olá! Como posso ajudar?'],
+};
+
+// Mapeamento de mensagens específicas (retrocompatibilidade)
 export const CASUAL_GREETINGS: Record<string, string> = {
 	oi: 'Oi! 👋',
 	olá: 'Olá! 👋',
+	'e aí': 'E aí! 👋',
+	opa: 'Opa! 👋',
 	'tudo bem': 'Tudo ótimo! E você?',
-	obrigado: 'De nada! 😊',
+	obrigado: 'Por nada! 😊',
+	obrigada: 'Por nada! 😊',
+	valeu: 'Tmj! 🤝',
+	vlw: 'Tmj! 🤝',
+	thanks: 'Sempre! 😊',
 	tchau: 'Até logo! 👋',
+	até: 'Até mais! 👋',
+	flw: 'Falou! 👋',
 };
 
 // ============================================================================

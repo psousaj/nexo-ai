@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '@/config/env';
 import { INTENT_CLASSIFIER_PROMPT } from '@/config/prompts';
+import { loggers } from '@/utils/logger';
 
 /**
  * Classificador de intenções usando Cloudflare Workers AI
@@ -65,13 +66,13 @@ export class IntentClassifier {
 
 	constructor() {
 		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
-			console.warn('⚠️ [Intent Classifier] Cloudflare não configurado, usando fallback regex');
+			loggers.ai.warn('⚠️ Cloudflare não configurado para Intent Classifier, usando fallback regex');
 		} else {
 			this.client = new OpenAI({
 				apiKey: env.CLOUDFLARE_API_TOKEN,
 				baseURL: `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
 			});
-			console.log('✅ [Intent Classifier] Cloudflare Workers AI configurado');
+			loggers.ai.info('✅ Cloudflare Workers AI configurado');
 		}
 	}
 
@@ -81,7 +82,7 @@ export class IntentClassifier {
 	async classify(message: string): Promise<IntentResult> {
 		// Valida que message é uma string válida
 		if (!message || typeof message !== 'string') {
-			console.warn('⚠️ [Intent] Mensagem inválida, usando fallback');
+			loggers.ai.warn('⚠️ Mensagem inválida para classificação, usando fallback');
 			return this.classifyWithRegex(message || '');
 		}
 
@@ -91,7 +92,7 @@ export class IntentClassifier {
 		}
 
 		try {
-			console.log(`🎯 [Intent] Classificando: "${message.substring(0, 50)}..."`);
+			loggers.ai.info({ messageSnippet: message.substring(0, 50) }, '🎯 Classificando intenção');
 
 			const response = await this.client.chat.completions.create({
 				model: this.model,
@@ -111,26 +112,23 @@ export class IntentClassifier {
 
 			const content = response.choices[0]?.message?.content;
 			if (!content) {
-				console.warn('⚠️ [Intent] Resposta vazia, usando fallback');
-				console.log('🔍 [Intent] Response completo:', JSON.stringify(response, null, 2));
+				loggers.ai.warn('⚠️ Resposta do Intent Classifier vazia, usando fallback');
+				loggers.ai.debug({ response }, 'Response completo do Cloudflare AI');
 				return this.classifyWithRegex(message);
 			}
 
-			console.log('📥 [Intent] ===== RESPOSTA BRUTA DO LLM =====');
-			console.log('Tipo:', typeof content);
-			console.log('Valor:', typeof content === 'string' ? content : JSON.stringify(content, null, 2));
-			console.log('📥 [Intent] ===== FIM RESPOSTA BRUTA =====');
+			loggers.ai.debug({ content }, '📥 Resposta bruta do Intent Classifier');
 
 			let result: IntentResult;
 
 			// Cloudflare Workers AI pode retornar content como objeto OU string
 			if (typeof content === 'object') {
 				// Já é um objeto JSON parseado
-				console.log('✅ [Intent] Content já é objeto, usando direto');
+				loggers.ai.info('✅ Content já é objeto, usando direto');
 				result = content as IntentResult;
 			} else if (typeof content === 'string') {
 				// É string, precisa parsear
-				console.log('🔄 [Intent] Content é string, fazendo parse...');
+				loggers.ai.info('🔄 Content é string, fazendo parse...');
 
 				// Limpar tags <think>, <answer>, etc (modelos de reasoning)
 				let jsonContent = content
@@ -141,36 +139,29 @@ export class IntentClassifier {
 
 				// Se não começa com {, tentar encontrar JSON no texto
 				if (!jsonContent.startsWith('{')) {
-					console.log('⚠️ [Intent] Resposta não começa com {, tentando extrair JSON...');
+					loggers.ai.info('⚠️ Resposta não começa com {, tentando extrair JSON...');
 					const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
 					if (jsonMatch) {
 						jsonContent = jsonMatch[0];
-						console.log('✅ [Intent] JSON extraído com sucesso');
+						loggers.ai.info('✅ JSON extraído com sucesso');
 					} else {
-						console.warn('❌ [Intent] Resposta não contém JSON válido:');
-						console.log(content);
+						loggers.ai.warn({ content }, '❌ Resposta não contém JSON válido');
 						return this.classifyWithRegex(message);
 					}
 				}
 
-				console.log('🧹 [Intent] JSON limpo para parse:', jsonContent);
+				loggers.ai.debug({ jsonContent }, '🧹 JSON limpo para parse');
 				result = JSON.parse(jsonContent);
 			} else {
-				console.warn('⚠️ [Intent] Tipo de content inesperado:', typeof content);
+				loggers.ai.warn({ contentType: typeof content }, '⚠️ Tipo de content inesperado');
 				return this.classifyWithRegex(message);
 			}
 
-			console.log('✅ [Intent] ===== RESULTADO PARSEADO =====');
-			console.log(JSON.stringify(result, null, 2));
-			console.log('✅ [Intent] ===== FIM RESULTADO =====');
+			loggers.ai.info({ result }, '✅ Resultado da classificação de intenção');
 
 			return result;
 		} catch (error) {
-			console.error('❌ [Intent] ===== ERRO AO CLASSIFICAR =====');
-			console.error('Tipo do erro:', error instanceof Error ? error.constructor.name : typeof error);
-			console.error('Mensagem:', error instanceof Error ? error.message : String(error));
-			console.error('Stack:', error instanceof Error ? error.stack : 'N/A');
-			console.error('❌ [Intent] ===== FIM ERRO =====');
+			loggers.ai.error({ err: error }, '❌ Erro ao classificar intenção');
 			return this.classifyWithRegex(message);
 		}
 	}
@@ -181,7 +172,7 @@ export class IntentClassifier {
 	private classifyWithRegex(message: string): IntentResult {
 		// Garante que message é string válida
 		const safeMessage = typeof message === 'string' ? message : '';
-		console.log(`🎯 [Intent] Usando fallback regex: "${safeMessage.substring(0, 50)}..."`);
+		loggers.ai.info({ messageSnippet: safeMessage.substring(0, 50) }, '🎯 Usando fallback regex para classificação');
 		const lowerMsg = safeMessage.toLowerCase().trim();
 
 		// 1. CONFIRMAÇÃO/NEGAÇÃO (mais específico primeiro)
@@ -194,12 +185,12 @@ export class IntentClassifier {
 					selection: this.extractSelection(message),
 				},
 			};
-			console.log(`🎯 [Intent] confirm (regex) - conf: ${result.confidence}`);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
 		if (this.isDenial(lowerMsg)) {
-			console.log(`🎯 [Intent] deny (regex) - conf: 0.95`);
+			loggers.ai.info({ intent: 'deny', action: 'deny', confidence: 0.95 }, '🎯 Intenção detectada (regex)');
 			return {
 				intent: 'deny',
 				action: 'deny',
@@ -210,7 +201,10 @@ export class IntentClassifier {
 		// 2. DELETAR (CRÍTICO: detectar antes de search)
 		const deleteResult = this.isDeleteRequest(lowerMsg);
 		if (deleteResult) {
-			console.log(`🎯 [Intent] ${deleteResult.intent} (${deleteResult.action}, regex) - conf: ${deleteResult.confidence}`);
+			loggers.ai.info(
+				{ intent: deleteResult.intent, action: deleteResult.action, confidence: deleteResult.confidence },
+				'🎯 Intenção detectada (regex)'
+			);
 			return deleteResult;
 		}
 
@@ -224,13 +218,13 @@ export class IntentClassifier {
 				confidence: 0.9,
 				entities: { query },
 			};
-			console.log(`🎯 [Intent] ${result.intent} (${result.action}, regex) - conf: ${result.confidence}`);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
 		// 4. PERGUNTAR NOME DO ASSISTENTE (antes de info request genérico)
 		if (this.isAskingAssistantName(lowerMsg)) {
-			console.log(`🎯 [Intent] get_info (get_assistant_name, regex) - conf: 0.95`);
+			loggers.ai.info({ intent: 'get_info', action: 'get_assistant_name', confidence: 0.95 }, '🎯 Intenção detectada (regex)');
 			return {
 				intent: 'get_info',
 				action: 'get_assistant_name',
@@ -240,7 +234,7 @@ export class IntentClassifier {
 
 		// 5. SOLICITAR INFORMAÇÕES
 		if (this.isInfoRequest(lowerMsg)) {
-			console.log(`🎯 [Intent] get_info (regex) - conf: 0.85`);
+			loggers.ai.info({ intent: 'get_info', action: 'get_details', confidence: 0.85 }, '🎯 Intenção detectada (regex)');
 			return {
 				intent: 'get_info',
 				action: 'get_details',
@@ -275,14 +269,14 @@ export class IntentClassifier {
 					refersToPrevious,
 				},
 			};
-			console.log(`🎯 [Intent] ${result.intent} (${result.action}, regex) - conf: ${result.confidence}`);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
 		// 6. CONVERSA CASUAL
 		if (this.isCasualChat(lowerMsg)) {
 			const action = this.getCasualAction(lowerMsg);
-			console.log(`🎯 [Intent] casual_chat (${action}, regex) - conf: 0.8`);
+			loggers.ai.info({ intent: 'casual_chat', action, confidence: 0.8 }, '🎯 Intenção detectada (regex)');
 			return {
 				intent: 'casual_chat',
 				action,
@@ -293,12 +287,15 @@ export class IntentClassifier {
 		// 7. ATUALIZAR CONFIGURAÇÕES (nome do assistente, etc)
 		const updateResult = this.isUpdateSettings(lowerMsg, message);
 		if (updateResult) {
-			console.log(`🎯 [Intent] ${updateResult.intent} (${updateResult.action}, regex) - conf: ${updateResult.confidence}`);
+			loggers.ai.info(
+				{ intent: updateResult.intent, action: updateResult.action, confidence: updateResult.confidence },
+				'🎯 Intenção detectada (regex)'
+			);
 			return updateResult;
 		}
 
 		// 8. DESCONHECIDO (deixa para LLM decidir)
-		console.log(`🎯 [Intent] unknown (regex) - conf: 0.5`);
+		loggers.ai.info({ intent: 'unknown', confidence: 0.5 }, '🎯 Intenção não identificada (regex)');
 		return {
 			intent: 'unknown',
 			action: 'unknown',

@@ -1,5 +1,6 @@
 import { env } from '@/config/env';
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
+import { loggers } from '@/utils/logger';
 import { CloudflareProvider } from './cloudflare-provider';
 import { GeminiProvider } from './gemini-provider';
 import type { AIProvider, AIProviderType, AIResponse, Message } from './types';
@@ -27,32 +28,32 @@ export class AIService {
 				'cloudflare',
 				new CloudflareProvider(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_API_TOKEN, '@cf/meta/llama-4-scout-17b-16e-instruct')
 			);
-			console.log('✅ [AI] Cloudflare Workers AI configurado');
+			loggers.ai.info('✅ Cloudflare Workers AI configurado');
 		} else {
-			console.log('⚠️ [AI] Cloudflare Workers AI não configurado (faltam CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_API_TOKEN)');
+			loggers.ai.info('Cloudflare Workers AI não configurado (faltam CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_API_TOKEN)');
 		}
 
 		if (env.GOOGLE_API_KEY) {
 			this.providers.set('gemini', new GeminiProvider(env.GOOGLE_API_KEY));
-			console.log('✅ [AI] Google Gemini configurado');
+			loggers.ai.info('✅ Google Gemini configurado');
 		} else {
-			console.log('⚠️ [AI] Google Gemini não configurado (falta GOOGLE_API_KEY)');
+			loggers.ai.info('Google Gemini não configurado (falta GOOGLE_API_KEY)');
 		}
 
 		// Lista providers disponíveis
 		const available = Array.from(this.providers.keys());
-		console.log(`🤖 [AI] Providers disponíveis: [${available.join(', ')}]`);
+		loggers.ai.info(`🤖 Providers disponíveis: [${available.join(', ')}]`);
 
 		// Valida que pelo menos um provider está disponível
 		if (this.providers.size === 0) {
-			console.error('❌ [AI] Nenhum provider de IA configurado! Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN ou GOOGLE_API_KEY');
+			loggers.ai.error('❌ Nenhum provider de IA configurado! Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN ou GOOGLE_API_KEY');
 		}
 
 		// Valida que o provider default existe
 		if (!this.providers.has(defaultProvider)) {
 			const available = Array.from(this.providers.keys())[0];
 			if (available) {
-				console.warn(`⚠️ Provider '${defaultProvider}' não disponível. Usando '${available}' como default.`);
+				loggers.ai.warn(`⚠️ Provider '${defaultProvider}' não disponível. Usando '${available}' como default.`);
 				this.defaultProvider = available;
 				this.currentProvider = available;
 			}
@@ -66,14 +67,14 @@ export class AIService {
 		const { systemPrompt, ...rest } = params;
 		const prompt = systemPrompt || AGENT_SYSTEM_PROMPT;
 
-		console.log(`🤖 [AI] Chamando ${this.currentProvider}`);
-		console.log(`📝 [AI] Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
-		console.log(`📚 [AI] Histórico: ${params.history?.length || 0} mensagens`);
+		loggers.ai.info(`🚀 Chamando ${this.currentProvider}`);
+		loggers.ai.info(`📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
+		loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
 
 		// Tenta com o provider atual
 		const provider = this.providers.get(this.currentProvider);
 		if (!provider) {
-			console.error('❌ [AI] Nenhum provider disponível');
+			loggers.ai.error('❌ Nenhum provider disponível');
 			return {
 				message: '⚠️ Nenhum serviço de IA disponível. Configure CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN ou GOOGLE_API_KEY no .env',
 			};
@@ -85,20 +86,19 @@ export class AIService {
 				systemPrompt: prompt,
 			});
 
-			const preview = response.message.length > 100 ? `${response.message.substring(0, 100)}...` : response.message;
-			console.log(`✅ [AI] Resposta de ${this.currentProvider} (${response.message.length} chars)`);
+			loggers.ai.info(`✨ Resposta de ${this.currentProvider} (${response.message.length} chars)`);
 
 			// Se sucesso, mantém o provider atual
 			return response;
 		} catch (error: any) {
-			console.error(`❌ [AI] Erro no provider ${this.currentProvider}:`, error);
+			loggers.ai.error({ err: error }, `❌ Erro no provider ${this.currentProvider}`);
 
 			// Verifica se é erro que deve fazer fallback
 			const status = error?.status || error?.response?.status;
 			const isRateLimit = error?.message?.toLowerCase().includes('rate limit') || error?.message?.toLowerCase().includes('quota');
 			const isHttpError = status && status >= 400 && status < 600;
 
-			console.log(`🔍 [AI] Análise do erro: status=${status}, isRateLimit=${isRateLimit}, isHttpError=${isHttpError}`);
+			loggers.ai.info(`🔍 Análise do erro: status=${status}, isRateLimit=${isRateLimit}, isHttpError=${isHttpError}`);
 
 			const shouldFallback = isHttpError || isRateLimit;
 
@@ -106,18 +106,18 @@ export class AIService {
 				// Tenta fallback para outro provider
 				const fallbackProvider = this.getFallbackProvider();
 				if (fallbackProvider) {
-					console.log(
-						`🔄 [AI] Erro ${status || 'rate limit'} detectado em ${this.currentProvider}. Tentando fallback para ${fallbackProvider}`
+					loggers.ai.info(
+						`🔄 Erro ${status || 'rate limit'} detectado em ${this.currentProvider}. Tentando fallback para ${fallbackProvider}`
 					);
 					const originalProvider = this.currentProvider;
 					this.currentProvider = fallbackProvider;
 					try {
 						const fallbackResponse = await this.callLLM({ ...rest, systemPrompt: prompt });
-						console.log(`✅ [AI] Fallback para ${fallbackProvider} foi bem-sucedido!`);
+						loggers.ai.info(`✅ Fallback para ${fallbackProvider} foi bem-sucedido!`);
 						return fallbackResponse;
 					} catch (fallbackError) {
 						// Se fallback também falhar, restaura provider original
-						console.error(`❌ [AI] Fallback para ${fallbackProvider} também falhou:`, fallbackError);
+						loggers.ai.error({ err: fallbackError }, `❌ Fallback para ${fallbackProvider} também falhou`);
 						this.currentProvider = originalProvider;
 						throw fallbackError;
 					}
@@ -125,7 +125,7 @@ export class AIService {
 			}
 
 			// Sem fallback disponível ou erro não é HTTP
-			console.error('❌ [AI] Nenhum fallback disponível ou erro não recuperável');
+			loggers.ai.error('❌ Nenhum fallback disponível ou erro não recuperável');
 			return {
 				message: '⚠️ Serviço de IA temporariamente indisponível. Tente novamente em alguns instantes.',
 			};
@@ -138,8 +138,8 @@ export class AIService {
 	private getFallbackProvider(): AIProviderType | null {
 		const available = Array.from(this.providers.keys());
 		const fallback = available.find((p) => p !== this.currentProvider);
-		console.log(
-			`🔍 [AI] Buscando fallback. Disponíveis: [${available.join(', ')}], Atual: ${this.currentProvider}, Fallback: ${fallback || 'nenhum'}`
+		loggers.ai.info(
+			`Buscando fallback. Disponíveis: [${available.join(', ')}], Atual: ${this.currentProvider}, Fallback: ${fallback || 'nenhum'}`
 		);
 		return fallback || null;
 	}
@@ -152,7 +152,7 @@ export class AIService {
 			throw new Error(`Provider '${provider}' não está configurado`);
 		}
 		this.currentProvider = provider;
-		console.log(`Provider alterado para: ${provider}`);
+		loggers.ai.info(`🔄 Provider alterado para: ${provider}`);
 	}
 
 	/**

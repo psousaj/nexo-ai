@@ -1,19 +1,25 @@
-import { Elysia, t } from 'elysia';
+import { Hono } from 'hono';
 import { itemService } from '@/services/item-service';
+import { logger } from '@/utils/logger';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 
-export const itemsRouter = new Elysia()
+export const itemsRouter = new Hono()
 	/**
 	 * GET / - Lista items do usuário
 	 */
 	.get(
 		'/',
-		async ({ query, set }) => {
-			const { userId, type, limit } = query;
-
-			if (!userId) {
-				set.status = 400;
-				return { error: 'userId é obrigatório' };
-			}
+		zValidator(
+			'query',
+			z.object({
+				userId: z.string(),
+				type: z.string().optional(),
+				limit: z.string().optional(),
+			})
+		),
+		async (c) => {
+			const { userId, type, limit } = c.req.valid('query');
 
 			const items = await itemService.listItems({
 				userId,
@@ -21,19 +27,7 @@ export const itemsRouter = new Elysia()
 				limit: limit ? parseInt(limit) : 20,
 			});
 
-			return { items };
-		},
-		{
-			query: t.Object({
-				userId: t.String({ description: 'ID do usuário' }),
-				type: t.Optional(t.String({ description: 'Tipo de item (movie, tv_show, video, link, note)' })),
-				limit: t.Optional(t.String({ description: 'Limite de resultados' })),
-			}),
-			detail: {
-				tags: ['Items'],
-				summary: 'Listar items',
-				description: 'Lista todos os items do usuário com filtros opcionais',
-			},
+			return c.json({ items });
 		}
 	)
 
@@ -42,31 +36,23 @@ export const itemsRouter = new Elysia()
 	 */
 	.get(
 		'/:id',
-		async ({ params, query, set }) => {
-			const { userId } = query;
+		zValidator(
+			'query',
+			z.object({
+				userId: z.string(),
+			})
+		),
+		async (c) => {
+			const { userId } = c.req.valid('query');
+			const id = c.req.param('id');
 
-			if (!userId) {
-				set.status = 400;
-				return { error: 'userId é obrigatório' };
-			}
-
-			const item = await itemService.getItemById(params.id, userId);
+			const item = await itemService.getItemById(id, userId);
 
 			if (!item) {
-				set.status = 404;
-				return { error: 'Item não encontrado' };
+				return c.json({ error: 'Item não encontrado' }, 404);
 			}
 
-			return { item };
-		},
-		{
-			params: t.Object({ id: t.String({ description: 'ID do item' }) }),
-			query: t.Object({ userId: t.String({ description: 'ID do usuário' }) }),
-			detail: {
-				tags: ['Items'],
-				summary: 'Buscar item por ID',
-				description: 'Retorna um item específico do usuário',
-			},
+			return c.json({ item });
 		}
 	)
 
@@ -75,13 +61,16 @@ export const itemsRouter = new Elysia()
 	 */
 	.post(
 		'/search',
-		async ({ body, set }) => {
-			const { userId, query, limit = 20 } = body;
-
-			if (!userId || !query) {
-				set.status = 400;
-				return { error: 'userId e query são obrigatórios' };
-			}
+		zValidator(
+			'json',
+			z.object({
+				userId: z.string(),
+				query: z.string(),
+				limit: z.number().optional().default(20),
+			})
+		),
+		async (c) => {
+			const { userId, query, limit } = c.req.valid('json');
 
 			const items = await itemService.searchItems({
 				userId,
@@ -89,19 +78,7 @@ export const itemsRouter = new Elysia()
 				limit,
 			});
 
-			return { items };
-		},
-		{
-			body: t.Object({
-				userId: t.String({ description: 'ID do usuário' }),
-				query: t.String({ description: 'Texto de busca' }),
-				limit: t.Optional(t.Number({ description: 'Limite de resultados', default: 20 })),
-			}),
-			detail: {
-				tags: ['Items'],
-				summary: 'Buscar items',
-				description: 'Busca semântica nos items do usuário',
-			},
+			return c.json({ items });
 		}
 	)
 
@@ -110,27 +87,20 @@ export const itemsRouter = new Elysia()
 	 */
 	.delete(
 		'/:id',
-		async ({ params, query, set }) => {
-			const { userId } = query;
+		zValidator(
+			'query',
+			z.object({
+				userId: z.string(),
+			})
+		),
+		async (c) => {
+			const { userId } = c.req.valid('query');
+			const id = c.req.param('id');
 
-			if (!userId) {
-				set.status = 400;
-				return { error: 'userId é obrigatório' };
-			}
-
-			console.log('DELETE request:', { params, query });
-			await itemService.deleteItem(params.id, userId);
+			logger.info({ id, userId }, '🗑️ DELETE request');
+			await itemService.deleteItem(id, userId);
 			const response = { success: true };
-			console.log('DELETE response:', response);
-			return response;
-		},
-		{
-			params: t.Object({ id: t.String({ description: 'ID do item' }) }),
-			query: t.Object({ userId: t.String({ description: 'ID do usuário' }) }),
-			detail: {
-				tags: ['Items'],
-				summary: 'Deletar item',
-				description: 'Remove um item da biblioteca do usuário',
-			},
+			logger.info(response, '✅ DELETE response');
+			return c.json(response);
 		}
 	);

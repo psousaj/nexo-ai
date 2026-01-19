@@ -1,170 +1,331 @@
-import { env } from "@/config/env";
-import type { MessagingProvider, IncomingMessage, ProviderType } from "./types";
+// Função utilitária para escapar MarkdownV2 conforme documentação oficial Telegram
+// Remove emojis (Unicode ranges)
+function removeEmojis(text: string): string {
+	return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+}
+
+function escapeMarkdownV2(text: string): string {
+	// Remove emojis para evitar problemas
+	let clean = removeEmojis(text);
+	// Escapa caracteres especiais
+	clean = clean.replace(/([_\*\[\]()~`>#+\-=|{}\.!])/g, '\\$1');
+	clean = clean.replace(/([\\])/g, '\\$1');
+	// Escapa quebras de linha para dupla barra
+	clean = clean.replace(/\n/g, '\\\n');
+	return clean;
+}
+import { env } from '@/config/env';
+import { loggers } from '@/utils/logger';
+import type { MessagingProvider, IncomingMessage, ProviderType } from './types';
 
 /**
  * Adapter para Telegram Bot API
  */
 export class TelegramAdapter implements MessagingProvider {
-  private baseUrl = "https://api.telegram.org";
-  private token = env.TELEGRAM_BOT_TOKEN;
-  private webhookSecret = env.TELEGRAM_WEBHOOK_SECRET;
+	private baseUrl = 'https://api.telegram.org';
+	private token = env.TELEGRAM_BOT_TOKEN;
+	private webhookSecret = env.TELEGRAM_WEBHOOK_SECRET;
 
-  getProviderName(): ProviderType {
-    return "telegram";
-  }
+	getProviderName(): ProviderType {
+		return 'telegram';
+	}
 
-  parseIncomingMessage(payload: any): IncomingMessage | null {
-    // Telegram Update pode ter message ou edited_message
-    const message = payload.message || payload.edited_message;
+	parseIncomingMessage(payload: any): IncomingMessage | null {
+		// Telegram Update pode ter message, edited_message ou callback_query
+		const message = payload.message || payload.edited_message;
+		const callbackQuery = payload.callback_query;
 
-    if (!message) {
-      return null;
-    }
+		// Se for callback query (inline button clicado)
+		if (callbackQuery) {
+			const chatId = callbackQuery.message?.chat?.id?.toString() || callbackQuery.from?.id?.toString();
+			const senderName =
+				[callbackQuery.from.first_name, callbackQuery.from.last_name].filter(Boolean).join(' ') || callbackQuery.from.username || 'Usuário';
 
-    // Texto pode vir de text ou caption (fotos/vídeos/documentos)
-    const text = message.text || message.caption;
+			return {
+				messageId: callbackQuery.id,
+				externalId: chatId,
+				senderName,
+				text: callbackQuery.data || '', // callback_data vira o "texto"
+				timestamp: new Date(),
+				provider: 'telegram',
+				callbackQueryId: callbackQuery.id,
+				callbackData: callbackQuery.data,
+			};
+		}
 
-    if (!text) {
-      return null; // Ignora se não houver texto
-    }
+		if (!message) {
+			return null;
+		}
 
-    // Telegram usa chat.id como identificador único
-    const chatId = message.chat.id.toString();
+		// Texto pode vir de text ou caption (fotos/vídeos/documentos)
+		const text = message.text || message.caption;
 
-    // Nome: fallback chain
-    const senderName =
-      [message.from.first_name, message.from.last_name]
-        .filter(Boolean)
-        .join(" ") ||
-      message.from.username ||
-      "Usuário";
+		if (!text) {
+			return null; // Ignora se não houver texto
+		}
 
-    // Telefone: raramente disponível (apenas se usuário compartilhou contato)
-    const phoneNumber = message.contact?.phone_number;
+		// Telegram usa chat.id como identificador único
+		const chatId = message.chat.id.toString();
 
-    return {
-      messageId: message.message_id.toString(),
-      externalId: chatId,
-      senderName,
-      text,
-      timestamp: new Date(message.date * 1000),
-      provider: "telegram",
-      phoneNumber,
-    };
-  }
+		// Nome: fallback chain
+		const senderName = [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') || message.from.username || 'Usuário';
 
-  verifyWebhook(request: any): boolean {
-    // Telegram webhook secret (recomendado em produção)
-    if (!this.webhookSecret) {
-      console.warn(
-        "⚠️ Telegram webhook sem secret_token configurado. Configure TELEGRAM_WEBHOOK_SECRET em produção."
-      );
-      return true; // Modo dev: aceita tudo
-    }
+		// Telefone: raramente disponível (apenas se usuário compartilhou contato)
+		const phoneNumber = message.contact?.phone_number;
 
-    // Elysia/Fetch API usa Headers object com .get()
-    // Express usa objeto plain com lowercase keys
-    const headers = request.headers;
-    const secretToken = 
-      headers?.get?.("x-telegram-bot-api-secret-token") || // Fetch API (case-insensitive)
-      headers?.["x-telegram-bot-api-secret-token"];        // Express-style
+		return {
+			messageId: message.message_id.toString(),
+			externalId: chatId,
+			senderName,
+			text,
+			timestamp: new Date(message.date * 1000),
+			provider: 'telegram',
+			phoneNumber,
+		};
+	}
 
-    if (secretToken !== this.webhookSecret) {
-      console.error("❌ Telegram webhook secret inválido ou ausente");
-      console.error(`   Recebido: "${secretToken || '(nenhum)'}"`);
-      return false;
-    }
+	verifyWebhook(request: any): boolean {
+		// Telegram webhook secret (recomendado em produção)
+		if (!this.webhookSecret) {
+			loggers.webhook.warn('Telegram webhook sem secret_token configurado. Configure TELEGRAM_WEBHOOK_SECRET em produção.');
+			return true; // Modo dev: aceita tudo
+		}
 
-    return true;
-  }
+		// Elysia/Fetch API usa Headers object com .get()
+		// Express usa objeto plain com lowercase keys
+		const headers = request.headers;
+		const secretToken = headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token']; // Fetch API (case-insensitive) // Express-style
 
-  async sendMessage(
-    chatId: string,
-    text: string,
-    options?: {
-      parseMode?: "MarkdownV2" | "HTML";
-      replyToMessageId?: number;
-    }
-  ): Promise<void> {
-    const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
+		if (secretToken !== this.webhookSecret) {
+			loggers.webhook.error({ secretToken: secretToken || '(nenhum)' }, 'Telegram webhook secret inválido ou ausente');
+			return false;
+		}
 
-    const payload: any = {
-      chat_id: chatId,
-      text,
-    };
+		return true;
+	}
 
-    // Parse mode opcional
-    if (options?.parseMode) {
-      payload.parse_mode = options.parseMode;
-    }
+	async sendMessage(
+		chatId: string,
+		text: string,
+		options?: {
+			parseMode?: 'MarkdownV2' | 'HTML';
+			replyToMessageId?: number;
+		},
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
-    // Reply to message
-    if (options?.replyToMessageId) {
-      payload.reply_parameters = {
-        message_id: options.replyToMessageId,
-      };
-    }
+		const payload: any = {
+			chat_id: chatId,
+			text,
+		};
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+		// Parse mode opcional
+		if (options?.parseMode) {
+			payload.parse_mode = options.parseMode;
+		}
 
-    if (!response.ok) {
-      const errorData = await response.json() as { error_code?: number; description?: string };
-      throw new Error(
-        `Telegram API error [${errorData.error_code}]: ${errorData.description}`
-      );
-    }
-  }
+		// Reply to message
+		if (options?.replyToMessageId) {
+			payload.reply_parameters = {
+				message_id: options.replyToMessageId,
+			};
+		}
 
-  /**
-   * Define webhook do Telegram (usar em setup inicial)
-   */
-  async setWebhook(webhookUrl: string): Promise<void> {
-    const url = `${this.baseUrl}/bot${this.token}/setWebhook`;
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
 
-    const payload = {
-      url: webhookUrl,
-      secret_token: this.webhookSecret,
-      allowed_updates: ["message", "edited_message"],
-    };
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			loggers.webhook.error(
+				{
+					errorCode: errorData.error_code,
+					description: errorData.description,
+					chatId,
+					textLength: text.length,
+				},
+				'Erro ao enviar mensagem Telegram',
+			);
+			throw new Error(`Telegram API error [${errorData.error_code}]: ${errorData.description}`);
+		}
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+		loggers.webhook.info({ chatId }, 'Mensagem Telegram enviada');
+	}
 
-    if (!response.ok) {
-      const errorData = await response.json() as { error_code?: number; description?: string };
-      throw new Error(
-        `Telegram setWebhook error [${errorData.error_code}]: ${errorData.description}`
-      );
-    }
-  }
+	/**
+	 * Envia mensagem com inline keyboard (botões clicáveis)
+	 */
+	async sendMessageWithButtons(
+		chatId: string,
+		text: string,
+		buttons: Array<Array<{ text: string; callback_data: string }>>,
+		options?: {
+			parseMode?: 'MarkdownV2' | 'HTML';
+		},
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
-  /**
-   * Valida token do bot (útil para health checks)
-   */
-  async getMe(): Promise<any> {
-    const url = `${this.baseUrl}/bot${this.token}/getMe`;
-    const response = await fetch(url);
+		const payload: any = {
+			chat_id: chatId,
+			text,
+			reply_markup: {
+				inline_keyboard: buttons,
+			},
+		};
 
-    if (!response.ok) {
-      const errorData = await response.json() as { error_code?: number; description?: string };
-      throw new Error(
-        `Telegram getMe error [${errorData.error_code}]: ${errorData.description}`
-      );
-    }
+		if (options?.parseMode) {
+			payload.parse_mode = options.parseMode;
+		}
 
-    return response.json();
-  }
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			loggers.webhook.error(
+				{
+					errorCode: errorData.error_code,
+					description: errorData.description,
+				},
+				'Erro ao enviar mensagem com botões',
+			);
+			throw new Error(`Telegram API error: ${errorData.description}`);
+		}
+
+		loggers.webhook.info({ chatId, buttonsCount: buttons.flat().length }, 'Mensagem com botões enviada');
+	}
+
+	/**
+	 * Envia foto com caption e botões
+	 */
+	async sendPhoto(
+		chatId: string,
+		photoUrl: string,
+		caption?: string,
+		buttons?: Array<Array<{ text: string; callback_data: string }>>,
+		options?: {
+			parseMode?: 'MarkdownV2' | 'HTML';
+		},
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendPhoto`;
+
+		const payload: any = {
+			chat_id: chatId,
+			photo: photoUrl,
+			parse_mode: 'Markdown', // Habilita formatação no caption
+		};
+
+		if (caption) {
+			let safeCaption = escapeMarkdownV2(caption);
+			// Limita a 1024 caracteres
+			if (safeCaption.length > 1024) {
+				safeCaption = safeCaption.slice(0, 1020) + '...';
+			}
+			payload.caption = safeCaption;
+			payload.parse_mode = 'MarkdownV2';
+		}
+
+		if (options?.parseMode) {
+			payload.parse_mode = options.parseMode;
+		}
+
+		if (buttons) {
+			payload.reply_markup = {
+				inline_keyboard: buttons,
+			};
+		}
+
+		loggers.webhook.info({ chatId, photoUrl, hasCaption: !!caption, hasButtons: !!buttons }, '📤 Enviando foto via Telegram');
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			loggers.webhook.error({ errorCode: errorData.error_code }, 'Erro ao enviar foto');
+			throw new Error(`Telegram API error: ${errorData.description}`);
+		}
+
+		loggers.webhook.info({ chatId }, 'Foto enviada');
+	}
+
+	/**
+	 * Responde a callback query (necessário para remover loading dos botões)
+	 */
+	async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/answerCallbackQuery`;
+
+		const payload: any = {
+			callback_query_id: callbackQueryId,
+		};
+
+		if (text) {
+			payload.text = text;
+		}
+
+		await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+	}
+
+	/**
+	 * Define webhook do Telegram (usar em setup inicial)
+	 */
+	async setWebhook(webhookUrl: string): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/setWebhook`;
+
+		const payload = {
+			url: webhookUrl,
+			secret_token: this.webhookSecret,
+			allowed_updates: ['message', 'edited_message', 'callback_query'],
+		};
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			throw new Error(`Telegram setWebhook error [${errorData.error_code}]: ${errorData.description}`);
+		}
+	}
+
+	/**
+	 * Valida token do bot (útil para health checks)
+	 */
+	async getMe(): Promise<any> {
+		const url = `${this.baseUrl}/bot${this.token}/getMe`;
+		const response = await fetch(url);
+
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			throw new Error(`Telegram getMe error [${errorData.error_code}]: ${errorData.description}`);
+		}
+
+		return response.json();
+	}
 }
 
 export const telegramAdapter = new TelegramAdapter();

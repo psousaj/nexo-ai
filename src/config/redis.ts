@@ -1,21 +1,35 @@
-import { Redis } from '@upstash/redis';
+import { Redis } from 'ioredis';
 import { env } from './env';
-import { logger } from '@/utils/logger';
+import { loggers } from '../utils/logger';
 
-let redis: Redis | null = null;
+let redis: any = null;
 
-export function getRedisClient(): Redis | null {
-	if (!env.UPSTASH_REDIS_URL || !env.UPSTASH_REDIS_TOKEN) {
-		logger.warn('Redis não configurado - cache desabilitado');
+export async function getRedisClient(): Promise<Redis | null> {
+	if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {
+		loggers.cache.warn('Redis não configurado - cache desabilitado');
 		return null;
 	}
 
 	if (!redis) {
-		redis = new Redis({
-			url: env.UPSTASH_REDIS_URL,
-			token: env.UPSTASH_REDIS_TOKEN,
-		});
-		logger.info('Redis conectado');
+		try {
+			// Redis SEM TLS (redis:// não rediss://)
+			// Bull já funciona sem TLS, ioredis também
+			const client = new Redis({
+				host: env.REDIS_HOST,
+				port: env.REDIS_PORT,
+				username: env.REDIS_USER,
+				password: env.REDIS_PASSWORD,
+				// Não precisa de TLS para Redis Cloud via ioredis
+			});
+
+			client.on('error', (err) => loggers.cache.error({ err }, 'Redis Client Error'));
+
+			redis = client;
+			loggers.cache.info('Redis conectado para cache');
+		} catch (error) {
+			loggers.cache.error({ err: error }, 'Falha ao conectar no Redis');
+			return null;
+		}
 	}
 
 	return redis;
@@ -25,41 +39,49 @@ export function getRedisClient(): Redis | null {
  * Cache helper com fallback silencioso
  */
 export async function cacheGet<T>(key: string): Promise<T | null> {
-	const client = getRedisClient();
+	const client = await getRedisClient();
 	if (!client) return null;
 
 	try {
-		const value = await client.get<T>(key);
-		if (value) {
-			logger.debug(`Cache HIT: ${key}`);
-		}
-		return value;
+		const raw = await client.get(key);
+		if (!raw) return null;
+
+		loggers.cache.debug(`Cache HIT: ${key}`);
+
+		return JSON.parse(raw) as T;
 	} catch (error) {
-		logger.error({ key, error }, 'Redis GET error');
+		loggers.cache.error({ key, error }, 'Redis GET error');
 		return null;
 	}
 }
 
-export async function cacheSet<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
-	const client = getRedisClient();
+export async function cacheSet<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
+	const client = await getRedisClient();
 	if (!client) return;
 
 	try {
-		await client.set(key, value, { ex: ttlSeconds });
-		logger.debug(`Cache SET: ${key} (TTL: ${ttlSeconds}s)`);
+		const payload = JSON.stringify(value);
+
+		if (ttlSeconds) {
+			await client.setex(key, ttlSeconds, payload);
+			loggers.cache.debug(`Cache SET: ${key} (TTL: ${ttlSeconds}s)`);
+		} else {
+			await client.set(key, payload);
+			loggers.cache.debug(`Cache SET: ${key} (sem TTL)`);
+		}
 	} catch (error) {
-		logger.error({ key, error }, 'Redis SET error');
+		loggers.cache.error({ key, error }, 'Redis SET error');
 	}
 }
 
 export async function cacheDelete(key: string): Promise<void> {
-	const client = getRedisClient();
+	const client = await getRedisClient();
 	if (!client) return;
 
 	try {
 		await client.del(key);
-		logger.debug(`Cache DELETE: ${key}`);
+		loggers.cache.debug(`Cache DELETE: ${key}`);
 	} catch (error) {
-		logger.error({ key, error }, 'Redis DELETE error');
+		loggers.cache.error({ key, error }, 'Redis DELETE error');
 	}
 }

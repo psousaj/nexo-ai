@@ -1,3 +1,5 @@
+import { loggers } from '@/utils/logger';
+
 /**
  * Utilitário para parsear JSON de respostas LLM
  * Remove markdown code blocks e limpa o JSON
@@ -38,7 +40,7 @@ export function parseJSONFromLLM(text: string): any {
 	try {
 		return JSON.parse(cleaned);
 	} catch (error) {
-		console.error('❌ [JSON Parser] Falha ao parsear:', cleaned.substring(0, 200));
+		loggers.ai.error({ err: error, cleaned: cleaned.substring(0, 200) }, '❌ Falha ao parsear JSON');
 		throw new Error(`JSON inválido: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
 	}
 }

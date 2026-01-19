@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { logger } from '@/utils/logger';
 
 const envSchema = z.object({
 	// Database
@@ -42,8 +43,12 @@ const envSchema = z.object({
 	// Redis (para Bull queue) - OBRIGATÓRIO
 	REDIS_HOST: z.string().min(1, 'REDIS_HOST é obrigatório'),
 	REDIS_PORT: z.coerce.number().default(6379),
+	REDIS_USER: z.string().min(1, 'REDIS_USER é obrigatório'),
 	REDIS_PASSWORD: z.string().min(1, 'REDIS_PASSWORD é obrigatório'),
-	REDIS_TLS: z.coerce.boolean().default(true),
+	REDIS_TLS: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
 
 	// Observability - New Relic (opcional)
 	NEW_RELIC_LICENSE_KEY: z.string().optional(),
@@ -63,8 +68,7 @@ export function validateEnv(): Env {
 	const parsed = envSchema.safeParse(process.env);
 
 	if (!parsed.success) {
-		console.error('❌ Erro na validação das variáveis de ambiente:');
-		console.error(parsed.error.flatten().fieldErrors);
+		logger.error({ errors: parsed.error.flatten().fieldErrors }, 'Erro na validação das variáveis de ambiente');
 		throw new Error('Variáveis de ambiente inválidas');
 	}
 
