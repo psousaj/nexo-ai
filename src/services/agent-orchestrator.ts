@@ -79,14 +79,22 @@ export class AgentOrchestrator {
 		}
 
 		// 1. CLASSIFICAR INTENÇÃO (determinístico)
+		const startIntent = performance.now();
 		const intent = await intentClassifier.classify(context.message);
-		loggers.ai.info({ intent: intent.intent, confidence: intent.confidence }, '🧠 Intenção detectada');
+		const endIntent = performance.now();
+		loggers.ai.info(
+			{ intent: intent.intent, confidence: intent.confidence, duration: `${(endIntent - startIntent).toFixed(0)}*ms*` },
+			'🧠 Intenção detectada'
+		);
 
 		// B. CHECAR AMBIGUIDADE (se estado for idle)
 		if (conversation.state === 'idle' && intent.intent !== 'casual_chat') {
+			const startAmbiguous = performance.now();
 			const isAmbiguous = await conversationService.handleAmbiguousMessage(conversation.id, context.message);
+			const endAmbiguous = performance.now();
 
 			if (isAmbiguous) {
+				loggers.ai.info({ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` }, '🔍 Ambiguidade detectada');
 				return {
 					message: null as any, // Mensagem já enviada pelo conversationService
 					state: 'awaiting_context', // Estado atualizado pelo service
@@ -96,17 +104,18 @@ export class AgentOrchestrator {
 
 		// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
 		const action = this.decideAction(intent, conversation.state);
+
+		// 4. EXECUTAR AÇÃO
 		loggers.ai.info(
 			{
 				state: conversation.state,
 				intent: intent.intent,
-				action: intent.action,
 				actionDecided: action,
 			},
-			'⚡ Decisão de ação'
+			'⚡ Executando ação'
 		);
 
-		// 4. EXECUTAR AÇÃO
+		const startAction = performance.now();
 		let response: AgentResponse;
 
 		switch (action) {
@@ -152,6 +161,8 @@ export class AgentOrchestrator {
 					state: 'idle',
 				};
 		}
+		const endAction = performance.now();
+		loggers.ai.info({ action, duration: `${(endAction - startAction).toFixed(0)}*ms*` }, '✅ Ação finalizada');
 
 		// 5. ATUALIZAR ESTADO
 		await conversationService.updateState(conversation.id, response.state, {

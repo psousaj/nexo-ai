@@ -45,7 +45,10 @@ const envSchema = z.object({
 	REDIS_PORT: z.coerce.number().default(6379),
 	REDIS_USER: z.string().min(1, 'REDIS_USER é obrigatório'),
 	REDIS_PASSWORD: z.string().min(1, 'REDIS_PASSWORD é obrigatório'),
-	REDIS_TLS: z.coerce.boolean().default(true),
+	REDIS_TLS: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
 
 	// Observability - New Relic (opcional)
 	NEW_RELIC_LICENSE_KEY: z.string().optional(),

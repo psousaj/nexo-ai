@@ -184,18 +184,46 @@ export class ItemService {
 
 	/**
 	 * Prepara um texto rico para gerar embedding
+	 * Prioriza campos mais importantes primeiro (caso precise truncar)
 	 */
 	private prepareTextForEmbedding(params: { type: ItemType; title: string; metadata?: ItemMetadata }): string {
 		const { type, title, metadata } = params;
+		
+		// Campos prioritários primeiro (não serão truncados)
 		let text = `Tipo: ${type}. Título: ${title}.`;
 
 		if (metadata) {
-			if ('overview' in metadata && metadata.overview) text += ` Descrição: ${metadata.overview}`;
-			if ('director' in metadata && metadata.director) text += ` Diretor: ${metadata.director}`;
-			if ('cast' in metadata && Array.isArray(metadata.cast)) text += ` Elenco: ${metadata.cast.join(', ')}`;
-			if ('genres' in metadata && Array.isArray(metadata.genres)) text += ` Gêneros: ${metadata.genres.join(', ')}`;
-			if ('full_content' in metadata && metadata.full_content) text += ` Conteúdo: ${metadata.full_content}`;
+			// Gêneros (curto e importante)
+			if ('genres' in metadata && Array.isArray(metadata.genres)) {
+				text += ` Gêneros: ${metadata.genres.join(', ')}.`;
+			}
+			
+			// Diretor (curto e importante)
+			if ('director' in metadata && metadata.director) {
+				text += ` Diretor: ${metadata.director}.`;
+			}
+			
+			// Overview (longo, pode ser truncado pelo EmbeddingService)
+			if ('overview' in metadata && metadata.overview) {
+				text += ` Sinopse: ${metadata.overview}`;
+			}
+			
+			// Elenco (longo, menos prioritário)
+			if ('cast' in metadata && Array.isArray(metadata.cast)) {
+				const mainCast = metadata.cast.slice(0, 5); // Apenas top 5
+				text += ` Elenco: ${mainCast.join(', ')}.`;
+			}
+			
+			// Conteúdo completo (notas - pode ser muito longo)
+			if ('full_content' in metadata && metadata.full_content) {
+				text += ` Conteúdo: ${metadata.full_content}`;
+			}
 		}
+
+		loggers.db.debug(
+			{ textLength: text.length, type },
+			'📝 Texto preparado para embedding'
+		);
 
 		return text;
 	}

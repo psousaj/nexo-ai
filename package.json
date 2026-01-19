@@ -18,6 +18,8 @@
         "merge-pr": "bash ./scripts/merge-pr.sh"
     },
     "dependencies": {
+        "@bull-board/api": "^6.16.2",
+        "@bull-board/hono": "^6.16.2",
         "@google/generative-ai": "^0.24.1",
         "@hono/node-server": "^1.13.7",
         "@hono/zod-validator": "^0.7.6",

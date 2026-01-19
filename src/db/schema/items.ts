@@ -22,8 +22,8 @@ export const memoryItems = pgTable(
 		/** Hash SHA-256 do conteúdo para detectar duplicatas */
 		contentHash: text('content_hash'),
 		metadata: jsonb('metadata').$type<ItemMetadata>(),
-		/** Vetor para busca semântica (Qwen 2.5 Embedding = 1024 dims) */
-		embedding: vector('embedding', { dimensions: 1024 }),
+		/** Vetor para busca semântica (BGE Small = 384 dims) */
+		embedding: vector('embedding', { dimensions: 384 }),
 		/** Referência para cache semântico externo (reuso de metadata/embedding) */
 		semanticExternalItemId: uuid('semantic_external_item_id').references(() => semanticExternalItems.id),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -38,7 +38,7 @@ export const memoryItems = pgTable(
 		uniqueExternalIdx: uniqueIndex('memory_items_unique_external_idx').on(table.userId, table.type, table.externalId),
 		// Índice único: mesmo usuário não pode ter duplicata do mesmo contentHash
 		uniqueContentHashIdx: uniqueIndex('memory_items_unique_content_hash_idx').on(table.userId, table.contentHash),
-	})
+	}),
 );
 
 // Alias para compatibilidade (deprecado)

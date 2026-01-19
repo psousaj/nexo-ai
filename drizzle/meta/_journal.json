@@ -64,6 +64,20 @@
       "when": 1768521131534,
       "tag": "0008_certain_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1768845609231,
+      "tag": "0009_elite_dreadnoughts",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1768845692335,
+      "tag": "0010_thick_vertigo",
+      "breakpoints": true
     }
   ]
 }
