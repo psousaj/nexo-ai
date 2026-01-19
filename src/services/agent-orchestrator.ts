@@ -34,7 +34,7 @@ import {
 	GENERIC_ERROR,
 	formatItemsList,
 } from '@/config/prompts';
-import { loggers } from '@/utils/logger';
+import { loggers, logError } from '@/utils/logger';
 import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
 import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
 import { scheduleConversationClose } from './queue-service';
@@ -148,7 +148,7 @@ export class AgentOrchestrator {
 
 			default:
 				response = {
-					message: 'Não entendi. Pode reformular?',
+					message: 'Não entendi. Pode reformular? 😊',
 					state: 'idle',
 				};
 		}
@@ -315,7 +315,7 @@ export class AgentOrchestrator {
 						}
 					} else {
 						// Erro - tratar casos específicos
-						loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou');
+						loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou (detalhes acima)');
 
 						// Casos especiais de erro
 						if (result.error === 'duplicate') {
@@ -339,7 +339,7 @@ export class AgentOrchestrator {
 				case 'NOOP':
 					// Nada a fazer
 					loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
-					responseMessage = null as any; // Sem resposta
+					responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
 					break;
 
 				default:
@@ -348,7 +348,7 @@ export class AgentOrchestrator {
 			}
 		} catch (parseError) {
 			// Fallback: NUNCA enviar JSON cru ao usuário
-			loggers.ai.error({ err: parseError, originalMessage: llmResponse.message.substring(0, 500) }, '❌ Erro ao processar resposta LLM');
+			logError(parseError, { context: 'AI', originalMessage: llmResponse.message.substring(0, 500) });
 
 			responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
 		}

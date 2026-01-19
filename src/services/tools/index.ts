@@ -7,7 +7,7 @@
 
 import { itemService } from '@/services/item-service';
 import { enrichmentService } from '@/services/enrichment';
-import { loggers } from '@/utils/logger';
+import { loggers, logError } from '@/utils/logger';
 import type { ItemType, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@/types';
 import { toolLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 
@@ -674,7 +674,7 @@ export async function executeTool(toolName: ToolName, context: ToolContext, para
 		loggers.ai.info({ toolName, success: result.success }, '✅ Tool executada');
 		return result;
 	} catch (error) {
-		loggers.ai.error({ err: error, toolName }, '❌ Erro ao executar tool');
+		logError(error, { toolName, context: 'AI' });
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro desconhecido',

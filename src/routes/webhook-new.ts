@@ -1,29 +1,16 @@
-/**
- * Webhook unificado usando novo Agent Orchestrator
- *
- * ANTES: Tudo no webhook (classificação, lógica, AI, tools)
- * AGORA: Webhook apenas traduz e delega para orquestrador
- */
-
-import { Elysia } from 'elysia';
+import { Hono } from 'hono';
 import Sentiment from 'sentiment';
 import { userService } from '@/services/user-service';
 import { conversationService } from '@/services/conversation-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { whatsappAdapter, telegramAdapter, type IncomingMessage, type MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import { loggers } from '@/utils/logger';
+import { loggers, logError } from '@/utils/logger';
 import { TIMEOUT_MESSAGE, GENERIC_ERROR } from '@/config/prompts';
 import { cancelConversationClose } from '@/services/queue-service';
 
-/**
- * Armazena timeouts de usuários ofensivos (em memória)
- */
 export const userTimeouts = new Map<string, number>();
 
-/**
- * Detecta conteúdo ofensivo usando Sentiment JS
- */
 const sentiment = new Sentiment();
 sentiment.registerLanguage('pt', {
 	labels: {
@@ -58,9 +45,6 @@ function containsOffensiveContent(message: string): boolean {
 	return result.score < 0;
 }
 
-/**
- * Verifica se usuário está em timeout
- */
 async function isUserInTimeout(userId: string, externalId: string): Promise<boolean> {
 	const user = await userService.getUserById(userId);
 
@@ -79,9 +63,6 @@ async function isUserInTimeout(userId: string, externalId: string): Promise<bool
 	return false;
 }
 
-/**
- * Aplica timeout progressivo
- */
 async function applyTimeout(userId: string, externalId: string): Promise<number> {
 	const user = await userService.getUserById(userId);
 	const offenseCount = (user?.offenseCount || 0) + 1;
@@ -101,11 +82,6 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 	return timeoutMinutes;
 }
 
-/**
- * Processa mensagem (provider-agnostic)
- *
- * SIMPLIFICADO: Apenas valida e delega para orquestrador
- */
 async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider) {
 	const messageText = incomingMsg.text;
 
@@ -115,7 +91,6 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 	);
 
 	try {
-		// 1. DETECTA OFENSAS (regra determinística, não LLM)
 		if (containsOffensiveContent(messageText)) {
 			const { user } = await userService.findOrCreateUserByAccount(
 				incomingMsg.externalId,
@@ -132,7 +107,6 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			return;
 		}
 
-		// 2. BUSCA/CRIA USUÁRIO (unificação cross-provider)
 		const { user } = await userService.findOrCreateUserByAccount(
 			incomingMsg.externalId,
 			incomingMsg.provider,
@@ -140,33 +114,25 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			incomingMsg.phoneNumber
 		);
 
-		// Atualiza nome se mudou
 		if (incomingMsg.senderName && incomingMsg.senderName !== user.name) {
 			await userService.updateUserName(user.id, incomingMsg.senderName);
 		}
 
-		// 3. VERIFICA TIMEOUT
 		if (await isUserInTimeout(user.id, incomingMsg.externalId)) {
 			loggers.webhook.info('⏳ Usuário em timeout, ignorando');
 			return;
 		}
 
-		// 4. BUSCA/CRIA CONVERSAÇÃO
-		// Se conversa está closed, findOrCreateConversation cria uma nova automaticamente
 		const conversation = await conversationService.findOrCreateConversation(user.id);
 		if (!conversation) {
 			throw new Error('Falha ao obter conversação');
 		}
 
-		// 4.1. CANCELA FECHAMENTO SE ESTAVA AGENDADO
-		// Nova mensagem = usuário voltou, cancela o timer de 3min
-		// cancelConversationClose já atualiza estado para idle automaticamente
 		if (conversation.state === 'waiting_close') {
 			await cancelConversationClose(conversation.id);
 			loggers.webhook.info('🔄 Fechamento de conversa cancelado');
 		}
 
-		// 5. DELEGA PARA ORQUESTRADOR (toda lógica aqui)
 		const agentResponse = await agentOrchestrator.processMessage({
 			userId: user.id,
 			conversationId: conversation.id,
@@ -174,75 +140,77 @@ async function processMessage(incomingMsg: IncomingMessage, provider: MessagingP
 			message: messageText,
 		});
 
-		// 6. ENVIA RESPOSTA (se houver)
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
 			await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
 			loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
 		} else {
-			loggers.webhook.info('🚫 NOOP - nenhuma mensagem enviada ao usuário');
+			// Fallback total para garantir que o usuário não fique sem resposta (e o webhook não retente)
+			const fallbackMsg = 'Entendido! 👍';
+			await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
+			loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');
 		}
 
 		if (agentResponse.toolsUsed && agentResponse.toolsUsed.length > 0) {
 			loggers.webhook.info({ tools: agentResponse.toolsUsed }, '🔧 Tools usadas');
 		}
 	} catch (error) {
-		loggers.webhook.error({ err: error }, '❌ Erro ao processar mensagem');
+		logError(error, { context: 'WEBHOOK', provider: provider.getProviderName() });
 
 		const errorMsg = GENERIC_ERROR;
 		await provider.sendMessage(incomingMsg.externalId, errorMsg);
 	}
 }
 
-/**
- * Rotas do webhook
- */
-export const webhookRoutes = new Elysia({ prefix: '/webhook' })
+export const webhookRoutes = new Hono()
 	// TELEGRAM
-	.post('/telegram', async ({ body }) => {
+	.post('/telegram', async (c) => {
 		loggers.webhook.info('🔹 Telegram recebido');
 
 		if (!env.TELEGRAM_BOT_TOKEN) {
-			return { error: 'Telegram not configured' };
+			return c.json({ error: 'Telegram not configured' }, 500);
 		}
 
 		try {
+			const body = await c.req.json();
 			const message = telegramAdapter.parseIncomingMessage(body);
 			if (message) {
 				await processMessage(message, telegramAdapter);
 			}
-			return { ok: true };
+			return c.json({ ok: true });
 		} catch (error) {
-			loggers.webhook.error({ err: error }, '❌ Erro Telegram webhook');
-			return { ok: false };
+			logError(error, { context: 'WEBHOOK', provider: 'telegram' });
+			return c.json({ ok: false }, 500);
 		}
 	})
 
 	// WHATSAPP
-	.get('/meta', ({ query }) => {
+	.get('/meta', (c) => {
+		const query = c.req.query();
 		const mode = query['hub.mode'];
 		const token = query['hub.verify_token'];
 		const challenge = query['hub.challenge'];
 
 		if (mode === 'subscribe' && token === env.META_VERIFY_TOKEN) {
 			loggers.webhook.info('✅ Webhook WhatsApp verificado');
-			return new Response(challenge);
+			return c.text(challenge);
 		}
 
-		return new Response('Verification failed', { status: 403 });
+		return c.text('Verification failed', 403);
 	})
-	.post('/meta', async ({ body }) => {
+	.post('/meta', async (c) => {
 		if (!whatsappAdapter) {
-			return { error: 'WhatsApp not configured' };
+			return c.json({ error: 'WhatsApp not configured' }, 500);
 		}
 
 		try {
+			const body = await c.req.json();
 			const message = whatsappAdapter.parseIncomingMessage(body);
 			if (message) {
 				await processMessage(message, whatsappAdapter);
 			}
-			return { status: 'ok' };
+			return c.json({ status: 'ok' });
 		} catch (error) {
-			loggers.webhook.error({ err: error }, '❌ Erro WhatsApp webhook');
-			return { status: 'error' };
+			logError(error, { context: 'WEBHOOK', provider: 'whatsapp' });
+			return c.json({ status: 'error' }, 500);
 		}
 	});

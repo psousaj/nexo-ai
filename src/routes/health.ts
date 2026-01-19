@@ -1,20 +1,12 @@
-import { Elysia } from 'elysia';
+import { Hono } from 'hono';
 
-export const healthRouter = new Elysia()
+export const healthRouter = new Hono()
 	/**
 	 * GET /health - Health check
 	 */
-	.get(
-		'/health',
-		() => ({
+	.get('/', (c) => {
+		return c.json({
 			status: 'ok',
 			timestamp: new Date().toISOString(),
-		}),
-		{
-			detail: {
-				tags: ['Health'],
-				summary: 'Health check',
-				description: 'Verifica se o serviço está rodando',
-			},
-		}
-	);
+		});
+	});

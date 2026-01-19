@@ -4,19 +4,17 @@ FROM oven/bun AS build
 WORKDIR /app
 
 # Cache packages installation
-COPY package.json bun.lockb* ./
+COPY package.json pnpm-lock.yaml* ./
 
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy source code
-COPY ./src ./src
-COPY ./drizzle.config.ts ./drizzle.config.ts
-COPY ./tsconfig.json ./tsconfig.json
+COPY . .
 
 ENV NODE_ENV=production
 
-# Compile to binary (não usa --minify completo por causa do OpenTelemetry)
-# --minify-whitespace e --minify-syntax preservam nomes de funções
+# Compile to binary
+# --minify-whitespace e --minify-syntax preservam nomes de funções para OpenTelemetry se necessário
 RUN bun build \
     --compile \
     --minify-whitespace \
@@ -36,12 +34,9 @@ COPY --from=build /app/server server
 ENV NODE_ENV=production
 
 # Railway atribui porta aleatória via PORT env var
-# Elysia já lê process.env.PORT automaticamente no index.ts
+# Hono ja lê process.env.PORT no index.ts via @hono/node-server ou env config
 
-# Distroless não tem shell, então não suporta HEALTHCHECK com CMD
-# Railway faz health checks via HTTP automaticamente
-
-# Expose port (Railway ignora isso e usa PORT env)
+# Expose port
 EXPOSE 3000
 
 CMD ["./server"]
