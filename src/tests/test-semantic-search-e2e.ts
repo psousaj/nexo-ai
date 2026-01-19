@@ -64,7 +64,7 @@ async function testSemanticSearchE2E() {
 				userId: user.id,
 				type: movie.type,
 				title: movie.title,
-				description: movie.description,
+				metadata: { overview: movie.description } as any,
 			});
 			console.log(`   ✅ ${movie.title} salvo com embedding`);
 		}
