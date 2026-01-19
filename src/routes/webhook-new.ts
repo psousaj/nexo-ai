@@ -36,7 +36,7 @@ export const webhookRoutes = new Hono()
 						removeOnComplete: true,
 						attempts: 3,
 						backoff: { type: 'exponential', delay: 2000 },
-					}
+					},
 				);
 
 				loggers.webhook.info({ externalId: message.externalId }, '📥 Mensagem enfileirada (Telegram)');
@@ -86,7 +86,7 @@ export const webhookRoutes = new Hono()
 						removeOnComplete: true,
 						attempts: 3,
 						backoff: { type: 'exponential', delay: 2000 },
-					}
+					},
 				);
 
 				loggers.webhook.info({ externalId: message.externalId }, '📥 Mensagem enfileirada (WhatsApp)');

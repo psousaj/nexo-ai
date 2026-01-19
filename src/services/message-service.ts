@@ -85,7 +85,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 	loggers.webhook.info(
 		{ provider: provider.getProviderName(), externalId: incomingMsg.externalId, message: messageText },
-		'📥 Mensagem recebida (Worker)'
+		'📥 Mensagem recebida (Worker)',
 	);
 
 	const startTotal = performance.now();
@@ -96,7 +96,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				incomingMsg.externalId,
 				incomingMsg.provider,
 				incomingMsg.senderName,
-				incomingMsg.phoneNumber
+				incomingMsg.phoneNumber,
 			);
 
 			const timeoutMinutes = await applyTimeout(user.id, incomingMsg.externalId);
@@ -111,7 +111,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			incomingMsg.externalId,
 			incomingMsg.provider,
 			incomingMsg.senderName,
-			incomingMsg.phoneNumber
+			incomingMsg.phoneNumber,
 		);
 
 		if (incomingMsg.senderName && incomingMsg.senderName !== user.name) {

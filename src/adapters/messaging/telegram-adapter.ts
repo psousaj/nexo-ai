@@ -22,7 +22,8 @@ export class TelegramAdapter implements MessagingProvider {
 		// Se for callback query (inline button clicado)
 		if (callbackQuery) {
 			const chatId = callbackQuery.message?.chat?.id?.toString() || callbackQuery.from?.id?.toString();
-			const senderName = [callbackQuery.from.first_name, callbackQuery.from.last_name].filter(Boolean).join(' ') || callbackQuery.from.username || 'Usuário';
+			const senderName =
+				[callbackQuery.from.first_name, callbackQuery.from.last_name].filter(Boolean).join(' ') || callbackQuery.from.username || 'Usuário';
 
 			return {
 				messageId: callbackQuery.id,
@@ -78,8 +79,7 @@ export class TelegramAdapter implements MessagingProvider {
 		// Express usa objeto plain com lowercase keys
 		const headers = request.headers;
 		const secretToken =
-			headers?.get?.('x-telegram-bot-api-secret-token') || // Fetch API (case-insensitive)
-			headers?.['x-telegram-bot-api-secret-token']; // Express-style
+			headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token']; // Fetch API (case-insensitive) // Express-style
 
 		if (secretToken !== this.webhookSecret) {
 			loggers.webhook.error({ secretToken: secretToken || '(nenhum)' }, 'Telegram webhook secret inválido ou ausente');
@@ -95,7 +95,7 @@ export class TelegramAdapter implements MessagingProvider {
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
 			replyToMessageId?: number;
-		}
+		},
 	): Promise<void> {
 		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
@@ -133,7 +133,7 @@ export class TelegramAdapter implements MessagingProvider {
 					chatId,
 					textLength: text.length,
 				},
-				'Erro ao enviar mensagem Telegram'
+				'Erro ao enviar mensagem Telegram',
 			);
 			throw new Error(`Telegram API error [${errorData.error_code}]: ${errorData.description}`);
 		}
@@ -150,7 +150,7 @@ export class TelegramAdapter implements MessagingProvider {
 		buttons: Array<Array<{ text: string; callback_data: string }>>,
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
-		}
+		},
 	): Promise<void> {
 		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
@@ -181,7 +181,7 @@ export class TelegramAdapter implements MessagingProvider {
 					errorCode: errorData.error_code,
 					description: errorData.description,
 				},
-				'Erro ao enviar mensagem com botões'
+				'Erro ao enviar mensagem com botões',
 			);
 			throw new Error(`Telegram API error: ${errorData.description}`);
 		}
@@ -199,7 +199,7 @@ export class TelegramAdapter implements MessagingProvider {
 		buttons?: Array<Array<{ text: string; callback_data: string }>>,
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
-		}
+		},
 	): Promise<void> {
 		const url = `${this.baseUrl}/bot${this.token}/sendPhoto`;
 

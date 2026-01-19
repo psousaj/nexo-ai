@@ -87,7 +87,7 @@ export class AgentOrchestrator {
 		const endIntent = performance.now();
 		loggers.ai.info(
 			{ intent: intent.intent, confidence: intent.confidence, duration: `${(endIntent - startIntent).toFixed(0)}*ms*` },
-			'🧠 Intenção detectada'
+			'🧠 Intenção detectada',
 		);
 
 		// B. CHECAR AMBIGUIDADE (se estado for idle)
@@ -115,7 +115,7 @@ export class AgentOrchestrator {
 				intent: intent.intent,
 				actionDecided: action,
 			},
-			'⚡ Executando ação'
+			'⚡ Executando ação',
 		);
 
 		const startAction = performance.now();
@@ -303,11 +303,7 @@ export class AgentOrchestrator {
 						// Se tem múltiplos resultados, pedir confirmação COM BOTÕES
 						if (result.data?.results && result.data.results.length > 1) {
 							// Usa nova função com botões
-							return await this.sendCandidatesWithButtons(
-								context,
-								conversation,
-								result.data.results
-							);
+							return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
 						} else if (result.data?.results && result.data.results.length === 1) {
 							// Um único resultado - salvar automaticamente
 							const item = result.data.results[0];
@@ -379,7 +375,7 @@ export class AgentOrchestrator {
 			const index = parseInt(context.callbackData.replace('select_', ''), 10);
 			if (!isNaN(index) && contextData.candidates && contextData.candidates[index]) {
 				const selected = contextData.candidates[index];
-				
+
 				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
 				return await this.sendFinalConfirmation(context, conversation, selected);
 			}
@@ -857,7 +853,7 @@ export class AgentOrchestrator {
 			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
 			const genres = candidate.genres?.slice(0, 2).join(', ') || '';
 			const overview = candidate.overview?.substring(0, 80) || '';
-			
+
 			message += `${index + 1}. *${candidate.title}* (${year})\n`;
 			if (genres) message += `   📁 ${genres}\n`;
 			if (overview) message += `   📝 ${overview}...\n`;
@@ -907,12 +903,11 @@ export class AgentOrchestrator {
 		const year = selected.year || selected.release_date?.split('-')[0] || '';
 		const genres = selected.genres?.join(', ') || '';
 		const overview = selected.overview || 'Sem descrição disponível.';
-		const posterUrl = selected.poster_url || selected.poster_path 
-			? `https://image.tmdb.org/t/p/w500${selected.poster_path}` 
-			: null;
+		const posterUrl = selected.poster_url || selected.poster_path ? `https://image.tmdb.org/t/p/w500${selected.poster_path}` : null;
 
 		// Monta caption
-		const caption = `🎬 *${selected.title}* (${year})\n\n` +
+		const caption =
+			`🎬 *${selected.title}* (${year})\n\n` +
 			`📁 Gêneros: ${genres}\n\n` +
 			`📝 ${overview}\n\n` +
 			`É esse ${itemType === 'movie' ? 'filme' : 'série'}?`;
