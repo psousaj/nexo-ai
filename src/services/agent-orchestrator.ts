@@ -51,6 +51,9 @@ export interface AgentContext {
 	conversationId: string;
 	externalId: string;
 	message: string;
+	// Telegram callback data
+	callbackData?: string;
+	provider?: string;
 }
 
 export interface AgentResponse {
@@ -194,7 +197,7 @@ export class AgentOrchestrator {
 	 */
 	private decideAction(intent: IntentResult, state: ConversationState): string {
 		// Confirmação/Negação só importam se estamos aguardando
-		if (state === 'awaiting_confirmation') {
+		if (state === 'awaiting_confirmation' || state === 'awaiting_final_confirmation') {
 			if (intent.action === 'confirm') return 'handle_confirmation';
 			if (intent.action === 'deny') return 'handle_denial';
 		}
@@ -297,22 +300,14 @@ export class AgentOrchestrator {
 					toolsUsed.push(agentResponse.tool);
 
 					if (result.success) {
-						// Se tem múltiplos resultados, pedir confirmação
+						// Se tem múltiplos resultados, pedir confirmação COM BOTÕES
 						if (result.data?.results && result.data.results.length > 1) {
-							// Formatar opções para o usuário
-							const options = result.data.results
-								.map((r: any, i: number) => `${i + 1}. ${r.title || r.name} ${r.year ? `(${r.year})` : ''}`)
-								.join('\n');
-
-							responseMessage = `Encontrei ${result.data.results.length} opções:\n\n${options}\n\nQual você quer salvar?`;
-							nextState = 'awaiting_confirmation';
-
-							// Salvar candidatos no contexto
-							await conversationService.updateState(conversation.id, nextState, {
-								candidates: result.data.results,
-								awaiting_selection: true,
-								detected_type: agentResponse.tool.replace('enrich_', ''),
-							});
+							// Usa nova função com botões
+							return await this.sendCandidatesWithButtons(
+								context,
+								conversation,
+								result.data.results
+							);
 						} else if (result.data?.results && result.data.results.length === 1) {
 							// Um único resultado - salvar automaticamente
 							const item = result.data.results[0];
@@ -378,61 +373,88 @@ export class AgentOrchestrator {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
 
-		// Se há candidatos aguardando seleção
+		// Se usuário clicou em botão de callback (Telegram inline button)
+		// Formato: "select_N" onde N é o índice do candidato
+		if (context.callbackData?.startsWith('select_')) {
+			const index = parseInt(context.callbackData.replace('select_', ''), 10);
+			if (!isNaN(index) && contextData.candidates && contextData.candidates[index]) {
+				const selected = contextData.candidates[index];
+				
+				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
+				return await this.sendFinalConfirmation(context, conversation, selected);
+			}
+		}
+
+		// Se usuário confirmou após ver imagem
+		if (context.callbackData === 'confirm_final') {
+			const selectedItem = contextData.selectedForConfirmation;
+			if (!selectedItem) {
+				return {
+					message: '❌ Erro: item não encontrado. Por favor, tente novamente.',
+					state: 'idle',
+					toolsUsed: [],
+				};
+			}
+
+			const toolContext: ToolContext = {
+				userId: context.userId,
+				conversationId: context.conversationId,
+			};
+
+			const itemType = selectedItem.type || contextData.detected_type || 'note';
+
+			let toolName: ToolName = 'save_note';
+			if (itemType === 'movie') toolName = 'save_movie';
+			else if (itemType === 'tv_show') toolName = 'save_tv_show';
+			else if (itemType === 'video') toolName = 'save_video';
+			else if (itemType === 'link') toolName = 'save_link';
+
+			await executeTool(toolName as any, toolContext, {
+				...selectedItem,
+			});
+
+			// Limpar contexto após salvar
+			await conversationService.updateState(conversation.id, 'idle', {
+				candidates: null,
+				awaiting_selection: false,
+				selectedForConfirmation: null,
+			} as any);
+
+			// Lista itens após salvar
+			const listResult = await executeTool('search_items', toolContext, { limit: 5 });
+			const itemsList =
+				listResult.success && listResult.data?.length > 0
+					? `\n\n📋 Últimos itens salvos:\n${listResult.data
+							.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`)
+							.join('\n')}`
+					: '';
+
+			return {
+				message: `✅ ${selectedItem.title} salvo!${itemsList}`,
+				state: 'idle',
+				toolsUsed: [toolName],
+			};
+		}
+
+		// Se usuário pediu para escolher novamente
+		if (context.callbackData === 'choose_again') {
+			// Volta para lista de candidatos
+			await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+				selectedForConfirmation: null,
+			} as any);
+
+			return await this.sendCandidatesWithButtons(context, conversation, contextData.candidates);
+		}
+
+		// Se há candidatos aguardando seleção (fallback texto)
 		if (contextData.candidates && Array.isArray(contextData.candidates)) {
 			const selection = intent.entities?.selection;
 
 			if (selection && selection <= contextData.candidates.length) {
 				const selected = contextData.candidates[selection - 1];
 
-				// Salva o item selecionado
-				const toolContext: ToolContext = {
-					userId: context.userId,
-					conversationId: context.conversationId,
-				};
-
-				// Determinar qual tool usar (prioriza tipo do item, fallback para tipo detectado no contexto)
-				const itemType = selected.type || contextData.detected_type || 'note';
-
-				let toolName: ToolName = 'save_note';
-				if (itemType === 'movie') toolName = 'save_movie';
-				else if (itemType === 'tv_show') toolName = 'save_tv_show';
-				else if (itemType === 'video') toolName = 'save_video';
-				else if (itemType === 'link') toolName = 'save_link';
-
-				// Mensagem de enrichment
-				// FIX: Usando enrichmentMessages apenas se for um tipo enriquecível
-				if (['movie', 'tv_show'].includes(itemType)) {
-					const enrichMsg = enrichmentMessages[Math.floor(Math.random() * enrichmentMessages.length)];
-					// Aqui seria ideal enviar uma mensagem intermediária, mas a arquitetura atual retorna apenas uma resposta
-					// Vamos apenas logar ou confiar que a tool fará seu trabalho rápido
-					loggers.ai.info({ validation: enrichMsg }, '🔍 Validation log');
-				}
-
-				await executeTool(toolName as any, toolContext, {
-					...selected,
-				});
-
-				// Limpar candidatos do contexto após seleção
-				await conversationService.updateState(conversation.id, 'idle', {
-					candidates: null,
-					awaiting_selection: false,
-				} as any);
-
-				// Lista itens após salvar
-				const listResult = await executeTool('search_items', toolContext, { limit: 5 });
-				const itemsList =
-					listResult.success && listResult.data?.length > 0
-						? `\n\n📋 Últimos itens salvos:\n${listResult.data
-								.map((item: any, i: number) => `${i + 1}. ${item.title || item.content?.substring(0, 50)}`)
-								.join('\n')}`
-						: '';
-
-				return {
-					message: `✅ ${selected.title} salvo!${itemsList}`,
-					state: 'idle',
-					toolsUsed: [toolName],
-				};
+				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
+				return await this.sendFinalConfirmation(context, conversation, selected);
 			}
 		}
 
@@ -818,6 +840,113 @@ export class AgentOrchestrator {
 		return {
 			message: confirmMsg,
 			state: 'awaiting_confirmation',
+		};
+	}
+
+	/**
+	 * Envia lista de candidatos com botões clicáveis (Telegram Inline Keyboard)
+	 */
+	private async sendCandidatesWithButtons(context: AgentContext, conversation: any, candidates: any[]): Promise<AgentResponse> {
+		const contextData = conversation.context || {};
+		const itemType = contextData.detected_type || 'movie';
+
+		// Monta mensagem com descrição + gêneros
+		let message = `🎬 Encontrei ${candidates.length} ${itemType === 'movie' ? 'filmes' : 'séries'}. Qual você quer salvar?\n\n`;
+
+		candidates.forEach((candidate: any, index: number) => {
+			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
+			const genres = candidate.genres?.slice(0, 2).join(', ') || '';
+			const overview = candidate.overview?.substring(0, 80) || '';
+			
+			message += `${index + 1}. *${candidate.title}* (${year})\n`;
+			if (genres) message += `   📁 ${genres}\n`;
+			if (overview) message += `   📝 ${overview}...\n`;
+			message += '\n';
+		});
+
+		// Salva no contexto para uso posterior
+		await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+			candidates,
+			detected_type: itemType,
+		});
+
+		// Se for Telegram, envia com botões
+		if (context.provider === 'telegram') {
+			const buttons = candidates.map((candidate: any, index: number) => [
+				{
+					text: `${index + 1}. ${candidate.title} (${candidate.year || candidate.release_date?.split('-')[0] || ''})`,
+					callback_data: `select_${index}`,
+				},
+			]);
+
+			// Envia diretamente usando o adapter
+			const { telegramAdapter } = await import('@/adapters/messaging');
+			await telegramAdapter.sendMessageWithButtons(context.externalId, message, buttons);
+
+			// Retorna resposta vazia (já enviou manualmente)
+			return {
+				message: '',
+				state: 'awaiting_confirmation',
+				toolsUsed: [],
+			};
+		}
+
+		// Fallback: mensagem texto simples
+		return {
+			message,
+			state: 'awaiting_confirmation',
+			toolsUsed: [],
+		};
+	}
+
+	/**
+	 * Envia confirmação final com imagem + detalhes + botões
+	 */
+	private async sendFinalConfirmation(context: AgentContext, conversation: any, selected: any): Promise<AgentResponse> {
+		const itemType = selected.type || 'movie';
+		const year = selected.year || selected.release_date?.split('-')[0] || '';
+		const genres = selected.genres?.join(', ') || '';
+		const overview = selected.overview || 'Sem descrição disponível.';
+		const posterUrl = selected.poster_url || selected.poster_path 
+			? `https://image.tmdb.org/t/p/w500${selected.poster_path}` 
+			: null;
+
+		// Monta caption
+		const caption = `🎬 *${selected.title}* (${year})\n\n` +
+			`📁 Gêneros: ${genres}\n\n` +
+			`📝 ${overview}\n\n` +
+			`É esse ${itemType === 'movie' ? 'filme' : 'série'}?`;
+
+		// Salva item no contexto para confirmação final
+		await conversationService.updateState(conversation.id, 'awaiting_final_confirmation', {
+			selectedForConfirmation: selected,
+		});
+
+		// Se for Telegram e tiver poster, envia foto com botões
+		if (context.provider === 'telegram' && posterUrl) {
+			const buttons = [
+				[
+					{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
+					{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
+				],
+			];
+
+			const { telegramAdapter } = await import('@/adapters/messaging');
+			await telegramAdapter.sendPhoto(context.externalId, posterUrl, caption, buttons);
+
+			return {
+				message: '',
+				state: 'awaiting_final_confirmation',
+				toolsUsed: [],
+			};
+		}
+
+		// Fallback: mensagem texto com opções
+		const fallbackMessage = `${caption}\n\nResponda "sim" para confirmar ou "não" para escolher novamente.`;
+		return {
+			message: fallbackMessage,
+			state: 'awaiting_final_confirmation',
+			toolsUsed: [],
 		};
 	}
 }

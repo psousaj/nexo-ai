@@ -8,7 +8,8 @@ export type ConversationState =
 	| 'idle' // Conversa inativa, pronta para receber comandos
 	| 'processing' // Ação em andamento (evita concorrência)
 	| 'awaiting_context' // Aguardando contexto do usuário
-	| 'awaiting_confirmation' // Aguardando confirmação do usuário
+	| 'awaiting_confirmation' // Aguardando confirmação do usuário (lista com botões)
+	| 'awaiting_final_confirmation' // Aguardando confirmação final com imagem
 	| 'enriching' // Buscando informações adicionais
 	| 'saving' // Salvando o conteúdo
 	| 'error' // Estado de erro
@@ -90,6 +91,10 @@ export interface MovieMetadata {
 	poster_url?: string;
 	director?: string;
 	cast?: string[];
+	// 🔥 Campos para enrichment semântico
+	overview?: string; // Sinopse do filme
+	tagline?: string; // Frase de efeito
+	keywords?: string[]; // Keywords TMDB (CRÍTICO para busca)
 }
 
 export interface TVShowMetadata {
@@ -108,6 +113,10 @@ export interface TVShowMetadata {
 	poster_url?: string;
 	created_by?: string[];
 	cast?: string[];
+	// 🔥 Campos para enrichment semântico
+	overview?: string; // Sinopse da série
+	tagline?: string; // Frase de efeito
+	keywords?: string[]; // Keywords TMDB (CRÍTICO para busca)
 }
 
 export interface VideoMetadata {

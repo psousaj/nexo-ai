@@ -1,10 +1,12 @@
 import { db } from '@/db';
 import { memoryItems } from '@/db/schema';
-import { eq, and, desc, sql, or, inArray, cosineDistance } from 'drizzle-orm';
+import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
 import type { ItemType, ItemMetadata } from '@/types';
 import { createHash } from 'crypto';
 import { embeddingService } from './ai/embedding-service';
+import { cosineSimilarity } from 'ai';
+import { expandMovieQuery } from './query-expansion';
 
 /**
  * Resultado da verificação de duplicata
@@ -88,8 +90,8 @@ export class ItemService {
 					and(
 						eq(memoryItems.userId, userId),
 						eq(memoryItems.type, type),
-						sql`LOWER(REGEXP_REPLACE(${memoryItems.title}, '[^a-zA-Z0-9]', '', 'g')) = ${normalizedTitle}`
-					)
+						sql`LOWER(REGEXP_REPLACE(${memoryItems.title}, '[^a-zA-Z0-9]', '', 'g')) = ${normalizedTitle}`,
+					),
 				)
 				.limit(1);
 
@@ -183,47 +185,90 @@ export class ItemService {
 	}
 
 	/**
-	 * Prepara um texto rico para gerar embedding
-	 * Prioriza campos mais importantes primeiro (caso precise truncar)
+	 * 🔥 Prepara documento semântico ENRIQUECIDO para embedding
+	 *
+	 * Estratégia: Concatena campos CRÍTICOS para busca semântica
+	 * - Keywords TMDB (ouro puro)
+	 * - Overview/Sinopse (contexto rico)
+	 * - Tagline (frase de efeito)
+	 * - Gêneros
+	 * - Elenco/Diretor (contexto adicional)
+	 *
+	 * Referência: ADR-014 (Document Enrichment Strategy)
 	 */
 	private prepareTextForEmbedding(params: { type: ItemType; title: string; metadata?: ItemMetadata }): string {
 		const { type, title, metadata } = params;
-		
-		// Campos prioritários primeiro (não serão truncados)
-		let text = `Tipo: ${type}. Título: ${title}.`;
 
-		if (metadata) {
-			// Gêneros (curto e importante)
-			if ('genres' in metadata && Array.isArray(metadata.genres)) {
-				text += ` Gêneros: ${metadata.genres.join(', ')}.`;
+		// Base: tipo + título
+		let text = `Título: ${title}.`;
+
+		if (!metadata) {
+			return text;
+		}
+
+		// 🎬 FILMES E SÉRIES (usa TMDB enrichment)
+		if (type === 'movie' || type === 'tv_show') {
+			const tmdbMeta = metadata as MovieMetadata | TVShowMetadata;
+
+			// 🔥 KEYWORDS (CRÍTICO - maior peso semântico)
+			if (tmdbMeta.keywords && tmdbMeta.keywords.length > 0) {
+				text += ` Palavras-chave: ${tmdbMeta.keywords.join(', ')}.`;
 			}
-			
-			// Diretor (curto e importante)
-			if ('director' in metadata && metadata.director) {
-				text += ` Diretor: ${metadata.director}.`;
+
+			// 📝 OVERVIEW (sinopse - contexto rico)
+			if (tmdbMeta.overview) {
+				text += ` Sinopse: ${tmdbMeta.overview}.`;
 			}
-			
-			// Overview (longo, pode ser truncado pelo EmbeddingService)
-			if ('overview' in metadata && metadata.overview) {
-				text += ` Sinopse: ${metadata.overview}`;
+
+			// 💬 TAGLINE (frase de efeito)
+			if (tmdbMeta.tagline) {
+				text += ` Tagline: ${tmdbMeta.tagline}.`;
 			}
-			
-			// Elenco (longo, menos prioritário)
-			if ('cast' in metadata && Array.isArray(metadata.cast)) {
-				const mainCast = metadata.cast.slice(0, 5); // Apenas top 5
+
+			// 🎭 GÊNEROS (importante para categorização)
+			if (tmdbMeta.genres && tmdbMeta.genres.length > 0) {
+				text += ` Gêneros: ${tmdbMeta.genres.join(', ')}.`;
+			}
+
+			// 🎬 DIRETOR/CRIADOR (contexto adicional)
+			if ('director' in tmdbMeta && tmdbMeta.director) {
+				text += ` Diretor: ${tmdbMeta.director}.`;
+			} else if ('created_by' in tmdbMeta && tmdbMeta.created_by && tmdbMeta.created_by.length > 0) {
+				text += ` Criador: ${tmdbMeta.created_by.join(', ')}.`;
+			}
+
+			// 👥 ELENCO (top 3 para não poluir)
+			if (tmdbMeta.cast && tmdbMeta.cast.length > 0) {
+				const mainCast = tmdbMeta.cast.slice(0, 3);
 				text += ` Elenco: ${mainCast.join(', ')}.`;
 			}
-			
-			// Conteúdo completo (notas - pode ser muito longo)
-			if ('full_content' in metadata && metadata.full_content) {
-				text += ` Conteúdo: ${metadata.full_content}`;
+		}
+		// 📺 VÍDEOS (YouTube/Vimeo)
+		else if (type === 'video') {
+			const videoMeta = metadata as any;
+			if (videoMeta.channel_name) {
+				text += ` Canal: ${videoMeta.channel_name}.`;
+			}
+		}
+		// 🔗 LINKS (OpenGraph)
+		else if (type === 'link') {
+			const linkMeta = metadata as any;
+			if (linkMeta.og_description) {
+				text += ` Descrição: ${linkMeta.og_description}.`;
+			}
+			if (linkMeta.domain) {
+				text += ` Domínio: ${linkMeta.domain}.`;
+			}
+		}
+		// 📝 NOTAS (conteúdo completo)
+		else if (type === 'note') {
+			const noteMeta = metadata as any;
+			if (noteMeta.full_content) {
+				text += ` Conteúdo: ${noteMeta.full_content}`;
 			}
 		}
 
-		loggers.db.debug(
-			{ textLength: text.length, type },
-			'📝 Texto preparado para embedding'
-		);
+		loggers.db.debug({ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords }, '📝 Documento semântico preparado');
 
 		return text;
 	}
@@ -335,33 +380,63 @@ export class ItemService {
 	 */
 	/**
 	 * Busca semântica (Hybrid Search: Vector + Keyword)
+	 * Usa cosineSimilarity da biblioteca 'ai' para cálculo preciso
+	 * + Query Expansion para melhorar recall
 	 */
 	async searchItems(params: { userId: string; query: string; limit?: number }) {
 		const { userId, query, limit = 10 } = params;
 		const searchPattern = `%${query}%`;
 
 		try {
-			// 1. TENTA BUSCA VETORIAL (Semântica)
-			const queryEmbedding = await embeddingService.generateEmbedding(query);
+			// 🔥 QUERY EXPANSION (adiciona termos relacionados)
+			const expandedQuery = expandMovieQuery(query);
+			loggers.db.debug({ original: query, expanded: expandedQuery.substring(0, 100) }, '🔍 Query expandida');
 
-			// Cálculo de similaridade: 1 - cosine_distance
-			const similarity = sql<number>`1 - (${cosineDistance(memoryItems.embedding, queryEmbedding)})`;
+			// 1. BUSCA VETORIAL (Semântica)
+			const queryEmbedding = await embeddingService.generateEmbedding(expandedQuery);
 
-			const vectorResults = await db
-				.select()
+			// Busca todos os itens com embedding
+			const itemsWithEmbedding = await db
+				.select({
+					id: memoryItems.id,
+					title: memoryItems.title,
+					type: memoryItems.type,
+					metadata: memoryItems.metadata,
+					embedding: memoryItems.embedding,
+					createdAt: memoryItems.createdAt,
+				})
 				.from(memoryItems)
-				.where(
-					and(
-						eq(memoryItems.userId, userId),
-						sql`${memoryItems.embedding} IS NOT NULL`,
-						sql`1 - (${cosineDistance(memoryItems.embedding, queryEmbedding)}) > 0.3` // Threshold de similaridade
-					)
-				)
-				.orderBy(desc(similarity))
-				.limit(limit);
+				.where(and(eq(memoryItems.userId, userId), sql`${memoryItems.embedding} IS NOT NULL`));
+
+			if (itemsWithEmbedding.length === 0) {
+				loggers.db.warn('Nenhum item com embedding encontrado');
+				throw new Error('No embeddings available');
+			}
+
+			// Calcula similaridade usando biblioteca 'ai' (battle-tested)
+			const itemsWithSimilarity = itemsWithEmbedding.map((item) => {
+				const similarity = cosineSimilarity(queryEmbedding, item.embedding as number[]);
+				return {
+					...item,
+					similarity,
+				};
+			});
+
+			// Filtra por threshold e ordena por similaridade
+			const SIMILARITY_THRESHOLD = 0.3; // 30% de similaridade mínima
+			const vectorResults = itemsWithSimilarity
+				.filter((item) => item.similarity > SIMILARITY_THRESHOLD)
+				.sort((a, b) => b.similarity - a.similarity)
+				.slice(0, limit);
 
 			if (vectorResults.length > 0) {
-				loggers.db.info({ count: vectorResults.length }, '🔍 Encontrados resultados via pgvector');
+				loggers.db.info(
+					{
+						count: vectorResults.length,
+						topSimilarity: vectorResults[0].similarity.toFixed(3),
+					},
+					'🔍 Busca semântica bem-sucedida',
+				);
 				return vectorResults;
 			}
 		} catch (error) {
@@ -378,9 +453,9 @@ export class ItemService {
 					eq(memoryItems.userId, userId),
 					or(
 						sql`LOWER(${memoryItems.title}) LIKE LOWER(${searchPattern})`,
-						sql`CAST(${memoryItems.metadata} AS TEXT) ILIKE ${searchPattern}`
-					)
-				)
+						sql`CAST(${memoryItems.metadata} AS TEXT) ILIKE ${searchPattern}`,
+					),
+				),
 			)
 			.orderBy(desc(memoryItems.createdAt))
 			.limit(limit);
@@ -430,7 +505,7 @@ export class ItemService {
           OR 
           (${memoryItems.type} = 'tv_show' AND 
            (${memoryItems.metadata}->>'first_air_date')::int BETWEEN ${minYear} AND ${maxYear})
-        )`
+        )`,
 			);
 		}
 
@@ -439,12 +514,12 @@ export class ItemService {
 			if (hasStreaming) {
 				conditions.push(
 					sql`${memoryItems.metadata}->'streaming' IS NOT NULL AND 
-              jsonb_array_length(${memoryItems.metadata}->'streaming') > 0`
+              jsonb_array_length(${memoryItems.metadata}->'streaming') > 0`,
 				);
 			} else {
 				conditions.push(
 					sql`(${memoryItems.metadata}->'streaming' IS NULL OR 
-               jsonb_array_length(${memoryItems.metadata}->'streaming') = 0)`
+               jsonb_array_length(${memoryItems.metadata}->'streaming') = 0)`,
 				);
 			}
 		}

@@ -17,6 +17,7 @@ Registro de decisões arquiteturais do Nexo AI.
 - [ADR-011](011-deterministic-runtime-control.md) - Controle runtime determinístico (v0.3.0)
 - [ADR-012](012-bun-test-framework.md) - Bun Test como framework de testes
 - [ADR-013](013-conversational-anamnesis.md) - Anamnese conversacional (clarificação N1/N2)
+- [ADR-014](014-document-enrichment-strategy.md) - Document Enrichment para busca semântica (v0.3.2)
 
 ## Template
 

@@ -25,6 +25,7 @@
         "@hono/zod-validator": "^0.7.6",
         "@toon-format/toon": "^2.1.0",
         "@types/bull": "^4.10.4",
+        "ai": "^6.0.41",
         "bull": "^4.16.5",
         "dotenv": "^17.2.3",
         "drizzle-orm": "^0.45.1",

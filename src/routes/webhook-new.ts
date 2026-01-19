@@ -20,6 +20,11 @@ export const webhookRoutes = new Hono()
 			const message = telegramAdapter.parseIncomingMessage(body);
 
 			if (message) {
+				// Se for callback query, responde imediatamente
+				if (message.callbackQueryId) {
+					await telegramAdapter.answerCallbackQuery(message.callbackQueryId);
+				}
+
 				// Enfileira processamento assíncrono
 				await messageQueue.add(
 					'message-processing',

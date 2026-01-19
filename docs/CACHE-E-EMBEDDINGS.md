@@ -188,29 +188,43 @@ Usuário busca: **"filme sobre sonhos"**
 
 ```typescript
 // src/services/item-service.ts
+import { cosineSimilarity } from 'ai';
 
 async searchItems(query: string, userId: string) {
   // 1. Gera embedding da query
   const queryEmbedding = await embeddingService.generateEmbedding("filme sobre sonhos");
 
-  // 2. Calcula similaridade de cosseno (1 = idêntico, 0 = diferente)
-  const similarity = sql`1 - (embedding <=> ${queryEmbedding})`;
-
-  // 3. Busca itens com similaridade > 0.3
-  const results = await db
-    .select({ item, similarity })
+  // 2. Busca todos os itens com embedding
+  const itemsWithEmbedding = await db.select()
     .from(memoryItems)
     .where(and(
       eq(memoryItems.userId, userId),
-      sql`embedding IS NOT NULL`,
-      sql`1 - (embedding <=> ${queryEmbedding}) > 0.3` // Threshold
-    ))
-    .orderBy(desc(similarity))
-    .limit(10);
+      sql`${memoryItems.embedding} IS NOT NULL`
+    ));
+
+  // 3. Calcula similaridade usando biblioteca 'ai' (battle-tested)
+  const itemsWithSimilarity = itemsWithEmbedding.map(item => ({
+    ...item,
+    similarity: cosineSimilarity(queryEmbedding, item.embedding)
+  }));
+
+  // 4. Filtra por threshold (30% mínimo) e ordena
+  const results = itemsWithSimilarity
+    .filter(item => item.similarity > 0.3)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 10);
 
   return results; // "Inception" (0.87), "A Origem" (0.85), ...
 }
 ```
+
+**Por quê ai SDK?**
+
+- ✅ Battle-tested (Vercel AI SDK usado em produção por milhares)
+- ✅ Otimizado para diferentes tipos de embeddings
+- ✅ Elimina cálculos SQL complexos com pgvector operators
+- ✅ Mais fácil debugar (JavaScript puro vs SQL)
+- ⚠️ Trade-off: busca todos embeddings em memória (OK para datasets <10K itens)
 
 ### Vantagens da Busca Vetorial
 
@@ -221,13 +235,11 @@ SELECT * FROM items WHERE title ILIKE '%sonho%';
 -- ❌ Não encontra "Inception" (título não tem "sonho")
 ```
 
-**Busca semântica (Vector)**:
+**Busca semântica (Vector com cosineSimilarity)**:
 
-```sql
-SELECT * FROM items
-WHERE 1 - (embedding <=> query_vector) > 0.3
-ORDER BY similarity DESC;
--- ✅ Encontra "Inception" (embedding entende que é sobre sonhos)
+```typescript
+// ✅ Encontra "Inception" (embedding entende que é sobre sonhos)
+cosineSimilarity(queryEmbedding, inceptionEmbedding); // 0.87 (87%)
 ```
 
 ---

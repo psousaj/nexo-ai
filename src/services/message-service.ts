@@ -138,6 +138,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			conversationId: conversation.id,
 			externalId: incomingMsg.externalId,
 			message: messageText,
+			callbackData: incomingMsg.callbackData,
+			provider: provider.getProviderName(),
 		});
 
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {

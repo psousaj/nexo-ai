@@ -15,8 +15,26 @@ export class TelegramAdapter implements MessagingProvider {
 	}
 
 	parseIncomingMessage(payload: any): IncomingMessage | null {
-		// Telegram Update pode ter message ou edited_message
+		// Telegram Update pode ter message, edited_message ou callback_query
 		const message = payload.message || payload.edited_message;
+		const callbackQuery = payload.callback_query;
+
+		// Se for callback query (inline button clicado)
+		if (callbackQuery) {
+			const chatId = callbackQuery.message?.chat?.id?.toString() || callbackQuery.from?.id?.toString();
+			const senderName = [callbackQuery.from.first_name, callbackQuery.from.last_name].filter(Boolean).join(' ') || callbackQuery.from.username || 'Usuário';
+
+			return {
+				messageId: callbackQuery.id,
+				externalId: chatId,
+				senderName,
+				text: callbackQuery.data || '', // callback_data vira o "texto"
+				timestamp: new Date(),
+				provider: 'telegram',
+				callbackQueryId: callbackQuery.id,
+				callbackData: callbackQuery.data,
+			};
+		}
 
 		if (!message) {
 			return null;
@@ -124,6 +142,127 @@ export class TelegramAdapter implements MessagingProvider {
 	}
 
 	/**
+	 * Envia mensagem com inline keyboard (botões clicáveis)
+	 */
+	async sendMessageWithButtons(
+		chatId: string,
+		text: string,
+		buttons: Array<Array<{ text: string; callback_data: string }>>,
+		options?: {
+			parseMode?: 'MarkdownV2' | 'HTML';
+		}
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
+
+		const payload: any = {
+			chat_id: chatId,
+			text,
+			reply_markup: {
+				inline_keyboard: buttons,
+			},
+		};
+
+		if (options?.parseMode) {
+			payload.parse_mode = options.parseMode;
+		}
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			loggers.webhook.error(
+				{
+					errorCode: errorData.error_code,
+					description: errorData.description,
+				},
+				'Erro ao enviar mensagem com botões'
+			);
+			throw new Error(`Telegram API error: ${errorData.description}`);
+		}
+
+		loggers.webhook.info({ chatId, buttonsCount: buttons.flat().length }, 'Mensagem com botões enviada');
+	}
+
+	/**
+	 * Envia foto com caption e botões
+	 */
+	async sendPhoto(
+		chatId: string,
+		photoUrl: string,
+		caption?: string,
+		buttons?: Array<Array<{ text: string; callback_data: string }>>,
+		options?: {
+			parseMode?: 'MarkdownV2' | 'HTML';
+		}
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendPhoto`;
+
+		const payload: any = {
+			chat_id: chatId,
+			photo: photoUrl,
+		};
+
+		if (caption) {
+			payload.caption = caption;
+		}
+
+		if (options?.parseMode) {
+			payload.parse_mode = options.parseMode;
+		}
+
+		if (buttons) {
+			payload.reply_markup = {
+				inline_keyboard: buttons,
+			};
+		}
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const errorData = (await response.json()) as { error_code?: number; description?: string };
+			loggers.webhook.error({ errorCode: errorData.error_code }, 'Erro ao enviar foto');
+			throw new Error(`Telegram API error: ${errorData.description}`);
+		}
+
+		loggers.webhook.info({ chatId }, 'Foto enviada');
+	}
+
+	/**
+	 * Responde a callback query (necessário para remover loading dos botões)
+	 */
+	async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/answerCallbackQuery`;
+
+		const payload: any = {
+			callback_query_id: callbackQueryId,
+		};
+
+		if (text) {
+			payload.text = text;
+		}
+
+		await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+	}
+
+	/**
 	 * Define webhook do Telegram (usar em setup inicial)
 	 */
 	async setWebhook(webhookUrl: string): Promise<void> {
@@ -132,7 +271,7 @@ export class TelegramAdapter implements MessagingProvider {
 		const payload = {
 			url: webhookUrl,
 			secret_token: this.webhookSecret,
-			allowed_updates: ['message', 'edited_message'],
+			allowed_updates: ['message', 'edited_message', 'callback_query'],
 		};
 
 		const response = await fetch(url, {
