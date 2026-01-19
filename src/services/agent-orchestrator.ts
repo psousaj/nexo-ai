@@ -369,6 +369,9 @@ export class AgentOrchestrator {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
 
+		// DEBUG: Log para verificar callbackData
+		loggers.ai.info({ callbackData: context.callbackData, provider: context.provider, state: conversation.state }, '🐛 [DEBUG] handleConfirmation');
+
 		// Se usuário clicou em botão de callback (Telegram inline button)
 		// Formato: "select_N" onde N é o índice do candidato
 		if (context.callbackData?.startsWith('select_')) {
@@ -846,29 +849,33 @@ export class AgentOrchestrator {
 		const contextData = conversation.context || {};
 		const itemType = contextData.detected_type || 'movie';
 
-		// Monta mensagem com descrição + gêneros
-		let message = `🎬 Encontrei ${candidates.length} ${itemType === 'movie' ? 'filmes' : 'séries'}. Qual você quer salvar?\n\n`;
+		// Limita para 7 candidatos (melhor UX)
+		const limitedCandidates = candidates.slice(0, 7);
 
-		candidates.forEach((candidate: any, index: number) => {
+		// Monta mensagem com descrição + gêneros
+		let message = `🎬 Encontrei ${limitedCandidates.length} ${itemType === 'movie' ? 'filmes' : 'séries'}. Qual você quer salvar?\n\n`;
+
+		limitedCandidates.forEach((candidate: any, index: number) => {
 			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
 			const genres = candidate.genres?.slice(0, 2).join(', ') || '';
-			const overview = candidate.overview?.substring(0, 80) || '';
+			const overview = candidate.overview || '';
+			const overviewSnippet = overview.length > 300 ? `${overview.substring(0, 300)}...` : overview;
 
 			message += `${index + 1}. *${candidate.title}* (${year})\n`;
 			if (genres) message += `   📁 ${genres}\n`;
-			if (overview) message += `   📝 ${overview}...\n`;
+			if (overviewSnippet) message += `   📝 ${overviewSnippet}\n`;
 			message += '\n';
 		});
 
-		// Salva no contexto para uso posterior
+		// Salva no contexto para uso posterior (candidatos limitados)
 		await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
-			candidates,
+			candidates: limitedCandidates,
 			detected_type: itemType,
 		});
 
 		// Se for Telegram, envia com botões
 		if (context.provider === 'telegram') {
-			const buttons = candidates.map((candidate: any, index: number) => [
+			const buttons = limitedCandidates.map((candidate: any, index: number) => [
 				{
 					text: `${index + 1}. ${candidate.title} (${candidate.year || candidate.release_date?.split('-')[0] || ''})`,
 					callback_data: `select_${index}`,
@@ -903,14 +910,15 @@ export class AgentOrchestrator {
 		const year = selected.year || selected.release_date?.split('-')[0] || '';
 		const genres = selected.genres?.join(', ') || '';
 		const overview = selected.overview || 'Sem descrição disponível.';
+		const rating = selected.vote_average ? `⭐ ${selected.vote_average.toFixed(1)}/10` : '';
 		const posterUrl = selected.poster_url || selected.poster_path ? `https://image.tmdb.org/t/p/w500${selected.poster_path}` : null;
 
-		// Monta caption
-		const caption =
-			`🎬 *${selected.title}* (${year})\n\n` +
-			`📁 Gêneros: ${genres}\n\n` +
-			`📝 ${overview}\n\n` +
-			`É esse ${itemType === 'movie' ? 'filme' : 'série'}?`;
+		// Monta caption com rating e overview completo
+		let caption = `🎬 *${selected.title}* (${year})\n`;
+		if (rating) caption += `${rating}\n`;
+		if (genres) caption += `📁 Gêneros: ${genres}\n`;
+		caption += `\n📝 ${overview}\n\n`;
+		caption += `É esse ${itemType === 'movie' ? 'filme' : 'série'}?`;
 
 		// Salva item no contexto para confirmação final
 		await conversationService.updateState(conversation.id, 'awaiting_final_confirmation', {
@@ -936,10 +944,19 @@ export class AgentOrchestrator {
 			};
 		}
 
-		// Fallback: mensagem texto com opções
-		const fallbackMessage = `${caption}\n\nResponda "sim" para confirmar ou "não" para escolher novamente.`;
+		// Fallback: se provider não é Telegram, envia sem imagem mas COM botões
+		const buttons = [
+			[
+				{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
+				{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
+			],
+		];
+
+		const { telegramAdapter } = await import('@/adapters/messaging');
+		await telegramAdapter.sendMessageWithButtons(context.externalId, caption, buttons);
+
 		return {
-			message: fallbackMessage,
+			message: '',
 			state: 'awaiting_final_confirmation',
 			toolsUsed: [],
 		};
