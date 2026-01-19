@@ -1,42 +1,28 @@
-# Build stage
-FROM oven/bun AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Cache packages installation
-COPY package.json pnpm-lock.yaml* ./
 
-RUN bun install
+# Instala todas dependências (inclui dev para build)
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm && pnpm install
 
-# Copy source code
+# Copia o restante do projeto
 COPY . .
 
-ENV NODE_ENV=production
+# Builda o projeto (ajuste para seu comando de build)
+RUN pnpm run build
 
-# Compile to binary
-# --minify-whitespace e --minify-syntax preservam nomes de funções para OpenTelemetry se necessário
-RUN bun build \
-    --compile \
-    --minify-whitespace \
-    --minify-syntax \
-    --target bun-linux-x64 \
-    --outfile server \
-    src/index.ts
-
-# Production stage (Distroless - sem shell, menor superfície de ataque)
-FROM gcr.io/distroless/base
-
+# Stage final para produção
+FROM node:20-alpine
 WORKDIR /app
-
-# Copy binary from build stage
-COPY --from=build /app/server server
+COPY --from=build /app /app
 
 ENV NODE_ENV=production
 
-# Railway atribui porta aleatória via PORT env var
-# Hono ja lê process.env.PORT no index.ts via @hono/node-server ou env config
-
-# Expose port
+# Exponha a porta usada pelo app
 EXPOSE 3000
 
-CMD ["./server"]
+# Comando de inicialização (ajuste se o entrypoint for diferente)
+CMD ["node", "dist/index.js"]
+

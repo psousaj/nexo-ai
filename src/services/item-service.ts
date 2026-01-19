@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { memoryItems } from '@/db/schema';
 import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
-import type { ItemType, ItemMetadata } from '@/types';
+import type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata } from '@/types/index';
 import { createHash } from 'crypto';
 import { embeddingService } from './ai/embedding-service';
 import { cosineSimilarity } from 'ai';
