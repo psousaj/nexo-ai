@@ -246,12 +246,29 @@ export const ALREADY_SAVED_PROMPT = (title: string, type: string) => `📝 "${ti
 export const TIMEOUT_MESSAGE = (minutes: number) =>
 	`🚫 Por favor, mantenha uma comunicação respeitosa. Vou dar um tempo de ${minutes} minutos antes de continuar te ajudando.`;
 
+// Respostas casuais por categoria
+export const CASUAL_RESPONSES = {
+	greetings: ['Oi! 👋', 'Olá! 👋', 'E aí! 👋', 'Opa! 👋'],
+	thanks: ['Por nada! 😊', 'Disponha! 😊', 'Tmj! 🤝', 'Sempre! 😊'],
+	farewell: ['Até logo! 👋', 'Falou! 👋', 'Até mais! 👋'],
+	default: ['Oi! 👋', 'Olá! Como posso ajudar?'],
+};
+
+// Mapeamento de mensagens específicas (retrocompatibilidade)
 export const CASUAL_GREETINGS: Record<string, string> = {
 	oi: 'Oi! 👋',
 	olá: 'Olá! 👋',
+	'e aí': 'E aí! 👋',
+	opa: 'Opa! 👋',
 	'tudo bem': 'Tudo ótimo! E você?',
-	obrigado: 'De nada! 😊',
+	obrigado: 'Por nada! 😊',
+	obrigada: 'Por nada! 😊',
+	valeu: 'Tmj! 🤝',
+	vlw: 'Tmj! 🤝',
+	thanks: 'Sempre! 😊',
 	tchau: 'Até logo! 👋',
+	até: 'Até mais! 👋',
+	flw: 'Falou! 👋',
 };
 
 // ============================================================================

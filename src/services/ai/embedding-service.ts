@@ -71,7 +71,10 @@ export class EmbeddingService {
 				throw new Error(`Cloudflare API error (${response.status}): ${errorText}`);
 			}
 
-			const data = await response.json();
+			const data = (await response.json()) as {
+				success: boolean;
+				result?: { data?: number[][] };
+			};
 
 			// Log da resposta para debug
 			loggers.enrichment.debug(
@@ -84,7 +87,7 @@ export class EmbeddingService {
 			);
 
 			// Cloudflare retorna: { success: true, result: { data: [[...embedding...]] } }
-			const embedding = data.result.data[0];
+			const embedding = data.result?.data?.[0];
 
 			if (!embedding || !Array.isArray(embedding)) {
 				throw new Error('Formato de resposta inválido da API Cloudflare');

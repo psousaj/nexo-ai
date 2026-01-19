@@ -145,8 +145,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
 			await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
 			loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
-		} else {
-			// Fallback total para garantir que o usuário não fique sem resposta (e o webhook não retente)
+		} else if (!agentResponse.skipFallback) {
+			// Fallback apenas se não foi enviado manualmente via adapter
 			const fallbackMsg = 'Entendido! 👍';
 			await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
 			loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');

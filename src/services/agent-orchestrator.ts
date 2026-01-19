@@ -60,6 +60,7 @@ export interface AgentResponse {
 	message: string;
 	state: ConversationState;
 	toolsUsed?: string[];
+	skipFallback?: boolean; // Flag para não enviar fallback quando já enviou manualmente
 }
 
 /**
@@ -151,7 +152,7 @@ export class AgentOrchestrator {
 				break;
 
 			case 'handle_casual':
-				response = await this.handleCasual(context);
+				response = await this.handleCasual(context, intent, conversation);
 				break;
 
 			case 'handle_get_assistant_name':
@@ -300,17 +301,17 @@ export class AgentOrchestrator {
 					toolsUsed.push(agentResponse.tool);
 
 					if (result.success) {
-						// Se tem múltiplos resultados, pedir confirmação COM BOTÕES
-						if (result.data?.results && result.data.results.length > 1) {
-							// Usa nova função com botões
+						// Se tem resultados
+						if (result.data?.results && result.data.results.length > 0) {
+							// Se é 1 resultado: pula lista, vai direto pro poster
+							if (result.data.results.length === 1) {
+								return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+							}
+							// Se são múltiplos: mostra lista com botões
 							return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-						} else if (result.data?.results && result.data.results.length === 1) {
-							// Um único resultado - salvar automaticamente
-							const item = result.data.results[0];
-							responseMessage = `✅ Salvo: ${item.title} ${item.year ? `(${item.year})` : ''}`;
 						} else if (result.message) {
 							// Mensagem específica da tool
-							responseMessage = result.message;
+							responseMessage = result.message || '';
 						} else {
 							// Mensagens genéricas amigáveis baseadas na tool
 							responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
@@ -370,7 +371,10 @@ export class AgentOrchestrator {
 		const contextData = conversation.context || {};
 
 		// DEBUG: Log para verificar callbackData
-		loggers.ai.info({ callbackData: context.callbackData, provider: context.provider, state: conversation.state }, '🐛 [DEBUG] handleConfirmation');
+		loggers.ai.info(
+			{ callbackData: context.callbackData, provider: context.provider, state: conversation.state },
+			'🐛 [DEBUG] handleConfirmation',
+		);
 
 		// Se usuário clicou em botão de callback (Telegram inline button)
 		// Formato: "select_N" onde N é o índice do candidato
@@ -590,11 +594,36 @@ export class AgentOrchestrator {
 	}
 
 	/**
-	 * Trata conversa casual (sem LLM)
+	 * Trata conversa casual (sem LLM) com respostas contextuais
 	 */
-	private async handleCasual(context: AgentContext): Promise<AgentResponse> {
+	private async handleCasual(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		const msg = context.message.toLowerCase().trim();
-		const response = CASUAL_GREETINGS[msg] || 'Oi! 👋';
+		let response: string;
+
+		// 1. Tenta mapeamento direto primeiro (mais rápido)
+		if (CASUAL_GREETINGS[msg]) {
+			response = CASUAL_GREETINGS[msg];
+		}
+		// 2. Usa action do intent para escolher categoria
+		else if (intent.action === 'thank') {
+			// Agradecimento: verifica se acabou de executar algo
+			const { CASUAL_RESPONSES } = await import('@/config/prompts');
+			const history = await conversationService.getHistory(context.conversationId, 3);
+			const lastAssistantMsg = history.find((m) => m.role === 'assistant');
+
+			// Se última mensagem do bot foi confirmação de ação, usa resposta casual
+			if (lastAssistantMsg?.content.includes('✅') || lastAssistantMsg?.content.includes('salvo')) {
+				response = CASUAL_RESPONSES.thanks[Math.floor(Math.random() * CASUAL_RESPONSES.thanks.length)];
+			} else {
+				response = 'De nada! 😊'; // Fallback neutro
+			}
+		} else if (intent.action === 'greet') {
+			const { CASUAL_RESPONSES } = await import('@/config/prompts');
+			response = CASUAL_RESPONSES.greetings[Math.floor(Math.random() * CASUAL_RESPONSES.greetings.length)];
+		} else {
+			// Fallback genérico
+			response = 'Oi! 👋';
+		}
 
 		return {
 			message: response,
@@ -852,8 +881,13 @@ export class AgentOrchestrator {
 		// Limita para 7 candidatos (melhor UX)
 		const limitedCandidates = candidates.slice(0, 7);
 
-		// Monta mensagem com descrição + gêneros
-		let message = `🎬 Encontrei ${limitedCandidates.length} ${itemType === 'movie' ? 'filmes' : 'séries'}. Qual você quer salvar?\n\n`;
+		// Monta mensagem com descrição + gêneros (texto diferente para 1 ou múltiplos)
+		const itemTypePt = itemType === 'movie' ? 'filme' : 'série';
+		const itemTypePtPlural = itemType === 'movie' ? 'filmes' : 'séries';
+		let message =
+			limitedCandidates.length === 1
+				? `🎬 Encontrei este ${itemTypePt}. É esse que você quer?\n\n`
+				: `🎬 Encontrei ${limitedCandidates.length} ${itemTypePtPlural}. Qual você quer salvar?\n\n`;
 
 		limitedCandidates.forEach((candidate: any, index: number) => {
 			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
@@ -891,6 +925,7 @@ export class AgentOrchestrator {
 				message: '',
 				state: 'awaiting_confirmation',
 				toolsUsed: [],
+				skipFallback: true, // Não enviar fallback
 			};
 		}
 
@@ -906,12 +941,30 @@ export class AgentOrchestrator {
 	 * Envia confirmação final com imagem + detalhes + botões
 	 */
 	private async sendFinalConfirmation(context: AgentContext, conversation: any, selected: any): Promise<AgentResponse> {
+		// DEBUG: Log do item selecionado
+		loggers.ai.info(
+			{
+				title: selected.title,
+				poster_path: selected.poster_path,
+				poster_url: selected.poster_url,
+				type: selected.type,
+			},
+			'🎬 [DEBUG] sendFinalConfirmation - item selecionado',
+		);
+
 		const itemType = selected.type || 'movie';
 		const year = selected.year || selected.release_date?.split('-')[0] || '';
 		const genres = selected.genres?.join(', ') || '';
 		const overview = selected.overview || 'Sem descrição disponível.';
 		const rating = selected.vote_average ? `⭐ ${selected.vote_average.toFixed(1)}/10` : '';
-		const posterUrl = selected.poster_url || selected.poster_path ? `https://image.tmdb.org/t/p/w500${selected.poster_path}` : null;
+
+		// Corrige posterUrl: usa poster_url OU constrói a partir de poster_path
+		let posterUrl: string | null = null;
+		if (selected.poster_url) {
+			posterUrl = selected.poster_url;
+		} else if (selected.poster_path) {
+			posterUrl = `https://image.tmdb.org/t/p/w500${selected.poster_path}`;
+		}
 
 		// Monta caption com rating e overview completo
 		let caption = `🎬 *${selected.title}* (${year})\n`;
@@ -935,12 +988,14 @@ export class AgentOrchestrator {
 			];
 
 			const { telegramAdapter } = await import('@/adapters/messaging');
+			loggers.ai.info({ posterUrl, title: selected.title }, '🖼️ Enviando foto do TMDB');
 			await telegramAdapter.sendPhoto(context.externalId, posterUrl, caption, buttons);
 
 			return {
 				message: '',
 				state: 'awaiting_final_confirmation',
 				toolsUsed: [],
+				skipFallback: true, // Não enviar fallback
 			};
 		}
 
@@ -959,6 +1014,7 @@ export class AgentOrchestrator {
 			message: '',
 			state: 'awaiting_final_confirmation',
 			toolsUsed: [],
+			skipFallback: true, // Não enviar fallback
 		};
 	}
 }

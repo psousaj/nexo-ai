@@ -1,3 +1,19 @@
+// Função utilitária para escapar MarkdownV2 conforme documentação oficial Telegram
+// Remove emojis (Unicode ranges)
+function removeEmojis(text: string): string {
+	return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+}
+
+function escapeMarkdownV2(text: string): string {
+	// Remove emojis para evitar problemas
+	let clean = removeEmojis(text);
+	// Escapa caracteres especiais
+	clean = clean.replace(/([_\*\[\]()~`>#+\-=|{}\.!])/g, '\\$1');
+	clean = clean.replace(/([\\])/g, '\\$1');
+	// Escapa quebras de linha para dupla barra
+	clean = clean.replace(/\n/g, '\\\n');
+	return clean;
+}
 import { env } from '@/config/env';
 import { loggers } from '@/utils/logger';
 import type { MessagingProvider, IncomingMessage, ProviderType } from './types';
@@ -78,8 +94,7 @@ export class TelegramAdapter implements MessagingProvider {
 		// Elysia/Fetch API usa Headers object com .get()
 		// Express usa objeto plain com lowercase keys
 		const headers = request.headers;
-		const secretToken =
-			headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token']; // Fetch API (case-insensitive) // Express-style
+		const secretToken = headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token']; // Fetch API (case-insensitive) // Express-style
 
 		if (secretToken !== this.webhookSecret) {
 			loggers.webhook.error({ secretToken: secretToken || '(nenhum)' }, 'Telegram webhook secret inválido ou ausente');
@@ -206,10 +221,17 @@ export class TelegramAdapter implements MessagingProvider {
 		const payload: any = {
 			chat_id: chatId,
 			photo: photoUrl,
+			parse_mode: 'Markdown', // Habilita formatação no caption
 		};
 
 		if (caption) {
-			payload.caption = caption;
+			let safeCaption = escapeMarkdownV2(caption);
+			// Limita a 1024 caracteres
+			if (safeCaption.length > 1024) {
+				safeCaption = safeCaption.slice(0, 1020) + '...';
+			}
+			payload.caption = safeCaption;
+			payload.parse_mode = 'MarkdownV2';
 		}
 
 		if (options?.parseMode) {
@@ -221,6 +243,8 @@ export class TelegramAdapter implements MessagingProvider {
 				inline_keyboard: buttons,
 			};
 		}
+
+		loggers.webhook.info({ chatId, photoUrl, hasCaption: !!caption, hasButtons: !!buttons }, '📤 Enviando foto via Telegram');
 
 		const response = await fetch(url, {
 			method: 'POST',
