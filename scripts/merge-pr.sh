@@ -6,6 +6,14 @@
 
 set -e
 
+# Push da branch atual antes de qualquer coisa
+echo "🚀 Fazendo push da branch atual..."
+CURRENT_BRANCH=$(git branch --show-current)
+git push origin "$CURRENT_BRANCH" --set-upstream || {
+  echo "⚠️  Erro no push, mas continuando..."
+}
+echo ""
+
 # Parse arguments
 TITLE=""
 while [[ $# -gt 0 ]]; do
@@ -37,9 +45,6 @@ if [ -z "$TITLE" ]; then
   
   echo "✅ Usando: $TITLE"
 fi
-
-# Pega branch atual
-CURRENT_BRANCH=$(git branch --show-current)
 
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo "❌ Você está na branch main/master!"
