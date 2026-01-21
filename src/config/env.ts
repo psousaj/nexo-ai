@@ -50,9 +50,13 @@ const envSchema = z.object({
 		.transform((val) => val === 'true')
 		.default('false'),
 
-	// Observability - New Relic (opcional)
+	// Observability - New Relic (opcional em dev, obrigatório em prod se habilitado)
 	NEW_RELIC_LICENSE_KEY: z.string().optional(),
-	NEW_RELIC_APP_NAME: z.string().optional().default('nexo-ai'),
+	NEW_RELIC_APP_NAME: z.string().default('nexo-ai'),
+	NEW_RELIC_ENABLED: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
 
 	// Application
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

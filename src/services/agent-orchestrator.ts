@@ -453,11 +453,7 @@ export class AgentOrchestrator {
 		if (contextData.candidates && Array.isArray(contextData.candidates)) {
 			const selection = intent.entities?.selection;
 
-			if (selection && selection <= contextData.candidates.length) {
-				const selected = contextData.candidates[selection - 1];
-
-				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
-				return await this.sendFinalConfirmation(context, conversation, selected);
+			if (typeof selection === 'number' && selection <= contextData.candidates.length) {
 			}
 		}
 
@@ -726,38 +722,60 @@ export class AgentOrchestrator {
 			conversationId: context.conversationId,
 		};
 
-		// Se tem selection (número), busca primeiro para pegar ID
+		// Se tem selection (número ou array), busca primeiro para pegar IDs
 		if (intent.entities?.selection) {
-			// Buscar lista para pegar o item N
+			const selections = Array.isArray(intent.entities.selection) ? intent.entities.selection : [intent.entities.selection];
+
+			// Buscar lista para pegar os itens
 			const searchResult = await executeTool('search_items', toolContext, {
-				limit: 20,
+				limit: 50,
 			});
 
 			if (searchResult.success && searchResult.data) {
 				const items = searchResult.data.items;
-				const index = intent.entities.selection - 1;
+				const deletedItems: string[] = [];
+				const notFoundSelections: number[] = [];
 
-				if (index >= 0 && index < items.length) {
-					const itemToDelete = items[index];
+				// Processar cada seleção
+				for (const selection of selections) {
+					const index = selection - 1;
 
-					// Deletar o item
-					const deleteResult = await executeTool('delete_memory', toolContext, {
-						item_id: itemToDelete.id,
-					});
+					if (index >= 0 && index < items.length) {
+						const itemToDelete = items[index];
 
-					if (deleteResult.success) {
-						return {
-							message: `✅ "${itemToDelete.title}" deletado com sucesso.`,
-							state: 'idle',
-							toolsUsed: ['search_memory', 'delete_memory'],
-						};
+						// Deletar o item
+						const deleteResult = await executeTool('delete_memory', toolContext, {
+							item_id: itemToDelete.id,
+						});
+
+						if (deleteResult.success) {
+							deletedItems.push(itemToDelete.title);
+						}
+					} else {
+						notFoundSelections.push(selection);
 					}
-				} else {
+				}
+
+				// Montar resposta
+				if (deletedItems.length > 0) {
+					const itemsList = deletedItems.map((title) => `"${title}"`).join(', ');
+					let message = `✅ ${deletedItems.length} item(ns) deletado(s): ${itemsList}`;
+
+					if (notFoundSelections.length > 0) {
+						message += `\n⚠️ Não encontrado(s): ${notFoundSelections.join(', ')}`;
+					}
+
 					return {
-						message: `Item ${intent.entities.selection} não encontrado. Você tem ${items.length} item(ns) salvos.`,
+						message,
 						state: 'idle',
+						toolsUsed: ['search_items', 'delete_memory'],
 					};
 				}
+
+				return {
+					message: `Item(ns) ${notFoundSelections.join(', ')} não encontrado(s). Você tem ${items.length} item(ns) salvos.`,
+					state: 'idle',
+				};
 			}
 		}
 

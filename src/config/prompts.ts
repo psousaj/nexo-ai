@@ -67,12 +67,15 @@ CLASSIFICATION RULES:
 6. DENY → {"intent":"deny","action":"deny","confidence":0.95}
    Examples: "não", "cancela"
 
-7. DELETE → {"intent":"delete_content","action":"delete_all|delete_item|delete_selected","confidence":0.9,"entities":{"target":"...","selection":N}}
+7. DELETE → {"intent":"delete_content","action":"delete_all|delete_item|delete_selected","confidence":0.9,"entities":{"target":"...","selection":N|[N1,N2,...],"itemType":"movie|tv_show|note|..."}}
    Examples: 
    - "apaga tudo" → {"action":"delete_all","entities":{"target":"all"}}
    - "deleta inception" → {"action":"delete_item","entities":{"target":"item","query":"inception"}}
-   - "exclui a nota 3" → {"action":"delete_selected","entities":{"target":"selection","selection":3}}
-   - "remove o primeiro" → {"action":"delete_selected","entities":{"target":"selection","selection":1}}
+   - "exclui a nota 3" → {"action":"delete_selected","entities":{"target":"selection","selection":[3],"itemType":"note"}}
+   - "remove o primeiro" → {"action":"delete_selected","entities":{"target":"selection","selection":[1]}}
+   - "deleta as notas 2 e 3" → {"action":"delete_selected","entities":{"target":"selection","selection":[2,3],"itemType":"note"}}
+   - "apaga os filmes 1 e 2" → {"action":"delete_selected","entities":{"target":"selection","selection":[1,2],"itemType":"movie"}}
+   - "remove a série 1" → {"action":"delete_selected","entities":{"target":"selection","selection":[1],"itemType":"tv_show"}}
 
 8. UPDATE SETTINGS → {"intent":"update_content","action":"update_settings","confidence":0.9,"entities":{"settingType":"assistant_name","newValue":"..."}}
    Examples: "posso te chamar de outro nome?", "quero te chamar de Maria", "muda seu nome para João"

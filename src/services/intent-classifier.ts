@@ -47,7 +47,8 @@ export interface IntentResult {
 	confidence: number; // 0-1
 	entities?: {
 		query?: string;
-		selection?: number;
+		selection?: number | number[]; // Suporta múltiplas seleções
+		itemType?: 'movie' | 'tv_show' | 'video' | 'link' | 'note'; // Tipo específico mencionado
 		url?: string;
 		refersToPrevious?: boolean;
 		target?: 'all' | 'item' | 'selection'; // Alvo da ação
@@ -556,15 +557,17 @@ export class IntentClassifier {
 			};
 		}
 
-		// Número específico (ex: "deleta 1", "apaga o primeiro")
+		// Número específico (ex: "deleta 1", "apaga o primeiro", "remove 2 e 3")
 		const selection = this.extractSelection(msg);
 		if (selection) {
+			const itemType = this.extractItemType(msg);
 			return {
 				intent: 'delete_content',
 				action: 'delete_selected',
 				confidence: 0.9,
 				entities: {
-					selection,
+					selection: Array.isArray(selection) ? selection : [selection],
+					itemType, // Adiciona tipo se mencionado (ex: "deleta as notas 2 e 3")
 					target: 'selection',
 				},
 			};
@@ -625,9 +628,42 @@ export class IntentClassifier {
 	}
 
 	/**
-	 * Extrai número de seleção (1, 2, 3...)
+	 * Extrai tipo de item mencionado (nota, filme, série...)
 	 */
-	private extractSelection(msg: string): number | undefined {
+	private extractItemType(msg: string): 'movie' | 'tv_show' | 'video' | 'link' | 'note' | undefined {
+		const typePatterns: Record<string, 'movie' | 'tv_show' | 'video' | 'link' | 'note'> = {
+			nota: 'note',
+			notas: 'note',
+			lembrete: 'note',
+			lembretes: 'note',
+			filme: 'movie',
+			filmes: 'movie',
+			série: 'tv_show',
+			séries: 'tv_show',
+			serie: 'tv_show',
+			series: 'tv_show',
+			vídeo: 'video',
+			vídeos: 'video',
+			video: 'video',
+			videos: 'video',
+			link: 'link',
+			links: 'link',
+		};
+
+		for (const [word, type] of Object.entries(typePatterns)) {
+			if (msg.includes(word)) {
+				return type;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Extrai números de seleção (1, 2, 3...) - suporta múltiplas seleções
+	 * Ex: "deleta 1 e 3", "remove 2, 4 e 5", "apaga o primeiro e o terceiro"
+	 */
+	private extractSelection(msg: string): number | number[] | undefined {
 		// "o primeiro", "a segunda", etc (priorizar ordinais)
 		const ordinalMap: Record<string, number> = {
 			primeiro: 1,
@@ -636,21 +672,32 @@ export class IntentClassifier {
 			segunda: 2,
 			terceiro: 3,
 			terceira: 3,
+			quarto: 4,
+			quarta: 4,
+			quinto: 5,
+			quinta: 5,
 		};
 
+		const foundOrdinals: number[] = [];
 		for (const [word, num] of Object.entries(ordinalMap)) {
 			if (msg.includes(word)) {
-				return num;
+				foundOrdinals.push(num);
 			}
 		}
 
-		// Número direto (em qualquer posição, mas isolado)
-		const numberMatch = msg.match(/\b(\d+)\b/);
-		if (numberMatch) {
-			return parseInt(numberMatch[1]);
+		// Números diretos (todos os números isolados)
+		const numberMatches = msg.match(/\b(\d+)\b/g);
+		const foundNumbers = numberMatches ? numberMatches.map((n) => parseInt(n)) : [];
+
+		// Combina ordinais e números
+		const allSelections = [...new Set([...foundOrdinals, ...foundNumbers])];
+
+		if (allSelections.length === 0) {
+			return undefined;
 		}
 
-		return undefined;
+		// Retorna array se múltiplas seleções, número único caso contrário
+		return allSelections.length === 1 ? allSelections[0] : allSelections.sort((a, b) => a - b);
 	}
 
 	/**
