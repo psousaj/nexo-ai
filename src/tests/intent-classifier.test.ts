@@ -4,7 +4,7 @@
  * Valida que intenções são detectadas corretamente
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { IntentClassifier } from '@/services/intent-classifier';
 
 const classifier = new IntentClassifier();
@@ -181,7 +181,7 @@ describe('IntentClassifier', () => {
 
 		test('detecta descrição longa como save_content', async () => {
 			const result = await classifier.classify(
-				'Aplicativo over screen que conecta no spotify e permite adicionar a musica atual a várias playlists'
+				'Aplicativo over screen que conecta no spotify e permite adicionar a musica atual a várias playlists',
 			);
 			expect(result.intent).toBe('save_content');
 		});
@@ -192,7 +192,7 @@ describe('IntentClassifier', () => {
 
 			// Frase longa (>80 chars) com "aplicativo" deve ser save_content
 			const result2 = await classifier.classify(
-				'Aplicativo over screen que conecta no spotify e permite adicionar a musica atual a várias playlists'
+				'Aplicativo over screen que conecta no spotify e permite adicionar a musica atual a várias playlists',
 			);
 			expect(result2.intent).toBe('save_content');
 		});
@@ -236,7 +236,7 @@ describe('IntentClassifier', () => {
 			// Mensagem com dúvida ("estava pensando", "não sei bem") deve ser unknown
 			// IMPORTANTE: hasQuestionWords() detecta "estava pensando", "não sei"
 			const result = await classifier.classify(
-				'eu estava pensando se você poderia me ajudar com algo relacionado a filmes mas não sei bem o quê'
+				'eu estava pensando se você poderia me ajudar com algo relacionado a filmes mas não sei bem o quê',
 			);
 			expect(result.intent).toBe('unknown');
 		});
@@ -283,6 +283,14 @@ describe('IntentClassifier', () => {
 			expect(result.action).toBe('delete_item');
 			expect(result.entities?.query).toBe('clube da luta');
 			expect(result.entities?.target).toBe('item');
+		});
+
+		test('detecta "exclui a nota 3"', async () => {
+			const result = await classifier.classify('exclui a nota 3');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toBe(3);
+			expect(result.entities?.target).toBe('selection');
 		});
 	});
 
@@ -385,6 +393,75 @@ describe('IntentClassifier', () => {
 		test('extrai query de info limpa', async () => {
 			const result = await classifier.classify('o que é matrix');
 			expect(result.entities?.query).toBe('matrix');
+		});
+	});
+
+	describe('Extração de Seleção Numérica', () => {
+		test('extrai número direto', async () => {
+			const result = await classifier.classify('3');
+			expect(result.entities?.selection).toBe(3);
+		});
+
+		test('extrai ordinal masculino', async () => {
+			const result = await classifier.classify('o primeiro');
+			expect(result.entities?.selection).toBe(1);
+		});
+
+		test('extrai ordinal feminino', async () => {
+			const result = await classifier.classify('a segunda');
+			expect(result.entities?.selection).toBe(2);
+		});
+
+		test('extrai cardinal', async () => {
+			const result = await classifier.classify('um');
+			expect(result.entities?.selection).toBe(1);
+		});
+
+		test('extrai com contexto', async () => {
+			const result = await classifier.classify('opção 2');
+			expect(result.entities?.selection).toBe(2);
+		});
+
+		test('ignora números grandes', async () => {
+			const result = await classifier.classify('123');
+			expect(result.entities?.selection).toBeUndefined();
+		});
+	});
+
+	describe('Delete com Seleção', () => {
+		test('detecta "exclui a nota 3"', async () => {
+			const result = await classifier.classify('exclui a nota 3');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toBe(3);
+		});
+
+		test('detecta "deleta o primeiro"', async () => {
+			const result = await classifier.classify('deleta o primeiro');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toBe(1);
+		});
+
+		test('detecta "apaga 2"', async () => {
+			const result = await classifier.classify('apaga 2');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toBe(2);
+		});
+
+		test('detecta "remove a terceira"', async () => {
+			const result = await classifier.classify('remove a terceira');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toBe(3);
+		});
+
+		test('detecta delete por query quando não há número', async () => {
+			const result = await classifier.classify('deleta clube da luta');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_item');
+			expect(result.entities?.query).toBe('clube da luta');
 		});
 	});
 });

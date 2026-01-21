@@ -12,7 +12,9 @@
         "db:generate": "drizzle-kit generate",
         "db:push": "drizzle-kit push",
         "db:studio": "drizzle-kit studio",
-        "test": "vitest",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:ui": "vitest --ui",
         "biome:check": "biome format ./src",
         "biome:fix": "biome format ./src --write",
         "merge-pr": "bash ./scripts/merge-pr.sh"
