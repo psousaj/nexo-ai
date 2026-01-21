@@ -68,14 +68,6 @@ merge-pr-name: ## Cria e faz merge de PR com nome customizado
 	@read -p "Título do PR: " title; \
 	bash ./scripts/merge-pr.sh --name "$$title"
 
-deploy: build ## Faz deploy (build + deploy script se existir)
-	@echo "$(YELLOW)🚀 Fazendo deploy...$(RESET)"
-	@if [ -f ./scripts/deploy.sh ]; then \
-		bash ./scripts/deploy.sh; \
-	else \
-		echo "$(YELLOW)⚠️  Script de deploy não encontrado$(RESET)"; \
-	fi
-
 # Utils
 install: ## Instala dependências
 	@echo "$(YELLOW)📦 Instalando dependências...$(RESET)"
@@ -108,4 +100,7 @@ version-major: ## Incrementa versão major (X.0.0)
 
 # Workflow completo
 release: version-patch merge-pr ## Incrementa versão, cria e mergeia PR
+	@echo "$(GREEN)✅ Release completo!$(RESET)"
+
+release: version-patch merge-pr-name ## Incrementa versão, cria e mergeia PR
 	@echo "$(GREEN)✅ Release completo!$(RESET)"
