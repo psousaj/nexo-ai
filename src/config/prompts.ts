@@ -285,7 +285,6 @@ export const formatItemsList = (items: Array<{ title: string; type: string }>, t
 	}
 
 	const itemsByType: Record<string, string[]> = {};
-	let itemNumber = 1;
 
 	items.forEach((item) => {
 		const typeEmoji: Record<string, string> = {
@@ -311,8 +310,8 @@ export const formatItemsList = (items: Array<{ title: string; type: string }>, t
 			itemsByType[type] = [];
 		}
 
+		const itemNumber = itemsByType[type].length + 1;
 		itemsByType[type].push(` ${itemNumber}. ${emoji} ${item.title}`);
-		itemNumber++;
 	});
 
 	let response = '📚 Aqui tá sua coleção:\n\n';
