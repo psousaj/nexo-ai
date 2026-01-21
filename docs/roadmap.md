@@ -210,7 +210,7 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
   - [ ] Items mais populares (por rating)
 
 - [ ] **Rate Limiting**
-  - [ ] Limite: 10 mensagens/minuto por usuário via Redis
+  - [ ] Limite: 5 mensagens/minuto por usuário via Redis
   - [ ] Resposta amigável quando exceder
   - [ ] Configurável por usuário (premium pode ter mais)
 
@@ -225,11 +225,6 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
   - [ ] `POST /items/bulk` - Criar múltiplos items
   - [ ] `PATCH /items/bulk` - Atualizar múltiplos
   - [ ] `DELETE /items/bulk` - Deletar múltiplos
-
-- [ ] **Export/Import**
-  - [ ] `GET /items/export?format=json|csv` - Exportar dados
-  - [ ] `POST /items/import` - Importar JSON/CSV
-  - [ ] Backup completo do usuário
 
 **Entregável:** Features avançadas de busca e gestão
 
@@ -381,6 +376,11 @@ Telegram/WhatsApp → Adapter Layer → Conversation Service
 - [ ] **Collaborative Lists**
   - [ ] Compartilhar listas com amigos
   - [ ] Permissões (view, edit)
+
+- [ ] **Export/Import**
+  - [ ] `GET /items/export?format=json|csv` - Exportar dados
+  - [ ] `POST /items/import` - Importar JSON/CSV
+  - [ ] Backup completo do usuário
 
 ---
 
