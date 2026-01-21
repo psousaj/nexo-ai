@@ -67,8 +67,12 @@ CLASSIFICATION RULES:
 6. DENY → {"intent":"deny","action":"deny","confidence":0.95}
    Examples: "não", "cancela"
 
-7. DELETE → {"intent":"delete_content","action":"delete_all|delete_item","confidence":0.9,"entities":{"target":"..."}}
-   Examples: "apaga tudo", "deleta inception"
+7. DELETE → {"intent":"delete_content","action":"delete_all|delete_item|delete_selected","confidence":0.9,"entities":{"target":"...","selection":N}}
+   Examples: 
+   - "apaga tudo" → {"action":"delete_all","entities":{"target":"all"}}
+   - "deleta inception" → {"action":"delete_item","entities":{"target":"item","query":"inception"}}
+   - "exclui a nota 3" → {"action":"delete_selected","entities":{"target":"selection","selection":3}}
+   - "remove o primeiro" → {"action":"delete_selected","entities":{"target":"selection","selection":1}}
 
 8. UPDATE SETTINGS → {"intent":"update_content","action":"update_settings","confidence":0.9,"entities":{"settingType":"assistant_name","newValue":"..."}}
    Examples: "posso te chamar de outro nome?", "quero te chamar de Maria", "muda seu nome para João"
@@ -306,7 +310,8 @@ export const formatItemsList = (items: Array<{ title: string; type: string }>, t
 			itemsByType[type] = [];
 		}
 
-		itemsByType[type].push(`  • ${item.title}`);
+		const itemNumber = itemsByType[type].length + 1;
+		itemsByType[type].push(` ${itemNumber}. ${emoji} ${item.title}`);
 	});
 
 	let response = '📚 Aqui tá sua coleção:\n\n';

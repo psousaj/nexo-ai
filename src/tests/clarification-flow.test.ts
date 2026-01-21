@@ -1,11 +1,11 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { ConversationService } from '@/services/conversation-service';
 import { AgentOrchestrator } from '@/services/agent-orchestrator';
 import type { ConversationContext } from '@/types';
 
 /**
  * Testes para o fluxo de clarificação (Anamnese N1/N2)
- * 
+ *
  * Valida que mensagens longas/ambíguas disparam solicitação de clarificação
  * e que o sistema processa corretamente a resposta do usuário.
  */
@@ -19,12 +19,9 @@ describe('Clarification Flow (N1/N2)', () => {
 			'Salvar info tmdb como vector na base de dados ao salvar e ao buscar enrichment para seleção do usuário para referências como "o da zebra com o leão na ilha" para a query "madagascar"';
 
 		const conversationService = new ConversationService();
-		
+
 		// Simula detecção de ambiguidade
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(
-			mockConversationId,
-			longMessage
-		);
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, longMessage);
 
 		expect(isAmbiguous).toBe(true);
 	});
@@ -33,11 +30,8 @@ describe('Clarification Flow (N1/N2)', () => {
 		const actionMessage = 'salva inception';
 
 		const conversationService = new ConversationService();
-		
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(
-			mockConversationId,
-			actionMessage
-		);
+
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, actionMessage);
 
 		expect(isAmbiguous).toBe(false);
 	});
@@ -46,11 +40,8 @@ describe('Clarification Flow (N1/N2)', () => {
 		const shortMessage = 'isso é um teste curto';
 
 		const conversationService = new ConversationService();
-		
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(
-			mockConversationId,
-			shortMessage
-		);
+
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, shortMessage);
 
 		expect(isAmbiguous).toBe(false);
 	});
@@ -71,7 +62,7 @@ describe('Clarification Flow (N1/N2)', () => {
 		};
 
 		const orchestrator = new AgentOrchestrator();
-		
+
 		// Simula resposta do usuário escolhendo opção 1
 		const response = await orchestrator.processMessage({
 			userId: mockUserId,
@@ -100,7 +91,7 @@ describe('Clarification Flow (N1/N2)', () => {
 		};
 
 		const orchestrator = new AgentOrchestrator();
-		
+
 		const response = await orchestrator.processMessage({
 			userId: mockUserId,
 			conversationId: mockConversationId,
@@ -128,7 +119,7 @@ describe('Clarification Flow (N1/N2)', () => {
 		};
 
 		const orchestrator = new AgentOrchestrator();
-		
+
 		const response = await orchestrator.processMessage({
 			userId: mockUserId,
 			conversationId: mockConversationId,
@@ -145,7 +136,7 @@ describe('Clarification Flow (N1/N2)', () => {
 describe('Message Templates', () => {
 	test('getRandomMessage deve substituir placeholders corretamente', () => {
 		const { getRandomMessage } = require('@/services/conversation/messageTemplates');
-		
+
 		const templates = ['Teste {name} com {value}'];
 		const result = getRandomMessage(templates, {
 			name: 'João',
@@ -157,7 +148,7 @@ describe('Message Templates', () => {
 
 	test('getRandomMessage deve retornar template sem substituição se não houver replacements', () => {
 		const { getRandomMessage } = require('@/services/conversation/messageTemplates');
-		
+
 		const templates = ['Teste sem placeholder'];
 		const result = getRandomMessage(templates);
 

@@ -203,7 +203,7 @@ export class IntentClassifier {
 		if (deleteResult) {
 			loggers.ai.info(
 				{ intent: deleteResult.intent, action: deleteResult.action, confidence: deleteResult.confidence },
-				'🎯 Intenção detectada (regex)'
+				'🎯 Intenção detectada (regex)',
 			);
 			return deleteResult;
 		}
@@ -289,7 +289,7 @@ export class IntentClassifier {
 		if (updateResult) {
 			loggers.ai.info(
 				{ intent: updateResult.intent, action: updateResult.action, confidence: updateResult.confidence },
-				'🎯 Intenção detectada (regex)'
+				'🎯 Intenção detectada (regex)',
 			);
 			return updateResult;
 		}
@@ -324,7 +324,17 @@ export class IntentClassifier {
 			/^(o segundo|a segunda|segundo|segunda)$/i,
 			/^(o terceiro|a terceira|terceiro|terceira)$/i,
 			/^(1|2|3|4|5|6|7|8|9)$/,
+			// Cardinais simples
+			/^(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)$/i,
 		];
+
+		// Se contém qualquer seleção numérica E é uma mensagem curta de confirmação, é confirmação
+		// Mas não para mensagens que são comandos (como "exclui a nota 3")
+		const deleteKeywords = ['deleta', 'deletar', 'apaga', 'apagar', 'remove', 'remover', 'limpa', 'limpar', 'exclui', 'excluir'];
+		const hasSelection = this.extractSelection(msg);
+		if (hasSelection && normalized.length < 20 && !deleteKeywords.some((kw: string) => msg.includes(kw))) {
+			return true;
+		}
 
 		return confirmPatterns.some((pattern) => pattern.test(normalized));
 	}
