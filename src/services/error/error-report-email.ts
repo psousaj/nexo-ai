@@ -65,22 +65,30 @@ export class ErrorReportService {
                             <th>Hora</th>
                             <th>Tipo</th>
                             <th>Mensagem</th>
+                            <th>Contexto (User)</th>
                             <th>Session ID</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${errors
 													.slice(0, 20) // Top 20
-													.map(
-														(err) => `
+													.map((err) => {
+														const history = Array.isArray(err.conversationHistory) ? (err.conversationHistory as any[]) : [];
+														const lastUserMsg = history
+															.filter((m) => m.role === 'user')
+															.pop()
+															?.content?.substring(0, 50);
+
+														return `
                             <tr>
                                 <td>${err.createdAt?.toLocaleTimeString('pt-BR')}</td>
                                 <td>${err.errorType}</td>
                                 <td>${err.errorMessage.substring(0, 100)}...</td>
+                                <td>${lastUserMsg ? `<em>"${lastUserMsg}..."</em>` : '-'}</td>
                                 <td><code>${err.sessionId || 'N/A'}</code></td>
                             </tr>
-                        `,
-													)
+                        `;
+													})
 													.join('')}
                     </tbody>
                 </table>
