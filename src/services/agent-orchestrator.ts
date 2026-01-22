@@ -23,10 +23,12 @@
 
 import { intentClassifier, type IntentResult, type UserIntent } from './intent-classifier';
 import { conversationService } from './conversation-service';
+import { userService } from '@/services/user-service';
 import { llmService } from './ai';
 import { executeTool, type ToolContext, type ToolOutput } from './tools';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import {
+	AGENT_SYSTEM_PROMPT,
 	CASUAL_GREETINGS,
 	GENERIC_CONFIRMATION,
 	CANCELLATION_PROMPT,
@@ -270,10 +272,17 @@ export class AgentOrchestrator {
 			content: m.content,
 		}));
 
+		// Personaliza System Prompt com nome do assistente
+		const user = await userService.getUserById(context.userId);
+		const assistantName = user?.assistantName || 'Nexo';
+
+		const systemPrompt = AGENT_SYSTEM_PROMPT.replace('You are Nexo,', `You are ${assistantName},`);
+
 		// Chama LLM
 		const llmResponse = await llmService.callLLM({
 			message: context.message,
 			history: formattedHistory,
+			systemPrompt,
 		});
 
 		// ============================================================================
