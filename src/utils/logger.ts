@@ -5,7 +5,7 @@ import pino from 'pino';
  */
 export const logger = pino({
 	level: process.env.LOG_LEVEL || 'info',
-	context: 'APP',
+	base: { context: 'APP' },
 	transport:
 		process.env.NODE_ENV === 'development'
 			? {
@@ -16,14 +16,11 @@ export const logger = pino({
 						ignore: 'pid,hostname,context,level',
 						messageFormat: '[{context}] {level}: {msg}',
 					},
-			  }
+				}
 			: undefined,
 	formatters: {
 		level: (label) => {
 			return { level: label.toUpperCase() };
-		},
-		context: (context) => {
-			return { context: context.toUpperCase() };
 		},
 	},
 });
@@ -32,6 +29,7 @@ export const logger = pino({
  * Loggers específicos por contexto
  */
 export const loggers = {
+	app: logger.child({ context: 'APP' }),
 	webhook: logger.child({ context: 'WEBHOOK' }),
 	ai: logger.child({ context: 'AI' }),
 	cloudflare: logger.child({ context: 'CLOUDFLARE' }),

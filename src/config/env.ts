@@ -64,6 +64,10 @@ const envSchema = z.object({
 	// Railway atribui porta aleatória via PORT env var
 	PORT: z.coerce.number().default(3000),
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+	// Email Reporting (Resend)
+	RESEND_API_KEY: z.string().optional(),
+	ADMIN_EMAIL: z.string().email().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

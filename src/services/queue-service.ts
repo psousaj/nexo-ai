@@ -5,6 +5,7 @@ import { conversations } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
 import { type IncomingMessage, type ProviderType, getProvider } from '@/adapters/messaging';
+import { globalErrorHandler } from '@/services/error/error.service';
 
 const queueLogger = loggers.queue;
 
@@ -83,6 +84,28 @@ closeConversationQueue.on('active', (job) => {
 
 messageQueue.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [message-processing] Job ativo');
+});
+
+closeConversationQueue.on('failed', async (job, error) => {
+	queueLogger.error({ jobId: job.id, err: error }, '❌ [close-conversation] Job falhou');
+	await globalErrorHandler.handle(error, {
+		conversationId: job.data.conversationId,
+		provider: 'queue',
+		state: 'background_job',
+		extra: { jobId: job.id, queue: 'close-conversation' },
+	});
+});
+
+messageQueue.on('failed', async (job, error) => {
+	queueLogger.error({ jobId: job.id, err: error }, '❌ [message-processing] Job falhou');
+	await globalErrorHandler.handle(error, {
+		provider: job.data.providerName,
+		extra: {
+			jobId: job.id,
+			externalId: job.data.incomingMsg.externalId,
+			queue: 'message-processing',
+		},
+	});
 });
 
 // ============================================================================

@@ -16,6 +16,7 @@ import { createBullBoard } from '@bull-board/api';
 import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { globalErrorHandler } from '@/services/error/error.service';
 
 const app = new Hono();
 
@@ -65,14 +66,29 @@ if (env.NODE_ENV !== 'test') {
 			console.error('❌ [Cron] Erro no timeout awaiting_confirmation:', error);
 		}
 	});
+
+	// Relatório Diário de Erros (09:00 AM)
+	cron.schedule('0 9 * * *', async () => {
+		const { errorReportService } = await import('@/services/error/error-report-email');
+		await errorReportService.sendDailyReport();
+	});
 }
 
 // Error Handler
-app.onError((error, c) => {
+// Error Handler
+app.onError(async (error, c) => {
 	const errorMessage = error instanceof Error ? error.message : String(error);
-	const errorStack = error instanceof Error ? error.stack : undefined;
 
-	console.error('[ERROR]', { message: errorMessage, stack: errorStack });
+	// Captura erro globalmente com contexto HTTP
+	await globalErrorHandler.handle(error, {
+		provider: 'http',
+		state: 'request_processing',
+		extra: {
+			method: c.req.method,
+			url: c.req.url,
+			path: c.req.path,
+		},
+	});
 
 	// Not found handlers are usually handled separately in Hono, but internal errors go here
 	const status = 500;
@@ -80,6 +96,7 @@ app.onError((error, c) => {
 		{
 			error: 'Internal server error',
 			...(env.NODE_ENV !== 'production' && { message: errorMessage }),
+			ref: error instanceof Error ? error.name : 'Unknown',
 		},
 		status,
 	);

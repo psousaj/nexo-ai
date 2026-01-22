@@ -155,20 +155,18 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		const endTotal = performance.now();
 		loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
 	} catch (error: any) {
-		logError(error, { context: 'MESSAGE_PROCESSOR', provider: provider.getProviderName() });
-
-		// NÃO tenta enviar erro se for problema de rede
-		if (error.cause?.code === 'ETIMEDOUT' || error.cause?.code === 'ECONNREFUSED') {
-			loggers.webhook.error('❌ Erro de rede - job será mantido na fila para retry');
-			throw error; // Re-throw para Bull tratar
+		// Apenas tenta avisar o usuário se não for erro de conexão
+		// O Global Error Handler (via Queue) vai cuidar de logar e persistir tudo com contexto
+		if (error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
+			try {
+				const errorMsg = getRandomMessage(ERROR_MESSAGES);
+				await provider.sendMessage(incomingMsg.externalId, errorMsg);
+			} catch (sendError) {
+				// Ignora erro de envio de falha
+			}
 		}
 
-		// Para outros erros, tenta enviar mensagem de erro (mas com try-catch)
-		try {
-			const errorMsg = getRandomMessage(ERROR_MESSAGES);
-			await provider.sendMessage(incomingMsg.externalId, errorMsg);
-		} catch (sendError) {
-			loggers.webhook.error('❌ Falha ao enviar mensagem de erro - abortando');
-		}
+		// Re-throw OBRIGATÓRIO para o Bull capturar e chamar worker.on('failed') -> GlobalErrorHandler
+		throw error;
 	}
 }
