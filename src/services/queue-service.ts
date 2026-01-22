@@ -96,10 +96,17 @@ closeConversationQueue.on('failed', async (job, error) => {
 	});
 });
 
-messageQueue.on('failed', async (job, error) => {
+messageQueue.on('failed', async (job, error: any) => {
 	queueLogger.error({ jobId: job.id, err: error }, '❌ [message-processing] Job falhou');
+
+	// Extrai contexto anexado ao erro (se disponível)
+	const conversationId = error.conversationId;
+	const userId = error.userId;
+
 	await globalErrorHandler.handle(error, {
 		provider: job.data.providerName,
+		conversationId,
+		userId,
 		extra: {
 			jobId: job.id,
 			externalId: job.data.incomingMsg.externalId,
