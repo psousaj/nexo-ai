@@ -1,46 +1,23 @@
-import Sentiment from 'sentiment';
 import { userService } from '@/services/user-service';
 import { conversationService } from '@/services/conversation-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { type IncomingMessage, type MessagingProvider } from '@/adapters/messaging';
 import { loggers, logError } from '@/utils/logger';
-import { TIMEOUT_MESSAGE, GENERIC_ERROR } from '@/config/prompts';
+import { TIMEOUT_MESSAGE, ERROR_MESSAGES, FALLBACK_MESSAGES, getRandomMessage } from '@/config/prompts';
 import { cancelConversationClose } from '@/services/queue-service';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 
 export const userTimeouts = new Map<string, number>();
 
-const sentiment = new Sentiment();
-sentiment.registerLanguage('pt', {
-	labels: {
-		fdp: -5,
-		'filho da puta': -5,
-		'puta que pariu': -5,
-		'vai tomar no cu': -5,
-		vtmnc: -5,
-		vsf: -5,
-		'vai se fuder': -5,
-		cu: -3,
-		caralho: -3,
-		porra: -3,
-		merda: -3,
-		bosta: -3,
-		burro: -2,
-		idiota: -2,
-		imbecil: -2,
-		retardado: -2,
-		estúpido: -2,
-		'cala a boca': -4,
-		'cala boca': -4,
-		lixo: -2,
-		inútil: -2,
-		incompetente: -2,
-	},
-});
-
-function containsOffensiveContent(message: string): boolean {
-	const result = sentiment.analyze(message, { language: 'pt' });
-	loggers.webhook.info({ score: result.score, message }, '🛡️ Sentiment Analysis');
-	return result.score < 0;
+/**
+ * Verifica se a mensagem contém conteúdo ofensivo usando nlp.js
+ * Substitui a implementação anterior com a biblioteca 'sentiment'
+ */
+async function containsOffensiveContent(message: string): Promise<boolean> {
+	const sentiment = await messageAnalyzer.analyzeSentiment(message);
+	loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
+	// Score muito negativo indica conteúdo ofensivo
+	return sentiment.score < -3;
 }
 
 async function isUserInTimeout(userId: string, externalId: string): Promise<boolean> {
@@ -91,7 +68,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 	const startTotal = performance.now();
 
 	try {
-		if (containsOffensiveContent(messageText)) {
+		// Usa o novo serviço de análise para detectar conteúdo ofensivo
+		if (await containsOffensiveContent(messageText)) {
 			const { user } = await userService.findOrCreateUserByAccount(
 				incomingMsg.externalId,
 				incomingMsg.provider,
@@ -143,13 +121,31 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		});
 
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
-			await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-			loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+			try {
+				await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
+				loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+			} catch (sendError: any) {
+				// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
+				if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
+					loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
+					throw sendError; // Re-throw para Bull não fazer retry
+				}
+				throw sendError;
+			}
 		} else if (!agentResponse.skipFallback) {
 			// Fallback apenas se não foi enviado manualmente via adapter
-			const fallbackMsg = 'Entendido! 👍';
-			await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
-			loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');
+			const fallbackMsg = getRandomMessage(FALLBACK_MESSAGES);
+			try {
+				await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
+				loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');
+			} catch (sendError: any) {
+				// Se erro de rede, apenas loga e retorna
+				if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
+					loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar fallback - abortando');
+					throw sendError;
+				}
+				throw sendError;
+			}
 		}
 
 		if (agentResponse.toolsUsed && agentResponse.toolsUsed.length > 0) {
@@ -158,10 +154,19 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 		const endTotal = performance.now();
 		loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
-	} catch (error) {
-		logError(error, { context: 'MESSAGE_PROCESSOR', provider: provider.getProviderName() });
+	} catch (error: any) {
+		// Apenas tenta avisar o usuário se não for erro de conexão
+		// O Global Error Handler (via Queue) vai cuidar de logar e persistir tudo com contexto
+		if (error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
+			try {
+				const errorMsg = getRandomMessage(ERROR_MESSAGES);
+				await provider.sendMessage(incomingMsg.externalId, errorMsg);
+			} catch (sendError) {
+				// Ignora erro de envio de falha
+			}
+		}
 
-		const errorMsg = GENERIC_ERROR;
-		await provider.sendMessage(incomingMsg.externalId, errorMsg);
+		// Re-throw OBRIGATÓRIO para o Bull capturar e chamar worker.on('failed') -> GlobalErrorHandler
+		throw error;
 	}
 }

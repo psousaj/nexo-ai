@@ -1,0 +1,513 @@
+/**
+ * Dados de Treinamento do NEXO
+ *
+ * Este arquivo contém os exemplos de treinamento para o classificador
+ * neural do NEXO. Cada intenção possui múltiplas variações em português
+ * brasileiro para garantir robustez na classificação.
+ *
+ * COMO ADICIONAR NOVOS EXEMPLOS:
+ * 1. Identifique a intenção correta (ou crie nova)
+ * 2. Adicione variações naturais em PT-BR
+ * 3. Execute `pnpm train:nexo` para re-treinar
+ */
+
+export interface TrainingExample {
+	text: string;
+	intent: string;
+}
+
+export interface TrainingIntent {
+	intent: string;
+	action: string;
+	examples: string[];
+	answers?: string[];
+}
+
+/**
+ * Dados de treinamento organizados por intenção
+ * Baseado em src/config/prompts.ts
+ */
+export const NEXO_TRAINING_DATA: TrainingIntent[] = [
+	// =========================================================================
+	// SAUDAÇÕES E CONVERSA CASUAL
+	// =========================================================================
+	{
+		intent: 'greetings.hello',
+		action: 'greet',
+		examples: [
+			'oi',
+			'olá',
+			'hey',
+			'e aí',
+			'opa',
+			'bom dia',
+			'boa tarde',
+			'boa noite',
+			'eae',
+			'fala aí',
+			'salve',
+			'opa, tudo bem?',
+			'oi, tudo certo?',
+			'olá, como vai?',
+			'fala brother',
+			'e aí, beleza?',
+		],
+		answers: ['Oi! 👋', 'Olá! 👋', 'E aí! 👋', 'Opa! 👋'],
+	},
+	{
+		intent: 'greetings.bye',
+		action: 'farewell',
+		examples: [
+			'tchau',
+			'até mais',
+			'até logo',
+			'falou',
+			'flw',
+			'vlw',
+			'valeu',
+			'obrigado',
+			'obrigada',
+			'thanks',
+			'brigado',
+			'vlw tmj',
+			'valeu parceiro',
+			'obrigado pela ajuda',
+			'muito obrigado',
+		],
+		answers: ['Até logo! 👋', 'Falou! 👋', 'Tmj! 🤝', 'Por nada! 😊'],
+	},
+
+	// =========================================================================
+	// SALVAR CONTEÚDO
+	// =========================================================================
+	{
+		intent: 'save.movie',
+		action: 'save_movie',
+		examples: [
+			'salva inception',
+			'salvar o filme matrix',
+			'adiciona interestelar',
+			'quero assistir clube da luta',
+			'guarda o filme avatar',
+			'anota o poderoso chefão',
+			'lembra de ver duna',
+			'coloca batman na lista',
+			'add vingadores',
+			'põe star wars pra eu ver depois',
+			'salva ai o gladiador',
+			'quero ver parasita',
+			'assitir forrest gump',
+			'bota pulp fiction',
+			'marca o senhor dos anéis',
+			'quero ver esse filme: oppenheimer',
+			'salva coringa pra mim',
+			'joker é bom, salva',
+			'add na lista: top gun maverick',
+		],
+	},
+	{
+		intent: 'save.tv_show',
+		action: 'save_tv_show',
+		examples: [
+			'salva a série breaking bad',
+			'adiciona game of thrones',
+			'quero assistir the office',
+			'guarda stranger things',
+			'anota série dark',
+			'lembra de ver peaky blinders',
+			'coloca friends na lista',
+			'add série the boys',
+			'põe casa de papel',
+			'marca the witcher',
+			'salva a série wandavision',
+			'quero ver mandalorian',
+			'bota the crown',
+			'série recomendada: succession',
+			'add arcane na lista de séries',
+		],
+	},
+	{
+		intent: 'save.video',
+		action: 'save_video',
+		examples: [
+			'salva esse vídeo https://youtube.com/watch?v=abc123',
+			'guarda esse link do youtube',
+			'adiciona https://youtu.be/xyz',
+			'anota esse vídeo pra mim',
+			'salva esse vídeo do youtube',
+			'quero ver esse video depois https://youtube.com/watch?v=test',
+			'lembra desse vídeo https://www.youtube.com/watch?v=example',
+		],
+	},
+	{
+		intent: 'save.link',
+		action: 'save_link',
+		examples: [
+			'salva esse link https://example.com',
+			'guarda essa página https://artigo.com/texto',
+			'adiciona https://site.com.br/noticia',
+			'anota esse site',
+			'lembra desse artigo https://medium.com/@user/post',
+			'salva a url https://github.com/repo',
+			'guarda esse link pra depois',
+		],
+	},
+	{
+		intent: 'save.note',
+		action: 'save_note',
+		examples: [
+			'anota: comprar leite',
+			'lembrete: ligar pro médico',
+			'nota: reunião às 15h',
+			'ideia: app de receitas',
+			'salva isso: estudar typescript',
+			'guarda essa anotação: senha wifi é 12345',
+			'lembrar de pagar conta',
+			'não esquecer: aniversário da mãe',
+			'anotação importante: entregar relatório sexta',
+			'pensamento do dia: ser mais produtivo',
+			'salva como nota: preciso comprar presente',
+			'anota pra mim: dentista quarta às 10h',
+			'Aplicativo over screen que conecta no spotify e mostra a letra da música',
+			'ideia de negócio: loja de plantas online',
+			'receita de bolo de chocolate',
+		],
+	},
+	{
+		intent: 'save.previous',
+		action: 'save_previous',
+		examples: [
+			'salva aí',
+			'guarda isso',
+			'salva isso',
+			'anota isso',
+			'guarda ai',
+			'salva o que eu disse',
+			'pode salvar',
+			'salva pra mim',
+			'guarda pra mim',
+			'bota na lista',
+			'adiciona isso',
+			'pode adicionar',
+		],
+	},
+
+	// =========================================================================
+	// BUSCAR/LISTAR CONTEÚDO
+	// =========================================================================
+	{
+		intent: 'search.all',
+		action: 'list_all',
+		examples: [
+			'o que eu salvei',
+			'mostra tudo',
+			'lista tudo',
+			'ver minha lista',
+			'meus itens',
+			'mostra minha coleção',
+			'o que tenho salvo',
+			'tudo que salvei',
+			'me mostra tudo',
+			'lista meus itens',
+			'quero ver tudo',
+			'o que tem na minha lista',
+		],
+	},
+	{
+		intent: 'search.movies',
+		action: 'search',
+		examples: [
+			'mostra meus filmes',
+			'lista os filmes',
+			'filmes salvos',
+			'quais filmes eu tenho',
+			'ver meus filmes',
+			'filmes na lista',
+			'mostra filmes',
+			'lista de filmes',
+			'que filmes eu salvei',
+		],
+	},
+	{
+		intent: 'search.tv_shows',
+		action: 'search',
+		examples: [
+			'mostra minhas séries',
+			'lista as séries',
+			'séries salvas',
+			'quais séries eu tenho',
+			'ver minhas séries',
+			'séries na lista',
+			'mostra séries',
+			'lista de séries',
+			'que séries eu salvei',
+		],
+	},
+	{
+		intent: 'search.notes',
+		action: 'search',
+		examples: [
+			'mostra minhas notas',
+			'lista as notas',
+			'notas salvas',
+			'quais notas eu tenho',
+			'ver minhas anotações',
+			'mostra anotações',
+			'lista de lembretes',
+			'minhas ideias',
+		],
+	},
+	{
+		intent: 'search.query',
+		action: 'search',
+		examples: [
+			'busca terror',
+			'procura ação',
+			'pesquisa comédia',
+			'o que tenho de drama',
+			'tem algo de ficção científica',
+			'busca inception',
+			'procura batman',
+			'pesquisa matrix',
+			'acha stranger things',
+			'encontra breaking bad',
+		],
+	},
+
+	// =========================================================================
+	// DELETAR CONTEÚDO
+	// =========================================================================
+	{
+		intent: 'delete.all',
+		action: 'delete_all',
+		examples: [
+			'apaga tudo',
+			'deleta tudo',
+			'remove tudo',
+			'exclui tudo',
+			'limpa tudo',
+			'apagar tudo',
+			'deletar tudo',
+			'remover todos',
+			'excluir todos',
+			'limpar lista',
+			'zera a lista',
+			'apaga toda a lista',
+		],
+	},
+	{
+		intent: 'delete.item',
+		action: 'delete_item',
+		examples: [
+			'apaga inception',
+			'deleta matrix',
+			'remove batman',
+			'exclui breaking bad',
+			'tira inception da lista',
+			'remove o filme avatar',
+			'deleta a série dark',
+			'apaga a nota sobre compras',
+		],
+	},
+	{
+		intent: 'delete.selection',
+		action: 'delete_selected',
+		examples: [
+			'apaga o primeiro',
+			'deleta o 1',
+			'remove o segundo',
+			'exclui o 3',
+			'apaga o item 2',
+			'deleta as notas 2 e 3',
+			'remove o primeiro e o terceiro',
+			'exclui os filmes 1 e 2',
+			'apaga 1, 3 e 5',
+			'remove a série 1',
+			'deleta o primeiro item',
+		],
+	},
+
+	// =========================================================================
+	// CONFIRMAÇÃO E NEGAÇÃO
+	// =========================================================================
+	{
+		intent: 'confirmation.yes',
+		action: 'confirm',
+		examples: [
+			'sim',
+			's',
+			'isso',
+			'exato',
+			'certo',
+			'ok',
+			'pode ser',
+			'isso mesmo',
+			'confirma',
+			'confirmado',
+			'é isso aí',
+			'positivo',
+			'com certeza',
+			'claro',
+			'óbvio',
+			'pode confirmar',
+			'tá certo',
+			'isso aí',
+			'perfeito',
+			'fechou',
+			'beleza',
+			'tranquilo',
+			'pode salvar',
+			'é esse mesmo',
+			'1',
+			'o primeiro',
+			'o 1',
+			'a primeira opção',
+		],
+	},
+	{
+		intent: 'confirmation.no',
+		action: 'deny',
+		examples: [
+			'não',
+			'nao',
+			'n',
+			'cancela',
+			'cancelar',
+			'deixa pra lá',
+			'esquece',
+			'não quero',
+			'não é isso',
+			'errado',
+			'esse não',
+			'para',
+			'para tudo',
+			'desfaz',
+			'volta',
+			'nenhum',
+			'nenhuma',
+			'desiste',
+			'não precisa',
+			'mudei de ideia',
+		],
+	},
+
+	// =========================================================================
+	// INFORMAÇÕES DO ASSISTENTE
+	// =========================================================================
+	{
+		intent: 'info.assistant_name',
+		action: 'get_assistant_name',
+		examples: [
+			'qual seu nome',
+			'como você se chama',
+			'você tem nome',
+			'qual é seu nome',
+			'me fala seu nome',
+			'quem é você',
+			'como devo te chamar',
+			'qual o seu nome',
+			'como te chamam',
+			// Variações informais/curtas
+			'teu nome é',
+			'teu nome',
+			'seu nome',
+			'nome',
+			'qual é o nome',
+			'qual nome',
+			'me diz teu nome',
+			'como é teu nome',
+			'teu nome é?',
+			'seu nome é?',
+			'qual teu nome?',
+			'e seu nome?',
+			'nome?',
+		],
+	},
+	{
+		intent: 'info.help',
+		action: 'get_help',
+		examples: [
+			'o que você faz',
+			'como funciona',
+			'o que é isso',
+			'me ajuda',
+			'help',
+			'socorro',
+			'não entendi',
+			'como usa',
+			'o que você pode fazer',
+			'quais são seus comandos',
+			'o que posso fazer aqui',
+			'como te usar',
+			'tutorial',
+			'instruções',
+		],
+	},
+
+	// =========================================================================
+	// CONFIGURAÇÕES
+	// =========================================================================
+	{
+		intent: 'settings.change_name',
+		action: 'update_settings',
+		examples: [
+			'quero te chamar de outro nome',
+			'muda seu nome',
+			'posso mudar seu nome',
+			'quero te chamar de Maria',
+			'seu nome agora é João',
+			'te chamo de Bob',
+			'vou te chamar de assistente',
+			'muda seu nome para Nexinho',
+			'te renomeio pra Helper',
+		],
+	},
+];
+
+/**
+ * Entidades nomeadas (Named Entities) para extração
+ */
+export const NEXO_ENTITIES = {
+	// Tipos de conteúdo
+	item_type: [
+		{ value: 'movie', synonyms: ['filme', 'filmes', 'movie', 'movies', 'longa', 'longa-metragem'] },
+		{ value: 'tv_show', synonyms: ['série', 'séries', 'series', 'show', 'programa', 'novela'] },
+		{ value: 'video', synonyms: ['vídeo', 'vídeos', 'video', 'videos', 'youtube', 'clip'] },
+		{ value: 'link', synonyms: ['link', 'links', 'url', 'site', 'página', 'artigo'] },
+		{ value: 'note', synonyms: ['nota', 'notas', 'anotação', 'lembrete', 'ideia', 'memo'] },
+	],
+
+	// Gêneros de filmes/séries
+	genre: [
+		{ value: 'action', synonyms: ['ação', 'acao', 'action'] },
+		{ value: 'comedy', synonyms: ['comédia', 'comedia', 'comedy', 'humor'] },
+		{ value: 'drama', synonyms: ['drama', 'dramático'] },
+		{ value: 'horror', synonyms: ['terror', 'horror', 'medo', 'suspense'] },
+		{ value: 'scifi', synonyms: ['ficção científica', 'sci-fi', 'scifi', 'ficção'] },
+		{ value: 'romance', synonyms: ['romance', 'romântico', 'amor'] },
+		{ value: 'animation', synonyms: ['animação', 'animacao', 'desenho', 'anime'] },
+		{ value: 'documentary', synonyms: ['documentário', 'documentario', 'doc'] },
+	],
+
+	// Números ordinais
+	ordinal: [
+		{ value: '1', synonyms: ['primeiro', 'primeira', '1º', '1ª', 'um'] },
+		{ value: '2', synonyms: ['segundo', 'segunda', '2º', '2ª', 'dois'] },
+		{ value: '3', synonyms: ['terceiro', 'terceira', '3º', '3ª', 'três', 'tres'] },
+		{ value: '4', synonyms: ['quarto', 'quarta', '4º', '4ª', 'quatro'] },
+		{ value: '5', synonyms: ['quinto', 'quinta', '5º', '5ª', 'cinco'] },
+	],
+};
+
+/**
+ * Respostas padrão por intenção (Natural Language Generation)
+ */
+export const NEXO_RESPONSES: Record<string, string[]> = {
+	'greetings.hello': ['Oi! 👋', 'Olá! 👋', 'E aí! 👋', 'Opa! 👋'],
+	'greetings.bye': ['Até logo! 👋', 'Falou! 👋', 'Tmj! 🤝', 'Por nada! 😊'],
+	'info.help': [
+		'Posso salvar filmes, séries, vídeos, links e notas pra você! 📚',
+		'Me manda o nome de um filme ou série que eu guardo pra você! 🎬',
+	],
+	'confirmation.no': ['Ok, cancelado.', 'Tudo bem, cancelei!', '👌 Cancelado!'],
+};

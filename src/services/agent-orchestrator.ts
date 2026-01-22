@@ -25,13 +25,16 @@ import { intentClassifier, type IntentResult, type UserIntent } from './intent-c
 import { conversationService } from './conversation-service';
 import { llmService } from './ai';
 import { executeTool, type ToolContext, type ToolOutput } from './tools';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import {
 	CASUAL_GREETINGS,
 	GENERIC_CONFIRMATION,
 	CANCELLATION_PROMPT,
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
-	GENERIC_ERROR,
+	ERROR_MESSAGES,
+	FALLBACK_MESSAGES,
+	getRandomMessage as getRandomResponse,
 	formatItemsList,
 } from '@/config/prompts';
 import { loggers, logError } from '@/utils/logger';
@@ -91,8 +94,15 @@ export class AgentOrchestrator {
 			'🧠 Intenção detectada',
 		);
 
-		// B. CHECAR AMBIGUIDADE (se estado for idle)
-		if (conversation.state === 'idle' && intent.intent !== 'casual_chat') {
+		// 2. CHECAR AMBIGUIDADE (APENAS se intent for desconhecido ou baixa confiança)
+		// Se neural/LLM classificou com confiança, NÃO pedir clarificação
+		const intentIsKnown = intent.intent !== 'unknown' && intent.confidence >= 0.85;
+
+		// Analisa tom para evitar tratar perguntas como itens ambíguos
+		const tone = messageAnalyzer.checkTone(context.message);
+		const isQuestion = tone.isQuestion;
+
+		if (conversation.state === 'idle' && intent.intent !== 'casual_chat' && !intentIsKnown && !isQuestion) {
 			const startAmbiguous = performance.now();
 			// Multi-provider: usa provider do contexto (vem do webhook)
 			if (!context.provider) {
@@ -114,6 +124,11 @@ export class AgentOrchestrator {
 					state: 'awaiting_context', // Estado atualizado pelo service
 				};
 			}
+		} else if (intentIsKnown) {
+			loggers.ai.info(
+				{ intent: intent.intent, confidence: intent.confidence.toFixed(2) },
+				'✅ Intent claro, pulando verificação de ambiguidade',
+			);
 		}
 
 		// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
@@ -593,7 +608,7 @@ export class AgentOrchestrator {
 			};
 		} else {
 			return {
-				message: GENERIC_ERROR,
+				message: getRandomResponse(ERROR_MESSAGES),
 				state: 'idle',
 			};
 		}
@@ -830,6 +845,27 @@ export class AgentOrchestrator {
 
 		// Mapeia escolha do usuário (1-5)
 		const message = context.message.trim();
+
+		// Verifica se usuário mudou de contexto (pergunta ou comando ao invés de número)
+		const isNumber = /^\d+$/.test(message);
+		const tone = messageAnalyzer.checkTone(message);
+
+		if (!isNumber && (tone.isQuestion || tone.tone === 'imperative')) {
+			loggers.ai.info({ message }, '↩️ Usuário mudou de contexto durante clarificação - reprocessando');
+
+			// 1. Reseta estado no banco para sair do loop
+			await conversationService.updateState(conversation.id, 'idle', {
+				pendingClarification: undefined,
+			});
+
+			// 2. Atualiza objeto local para reprocessamento
+			conversation.state = 'idle';
+			delete conversation.context?.pendingClarification;
+
+			// 3. Reprocessa mensagem como fluxo normal
+			return this.processMessage(context);
+		}
+
 		const choice = parseInt(message);
 		let detectedType: string | null = null;
 

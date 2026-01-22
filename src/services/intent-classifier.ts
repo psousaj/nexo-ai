@@ -2,6 +2,8 @@ import OpenAI from 'openai';
 import { env } from '@/config/env';
 import { INTENT_CLASSIFIER_PROMPT } from '@/config/prompts';
 import { loggers } from '@/utils/logger';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import type { IntentAnalysisResult } from '@/services/message-analysis/types/analysis-result.types';
 
 /**
  * Classificador de intenções usando Cloudflare Workers AI
@@ -78,7 +80,18 @@ export class IntentClassifier {
 	}
 
 	/**
+	 * Threshold de confiança para usar classificação neural diretamente
+	 * Abaixo disso, usa LLM para casos complexos
+	 */
+	private readonly NEURAL_CONFIDENCE_THRESHOLD = 0.85;
+
+	/**
 	 * Detecta intenção da mensagem do usuário
+	 *
+	 * Fluxo híbrido:
+	 * 1. Tenta classificação neural primeiro (rápido ~10ms)
+	 * 2. Se confiança >= 85%, usa resultado neural
+	 * 3. Se confiança < 85% ou caso complexo, usa LLM
 	 */
 	async classify(message: string): Promise<IntentResult> {
 		// Valida que message é uma string válida
@@ -87,15 +100,113 @@ export class IntentClassifier {
 			return this.classifyWithRegex(message || '');
 		}
 
-		// Fallback regex se Cloudflare não configurado
-		if (!this.client) {
+		try {
+			// 1. Tenta classificação neural primeiro (rápido)
+			const neuralResult = await messageAnalyzer.classifyIntent(message);
+
+			// 2. Se confiança alta, usa resultado neural direto
+			if (neuralResult.confidence >= this.NEURAL_CONFIDENCE_THRESHOLD) {
+				loggers.ai.info(
+					{ intent: neuralResult.intent, confidence: neuralResult.confidence.toFixed(2), method: 'neural' },
+					'⚡ Fast path: classificação neural',
+				);
+				return this.mapNeuralToIntentResult(neuralResult, message);
+			}
+
+			// 3. Confiança baixa - usa LLM se disponível
+			loggers.ai.info({ confidence: neuralResult.confidence.toFixed(2) }, '🤖 Confiança baixa, tentando LLM');
+
+			// Se Cloudflare não configurado, usa regex como último fallback
+			if (!this.client) {
+				loggers.ai.warn('⚠️ LLM não disponível, usando fallback regex');
+				return this.classifyWithRegex(message);
+			}
+
+			// Chama LLM para casos complexos
+			return await this.classifyWithLLM(message);
+		} catch (error) {
+			loggers.ai.error({ err: error }, '❌ Erro na classificação híbrida');
 			return this.classifyWithRegex(message);
 		}
+	}
+
+	/**
+	 * Mapeia resultado neural (nlp.js) para IntentResult
+	 */
+	private mapNeuralToIntentResult(neural: IntentAnalysisResult, originalMessage: string): IntentResult {
+		// Mapa de intent neural -> UserIntent
+		const intentMap: Record<string, UserIntent> = {
+			'greetings.hello': 'casual_chat',
+			'greetings.bye': 'casual_chat',
+			'save.movie': 'save_content',
+			'save.tv_show': 'save_content',
+			'save.video': 'save_content',
+			'save.link': 'save_content',
+			'save.note': 'save_content',
+			'save.previous': 'save_content',
+			'search.all': 'search_content',
+			'search.movies': 'search_content',
+			'search.tv_shows': 'search_content',
+			'search.notes': 'search_content',
+			'search.query': 'search_content',
+			'delete.all': 'delete_content',
+			'delete.item': 'delete_content',
+			'delete.selection': 'delete_content',
+			'confirmation.yes': 'confirm',
+			'confirmation.no': 'deny',
+			'info.assistant_name': 'get_info',
+			'info.help': 'get_info',
+			'settings.change_name': 'update_content',
+		};
+
+		// Mapa de action neural -> ActionVerb
+		const actionMap: Record<string, ActionVerb> = {
+			greet: 'greet',
+			farewell: 'greet',
+			save_movie: 'save',
+			save_tv_show: 'save',
+			save_video: 'save',
+			save_link: 'save',
+			save_note: 'save',
+			save_previous: 'save_previous',
+			list_all: 'list_all',
+			search: 'search',
+			delete_all: 'delete_all',
+			delete_item: 'delete_item',
+			delete_selected: 'delete_selected',
+			confirm: 'confirm',
+			deny: 'deny',
+			get_assistant_name: 'get_assistant_name',
+			get_help: 'get_details',
+			update_settings: 'update_settings',
+		};
+
+		const intent = intentMap[neural.intent] || 'unknown';
+		const action = actionMap[neural.action] || 'unknown';
+
+		return {
+			intent,
+			action,
+			confidence: neural.confidence,
+			entities: {
+				query: originalMessage.trim(),
+				selection: neural.entities?.selection,
+				itemType: neural.entities?.itemType,
+				url: this.extractURL(originalMessage),
+				refersToPrevious: neural.action === 'save_previous',
+			},
+		};
+	}
+
+	/**
+	 * Classifica usando LLM (Cloudflare Workers AI)
+	 * Usado apenas para casos complexos onde neural não tem confiança
+	 */
+	private async classifyWithLLM(message: string): Promise<IntentResult> {
+		loggers.ai.info({ messageSnippet: message.substring(0, 50) }, '🎯 Classificando com LLM');
 
 		try {
-			loggers.ai.info({ messageSnippet: message.substring(0, 50) }, '🎯 Classificando intenção');
-
-			const response = await this.client.chat.completions.create({
+			const response = await this.client!.chat.completions.create({
 				model: this.model,
 				messages: [
 					{
@@ -107,8 +218,8 @@ export class IntentClassifier {
 						content: message,
 					},
 				],
-				temperature: 0.1, // Muito baixo para consistência
-				max_tokens: 200, // Reduzido, JSON é pequeno
+				temperature: 0.1,
+				max_tokens: 200,
 			});
 
 			const content = response.choices[0]?.message?.content;
@@ -124,18 +235,16 @@ export class IntentClassifier {
 
 			// Cloudflare Workers AI pode retornar content como objeto OU string
 			if (typeof content === 'object') {
-				// Já é um objeto JSON parseado
 				loggers.ai.info('✅ Content já é objeto, usando direto');
 				result = content as IntentResult;
 			} else if (typeof content === 'string') {
-				// É string, precisa parsear
 				loggers.ai.info('🔄 Content é string, fazendo parse...');
 
 				// Limpar tags <think>, <answer>, etc (modelos de reasoning)
 				let jsonContent = content
-					.replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove blocos <think>...</think>
-					.replace(/<answer>/gi, '') // Remove tag <answer>
-					.replace(/<\/answer>/gi, '') // Remove tag </answer>
+					.replace(/<think>[\s\S]*?<\/think>/gi, '')
+					.replace(/<answer>/gi, '')
+					.replace(/<\/answer>/gi, '')
 					.trim();
 
 				// Se não começa com {, tentar encontrar JSON no texto
@@ -158,11 +267,10 @@ export class IntentClassifier {
 				return this.classifyWithRegex(message);
 			}
 
-			loggers.ai.info({ result }, '✅ Resultado da classificação de intenção');
-
+			loggers.ai.info({ result }, '✅ Resultado da classificação LLM');
 			return result;
 		} catch (error) {
-			loggers.ai.error({ err: error }, '❌ Erro ao classificar intenção');
+			loggers.ai.error({ err: error }, '❌ Erro ao classificar com LLM');
 			return this.classifyWithRegex(message);
 		}
 	}
