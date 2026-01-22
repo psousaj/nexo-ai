@@ -247,7 +247,36 @@ Usuário: "abc xyz 123" (sem sentido)
 export const GENERIC_CONFIRMATION = 'Ok!';
 export const CANCELLATION_PROMPT = 'Ok, cancelado.';
 export const NO_ITEMS_FOUND = 'Nenhum item salvo ainda.';
-export const GENERIC_ERROR = '⚠️ Ops, algo deu errado. Tente novamente.';
+
+// Mensagens de erro variadas e mais amigáveis
+export const ERROR_MESSAGES = [
+	'⚠️ Ops, algo deu errado. Tenta de novo?',
+	'😅 Deu um problema aqui. Pode tentar novamente?',
+	'🤔 Hmm, algo não saiu como esperado. Tenta mais uma vez?',
+	'⚡ Falha técnica! Tenta aí de novo.',
+	'🔧 Tive um problema. Pode repetir?',
+];
+
+// Fallbacks quando não há resposta específica (substitui "Entendido! 👍")
+export const FALLBACK_MESSAGES = [
+	'Ok! 👍',
+	'Entendi! ✅',
+	'Certo! 😊',
+	'Anotado! 📝',
+	'Beleza! 👌',
+	'Show! ✨',
+	'Fechou! 🤝',
+	'Tranquilo! 😌',
+];
+
+// Helper para pegar mensagem aleatória de um array
+export const getRandomMessage = (messages: string[]): string => {
+	return messages[Math.floor(Math.random() * messages.length)];
+};
+
+// Mantém compatibilidade com código existente
+export const GENERIC_ERROR = getRandomMessage(ERROR_MESSAGES);
+
 export const SAVE_SUCCESS = (title: string) => `✅ ${title} salvo!`;
 export const ALREADY_SAVED_PROMPT = (title: string, type: string) => `📝 "${title}" já está salvo como ${type}!`;
 export const TIMEOUT_MESSAGE = (minutes: number) =>

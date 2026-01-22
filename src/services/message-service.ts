@@ -3,7 +3,7 @@ import { conversationService } from '@/services/conversation-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { type IncomingMessage, type MessagingProvider } from '@/adapters/messaging';
 import { loggers, logError } from '@/utils/logger';
-import { TIMEOUT_MESSAGE, GENERIC_ERROR } from '@/config/prompts';
+import { TIMEOUT_MESSAGE, ERROR_MESSAGES, FALLBACK_MESSAGES, getRandomMessage } from '@/config/prompts';
 import { cancelConversationClose } from '@/services/queue-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 
@@ -121,13 +121,31 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		});
 
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
-			await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-			loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+			try {
+				await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
+				loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+			} catch (sendError: any) {
+				// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
+				if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
+					loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
+					throw sendError; // Re-throw para Bull não fazer retry
+				}
+				throw sendError;
+			}
 		} else if (!agentResponse.skipFallback) {
 			// Fallback apenas se não foi enviado manualmente via adapter
-			const fallbackMsg = 'Entendido! 👍';
-			await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
-			loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');
+			const fallbackMsg = getRandomMessage(FALLBACK_MESSAGES);
+			try {
+				await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
+				loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');
+			} catch (sendError: any) {
+				// Se erro de rede, apenas loga e retorna
+				if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
+					loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar fallback - abortando');
+					throw sendError;
+				}
+				throw sendError;
+			}
 		}
 
 		if (agentResponse.toolsUsed && agentResponse.toolsUsed.length > 0) {
@@ -136,10 +154,21 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 		const endTotal = performance.now();
 		loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
-	} catch (error) {
+	} catch (error: any) {
 		logError(error, { context: 'MESSAGE_PROCESSOR', provider: provider.getProviderName() });
 
-		const errorMsg = GENERIC_ERROR;
-		await provider.sendMessage(incomingMsg.externalId, errorMsg);
+		// NÃO tenta enviar erro se for problema de rede
+		if (error.cause?.code === 'ETIMEDOUT' || error.cause?.code === 'ECONNREFUSED') {
+			loggers.webhook.error('❌ Erro de rede - job será mantido na fila para retry');
+			throw error; // Re-throw para Bull tratar
+		}
+
+		// Para outros erros, tenta enviar mensagem de erro (mas com try-catch)
+		try {
+			const errorMsg = getRandomMessage(ERROR_MESSAGES);
+			await provider.sendMessage(incomingMsg.externalId, errorMsg);
+		} catch (sendError) {
+			loggers.webhook.error('❌ Falha ao enviar mensagem de erro - abortando');
+		}
 	}
 }

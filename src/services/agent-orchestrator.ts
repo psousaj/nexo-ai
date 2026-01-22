@@ -31,7 +31,9 @@ import {
 	CANCELLATION_PROMPT,
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
-	GENERIC_ERROR,
+	ERROR_MESSAGES,
+	FALLBACK_MESSAGES,
+	getRandomMessage as getRandomResponse,
 	formatItemsList,
 } from '@/config/prompts';
 import { loggers, logError } from '@/utils/logger';
@@ -91,8 +93,11 @@ export class AgentOrchestrator {
 			'🧠 Intenção detectada',
 		);
 
-		// B. CHECAR AMBIGUIDADE (se estado for idle)
-		if (conversation.state === 'idle' && intent.intent !== 'casual_chat') {
+		// B. CHECAR AMBIGUIDADE (APENAS se intent for desconhecido ou baixa confiança)
+		// Se neural/LLM classificou com confiança, NÃO pedir clarificação
+		const intentIsKnown = intent.intent !== 'unknown' && intent.confidence >= 0.85;
+
+		if (conversation.state === 'idle' && intent.intent !== 'casual_chat' && !intentIsKnown) {
 			const startAmbiguous = performance.now();
 			// Multi-provider: usa provider do contexto (vem do webhook)
 			if (!context.provider) {
@@ -114,6 +119,11 @@ export class AgentOrchestrator {
 					state: 'awaiting_context', // Estado atualizado pelo service
 				};
 			}
+		} else if (intentIsKnown) {
+			loggers.ai.info(
+				{ intent: intent.intent, confidence: intent.confidence.toFixed(2) },
+				'✅ Intent claro, pulando verificação de ambiguidade',
+			);
 		}
 
 		// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
@@ -593,7 +603,7 @@ export class AgentOrchestrator {
 			};
 		} else {
 			return {
-				message: GENERIC_ERROR,
+				message: getRandomResponse(ERROR_MESSAGES),
 				state: 'idle',
 			};
 		}
