@@ -1,4 +1,4 @@
-export type AnalysisType = 'ambiguity' | 'profanity' | 'sentiment' | 'spam' | 'intent' | 'language';
+export type AnalysisType = 'ambiguity' | 'profanity' | 'sentiment' | 'spam' | 'intent' | 'language' | 'tone';
 
 export type Language = 'pt' | 'en';
 
@@ -55,6 +55,16 @@ export interface SpamAnalysisResult extends BaseAnalysisResult {
 	reasons?: string[];
 }
 
+export type MessageTone = 'imperative' | 'question' | 'polite_request' | 'neutral';
+
+export interface ToneAnalysisResult extends BaseAnalysisResult {
+	type: 'tone';
+	tone: MessageTone;
+	isPolite: boolean;
+	isQuestion: boolean;
+	hasPermissionRequest: boolean;
+}
+
 export interface MessageAnalysisReport {
 	messageId?: string;
 	originalMessage: string;
@@ -68,5 +78,6 @@ export interface MessageAnalysisReport {
 		sentiment?: SentimentAnalysisResult;
 		profanity?: ProfanityAnalysisResult;
 		spam?: SpamAnalysisResult;
+		tone?: ToneAnalysisResult;
 	};
 }

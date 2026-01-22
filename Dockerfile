@@ -10,6 +10,9 @@ RUN npm install -g pnpm && pnpm install
 # Copia o restante do projeto
 COPY . .
 
+# Treina modelo Nexo antes do build (garante modelo atualizado)
+RUN pnpm train:nexo
+
 # Builda o projeto (ajuste para seu comando de build)
 RUN pnpm run build
 

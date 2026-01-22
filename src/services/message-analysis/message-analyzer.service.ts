@@ -1,6 +1,7 @@
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
 import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';
 import { SpamAnalyzer } from './analyzers/spam-analyzer.js';
+import { ToneAnalyzer } from './analyzers/tone-analyzer.js';
 import { NexoTrainer } from './training/nexo-trainer.js';
 import {
 	Language,
@@ -10,6 +11,7 @@ import {
 	LanguageAnalysisResult,
 	ProfanityAnalysisResult,
 	SpamAnalysisResult,
+	ToneAnalysisResult,
 	MessageAnalysisReport,
 } from './types/analysis-result.types.js';
 import { loggers } from '@/utils/logger';
@@ -19,6 +21,7 @@ export class MessageAnalyzerService {
 	private ambiguityAnalyzer: AmbiguityAnalyzer;
 	private profanityAnalyzer: ProfanityAnalyzer;
 	private spamAnalyzer: SpamAnalyzer;
+	private toneAnalyzer: ToneAnalyzer;
 	private initialized = false;
 
 	constructor() {
@@ -26,6 +29,7 @@ export class MessageAnalyzerService {
 		this.ambiguityAnalyzer = new AmbiguityAnalyzer();
 		this.profanityAnalyzer = new ProfanityAnalyzer();
 		this.spamAnalyzer = new SpamAnalyzer();
+		this.toneAnalyzer = new ToneAnalyzer();
 	}
 
 	/**
@@ -220,6 +224,13 @@ export class MessageAnalyzerService {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Verifica o tom da mensagem (imperativo vs educado)
+	 */
+	checkTone(message: string, language: Language = 'pt'): ToneAnalysisResult {
+		return this.toneAnalyzer.analyze(message, language);
 	}
 
 	/**

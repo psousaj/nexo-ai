@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "tsx watch src/index.ts",
-        "build": "tsup src/index.ts --outDir dist --format esm,cjs --sourcemap",
+        "build": "tsup",
         "build:binary": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile server src/index.ts",
         "start": "node --experimental-loader=newrelic/esm-loader.mjs dist/index.js",
         "start:no-newrelic": "node dist/index.js",
