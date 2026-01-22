@@ -21,7 +21,9 @@ describe('Clarification Flow (N1/N2)', () => {
 		const conversationService = new ConversationService();
 
 		// Simula detecção de ambiguidade
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, longMessage);
+		const mockExternalId = '123456789';
+		const mockProvider = 'telegram' as const;
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, longMessage, mockExternalId, mockProvider);
 
 		expect(isAmbiguous).toBe(true);
 	});
@@ -31,17 +33,33 @@ describe('Clarification Flow (N1/N2)', () => {
 
 		const conversationService = new ConversationService();
 
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, actionMessage);
+		const mockExternalId = '123456789';
+		const mockProvider = 'telegram' as const;
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, actionMessage, mockExternalId, mockProvider);
 
 		expect(isAmbiguous).toBe(false);
 	});
 
-	test('não deve considerar mensagem curta como ambígua', async () => {
-		const shortMessage = 'isso é um teste curto';
+	test('deve detectar mensagem curta sem verbo como ambígua', async () => {
+		const shortMessage = 'dj khaled';
 
 		const conversationService = new ConversationService();
 
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, shortMessage);
+		const mockExternalId = '123456789';
+		const mockProvider = 'telegram' as const;
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, shortMessage, mockExternalId, mockProvider);
+
+		expect(isAmbiguous).toBe(true);
+	});
+
+	test('não deve considerar mensagem curta com contexto como ambígua', async () => {
+		const shortMessage = 'busca filmes de terror com zumbis';
+
+		const conversationService = new ConversationService();
+
+		const mockExternalId = '123456789';
+		const mockProvider = 'telegram' as const;
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, shortMessage, mockExternalId, mockProvider);
 
 		expect(isAmbiguous).toBe(false);
 	});
