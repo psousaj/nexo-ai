@@ -4,7 +4,13 @@ import { eq, desc, sql, and } from 'drizzle-orm';
 import type { ConversationState, ConversationContext, MessageRole } from '@/types';
 import { classifierService } from '@/services/classifier-service';
 import { type ProviderType, getProvider } from '@/adapters/messaging';
-import { clarificationMessages, clarificationOptions, getRandomMessage } from '@/services/conversation/messageTemplates';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import {
+	getClarificationOptions,
+	getClarificationMessages,
+	getRandomMessage,
+} from '@/services/message-analysis/constants/clarification-messages';
+import type { Language } from '@/services/message-analysis/types/analysis-result.types';
 import { processingLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 import { loggers } from '@/utils/logger';
 
@@ -110,37 +116,35 @@ export class ConversationService {
 	/**
 	 * Detecta mensagens longas/ambíguas e solicita clarificação
 	 * Retorna true se clarificação foi solicitada
+	 * Usa o novo MessageAnalyzerService para análise
 	 */
-	async handleAmbiguousMessage(conversationId: string, message: string, externalId: string, providerType: ProviderType): Promise<boolean> {
-		// Verbo de ação no início (comando direto como "salva inception")
-		const hasDirectCommand = /^(salva|adiciona|busca|lista|deleta|procura|mostra|remove)\s+\w+/i.test(message.trim());
+	async handleAmbiguousMessage(
+		conversationId: string,
+		message: string,
+		externalId: string,
+		providerType: ProviderType,
+		language: Language = 'pt',
+	): Promise<boolean> {
+		// Usa o novo serviço de análise de mensagens
+		const ambiguityResult = messageAnalyzer.checkAmbiguity(message, language);
 
-		// Mensagens longas (>150 chars) sem comando direto são ambíguas
-		const isLongMessage = message.length > 150;
-
-		// Mensagens curtas (<50 chars) sem verbo também são ambíguas
-		// Ex: "inception", "dj khaled", "matrix" - o que fazer com isso?
-		const isShortWithoutCommand = message.length < 50 && !hasDirectCommand;
-
-		// Detecta ambiguidade
-		const isAmbiguous = (isLongMessage && !hasDirectCommand) || isShortWithoutCommand;
-
-		if (isAmbiguous) {
-			const reason = isLongMessage ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info({ reason }, '🔍 Ambiguidade detectada, solicitando clarificação');
+		if (ambiguityResult.isAmbiguous) {
+			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
+			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
 
 			// Atualiza estado para awaiting_context
 			await this.updateState(conversationId, 'awaiting_context', {
 				pendingClarification: {
 					originalMessage: message,
 					detectedType: null,
-					clarificationOptions,
+					clarificationOptions: getClarificationOptions(language),
 				},
 			});
 
 			// Envia mensagem de clarificação ao usuário
-			const msg = getRandomMessage(clarificationMessages);
-			const optionsText = clarificationOptions.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
+			const msg = getRandomMessage(getClarificationMessages(language));
+			const options = getClarificationOptions(language);
+			const optionsText = options.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
 
 			// Multi-provider: obtém provider correto e envia mensagem
 			const provider = getProvider(providerType);

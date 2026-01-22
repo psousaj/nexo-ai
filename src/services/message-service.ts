@@ -1,4 +1,3 @@
-import Sentiment from 'sentiment';
 import { userService } from '@/services/user-service';
 import { conversationService } from '@/services/conversation-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
@@ -6,41 +5,19 @@ import { type IncomingMessage, type MessagingProvider } from '@/adapters/messagi
 import { loggers, logError } from '@/utils/logger';
 import { TIMEOUT_MESSAGE, GENERIC_ERROR } from '@/config/prompts';
 import { cancelConversationClose } from '@/services/queue-service';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 
 export const userTimeouts = new Map<string, number>();
 
-const sentiment = new Sentiment();
-sentiment.registerLanguage('pt', {
-	labels: {
-		fdp: -5,
-		'filho da puta': -5,
-		'puta que pariu': -5,
-		'vai tomar no cu': -5,
-		vtmnc: -5,
-		vsf: -5,
-		'vai se fuder': -5,
-		cu: -3,
-		caralho: -3,
-		porra: -3,
-		merda: -3,
-		bosta: -3,
-		burro: -2,
-		idiota: -2,
-		imbecil: -2,
-		retardado: -2,
-		estúpido: -2,
-		'cala a boca': -4,
-		'cala boca': -4,
-		lixo: -2,
-		inútil: -2,
-		incompetente: -2,
-	},
-});
-
-function containsOffensiveContent(message: string): boolean {
-	const result = sentiment.analyze(message, { language: 'pt' });
-	loggers.webhook.info({ score: result.score, message }, '🛡️ Sentiment Analysis');
-	return result.score < 0;
+/**
+ * Verifica se a mensagem contém conteúdo ofensivo usando nlp.js
+ * Substitui a implementação anterior com a biblioteca 'sentiment'
+ */
+async function containsOffensiveContent(message: string): Promise<boolean> {
+	const sentiment = await messageAnalyzer.analyzeSentiment(message);
+	loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
+	// Score muito negativo indica conteúdo ofensivo
+	return sentiment.score < -3;
 }
 
 async function isUserInTimeout(userId: string, externalId: string): Promise<boolean> {
@@ -91,7 +68,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 	const startTotal = performance.now();
 
 	try {
-		if (containsOffensiveContent(messageText)) {
+		// Usa o novo serviço de análise para detectar conteúdo ofensivo
+		if (await containsOffensiveContent(messageText)) {
 			const { user } = await userService.findOrCreateUserByAccount(
 				incomingMsg.externalId,
 				incomingMsg.provider,
