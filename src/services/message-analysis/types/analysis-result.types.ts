@@ -49,6 +49,12 @@ export interface ProfanityAnalysisResult extends BaseAnalysisResult {
 	detectedWords?: string[];
 }
 
+export interface SpamAnalysisResult extends BaseAnalysisResult {
+	type: 'spam';
+	isSpam: boolean;
+	reasons?: string[];
+}
+
 export interface MessageAnalysisReport {
 	messageId?: string;
 	originalMessage: string;
@@ -61,5 +67,6 @@ export interface MessageAnalysisReport {
 		ambiguity?: AmbiguityAnalysisResult;
 		sentiment?: SentimentAnalysisResult;
 		profanity?: ProfanityAnalysisResult;
+		spam?: SpamAnalysisResult;
 	};
 }

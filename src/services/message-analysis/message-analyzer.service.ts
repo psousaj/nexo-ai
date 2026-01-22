@@ -1,4 +1,6 @@
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
+import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';
+import { SpamAnalyzer } from './analyzers/spam-analyzer.js';
 import { NexoTrainer } from './training/nexo-trainer.js';
 import {
 	Language,
@@ -6,6 +8,8 @@ import {
 	SentimentAnalysisResult,
 	IntentAnalysisResult,
 	LanguageAnalysisResult,
+	ProfanityAnalysisResult,
+	SpamAnalysisResult,
 	MessageAnalysisReport,
 } from './types/analysis-result.types.js';
 import { loggers } from '@/utils/logger';
@@ -13,11 +17,15 @@ import { loggers } from '@/utils/logger';
 export class MessageAnalyzerService {
 	private trainer: NexoTrainer;
 	private ambiguityAnalyzer: AmbiguityAnalyzer;
+	private profanityAnalyzer: ProfanityAnalyzer;
+	private spamAnalyzer: SpamAnalyzer;
 	private initialized = false;
 
 	constructor() {
 		this.trainer = new NexoTrainer({ log: false });
 		this.ambiguityAnalyzer = new AmbiguityAnalyzer();
+		this.profanityAnalyzer = new ProfanityAnalyzer();
+		this.spamAnalyzer = new SpamAnalyzer();
 	}
 
 	/**
@@ -142,6 +150,20 @@ export class MessageAnalyzerService {
 	}
 
 	/**
+	 * Verifica palavrões e conteúdo ofensivo
+	 */
+	checkProfanity(message: string, language: Language = 'pt'): ProfanityAnalysisResult {
+		return this.profanityAnalyzer.analyze(message, language);
+	}
+
+	/**
+	 * Verifica spam/flood
+	 */
+	checkSpam(message: string, language: Language = 'pt'): SpamAnalysisResult {
+		return this.spamAnalyzer.analyze(message, language);
+	}
+
+	/**
 	 * Analisa sentimento de uma mensagem usando nlp.js
 	 */
 	async analyzeSentiment(message: string, language: Language = 'pt'): Promise<SentimentAnalysisResult> {
@@ -173,10 +195,31 @@ export class MessageAnalyzerService {
 
 	/**
 	 * Verifica se mensagem contém conteúdo ofensivo
+	 * Usa ProfanityAnalyzer + SpamAnalyzer + Sentimento como fallback
 	 */
-	async containsOffensiveContent(message: string): Promise<boolean> {
-		const sentiment = await this.analyzeSentiment(message);
-		return sentiment.score < -3;
+	async containsOffensiveContent(message: string, language: Language = 'pt'): Promise<boolean> {
+		// 1. Primeiro: verifica palavrões (mais preciso)
+		const profanity = this.checkProfanity(message, language);
+		if (profanity.hasProfanity && profanity.severity !== 'low') {
+			loggers.webhook.info({ severity: profanity.severity, words: profanity.detectedWords }, '🚫 Profanity detected');
+			return true;
+		}
+
+		// 2. Segundo: verifica spam
+		const spam = this.checkSpam(message, language);
+		if (spam.isSpam) {
+			loggers.webhook.info({ reasons: spam.reasons }, '🚫 Spam detected');
+			return true;
+		}
+
+		// 3. Fallback: sentimento muito negativo
+		const sentiment = await this.analyzeSentiment(message, language);
+		if (sentiment.score < -3) {
+			loggers.webhook.info({ score: sentiment.score }, '🚫 Negative sentiment detected');
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -188,16 +231,19 @@ export class MessageAnalyzerService {
 		await this.ensureInitialized();
 
 		const language = this.detectLanguage(message);
+		const lang = language.detectedLanguage;
 
-		const [intent, ambiguity, sentiment] = await Promise.all([
+		const [intent, ambiguity, sentiment, profanity, spam] = await Promise.all([
 			this.classifyIntent(message),
-			Promise.resolve(this.checkAmbiguity(message, language.detectedLanguage)),
-			this.analyzeSentiment(message, language.detectedLanguage),
+			Promise.resolve(this.checkAmbiguity(message, lang)),
+			this.analyzeSentiment(message, lang),
+			Promise.resolve(this.checkProfanity(message, lang)),
+			Promise.resolve(this.checkSpam(message, lang)),
 		]);
 
 		return {
 			originalMessage: message,
-			language: language.detectedLanguage,
+			language: lang,
 			analyzedAt: new Date(),
 			processingTimeMs: Date.now() - startTime,
 			results: {
@@ -205,6 +251,8 @@ export class MessageAnalyzerService {
 				intent,
 				ambiguity,
 				sentiment,
+				profanity,
+				spam,
 			},
 		};
 	}
