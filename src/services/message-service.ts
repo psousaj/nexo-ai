@@ -66,6 +66,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 	);
 
 	const startTotal = performance.now();
+	let userId: string | undefined;
+	let conversationId: string | undefined;
 
 	try {
 		// Usa o novo serviço de análise para detectar conteúdo ofensivo
@@ -76,6 +78,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				incomingMsg.senderName,
 				incomingMsg.phoneNumber,
 			);
+			userId = user.id;
 
 			const timeoutMinutes = await applyTimeout(user.id, incomingMsg.externalId);
 			const response = TIMEOUT_MESSAGE(timeoutMinutes);
@@ -91,6 +94,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			incomingMsg.senderName,
 			incomingMsg.phoneNumber,
 		);
+		userId = user.id;
 
 		if (incomingMsg.senderName && incomingMsg.senderName !== user.name) {
 			await userService.updateUserName(user.id, incomingMsg.senderName);
@@ -102,6 +106,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		}
 
 		const conversation = await conversationService.findOrCreateConversation(user.id);
+		conversationId = conversation.id;
 		if (!conversation) {
 			throw new Error('Falha ao obter conversação');
 		}
@@ -155,6 +160,9 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		const endTotal = performance.now();
 		loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
 	} catch (error: any) {
+		// Anexa contexto capturado para o Global Error Handler
+		error.userId = userId;
+		error.conversationId = conversationId;
 		// Apenas tenta avisar o usuário se não for erro de conexão
 		// O Global Error Handler (via Queue) vai cuidar de logar e persistir tudo com contexto
 		if (error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
