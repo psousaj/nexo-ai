@@ -53,7 +53,7 @@ export interface AgentContext {
 	message: string;
 	// Telegram callback data
 	callbackData?: string;
-	provider?: string;
+	provider: string; // Provider sempre obrigatório (vem do webhook)
 }
 
 export interface AgentResponse {
@@ -94,7 +94,17 @@ export class AgentOrchestrator {
 		// B. CHECAR AMBIGUIDADE (se estado for idle)
 		if (conversation.state === 'idle' && intent.intent !== 'casual_chat') {
 			const startAmbiguous = performance.now();
-			const isAmbiguous = await conversationService.handleAmbiguousMessage(conversation.id, context.message);
+			// Multi-provider: usa provider do contexto (vem do webhook)
+			if (!context.provider) {
+				throw new Error('Provider não informado no contexto');
+			}
+			const providerType = context.provider as 'telegram' | 'whatsapp';
+			const isAmbiguous = await conversationService.handleAmbiguousMessage(
+				conversation.id,
+				context.message,
+				context.externalId,
+				providerType,
+			);
 			const endAmbiguous = performance.now();
 
 			if (isAmbiguous) {
@@ -934,9 +944,13 @@ export class AgentOrchestrator {
 				},
 			]);
 
-			// Envia diretamente usando o adapter
-			const { telegramAdapter } = await import('@/adapters/messaging');
-			await telegramAdapter.sendMessageWithButtons(context.externalId, message, buttons);
+			// Obtém provider dinamicamente do contexto
+			const { getProvider } = await import('@/adapters/messaging');
+			const provider = getProvider(context.provider as 'telegram');
+
+			if (provider && 'sendMessageWithButtons' in provider) {
+				await (provider as any).sendMessageWithButtons(context.externalId, message, buttons);
+			}
 
 			// Retorna resposta vazia (já enviou manualmente)
 			return {
@@ -1005,9 +1019,14 @@ export class AgentOrchestrator {
 				],
 			];
 
-			const { telegramAdapter } = await import('@/adapters/messaging');
-			loggers.ai.info({ posterUrl, title: selected.title }, '🖼️ Enviando foto do TMDB');
-			await telegramAdapter.sendPhoto(context.externalId, posterUrl, caption, buttons);
+			// Obtém provider dinamicamente do contexto
+			const { getProvider } = await import('@/adapters/messaging');
+			const provider = getProvider(context.provider as 'telegram');
+
+			if (provider && 'sendPhoto' in provider) {
+				loggers.ai.info({ posterUrl, title: selected.title }, '🖼️ Enviando foto do TMDB');
+				await (provider as any).sendPhoto(context.externalId, posterUrl, caption, buttons);
+			}
 
 			return {
 				message: '',
@@ -1018,21 +1037,35 @@ export class AgentOrchestrator {
 		}
 
 		// Fallback: se provider não é Telegram, envia sem imagem mas COM botões
-		const buttons = [
-			[
-				{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
-				{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
-			],
-		];
+		if (context.provider === 'telegram') {
+			const buttons = [
+				[
+					{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
+					{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
+				],
+			];
 
-		const { telegramAdapter } = await import('@/adapters/messaging');
-		await telegramAdapter.sendMessageWithButtons(context.externalId, caption, buttons);
+			// Obtém provider dinamicamente do contexto
+			const { getProvider } = await import('@/adapters/messaging');
+			const provider = getProvider(context.provider as 'telegram');
 
+			if (provider && 'sendMessageWithButtons' in provider) {
+				await (provider as any).sendMessageWithButtons(context.externalId, caption, buttons);
+			}
+
+			return {
+				message: '',
+				state: 'awaiting_final_confirmation',
+				toolsUsed: [],
+				skipFallback: true, // Não enviar fallback
+			};
+		}
+
+		// Provider não suporta botões, envia mensagem de texto
 		return {
-			message: '',
+			message: caption,
 			state: 'awaiting_final_confirmation',
 			toolsUsed: [],
-			skipFallback: true, // Não enviar fallback
 		};
 	}
 }

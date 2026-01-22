@@ -3,7 +3,7 @@ import { conversations, messages } from '@/db/schema';
 import { eq, desc, sql, and } from 'drizzle-orm';
 import type { ConversationState, ConversationContext, MessageRole } from '@/types';
 import { classifierService } from '@/services/classifier-service';
-import { whatsappService } from '@/services/whatsapp';
+import { type ProviderType, getProvider } from '@/adapters/messaging';
 import { clarificationMessages, clarificationOptions, getRandomMessage } from '@/services/conversation/messageTemplates';
 import { processingLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
 import { loggers } from '@/utils/logger';
@@ -86,7 +86,7 @@ export class ConversationService {
 					conversationId: conversationId.substring(0, 8),
 					from: oldState,
 					to: state,
-				})
+				}),
 		);
 
 		const mergedContext = {
@@ -111,18 +111,23 @@ export class ConversationService {
 	 * Detecta mensagens longas/ambíguas e solicita clarificação
 	 * Retorna true se clarificação foi solicitada
 	 */
-	async handleAmbiguousMessage(conversationId: string, message: string): Promise<boolean> {
-		// Detecta mensagens longas (>150 chars) sem verbos de ação claros
-		// Verbo deve estar no início E ser um comando direto (ex: "salva inception")
-		// "Salvar info tmdb..." é uma descrição técnica, não um comando
+	async handleAmbiguousMessage(conversationId: string, message: string, externalId: string, providerType: ProviderType): Promise<boolean> {
+		// Verbo de ação no início (comando direto como "salva inception")
 		const hasDirectCommand = /^(salva|adiciona|busca|lista|deleta|procura|mostra|remove)\s+\w+/i.test(message.trim());
 
-		// Mensagens muito longas (>150 chars) provavelmente são notas/descrições
-		// mesmo que comecem com palavras como "Salvar"
+		// Mensagens longas (>150 chars) sem comando direto são ambíguas
 		const isLongMessage = message.length > 150;
 
-		if (isLongMessage && !hasDirectCommand) {
-			loggers.db.info('🔍 Mensagem longa detectada, solicitando clarificação');
+		// Mensagens curtas (<50 chars) sem verbo também são ambíguas
+		// Ex: "inception", "dj khaled", "matrix" - o que fazer com isso?
+		const isShortWithoutCommand = message.length < 50 && !hasDirectCommand;
+
+		// Detecta ambiguidade
+		const isAmbiguous = (isLongMessage && !hasDirectCommand) || isShortWithoutCommand;
+
+		if (isAmbiguous) {
+			const reason = isLongMessage ? 'Mensagem longa' : 'Mensagem curta sem verbo';
+			loggers.db.info({ reason }, '🔍 Ambiguidade detectada, solicitando clarificação');
 
 			// Atualiza estado para awaiting_context
 			await this.updateState(conversationId, 'awaiting_context', {
@@ -137,8 +142,14 @@ export class ConversationService {
 			const msg = getRandomMessage(clarificationMessages);
 			const optionsText = clarificationOptions.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
 
-			// TODO: Adaptar para multi-provider (não só whatsapp)
-			await whatsappService.sendMessage(conversationId, `${msg}\n\n${optionsText}`);
+			// Multi-provider: obtém provider correto e envia mensagem
+			const provider = getProvider(providerType);
+			if (provider) {
+				await provider.sendMessage(externalId, `${msg}\n\n${optionsText}`);
+			} else {
+				loggers.db.error({ provider: providerType }, '❌ Provider não encontrado');
+				throw new Error(`Provider ${providerType} não encontrado`);
+			}
 
 			return true; // Clarificação solicitada
 		}
