@@ -9,6 +9,7 @@ import {
 	runAwaitingConfirmationTimeoutCron,
 	messageQueue,
 	closeConversationQueue,
+	responseQueue
 } from '@/services/queue-service';
 import pkg from '../package.json';
 import cron from 'node-cron';
@@ -33,7 +34,7 @@ const serverAdapter = new HonoAdapter(serveStatic);
 
 // Criar Bull Board com as filas
 createBullBoard({
-	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue)],
+	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue), new BullAdapter(responseQueue)],
 	serverAdapter,
 });
 

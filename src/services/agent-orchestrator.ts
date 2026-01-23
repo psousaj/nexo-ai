@@ -124,6 +124,7 @@ export class AgentOrchestrator {
 				return {
 					message: null as any, // Mensagem já enviada pelo conversationService
 					state: 'awaiting_context', // Estado atualizado pelo service
+					skipFallback: true, // Não enviar fallback - clarificação já foi enviada
 				};
 			}
 		} else if (intentIsKnown) {
@@ -770,12 +771,17 @@ export class AgentOrchestrator {
 				const deletedItems: string[] = [];
 				const notFoundSelections: number[] = [];
 
+				// Filtra por tipo se especificado (ex: "deleta o filme 1" → filtra apenas filmes)
+				const targetItems = intent.entities?.itemType
+					? items.filter((i: any) => i.type === intent.entities?.itemType)
+					: items;
+
 				// Processar cada seleção
 				for (const selection of selections) {
 					const index = selection - 1;
 
-					if (index >= 0 && index < items.length) {
-						const itemToDelete = items[index];
+					if (index >= 0 && index < targetItems.length) {
+						const itemToDelete = targetItems[index];
 
 						// Deletar o item
 						const deleteResult = await executeTool('delete_memory', toolContext, {
@@ -878,6 +884,31 @@ export class AgentOrchestrator {
 		const choice = parseInt(message);
 		let detectedType: string | null = null;
 
+		// Detecta resposta em linguagem natural (ex: "é um filme", "anota ai", "to falando da série")
+		const lowerMsg = message.toLowerCase();
+		
+		const moviePatterns = ['filme', 'movie', 'to falando do filme', 'é filme', 'é um filme', 'foi filme'];
+		const seriesPatterns = ['série', 'serie', 'seriado', 'to falando da série', 'é série', 'é uma série'];
+		const notePatterns = ['nota', 'anota', 'lembrete', 'anotação', 'anota ai', 'anota aí', 'guarda', 'lembra'];
+		const linkPatterns = ['link', 'url', 'site'];
+
+		if (moviePatterns.some(p => lowerMsg.includes(p))) {
+			detectedType = 'movie';
+			loggers.ai.info({ message }, '🎬 Usuário escolheu filme via linguagem natural');
+		} else if (seriesPatterns.some(p => lowerMsg.includes(p))) {
+			detectedType = 'series';
+			loggers.ai.info({ message }, '📺 Usuário escolheu série via linguagem natural');
+		} else if (notePatterns.some(p => lowerMsg.includes(p))) {
+			detectedType = 'note';
+			loggers.ai.info({ message }, '📝 Usuário escolheu nota via linguagem natural');
+		} else if (linkPatterns.some(p => lowerMsg.includes(p))) {
+			detectedType = 'link';
+			loggers.ai.info({ message }, '🔗 Usuário escolheu link via linguagem natural');
+		}
+
+		// Se detectou via linguagem natural, pula o switch de números
+		if (!detectedType) {
+
 		switch (choice) {
 			case 1:
 				detectedType = 'note';
@@ -902,6 +933,23 @@ export class AgentOrchestrator {
 					state: 'idle',
 				};
 			default:
+				// Se não é número válido (1-5), trata como NOVA MENSAGEM
+				// Isso permite ao usuário ignorar a clarificação e continuar conversando
+				if (!isNumber || choice < 1 || choice > 5) {
+					loggers.ai.info({ message }, '↩️ Usuário enviou nova mensagem durante clarificação - reprocessando');
+
+					// Reseta estado e reprocessa
+					await conversationService.updateState(conversation.id, 'idle', {
+						pendingClarification: undefined,
+					});
+
+					conversation.state = 'idle';
+					delete conversation.context?.pendingClarification;
+
+					return this.processMessage(context);
+				}
+
+				// Se chegou aqui, é um número inválido (fora de 1-5 mas é número)
 				loggers.ai.warn({ choice: message }, '⚠️ Escolha inválida de clarificação');
 
 				// Re-envia as opções quando a escolha é inválida

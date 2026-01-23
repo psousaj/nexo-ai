@@ -34,6 +34,17 @@ export class AmbiguityAnalyzer extends BaseAnalyzer<AmbiguityAnalysisResult> {
 		const hasDirectCommand = pattern.test(normalized);
 		const length = normalized.length;
 
+		// Telegram commands (e.g., /start, /help) are NOT ambiguous
+		if (message.trim().startsWith('/')) {
+			return {
+				type: 'ambiguity' as const,
+				timestamp: new Date(),
+				confidence: 1.0,
+				isAmbiguous: false,
+				suggestedAction: 'proceed',
+			};
+		}
+
 		if (length > this.LONG_MESSAGE_THRESHOLD && !hasDirectCommand) {
 			return {
 				type: 'ambiguity' as const,

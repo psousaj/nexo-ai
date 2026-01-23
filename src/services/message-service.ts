@@ -137,8 +137,9 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				}
 				throw sendError;
 			}
-		} else if (!agentResponse.skipFallback) {
+		} else if (!agentResponse.skipFallback && agentResponse.state !== 'awaiting_context') {
 			// Fallback apenas se não foi enviado manualmente via adapter
+			// E se não estamos aguardando clarificação (mensagem já foi enviada pelo conversationService)
 			const fallbackMsg = getRandomMessage(FALLBACK_MESSAGES);
 			try {
 				await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
