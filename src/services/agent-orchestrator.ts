@@ -87,6 +87,26 @@ export class AgentOrchestrator {
 			return this.handleClarificationResponse(context, conversation);
 		}
 
+		// B. TRATAR CALLBACKS DO TELEGRAM (botões inline)
+		// Quando há callbackData, são comandos internos do bot - não classificar via NLP
+		if (context.callbackData) {
+			const cb = context.callbackData;
+			const isKnownCallback = cb.startsWith('select_') || cb === 'confirm_final' || cb === 'choose_again';
+
+			if (isKnownCallback && (conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')) {
+				loggers.ai.info({ callbackData: cb, state: conversation.state }, '🔘 Callback do Telegram detectado');
+
+				// Cria intent artificial para handleConfirmation
+				const artificialIntent: IntentResult = {
+					intent: 'confirm',
+					action: 'confirm',
+					confidence: 1.0,
+				};
+
+				return this.handleConfirmation(context, conversation, artificialIntent);
+			}
+		}
+
 		// 1. CLASSIFICAR INTENÇÃO (determinístico)
 		const startIntent = performance.now();
 		const intent = await intentClassifier.classify(context.message);
