@@ -1152,12 +1152,17 @@ export class AgentOrchestrator {
 
 		// Se for Telegram, envia com botões
 		if (context.provider === 'telegram') {
-			const buttons = limitedCandidates.map((candidate: any, index: number) => [
-				{
-					text: `${index + 1}. ${candidate.title} (${candidate.year || candidate.release_date?.split('-')[0] || ''})`,
-					callback_data: `select_${index}`,
-				},
-			]);
+			// Agrupa botões em linhas de 3 (apenas números, títulos estão na mensagem)
+			const candidateButtons = limitedCandidates.map((_: any, index: number) => ({
+				text: `${index + 1}`,
+				callback_data: `select_${index}`,
+			}));
+
+			// Agrupa em linhas de 3 botões cada
+			const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
+			for (let i = 0; i < candidateButtons.length; i += 3) {
+				buttons.push(candidateButtons.slice(i, i + 3));
+			}
 
 			// Obtém provider dinamicamente do contexto
 			const { getProvider } = await import('@/adapters/messaging');

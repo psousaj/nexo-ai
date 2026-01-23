@@ -7,11 +7,10 @@ function removeEmojis(text: string): string {
 function escapeMarkdownV2(text: string): string {
 	// Remove emojis para evitar problemas
 	let clean = removeEmojis(text);
-	// Escapa caracteres especiais
-	clean = clean.replace(/([_\*\[\]()~`>#+\-=|{}\.!])/g, '\\$1');
-	clean = clean.replace(/([\\])/g, '\\$1');
-	// Escapa quebras de linha para dupla barra
-	clean = clean.replace(/\n/g, '\\\n');
+	// Primeiro escapa a barra invertida para não duplicar
+	clean = clean.replace(/\\/g, '\\\\');
+	// Depois escapa os demais caracteres especiais do MarkdownV2
+	clean = clean.replace(/([_*\[\]()~`>#+\-=|{}\.!])/g, '\\$1');
 	return clean;
 }
 import { env } from '@/config/env';
