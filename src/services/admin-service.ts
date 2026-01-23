@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { errorReports, conversations, users } from '@/db/schema';
-import { desc, eq, sql } from 'drizzle-orm';
+import { errorReports, conversations, users, messages } from '@/db/schema';
+import { desc, eq, sql, count } from 'drizzle-orm';
 
 export class AdminService {
 	/**
@@ -27,9 +27,12 @@ export class AdminService {
 				isActive: conversations.isActive,
 				updatedAt: conversations.updatedAt,
 				createdAt: conversations.createdAt,
+				messageCount: count(messages.id),
 			})
 			.from(conversations)
 			.leftJoin(users, eq(conversations.userId, users.id))
+			.leftJoin(messages, eq(conversations.id, messages.conversationId))
+			.groupBy(conversations.id, users.id)
 			.orderBy(desc(conversations.updatedAt))
 			.limit(limit);
 
@@ -39,7 +42,7 @@ export class AdminService {
 			userName: c.userName || 'Anônimo',
 			status: c.isActive ? 'Active' : 'Closed',
 			lastMessage: c.updatedAt,
-			messages: 0, // Placeholder
+			messages: Number(c.messageCount),
 		}));
 	}
 }

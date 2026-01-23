@@ -69,9 +69,7 @@ export const memoriesRoutes = new Hono()
 			const id = c.req.param('id');
 			const { userId, ...updates } = c.req.valid('json');
 
-			// Nota: itemService não tem updateItem direto, precisaria implementar.
-			// Para o MVP vou retornar sucesso simulado se o item existir.
-			const item = await itemService.getItemById(id, userId);
+			const item = await itemService.updateItem(id, userId, updates);
 			if (!item) return c.json({ error: 'Not found' }, 404);
 
 			return c.json({ success: true, item });

@@ -1,4 +1,5 @@
 export type UserRole = 'admin' | 'user';
+export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'text' | 'image' | 'audio';
 
 export interface User {
 	id: string;

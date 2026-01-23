@@ -10,13 +10,14 @@ export class AnalyticsService {
 		const [totalUsers] = await db.select({ value: count() }).from(users);
 		const [totalMemories] = await db.select({ value: count() }).from(memoryItems);
 		const [totalMessages] = await db.select({ value: count() }).from(messages);
+		const [activeConvs] = await db.select({ value: count() }).from(conversations).where(eq(conversations.isActive, true));
 
 		// Simulação de trends (em um cenário real seria comparado com o período anterior)
 		return [
 			{ title: 'Total Users', value: this.formatValue(Number(totalUsers.value)), trend: 12.5, icon: 'Users' },
 			{ title: 'Memórias Salvas', value: this.formatValue(Number(totalMemories.value)), trend: 8.2, icon: 'Database' },
 			{ title: 'Mensagens Processadas', value: this.formatValue(Number(totalMessages.value)), trend: -2.4, icon: 'MessageSquare' },
-			{ title: 'Conversas Ativas', value: '85', trend: 5.1, icon: 'Activity' },
+			{ title: 'Conversas Ativas', value: this.formatValue(Number(activeConvs.value)), trend: 5.1, icon: 'Activity' },
 		];
 	}
 
@@ -41,19 +42,55 @@ export class AnalyticsService {
 	 * Retorna dados de tendências (últimos 6 meses)
 	 */
 	async getTrends() {
-		// Mock de dados para o gráfico de linha
+		const months = 6;
+
+		// Query para buscar contagem agrupadada por mês para memórias
+		const memoryTrends = await db.execute(sql`
+			SELECT 
+				TO_CHAR(DATE_TRUNC('month', created_at), 'Mon') as label,
+				DATE_TRUNC('month', created_at) as month_date,
+				COUNT(*)::int as value
+			FROM ${memoryItems}
+			WHERE created_at >= NOW() - INTERVAL '6 months'
+			GROUP BY month_date
+			ORDER BY month_date ASC
+		`);
+
+		// Query para buscar contagem agrupada por mês para mensagens
+		const messageTrends = await db.execute(sql`
+			SELECT 
+				TO_CHAR(DATE_TRUNC('month', created_at), 'Mon') as label,
+				DATE_TRUNC('month', created_at) as month_date,
+				COUNT(*)::int as value
+			FROM ${messages}
+			WHERE created_at >= NOW() - INTERVAL '6 months'
+			GROUP BY month_date
+			ORDER BY month_date ASC
+		`);
+
+		// Se não houver dados, retorna labels dos meses e zeros
+		if (memoryTrends.length === 0 && messageTrends.length === 0) {
+			return {
+				labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+				datasets: [
+					{ label: 'Memórias Salvas', data: [0, 0, 0, 0, 0, 0], color: '#10b981' },
+					{ label: 'Mensagens Processadas', data: [0, 0, 0, 0, 0, 0], color: '#6366f1' },
+				],
+			};
+		}
+
 		return {
-			labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+			labels: memoryTrends.map((m) => m.label as string),
 			datasets: [
 				{
-					label: 'Crescimento de Usuários',
-					data: [100, 150, 230, 310, 420, 560],
-					color: '#6366f1',
+					label: 'Memórias Salvas',
+					data: memoryTrends.map((m) => m.value as number),
+					color: '#10b981',
 				},
 				{
-					label: 'Memórias Salvas',
-					data: [50, 80, 140, 210, 290, 410],
-					color: '#10b981',
+					label: 'Mensagens Processadas',
+					data: messageTrends.map((m) => m.value as number),
+					color: '#6366f1',
 				},
 			],
 		};

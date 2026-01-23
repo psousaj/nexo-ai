@@ -23,13 +23,18 @@ export const userRoutes = new Hono()
 			z.object({
 				userId: z.string(),
 				assistantName: z.string().optional(),
+				notificationsBrowser: z.boolean().optional(),
+				notificationsWhatsapp: z.boolean().optional(),
+				notificationsEmail: z.boolean().optional(),
+				privacyShowMemoriesInSearch: z.boolean().optional(),
+				privacyShareAnalytics: z.boolean().optional(),
+				appearanceTheme: z.string().optional(),
+				appearanceLanguage: z.string().optional(),
 			}),
 		),
 		async (c) => {
-			const { userId, assistantName } = c.req.valid('json');
-			if (assistantName) {
-				await preferencesService.setAssistantName(userId, assistantName);
-			}
+			const { userId, ...updates } = c.req.valid('json');
+			await preferencesService.updatePreferences(userId, updates);
 			return c.json({ success: true });
 		},
 	);

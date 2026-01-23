@@ -23,18 +23,32 @@ export class PreferencesService {
 	}
 
 	/**
-	 * Define o nome customizado do assistente
+	 * Atualiza as preferências do usuário
 	 */
-	async setAssistantName(userId: string, name: string): Promise<void> {
-		// Upsert: insere se não existe, atualiza se existe
+	async updatePreferences(
+		userId: string,
+		updates: Partial<{
+			assistantName: string;
+			notificationsBrowser: boolean;
+			notificationsWhatsapp: boolean;
+			notificationsEmail: boolean;
+			privacyShowMemoriesInSearch: boolean;
+			privacyShareAnalytics: boolean;
+			appearanceTheme: string;
+			appearanceLanguage: string;
+		}>,
+	): Promise<void> {
 		const existing = await db.select({ id: userPreferences.id }).from(userPreferences).where(eq(userPreferences.userId, userId)).limit(1);
 
 		if (existing.length > 0) {
-			await db.update(userPreferences).set({ assistantName: name, updatedAt: new Date() }).where(eq(userPreferences.userId, userId));
+			await db
+				.update(userPreferences)
+				.set({ ...updates, updatedAt: new Date() })
+				.where(eq(userPreferences.userId, userId));
 		} else {
 			await db.insert(userPreferences).values({
 				userId,
-				assistantName: name,
+				...updates,
 			});
 		}
 	}

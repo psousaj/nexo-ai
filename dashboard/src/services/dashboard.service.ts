@@ -1,48 +1,66 @@
 import api from './api';
-import { mockAnalytics, mockMemories, mockErrors, mockConversations } from '../utils/mockData';
-import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary } from '../types';
+import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType } from '../types';
 
-const IS_MOCK = false; // Toggle this to switch between real API and mock
 const FIXED_USER_ID = 'a6051a80-0000-0000-0000-000000000000'; // Temporary fixed userId for testing
 
 export const dashboardService = {
 	async getAnalytics(): Promise<AnalyticsData> {
-		if (IS_MOCK) {
-			await new Promise((r) => setTimeout(r, 600));
-			return mockAnalytics;
-		}
 		const { data } = await api.get<AnalyticsData>('/analytics');
-		console.log('📊 Analytics Data received:', data);
 		return data;
 	},
 
-	async getMemories(): Promise<MemoryItem[]> {
-		if (IS_MOCK) {
-			await new Promise((r) => setTimeout(r, 400));
-			return mockMemories;
-		}
-		// O backend retorna { items: [...] } em /api/dashboard/memories
+	async getMemories(search?: string): Promise<MemoryItem[]> {
 		const { data } = await api.get<any>('/memories', {
-			params: { userId: FIXED_USER_ID },
+			params: {
+				userId: FIXED_USER_ID,
+				search: search || undefined,
+			},
 		});
 
-		// Mapear se necessário ou extrair da prop items
-		return (data.items || data).map((item: any) => ({
+		// Backend retorna array direto se for busca, ou objeto se for listItems simples
+		const items = Array.isArray(data) ? data : data.items || data;
+
+		return items.map((item: any) => ({
 			id: item.id,
 			title: item.title,
-			content: item.title, // Backend não tem "content" separado em memoryItems por padrão ainda
+			content: item.metadata?.full_content || item.title,
 			type: item.type,
 			category: item.type,
-			platform: 'Telegram', // Mocked platform
+			platform: item.metadata?.platform || 'Web',
 			createdAt: item.createdAt,
 		}));
 	},
 
+	async createMemory(payload: { title: string; type: ItemType; content: string }): Promise<any> {
+		const metadata: any = {};
+		if (payload.type === 'link') metadata.url = payload.content;
+		if (payload.type === 'note') metadata.full_content = payload.content;
+
+		const { data } = await api.post('/memories', {
+			userId: FIXED_USER_ID,
+			type: payload.type,
+			title: payload.title,
+			metadata,
+		});
+		return data;
+	},
+
+	async updateMemory(id: string | number, payload: { title?: string; content?: string }): Promise<any> {
+		const updates: any = { userId: FIXED_USER_ID };
+		if (payload.title) updates.title = payload.title;
+		if (payload.content) updates.metadata = { full_content: payload.content };
+
+		const { data } = await api.patch(`/memories/${id}`, updates);
+		return data;
+	},
+
+	async deleteMemory(id: string | number): Promise<void> {
+		await api.delete(`/memories/${id}`, {
+			params: { userId: FIXED_USER_ID },
+		});
+	},
+
 	async getErrors(): Promise<ErrorReport[]> {
-		if (IS_MOCK) {
-			await new Promise((r) => setTimeout(r, 500));
-			return mockErrors;
-		}
 		const { data } = await api.get<any[]>('/admin/errors');
 		return data.map((err: any) => ({
 			id: err.id,
@@ -55,10 +73,6 @@ export const dashboardService = {
 	},
 
 	async getConversations(): Promise<ConversationSummary[]> {
-		if (IS_MOCK) {
-			await new Promise((r) => setTimeout(r, 700));
-			return mockConversations;
-		}
 		const { data } = await api.get<any[]>('/admin/conversations');
 		return data.map((conv: any) => ({
 			id: conv.id,
@@ -70,5 +84,20 @@ export const dashboardService = {
 			lastInteraction: conv.lastMessage,
 			highlights: [],
 		}));
+	},
+
+	// Preferences
+	async getPreferences(): Promise<any> {
+		const { data } = await api.get('/user/preferences', {
+			params: { userId: FIXED_USER_ID },
+		});
+		return data;
+	},
+
+	async updatePreferences(updates: any): Promise<void> {
+		await api.patch('/user/preferences', {
+			userId: FIXED_USER_ID,
+			...updates,
+		});
 	},
 };

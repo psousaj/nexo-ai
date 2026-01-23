@@ -596,12 +596,51 @@ export class ItemService {
 	}
 
 	/**
-	 * Deleta TODOS os itens do usuário
+	 * Atualiza memória existente
 	 */
-	async deleteAllItems(userId: string): Promise<number> {
-		const result = await db.delete(memoryItems).where(eq(memoryItems.userId, userId)).returning();
+	async updateItem(itemId: string, userId: string, updates: { title?: string; metadata?: ItemMetadata }) {
+		const item = await this.getItemById(itemId, userId);
+		if (!item) return null;
 
-		return result.length;
+		const newTitle = updates.title ?? item.title;
+		const newMetadata = updates.metadata ?? (item.metadata as ItemMetadata);
+
+		// Recalcula hash se algo mudou
+		const contentHash = this.generateContentHash({
+			type: item.type as ItemType,
+			title: newTitle,
+			metadata: newMetadata,
+		});
+
+		// Gera novo embedding se o conteúdo mudou
+		let embedding = item.embedding as number[] | null;
+		if (contentHash !== item.contentHash) {
+			try {
+				const textToEmbed = this.prepareTextForEmbedding({
+					type: item.type as ItemType,
+					title: newTitle,
+					metadata: newMetadata,
+				});
+				embedding = await embeddingService.generateEmbedding(textToEmbed);
+			} catch (error) {
+				loggers.db.warn({ err: error }, '⚠️ Falha ao atualizar embedding');
+			}
+		}
+
+		const [updated] = await db
+			.update(memoryItems)
+			.set({
+				title: newTitle,
+				metadata: newMetadata,
+				contentHash,
+				embedding,
+				// itemService não tem updatedAt no schema de memoryItems, apenas createdAt.
+				// Se necessário, o schema precisaria ser alterado.
+			})
+			.where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)))
+			.returning();
+
+		return updated;
 	}
 }
 

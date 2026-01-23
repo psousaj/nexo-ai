@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
 
@@ -18,11 +18,24 @@ export const userPreferences = pgTable(
 			.unique(), // one-to-one
 		// Nome customizado do assistente (ex: "Maria", "Jarvis")
 		assistantName: text('assistant_name'),
-		// Espaço para futuras preferências...
+
+		// Notificações
+		notificationsBrowser: boolean('notifications_browser').default(true),
+		notificationsWhatsapp: boolean('notifications_whatsapp').default(true),
+		notificationsEmail: boolean('notifications_email').default(false),
+
+		// Privacidade
+		privacyShowMemoriesInSearch: boolean('privacy_show_memories_in_search').default(false),
+		privacyShareAnalytics: boolean('privacy_share_analytics').default(true),
+
+		// Aparência
+		appearanceTheme: text('appearance_theme').default('dark'),
+		appearanceLanguage: text('appearance_language').default('pt-BR'),
+
 		createdAt: timestamp('created_at').defaultNow(),
 		updatedAt: timestamp('updated_at').defaultNow(),
 	},
-	(table) => [index('user_preferences_user_id_idx').on(table.userId)]
+	(table) => [index('user_preferences_user_id_idx').on(table.userId)],
 );
 
 export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
