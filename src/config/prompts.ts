@@ -89,7 +89,15 @@ CLASSIFICATION RULES:
    Examples: "o que você faz?", "como funciona?", "o que é isso?"
    Use quando usuário pergunta SOBRE o sistema, não quer salvar/buscar/mudar
 
-11. UNKNOWN → {"intent":"unknown","action":"unknown","confidence":0.5}
+11. CLARIFICATION (when system asked "what type?") → {"intent":"clarify_type","action":"clarify_note|clarify_movie|clarify_tv_show|clarify_link","confidence":0.9}
+   Examples: 
+   - "é uma nota", "anota ai", "quero anotar" → {"action":"clarify_note"}
+   - "é um filme", "to falando do filme", "como filme" → {"action":"clarify_movie"}
+   - "é uma série", "to falando da série", "seriado" → {"action":"clarify_tv_show"}
+   - "é um link", "site", "url" → {"action":"clarify_link"}
+   Use quando usuário responde à clarificação do sistema em linguagem natural
+
+12. UNKNOWN → {"intent":"unknown","action":"unknown","confidence":0.5}
    When message is ambiguous or doesn't match any pattern
 
 CRITICAL: Respond ONLY with valid JSON. NO explanations, NO markdown, NO extra text.`;

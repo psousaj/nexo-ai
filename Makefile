@@ -99,8 +99,8 @@ version-major: ## Incrementa versão major (X.0.0)
 	pnpm version major
 
 # Workflow completo
-# release: version-patch merge-pr ## Incrementa versão, cria e mergeia PR
-# 	@echo "$(GREEN)✅ Release completo!$(RESET)"
+release: version-patch merge-pr ## Incrementa versão, cria e mergeia PR
+	@echo "$(GREEN)✅ Release completo!$(RESET)"
 
-release: version-patch merge-pr-name ## Incrementa versão, cria e mergeia PR
+release-name: version-patch merge-pr-name ## Incrementa versão, cria e mergeia PR
 	@echo "$(GREEN)✅ Release completo!$(RESET)"

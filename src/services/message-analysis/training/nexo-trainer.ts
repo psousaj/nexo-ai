@@ -17,6 +17,7 @@ import { NEXO_TRAINING_DATA, NEXO_ENTITIES, NEXO_RESPONSES } from './training-da
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { loggers } from '@/utils/logger';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,7 +79,7 @@ export class NexoTrainer {
 
 	private log(message: string): void {
 		if (this.config.log) {
-			console.log(message);
+			loggers.nlp.info(message);
 		}
 	}
 
@@ -212,15 +213,15 @@ export class NexoTrainer {
 
 		for (const testCase of testCases) {
 			const result = await this.process(testCase);
-			console.log(`📨 "${testCase}"`);
-			console.log(`   → Intent: ${result.intent} (${(result.score * 100).toFixed(1)}%)`);
+			loggers.ai.info(`📨 "${testCase}"`);
+			loggers.ai.info(`   → Intent: ${result.intent} (${(result.score * 100).toFixed(1)}%)`);
 			if (result.entities?.length > 0) {
-				console.log(`   → Entities: ${JSON.stringify(result.entities)}`);
+				loggers.ai.info(`   → Entities: ${JSON.stringify(result.entities)}`);
 			}
 			if (result.answer) {
-				console.log(`   → Answer: ${result.answer}`);
+				loggers.ai.info(`   → Answer: ${result.answer}`);
 			}
-			console.log('');
+			loggers.ai.info('');
 		}
 	}
 
@@ -241,12 +242,12 @@ if (isMainModule) {
 	const trainer = new NexoTrainer({ useBert, log: true });
 
 	(async () => {
-		console.log('\n🤖 NEXO NLP Trainer\n');
-		console.log('==================\n');
+		loggers.ai.info('\n🤖 NEXO NLP Trainer\n');
+		loggers.ai.info('==================\n');
 
 		await trainer.train();
 		await trainer.test();
 
-		console.log('✨ Pronto! O modelo está treinado e salvo.\n');
+		loggers.ai.info('✨ Pronto! O modelo está treinado e salvo.\n');
 	})();
 }

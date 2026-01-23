@@ -292,6 +292,22 @@ describe('IntentClassifier', () => {
 			expect(result.entities?.selection).toBe(3);
 			expect(result.entities?.target).toBe('selection');
 		});
+
+		test('detecta "deleta o filme 1" com itemType', async () => {
+			const result = await classifier.classify('deleta o filme 1');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toEqual([1]);
+			expect(result.entities?.itemType).toBe('movie');
+		});
+
+		test('detecta "remove a série 2" com itemType', async () => {
+			const result = await classifier.classify('remove a série 2');
+			expect(result.intent).toBe('delete_content');
+			expect(result.action).toBe('delete_selected');
+			expect(result.entities?.selection).toEqual([2]);
+			expect(result.entities?.itemType).toBe('tv_show');
+		});
 	});
 
 	describe('Actions determinísticas', () => {

@@ -13,7 +13,7 @@ export const logger = pino({
 					options: {
 						colorize: true,
 						translateTime: 'dd/mm/yy HH:MM:ss',
-						ignore: 'pid,hostname,context,level',
+						ignore: 'pid,hostname',
 						messageFormat: '[{context}] {level}: {msg}',
 					},
 				}
@@ -32,6 +32,7 @@ export const loggers = {
 	app: logger.child({ context: 'APP' }),
 	webhook: logger.child({ context: 'WEBHOOK' }),
 	ai: logger.child({ context: 'AI' }),
+	nlp: logger.child({ context: 'NLP' }),
 	cloudflare: logger.child({ context: 'CLOUDFLARE' }),
 	gemini: logger.child({ context: 'GEMINI' }),
 	db: logger.child({ context: 'DB' }),

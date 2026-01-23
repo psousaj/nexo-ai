@@ -1,4 +1,5 @@
 import { beforeAll, afterAll } from 'vitest';
+import { loggers } from '@/utils/logger';
 
 // Configurar variáveis de ambiente para testes
 process.env.NODE_ENV = 'test';
@@ -9,10 +10,10 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://localhost:5
 
 // Configurar mocks para testes que não precisam de DB
 beforeAll(async () => {
-	console.log('✅ Ambiente de teste configurado');
+	loggers.ai.info('✅ Ambiente de teste configurado');
 });
 
 // Limpar dados após todos os testes (opcional)
 afterAll(async () => {
-	console.log('🧹 Testes finalizados');
+	loggers.ai.info('🧹 Testes finalizados');
 });

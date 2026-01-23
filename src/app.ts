@@ -9,6 +9,7 @@ import {
 	runAwaitingConfirmationTimeoutCron,
 	messageQueue,
 	closeConversationQueue,
+	responseQueue,
 } from '@/services/queue-service';
 import pkg from '../package.json';
 import cron from 'node-cron';
@@ -17,6 +18,7 @@ import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { globalErrorHandler } from '@/services/error/error.service';
+import { loggers } from './utils/logger';
 
 const app = new Hono();
 
@@ -26,14 +28,14 @@ app.use('*', cors());
 // ============================================================================
 // BULL BOARD - Dashboard para filas
 // ============================================================================
-console.log('🎯 Configurando Bull Board...');
+loggers.app.info('🎯 Configurando Bull Board...');
 
 // Criar adapter COM serveStatic (necessário!)
 const serverAdapter = new HonoAdapter(serveStatic);
 
 // Criar Bull Board com as filas
 createBullBoard({
-	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue)],
+	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue), new BullAdapter(responseQueue)],
 	serverAdapter,
 });
 
@@ -43,7 +45,7 @@ serverAdapter.setBasePath('/admin/queues');
 // IMPORTANTE: Registrar antes de outras rotas
 app.route('/admin/queues', serverAdapter.registerPlugin());
 
-console.log('✅ Bull Board configurado em http://localhost:3000/admin/queues');
+loggers.app.info('✅ Bull Board configurado em http://localhost:3000/admin/queues');
 
 // ============================================================================
 // CRON JOBS - Fechamento automático de conversas
@@ -54,7 +56,7 @@ if (env.NODE_ENV !== 'test') {
 		try {
 			await runConversationCloseCron();
 		} catch (error) {
-			console.error('❌ [Cron] Erro no backup de fechamento:', error);
+			loggers.app.error({ error }, '❌ [Cron] Erro no backup de fechamento');
 		}
 	});
 
@@ -63,7 +65,7 @@ if (env.NODE_ENV !== 'test') {
 		try {
 			await runAwaitingConfirmationTimeoutCron();
 		} catch (error) {
-			console.error('❌ [Cron] Erro no timeout awaiting_confirmation:', error);
+			loggers.app.error({ error }, '❌ [Cron] Erro no timeout awaiting_confirmation');
 		}
 	});
 
