@@ -976,32 +976,121 @@ export class AgentOrchestrator {
 		// ✅ Tipo detectado (via NLP ou número)! Continua o fluxo...
 		loggers.ai.info({ detectedType }, '✅ Tipo escolhido pelo usuário');
 
-		// Mapeia tipo para português
-		const typeNames: Record<string, string> = {
-			note: 'nota',
-			movie: 'filme',
-			series: 'série',
-			link: 'link',
+		const originalMessage = pendingClarification.originalMessage;
+		const toolContext: ToolContext = {
+			userId: context.userId,
+			conversationId: context.conversationId,
 		};
 
-		// Atualiza contexto com tipo forçado
+		// Limpa a clarificação pendente
 		await conversationService.updateState(conversation.id, 'processing', {
 			pendingClarification: undefined,
-			forcedType: detectedType,
 		});
 
-		// Confirma com o usuário antes de salvar
-		const typePt = typeNames[detectedType] || detectedType;
-		const confirmMsg = getRandomMessage(confirmationMessages, { type: typePt });
+		// 🎬 Para FILME ou SÉRIE: Buscar no TMDB e mostrar opções
+		if (detectedType === 'movie' || detectedType === 'series') {
+			const searchTool = detectedType === 'movie' ? 'enrich_movie' : 'enrich_tv_show';
+			const itemType = detectedType === 'movie' ? 'movie' : 'tv_show';
 
-		await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
-			forcedType: detectedType,
-			originalMessage: pendingClarification.originalMessage,
-		});
+			loggers.ai.info({ originalMessage, searchTool }, '🔍 Buscando no TMDB...');
 
+			const enrichResult = await executeTool(searchTool, toolContext, {
+				title: originalMessage,
+			});
+
+			if (enrichResult.success && enrichResult.data?.results?.length > 0) {
+				// Mapeia resultados para o formato esperado por sendCandidatesWithButtons
+				const candidates = enrichResult.data.results.map((r: any) => ({
+					...r,
+					type: itemType,
+					year: r.year,
+					genres: r.genres || [],
+					poster_path: r.poster_path,
+				}));
+
+				// Atualiza contexto com candidatos
+				await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+					candidates,
+					detected_type: itemType,
+					originalMessage,
+				});
+
+				// Envia lista com botões
+				return await this.sendCandidatesWithButtons(context, conversation, candidates);
+			} else {
+				// Não encontrou no TMDB - salva apenas com título
+				loggers.ai.warn({ originalMessage }, '⚠️ Nenhum resultado no TMDB, salvando apenas com título');
+
+				const saveToolName = detectedType === 'movie' ? 'save_movie' : 'save_tv_show';
+				const result = await executeTool(saveToolName, toolContext, {
+					title: originalMessage,
+				});
+
+				await conversationService.updateState(conversation.id, 'idle', {});
+
+				if (result.success) {
+					return {
+						message: `✅ Salvei "${originalMessage}" como ${detectedType === 'movie' ? 'filme' : 'série'}! (Não encontrei no TMDB para enriquecer)`,
+						state: 'idle',
+						toolsUsed: [saveToolName],
+					};
+				} else {
+					return {
+						message: result.error || '❌ Ops, algo deu errado ao salvar.',
+						state: 'idle',
+					};
+				}
+			}
+		}
+
+		// 📝 Para NOTA: Salva direto
+		if (detectedType === 'note') {
+			const result = await executeTool('save_note', toolContext, {
+				content: originalMessage,
+			});
+
+			await conversationService.updateState(conversation.id, 'idle', {});
+
+			if (result.success) {
+				return {
+					message: `✅ Nota salva!`,
+					state: 'idle',
+					toolsUsed: ['save_note'],
+				};
+			} else {
+				return {
+					message: result.error || '❌ Ops, algo deu errado ao salvar.',
+					state: 'idle',
+				};
+			}
+		}
+
+		// 🔗 Para LINK: Salva direto
+		if (detectedType === 'link') {
+			const result = await executeTool('save_link', toolContext, {
+				url: originalMessage,
+			});
+
+			await conversationService.updateState(conversation.id, 'idle', {});
+
+			if (result.success) {
+				return {
+					message: `✅ Link salvo!`,
+					state: 'idle',
+					toolsUsed: ['save_link'],
+				};
+			} else {
+				return {
+					message: result.error || '❌ Ops, algo deu errado ao salvar.',
+					state: 'idle',
+				};
+			}
+		}
+
+		// Fallback: tipo desconhecido
 		return {
-			message: confirmMsg,
-			state: 'awaiting_confirmation',
+			message: 'Não entendi o tipo. Pode tentar novamente?',
+			state: 'idle',
 		};
 	}
 
