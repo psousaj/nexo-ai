@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { User, Mail, Link as LinkIcon, Smartphone, CheckCircle2, XCircle, Plus } from 'lucide-vue-next';
+import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare } from 'lucide-vue-next';
 import { useAuthStore } from '../store/auth';
 
 const authStore = useAuthStore();

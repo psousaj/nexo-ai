@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAuthStore } from '../store/auth';
 import { dashboardService } from '../services/dashboard.service';
-import MainLayout from '../components/MainLayout.vue';
+
 import KPICard from '../components/KPICard.vue';
 import ChartCard from '../components/ChartCard.vue';
 import { Users, Database, MessageSquare, Activity, Calendar, Download, Filter } from 'lucide-vue-next';
@@ -139,141 +139,139 @@ const displayKPIs = computed(() => {
 </script>
 
 <template>
-	<MainLayout>
-		<div class="space-y-8 animate-fade-in">
-			<!-- Welcome Header -->
-			<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-				<div>
-					<h2 class="text-3xl font-black text-surface-900 dark:text-white uppercase tracking-tighter italic">
-						Olá, {{ authStore.user?.name.split(' ')[0] }}! 👋
-					</h2>
-					<p class="text-surface-500 dark:text-surface-400 mt-1">
-						{{
-							can('manage', 'AdminPanel')
-								? 'Aqui está o resumo operacional do Nexo AI.'
-								: 'Sua inteligência artificial está pronta para organizar seu dia.'
-						}}
-					</p>
-				</div>
-
-				<div class="flex items-center gap-3">
-					<button
-						v-if="can('manage', 'AdminPanel')"
-						class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl text-sm font-bold hover:bg-surface-50 transition-colors"
-					>
-						<Filter class="w-4 h-4" />
-						Filtrar
-					</button>
-					<button
-						class="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20 active:scale-95"
-					>
-						<Download class="w-4 h-4" />
-						Exportar PDF
-					</button>
-				</div>
+	<div class="space-y-8 animate-fade-in">
+		<!-- Welcome Header -->
+		<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<div>
+				<h2 class="text-3xl font-black text-surface-900 dark:text-white uppercase tracking-tighter italic">
+					Olá, {{ authStore.user?.name?.split(' ')[0] || 'Usuário' }}! 👋
+				</h2>
+				<p class="text-surface-500 dark:text-surface-400 mt-1">
+					{{
+						can('manage', 'AdminPanel')
+							? 'Aqui está o resumo operacional do Nexo AI.'
+							: 'Sua inteligência artificial está pronta para organizar seu dia.'
+					}}
+				</p>
 			</div>
 
-			<!-- KPI Grid -->
-			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-				<KPICard
-					v-for="kpi in displayKPIs"
-					:key="kpi.title"
-					:title="kpi.title"
-					:value="kpi.value"
-					:trend="kpi.trend"
-					:icon="iconMap[kpi.icon]"
-					:loading="isLoading"
-				/>
-			</div>
-
-			<!-- Charts Row -->
-			<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-				<!-- Main Growth Chart - Admin/Strategic View -->
-				<ChartCard v-if="can('manage', 'AdminPanel')" title="Crescimento da Plataforma" class="lg:col-span-2" :loading="isLoading">
-					<template #actions>
-						<div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg">
-							<button class="px-3 py-1 text-xs font-bold rounded-md bg-white dark:bg-surface-700 shadow-sm">7D</button>
-							<button class="px-3 py-1 text-xs font-bold rounded-md text-surface-500 hover:text-surface-900">30D</button>
-							<button class="px-3 py-1 text-xs font-bold rounded-md text-surface-500 hover:text-surface-900 text-transparent">365D</button>
-						</div>
-					</template>
-					<Line :data="lineChartData" :options="lineChartOptions" />
-				</ChartCard>
-
-				<!-- Breakdown Chart - Domain Specific View -->
-				<ChartCard title="Distribuição de Memórias" :class="{ 'lg:col-span-3': !can('manage', 'AdminPanel') }" :loading="isLoading">
-					<Doughnut :data="doughnutData" :options="doughnutOptions" />
-				</ChartCard>
-			</div>
-
-			<!-- User's Recent Activity (Customized based on who is viewing) -->
-			<div class="premium-card">
-				<div class="flex items-center justify-between mb-6">
-					<h3 class="font-black text-lg text-surface-900 dark:text-white uppercase tracking-tight italic">
-						{{ can('manage', 'AdminPanel') ? 'Tráfego Recente Anônimo' : 'Minhas Atividades Recentes' }}
-					</h3>
-					<router-link to="/memories" class="text-xs font-black text-primary-600 hover:underline uppercase tracking-widest"
-						>Ver tudo</router-link
-					>
-				</div>
-
-				<div class="overflow-x-auto">
-					<table class="w-full text-left">
-						<thead>
-							<tr
-								class="text-surface-400 text-[10px] uppercase font-black tracking-widest border-b border-surface-100 dark:border-surface-800"
-							>
-								<th class="pb-4 px-4">{{ can('manage', 'AdminPanel') ? 'User ID' : 'Origem' }}</th>
-								<th class="pb-4 px-4">Tipo</th>
-								<th class="pb-4 px-4">Conteúdo</th>
-								<th class="pb-4 px-4 text-right">Data</th>
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-surface-100 dark:divide-surface-800">
-							<tr
-								v-for="item in analytics?.recentItems"
-								:key="item.id"
-								class="group hover:bg-surface-50 dark:hover:bg-surface-900/50 transition-colors"
-							>
-								<td class="py-4 px-4">
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center font-black text-[10px] text-surface-500 italic"
-										>
-											{{ can('manage', 'AdminPanel') ? 'U#' + item.id : item.platform }}
-										</div>
-										<span v-if="can('manage', 'AdminPanel')" class="font-bold text-xs text-surface-900 dark:text-white font-mono">{{
-											'0x' + item.id + '...f3'
-										}}</span>
-									</div>
-								</td>
-								<td class="py-4 px-4">
-									<span
-										:class="[
-											'px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter',
-											item.type === 'link'
-												? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30'
-												: item.type === 'text'
-													? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30'
-													: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
-										]"
-									>
-										{{ item.type }}
-									</span>
-								</td>
-								<td class="py-4 px-4 text-sm font-medium text-surface-500 dark:text-surface-400 max-w-xs truncate italic">
-									"{{ item.content }}"
-								</td>
-								<td class="py-4 px-4 text-right text-[10px] font-bold text-surface-400 uppercase tracking-tighter">
-									{{ item.createdAt }}
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
+			<div class="flex items-center gap-3">
+				<button
+					v-if="can('manage', 'AdminPanel')"
+					class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl text-sm font-bold hover:bg-surface-50 transition-colors"
+				>
+					<Filter class="w-4 h-4" />
+					Filtrar
+				</button>
+				<button
+					class="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20 active:scale-95"
+				>
+					<Download class="w-4 h-4" />
+					Exportar PDF
+				</button>
 			</div>
 		</div>
-	</MainLayout>
+
+		<!-- KPI Grid -->
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+			<KPICard
+				v-for="kpi in displayKPIs"
+				:key="kpi.title"
+				:title="kpi.title"
+				:value="kpi.value"
+				:trend="kpi.trend"
+				:icon="iconMap[kpi.icon]"
+				:loading="isLoading"
+			/>
+		</div>
+
+		<!-- Charts Row -->
+		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+			<!-- Main Growth Chart - Admin/Strategic View -->
+			<ChartCard v-if="can('manage', 'AdminPanel')" title="Crescimento da Plataforma" class="lg:col-span-2" :loading="isLoading">
+				<template #actions>
+					<div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg">
+						<button class="px-3 py-1 text-xs font-bold rounded-md bg-white dark:bg-surface-700 shadow-sm">7D</button>
+						<button class="px-3 py-1 text-xs font-bold rounded-md text-surface-500 hover:text-surface-900">30D</button>
+						<button class="px-3 py-1 text-xs font-bold rounded-md text-surface-500 hover:text-surface-900 text-transparent">365D</button>
+					</div>
+				</template>
+				<Line :data="lineChartData" :options="lineChartOptions" />
+			</ChartCard>
+
+			<!-- Breakdown Chart - Domain Specific View -->
+			<ChartCard title="Distribuição de Memórias" :class="{ 'lg:col-span-3': !can('manage', 'AdminPanel') }" :loading="isLoading">
+				<Doughnut :data="doughnutData" :options="doughnutOptions" />
+			</ChartCard>
+		</div>
+
+		<!-- User's Recent Activity (Customized based on who is viewing) -->
+		<div class="premium-card">
+			<div class="flex items-center justify-between mb-6">
+				<h3 class="font-black text-lg text-surface-900 dark:text-white uppercase tracking-tight italic">
+					{{ can('manage', 'AdminPanel') ? 'Tráfego Recente Anônimo' : 'Minhas Atividades Recentes' }}
+				</h3>
+				<router-link to="/memories" class="text-xs font-black text-primary-600 hover:underline uppercase tracking-widest"
+					>Ver tudo</router-link
+				>
+			</div>
+
+			<div class="overflow-x-auto">
+				<table class="w-full text-left">
+					<thead>
+						<tr
+							class="text-surface-400 text-[10px] uppercase font-black tracking-widest border-b border-surface-100 dark:border-surface-800"
+						>
+							<th class="pb-4 px-4">{{ can('manage', 'AdminPanel') ? 'User ID' : 'Origem' }}</th>
+							<th class="pb-4 px-4">Tipo</th>
+							<th class="pb-4 px-4">Conteúdo</th>
+							<th class="pb-4 px-4 text-right">Data</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-surface-100 dark:divide-surface-800">
+						<tr
+							v-for="item in analytics?.recentItems || []"
+							:key="item.id"
+							class="group hover:bg-surface-50 dark:hover:bg-surface-900/50 transition-colors"
+						>
+							<td class="py-4 px-4">
+								<div class="flex items-center gap-3">
+									<div
+										class="w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center font-black text-[10px] text-surface-500 italic"
+									>
+										{{ can('manage', 'AdminPanel') ? 'U#' + item.id : item.platform }}
+									</div>
+									<span v-if="can('manage', 'AdminPanel')" class="font-bold text-xs text-surface-900 dark:text-white font-mono">{{
+										'0x' + item.id + '...f3'
+									}}</span>
+								</div>
+							</td>
+							<td class="py-4 px-4">
+								<span
+									:class="[
+										'px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter',
+										item.type === 'link'
+											? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30'
+											: item.type === 'text'
+												? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30'
+												: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
+									]"
+								>
+									{{ item.type }}
+								</span>
+							</td>
+							<td class="py-4 px-4 text-sm font-medium text-surface-500 dark:text-surface-400 max-w-xs truncate italic">
+								"{{ item.content }}"
+							</td>
+							<td class="py-4 px-4 text-right text-[10px] font-bold text-surface-400 uppercase tracking-tighter">
+								{{ item.createdAt }}
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
 </template>
 
 <style scoped>

@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
+import { dashboardRouter } from '@/routes/dashboard';
 import {
 	runConversationCloseCron,
 	runAwaitingConfirmationTimeoutCron,
@@ -23,7 +24,23 @@ import { loggers } from './utils/logger';
 const app = new Hono();
 
 // CORS
-app.use('*', cors());
+app.use(
+	'*',
+	cors({
+		origin: (origin) => {
+			// Permitir localhost e domínios ngrok para desenvolvimento
+			if (!origin || origin.startsWith('http://localhost:') || origin.endsWith('ngrok-free.app')) {
+				return origin;
+			}
+			return origin; // Por enquanto permitir todos, mas com suporte a credentials
+		},
+		credentials: true,
+		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+		allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+		exposeHeaders: ['Content-Length', 'X-Kuma-Revision'],
+		maxAge: 600,
+	}),
+);
 
 // ============================================================================
 // BULL BOARD - Dashboard para filas
@@ -108,6 +125,7 @@ app.onError(async (error, c) => {
 app.route('/health', healthRouter);
 app.route('/webhook', webhookRouter);
 app.route('/items', itemsRouter);
+app.route('/api', dashboardRouter);
 
 // Root point for compatibility/version check
 app.get('/', (c) =>

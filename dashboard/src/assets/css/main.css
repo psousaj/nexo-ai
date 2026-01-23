@@ -8,15 +8,16 @@
 
 body {
 	margin: 0;
-	display: flex;
-	place-items: center;
 	min-width: 320px;
 	min-height: 100vh;
 	@apply bg-surface-50 text-surface-900;
 	font-family: var(--font-inter);
 }
 
+html,
+body,
 #app {
+	height: 100%;
 	width: 100%;
 }
 
