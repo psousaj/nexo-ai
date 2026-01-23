@@ -1,15 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare } from 'lucide-vue-next';
+import { ref, onMounted, computed } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare, Loader2 } from 'lucide-vue-next';
 import { useAuthStore } from '../store/auth';
+import { dashboardService } from '../services/dashboard.service';
 
 const authStore = useAuthStore();
+const queryClient = useQueryClient();
 
-const connectedAccounts = ref([
-	{ id: 'wa', name: 'WhatsApp', icon: Smartphone, status: 'connected', username: '+55 11 99999-9999' },
-	{ id: 'tg', name: 'Telegram', icon: MessageSquare, status: 'disconnected', username: null },
-	{ id: 'dc', name: 'Discord', icon: MessageSquare, status: 'disconnected', username: null },
-]);
+// Fetch Real Accounts
+const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
+	queryKey: ['user-accounts'],
+	queryFn: () => dashboardService.getAccounts(),
+});
+
+const connectedAccounts = computed(() => {
+	const accounts = accountsData.value || [];
+	return [
+		{
+			id: 'whatsapp',
+			name: 'WhatsApp',
+			icon: Smartphone,
+			status: accounts.find((a) => a.provider === 'whatsapp') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'whatsapp')?.metadata?.phone || null,
+		},
+		{
+			id: 'telegram',
+			name: 'Telegram',
+			icon: MessageSquare,
+			status: accounts.find((a) => a.provider === 'telegram') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'telegram')?.metadata?.username || null,
+		},
+		{
+			id: 'discord',
+			name: 'Discord',
+			icon: MessageSquare,
+			status: accounts.find((a) => a.provider === 'discord') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'discord')?.metadata?.username || null,
+		},
+	];
+});
 
 const isEditing = ref(false);
 const profileForm = ref({
@@ -23,6 +53,28 @@ const handleSave = () => {
 		authStore.user.email = profileForm.value.email;
 	}
 	isEditing.value = false;
+};
+
+// Linking Logic
+const isLinking = ref(false);
+
+const handleLink = async (provider: string) => {
+	isLinking.value = true;
+	try {
+		if (provider === 'telegram') {
+			const { link } = await dashboardService.linkTelegram();
+			window.open(link, '_blank');
+		} else if (provider === 'discord') {
+			const { link } = await dashboardService.linkDiscord();
+			window.location.href = link;
+		}
+	} catch (error) {
+		console.error(`Failed to link ${provider}:`, error);
+	} finally {
+		setTimeout(() => {
+			isLinking.value = false;
+		}, 2000);
+	}
 };
 </script>
 
@@ -73,7 +125,7 @@ const handleSave = () => {
 						<input
 							v-model="profileForm.name"
 							type="text"
-							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all"
+							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
 						/>
 					</div>
 					<div>
@@ -81,7 +133,7 @@ const handleSave = () => {
 						<input
 							v-model="profileForm.email"
 							type="email"
-							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all"
+							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
 						/>
 					</div>
 					<button
@@ -100,14 +152,18 @@ const handleSave = () => {
 					Contas Vinculadas
 				</h3>
 
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<div v-if="isLoadingAccounts" class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
+					<div v-for="i in 3" :key="i" class="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+				</div>
+
+				<div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div
 						v-for="account in connectedAccounts"
 						:key="account.id"
 						class="p-4 rounded-2xl border flex items-center justify-between group transition-all"
 						:class="
 							account.status === 'connected'
-								? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50'
+								? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50 shadow-sm'
 								: 'bg-surface-50 dark:bg-surface-900/50 border-surface-200 dark:border-surface-800'
 						"
 					>
@@ -123,20 +179,36 @@ const handleSave = () => {
 								<component :is="account.icon" class="w-6 h-6" />
 							</div>
 							<div>
-								<p class="font-bold text-surface-900 dark:text-white">{{ account.name }}</p>
-								<p class="text-sm text-surface-500">{{ account.username || 'Não vinculado' }}</p>
+								<div class="flex items-center gap-2">
+									<p class="font-bold text-surface-900 dark:text-white">{{ account.name }}</p>
+									<span
+										v-if="account.status === 'connected'"
+										class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-tighter rounded"
+										>Ativo</span
+									>
+								</div>
+								<p class="text-sm text-surface-500 font-medium">{{ account.username || 'Não vinculado' }}</p>
 							</div>
 						</div>
 
-						<button
-							v-if="account.status === 'connected'"
-							class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
-						>
-							<XCircle class="w-5 h-5" />
-						</button>
-						<button v-else class="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
-							<Plus class="w-5 h-5" />
-						</button>
+						<div v-if="account.id !== 'whatsapp'">
+							<button
+								v-if="account.status === 'connected'"
+								class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+								title="Desvincular"
+							>
+								<XCircle class="w-5 h-5" />
+							</button>
+							<button
+								v-else
+								@click="handleLink(account.id)"
+								:disabled="isLinking"
+								class="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors disabled:opacity-50"
+							>
+								<Loader2 v-if="isLinking" class="w-5 h-5 animate-spin" />
+								<Plus v-else class="w-5 h-5" />
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>

@@ -72,6 +72,12 @@ export class TelegramAdapter implements MessagingProvider {
 		// Telefone: raramente disponível (apenas se usuário compartilhou contato)
 		const phoneNumber = message.contact?.phone_number;
 
+		// Detecta tokens de vinculação em comandos /start
+		let linkingToken: string | undefined;
+		if (text && text.startsWith('/start ')) {
+			linkingToken = text.split(' ')[1];
+		}
+
 		return {
 			messageId: message.message_id.toString(),
 			externalId: chatId,
@@ -80,6 +86,7 @@ export class TelegramAdapter implements MessagingProvider {
 			timestamp: new Date(message.date * 1000),
 			provider: 'telegram',
 			phoneNumber,
+			linkingToken,
 		};
 	}
 

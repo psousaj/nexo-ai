@@ -100,4 +100,26 @@ export const dashboardService = {
 			...updates,
 		});
 	},
+
+	// Account Linking
+	async getAccounts(): Promise<any[]> {
+		const { data } = await api.get('/user/accounts', {
+			params: { userId: FIXED_USER_ID },
+		});
+		return data.accounts;
+	},
+
+	async linkTelegram(): Promise<{ link: string; token: string }> {
+		const { data } = await api.post('/user/link/telegram', {
+			userId: FIXED_USER_ID,
+		});
+		return data;
+	},
+
+	async linkDiscord(): Promise<{ link: string }> {
+		const { data } = await api.get('/user/link/discord', {
+			params: { userId: FIXED_USER_ID },
+		});
+		return data;
+	},
 };

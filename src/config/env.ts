@@ -13,6 +13,7 @@ const envSchema = z.object({
 
 	// Telegram Bot API (PADRÃO)
 	TELEGRAM_BOT_TOKEN: z.string(),
+	TELEGRAM_BOT_USERNAME: z.string().optional(),
 	TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 
 	// Meta WhatsApp API (OPCIONAL - Feature futura)
@@ -68,6 +69,11 @@ const envSchema = z.object({
 	// Email Reporting (Resend)
 	RESEND_API_KEY: z.string().optional(),
 	ADMIN_EMAIL: z.string().email().optional(),
+
+	// Discord OAuth2
+	DISCORD_CLIENT_ID: z.string().optional(),
+	DISCORD_CLIENT_SECRET: z.string().optional(),
+	DISCORD_REDIRECT_URI: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

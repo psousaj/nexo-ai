@@ -5,6 +5,7 @@ import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
 import { dashboardRouter } from '@/routes/dashboard';
+import { discordAuthRoutes } from '@/routes/auth/discord.routes';
 import {
 	runConversationCloseCron,
 	runAwaitingConfirmationTimeoutCron,
@@ -126,8 +127,8 @@ app.route('/health', healthRouter);
 app.route('/webhook', webhookRouter);
 app.route('/items', itemsRouter);
 app.route('/api', dashboardRouter);
+app.route('/auth/discord', discordAuthRoutes);
 
-// Root point for compatibility/version check
 app.get('/', (c) =>
 	c.json({
 		name: 'Nexo AI API',
