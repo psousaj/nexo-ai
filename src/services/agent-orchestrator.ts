@@ -772,9 +772,7 @@ export class AgentOrchestrator {
 				const notFoundSelections: number[] = [];
 
 				// Filtra por tipo se especificado (ex: "deleta o filme 1" → filtra apenas filmes)
-				const targetItems = intent.entities?.itemType
-					? items.filter((i: any) => i.type === intent.entities?.itemType)
-					: items;
+				const targetItems = intent.entities?.itemType ? items.filter((i: any) => i.type === intent.entities?.itemType) : items;
 
 				// Processar cada seleção
 				for (const selection of selections) {
@@ -858,10 +856,10 @@ export class AgentOrchestrator {
 
 		loggers.ai.info('🔍 Processando resposta de clarificação');
 
-		// Mapeia escolha do usuário (1-5)
+		// Mapeia escolha do usuário (1-5 ou linguagem natural)
 		const message = context.message.trim();
 
-		// Verifica se usuário mudou de contexto (pergunta ou comando ao invés de número)
+		// Verifica se usuário mudou de contexto (pergunta ou comando ao invés de número/clarificação)
 		const isNumber = /^\d+$/.test(message);
 		const tone = messageAnalyzer.checkTone(message);
 
@@ -884,59 +882,69 @@ export class AgentOrchestrator {
 		const choice = parseInt(message);
 		let detectedType: string | null = null;
 
-		// Detecta resposta em linguagem natural (ex: "é um filme", "anota ai", "to falando da série")
-		const lowerMsg = message.toLowerCase();
-		
-		const moviePatterns = ['filme', 'movie', 'to falando do filme', 'é filme', 'é um filme', 'foi filme'];
-		const seriesPatterns = ['série', 'serie', 'seriado', 'to falando da série', 'é série', 'é uma série'];
-		const notePatterns = ['nota', 'anota', 'lembrete', 'anotação', 'anota ai', 'anota aí', 'guarda', 'lembra'];
-		const linkPatterns = ['link', 'url', 'site'];
+		// 🧠 Usa NLP para detectar resposta em linguagem natural
+		// Exemplos: "é um filme", "anota ai", "to falando da série", "quero como link"
+		if (!isNumber || isNaN(choice)) {
+			try {
+				const nlpResult = await messageAnalyzer.classifyIntent(message);
+				loggers.ai.info({ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action }, '🧠 NLP Classification');
 
-		if (moviePatterns.some(p => lowerMsg.includes(p))) {
-			detectedType = 'movie';
-			loggers.ai.info({ message }, '🎬 Usuário escolheu filme via linguagem natural');
-		} else if (seriesPatterns.some(p => lowerMsg.includes(p))) {
-			detectedType = 'series';
-			loggers.ai.info({ message }, '📺 Usuário escolheu série via linguagem natural');
-		} else if (notePatterns.some(p => lowerMsg.includes(p))) {
-			detectedType = 'note';
-			loggers.ai.info({ message }, '📝 Usuário escolheu nota via linguagem natural');
-		} else if (linkPatterns.some(p => lowerMsg.includes(p))) {
-			detectedType = 'link';
-			loggers.ai.info({ message }, '🔗 Usuário escolheu link via linguagem natural');
+				// Mapeamento de intents para tipos
+				const intentToType: Record<string, string> = {
+					'clarification.note': 'note',
+					'clarification.movie': 'movie',
+					'clarification.tv_show': 'series',
+					'clarification.link': 'link',
+				};
+
+				if (nlpResult.intent in intentToType && nlpResult.confidence > 0.6) {
+					detectedType = intentToType[nlpResult.intent];
+					const typeEmoji: Record<string, string> = {
+						note: '📝',
+						movie: '🎬',
+						series: '📺',
+						link: '🔗',
+					};
+					loggers.ai.info({ message, detectedType, confidence: nlpResult.confidence }, `${typeEmoji[detectedType]} Tipo detectado via NLP`);
+				}
+			} catch (error) {
+				loggers.ai.warn({ error }, '⚠️ Erro ao classificar via NLP, tentando fallback');
+			}
 		}
 
-		// Se detectou via linguagem natural, pula o switch de números
-		if (!detectedType) {
-
-		switch (choice) {
-			case 1:
-				detectedType = 'note';
-				break;
-			case 2:
-				detectedType = 'movie';
-				break;
-			case 3:
-				detectedType = 'series';
-				break;
-			case 4:
-				detectedType = 'link';
-				break;
-			case 5:
-				// Cancela
-				loggers.ai.info('❌ Usuário cancelou clarificação');
-				await conversationService.updateState(conversation.id, 'idle', {
-					pendingClarification: undefined,
-				});
-				return {
-					message: getRandomMessage(cancellationMessages),
-					state: 'idle',
-				};
-			default:
-				// Se não é número válido (1-5), trata como NOVA MENSAGEM
-				// Isso permite ao usuário ignorar a clarificação e continuar conversando
-				if (!isNumber || choice < 1 || choice > 5) {
-					loggers.ai.info({ message }, '↩️ Usuário enviou nova mensagem durante clarificação - reprocessando');
+		// Se não detectou via NLP, tenta números
+		if (!detectedType && isNumber) {
+			switch (choice) {
+				case 1:
+					detectedType = 'note';
+					loggers.ai.info('📝 Usuário escolheu nota (opção 1)');
+					break;
+				case 2:
+					detectedType = 'movie';
+					loggers.ai.info('🎬 Usuário escolheu filme (opção 2)');
+					break;
+				case 3:
+					detectedType = 'series';
+					loggers.ai.info('📺 Usuário escolheu série (opção 3)');
+					break;
+				case 4:
+					detectedType = 'link';
+					loggers.ai.info('🔗 Usuário escolheu link (opção 4)');
+					break;
+				case 5:
+					// Cancela
+					loggers.ai.info('❌ Usuário cancelou clarificação (opção 5)');
+					await conversationService.updateState(conversation.id, 'idle', {
+						pendingClarification: undefined,
+					});
+					return {
+						message: getRandomMessage(cancellationMessages),
+						state: 'idle',
+					};
+				default:
+					// Se não é número válido (1-5), trata como NOVA MENSAGEM
+					// Isso permite ao usuário ignorar a clarificação e continuar conversando
+					loggers.ai.info({ message }, '↩️ Número inválido - reprocessando como nova mensagem');
 
 					// Reseta estado e reprocessa
 					await conversationService.updateState(conversation.id, 'idle', {
@@ -947,21 +955,26 @@ export class AgentOrchestrator {
 					delete conversation.context?.pendingClarification;
 
 					return this.processMessage(context);
-				}
-
-				// Se chegou aqui, é um número inválido (fora de 1-5 mas é número)
-				loggers.ai.warn({ choice: message }, '⚠️ Escolha inválida de clarificação');
-
-				// Re-envia as opções quando a escolha é inválida
-				const optionsText = clarificationOptions.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
-
-				return {
-					message: `❓ Por favor, escolha uma das opções:\n\n${optionsText}`,
-					state: 'awaiting_context',
-				};
+			}
 		}
 
-		loggers.ai.info({ detectedType }, '✅ Usuário escolheu tipo');
+		// Se nem NLP nem número detectaram tipo válido, reprocessa como nova mensagem
+		if (!detectedType) {
+			loggers.ai.info({ message }, '↩️ Nenhum tipo detectado - reprocessando como nova mensagem');
+
+			// Reseta estado e reprocessa
+			await conversationService.updateState(conversation.id, 'idle', {
+				pendingClarification: undefined,
+			});
+
+			conversation.state = 'idle';
+			delete conversation.context?.pendingClarification;
+
+			return this.processMessage(context);
+		}
+
+		// ✅ Tipo detectado (via NLP ou número)! Continua o fluxo...
+		loggers.ai.info({ detectedType }, '✅ Tipo escolhido pelo usuário');
 
 		// Mapeia tipo para português
 		const typeNames: Record<string, string> = {
