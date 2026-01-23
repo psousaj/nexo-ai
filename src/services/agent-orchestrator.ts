@@ -438,6 +438,16 @@ export class AgentOrchestrator {
 			if (!isNaN(index) && contextData.candidates && contextData.candidates[index]) {
 				const selected = contextData.candidates[index];
 
+				// 🆕 Feedback visual: mostra o que foi selecionado (estilo WhatsApp)
+				if (context.provider === 'telegram') {
+					const { getProvider } = await import('@/adapters/messaging');
+					const provider = getProvider(context.provider as 'telegram');
+					if (provider) {
+						const feedbackMsg = `✅ Selecionado: *${selected.title}* (${selected.year || ''})`;
+						await provider.sendMessage(context.externalId, feedbackMsg);
+					}
+				}
+
 				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
 				return await this.sendFinalConfirmation(context, conversation, selected);
 			}
@@ -1130,17 +1140,16 @@ export class AgentOrchestrator {
 		let message =
 			limitedCandidates.length === 1
 				? `🎬 Encontrei este ${itemTypePt}. É esse que você quer?\n\n`
-				: `🎬 Encontrei ${limitedCandidates.length} ${itemTypePtPlural}. Qual você quer salvar?\n\n`;
+				: `🎬 Encontrei ${limitedCandidates.length} ${itemTypePtPlural}. Qual você quer salvar?\n_Selecione para ver mais detalhes._\n\n`;
 
 		limitedCandidates.forEach((candidate: any, index: number) => {
 			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
-			const genres = candidate.genres?.slice(0, 2).join(', ') || '';
 			const overview = candidate.overview || '';
-			const overviewSnippet = overview.length > 300 ? `${overview.substring(0, 300)}...` : overview;
+			// Limita sinopse a 150 caracteres para lista mais limpa
+			const overviewSnippet = overview.length > 150 ? `${overview.substring(0, 150)}...` : overview;
 
 			message += `${index + 1}. *${candidate.title}* (${year})\n`;
-			if (genres) message += `   📁 ${genres}\n`;
-			if (overviewSnippet) message += `   📝 ${overviewSnippet}\n`;
+			if (overviewSnippet) message += `   ${overviewSnippet}\n`;
 			message += '\n';
 		});
 

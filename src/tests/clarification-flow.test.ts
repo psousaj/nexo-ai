@@ -87,6 +87,7 @@ describe('Clarification Flow (N1/N2)', () => {
 			conversationId: mockConversationId,
 			externalId: 'test-external-123',
 			message: '1',
+			provider: 'telegram',
 		});
 
 		// Deve transitar para awaiting_confirmation
@@ -115,6 +116,7 @@ describe('Clarification Flow (N1/N2)', () => {
 			conversationId: mockConversationId,
 			externalId: 'test-external-123',
 			message: '5',
+			provider: 'telegram',
 		});
 
 		// Deve cancelar e voltar para idle
@@ -143,6 +145,7 @@ describe('Clarification Flow (N1/N2)', () => {
 			conversationId: mockConversationId,
 			externalId: 'test-external-123',
 			message: 'abc',
+			provider: 'telegram',
 		});
 
 		// Deve permanecer em awaiting_context e pedir escolha válida
