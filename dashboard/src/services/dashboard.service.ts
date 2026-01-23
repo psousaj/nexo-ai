@@ -1,8 +1,6 @@
 import api from './api';
 import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType } from '../types';
 
-const FIXED_USER_ID = 'a6051a80-0000-0000-0000-000000000000'; // Temporary fixed userId for testing
-
 export const dashboardService = {
 	async getAnalytics(): Promise<AnalyticsData> {
 		const { data } = await api.get<AnalyticsData>('/analytics');
@@ -12,12 +10,10 @@ export const dashboardService = {
 	async getMemories(search?: string): Promise<MemoryItem[]> {
 		const { data } = await api.get<any>('/memories', {
 			params: {
-				userId: FIXED_USER_ID,
 				search: search || undefined,
 			},
 		});
 
-		// Backend retorna array direto se for busca, ou objeto se for listItems simples
 		const items = Array.isArray(data) ? data : data.items || data;
 
 		return items.map((item: any) => ({
@@ -37,7 +33,6 @@ export const dashboardService = {
 		if (payload.type === 'note') metadata.full_content = payload.content;
 
 		const { data } = await api.post('/memories', {
-			userId: FIXED_USER_ID,
 			type: payload.type,
 			title: payload.title,
 			metadata,
@@ -46,7 +41,7 @@ export const dashboardService = {
 	},
 
 	async updateMemory(id: string | number, payload: { title?: string; content?: string }): Promise<any> {
-		const updates: any = { userId: FIXED_USER_ID };
+		const updates: any = {};
 		if (payload.title) updates.title = payload.title;
 		if (payload.content) updates.metadata = { full_content: payload.content };
 
@@ -55,9 +50,7 @@ export const dashboardService = {
 	},
 
 	async deleteMemory(id: string | number): Promise<void> {
-		await api.delete(`/memories/${id}`, {
-			params: { userId: FIXED_USER_ID },
-		});
+		await api.delete(`/memories/${id}`);
 	},
 
 	async getErrors(): Promise<ErrorReport[]> {
@@ -86,40 +79,31 @@ export const dashboardService = {
 		}));
 	},
 
-	// Preferences
 	async getPreferences(): Promise<any> {
-		const { data } = await api.get('/user/preferences', {
-			params: { userId: FIXED_USER_ID },
-		});
+		const { data } = await api.get('/user/preferences');
 		return data;
 	},
 
 	async updatePreferences(updates: any): Promise<void> {
-		await api.patch('/user/preferences', {
-			userId: FIXED_USER_ID,
-			...updates,
-		});
+		await api.patch('/user/preferences', updates);
 	},
 
-	// Account Linking
 	async getAccounts(): Promise<any[]> {
-		const { data } = await api.get('/user/accounts', {
-			params: { userId: FIXED_USER_ID },
-		});
+		const { data } = await api.get('/user/accounts');
 		return data.accounts;
 	},
 
 	async linkTelegram(): Promise<{ link: string; token: string }> {
-		const { data } = await api.post('/user/link/telegram', {
-			userId: FIXED_USER_ID,
-		});
+		const { data } = await api.post('/user/link/telegram');
 		return data;
 	},
 
 	async linkDiscord(): Promise<{ link: string }> {
-		const { data } = await api.get('/user/link/discord', {
-			params: { userId: FIXED_USER_ID },
-		});
+		const { data } = await api.get('/user/link/discord');
 		return data;
+	},
+
+	async consumeLinkingToken(token: string): Promise<void> {
+		await api.post('/user/link/consume', { token });
 	},
 };

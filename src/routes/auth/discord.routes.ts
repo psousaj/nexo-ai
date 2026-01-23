@@ -59,7 +59,7 @@ export const discordAuthRoutes = new Hono()
 			loggers.webhook.info({ userId, discordId: discordUser.id }, '✅ Conta Discord vinculada');
 
 			// 4. Redireciona de volta para o Dashboard
-			const dashboardUrl = `${env.APP_URL.replace(':3000', ':5173')}/profile?success=discord`;
+			const dashboardUrl = `${env.DASHBOARD_URL}/profile?success=discord`;
 			return c.redirect(dashboardUrl);
 		} catch (error) {
 			logError(error, { context: 'DISCORD_AUTH' });

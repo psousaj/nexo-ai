@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import { loggers, logError } from '@/utils/logger';
 import { messageQueue } from '@/services/queue-service';
 import { accountLinkingService } from '@/services/account-linking-service';
+import { userService } from '@/services/user-service';
 
 export const webhookRoutes = new Hono()
 	// TELEGRAM
@@ -26,39 +27,7 @@ export const webhookRoutes = new Hono()
 					await telegramAdapter.answerCallbackQuery(message.callbackQueryId);
 				}
 
-				// VERIFICA VINCULAÇÃO DE CONTA (DEEP LINKING)
-				if (message.linkingToken) {
-					loggers.webhook.info({ token: message.linkingToken }, '🔗 Processando token de vinculação Telegram');
-					const linked = await accountLinkingService.linkAccountByToken(message.linkingToken, message.externalId, {
-						username: message.senderName,
-					});
-
-					if (linked) {
-						await telegramAdapter.sendMessage(
-							message.externalId,
-							'✅ Sua conta foi vinculada com sucesso ao seu painel Nexo AI!\n\nO que você quer salvar hoje?',
-						);
-						return c.json({ ok: true });
-					} else {
-						await telegramAdapter.sendMessage(
-							message.externalId,
-							'❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.',
-						);
-						return c.json({ ok: true });
-					}
-				}
-
-				// TRATA /START SEM TOKEN (DESCOBERTA FORA DO DASHBOARD)
-				if (message.text === '/start') {
-					const dashboardUrl = `${env.APP_URL.replace(':3000', ':5173')}/profile`;
-					await telegramAdapter.sendMessage(
-						message.externalId,
-						`Olá! 😊\n\nSou o Nexo AI. Se você já utiliza nosso serviço pelo WhatsApp e quer vincular sua conta para usar por aqui também, acesse o seu painel de controle:\n\n🔗 ${dashboardUrl}\n\nSe você é novo por aqui, basta me enviar qualquer mensagem e eu começarei a te ajudar a organizar seu dia!`,
-					);
-					return c.json({ ok: true });
-				}
-
-				// Enfileira processamento assíncrono para mensagens normais
+				// Enfileira processamento assíncrono para todas as mensagens (incluindo comandos e tokens)
 				await messageQueue.add(
 					'message-processing',
 					{

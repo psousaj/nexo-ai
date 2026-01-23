@@ -4,7 +4,14 @@ import { memoriesRoutes } from './memories.routes';
 import { adminRoutes } from './admin.routes';
 import { userRoutes } from './user.routes';
 
-export const dashboardRouter = new Hono()
+import { authMiddleware } from '@/middlewares/auth.middleware';
+
+export const dashboardRouter = new Hono();
+
+// Protege todas as rotas do dashboard
+dashboardRouter.use('*', authMiddleware);
+
+dashboardRouter
 	.route('/analytics', analyticsRoutes)
 	.route('/memories', memoriesRoutes)
 	.route('/admin', adminRoutes)

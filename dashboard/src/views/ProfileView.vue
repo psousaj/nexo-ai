@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare, Loader2 } from 'lucide-vue-next';
 import { useAuthStore } from '../store/auth';
@@ -57,6 +57,8 @@ const handleSave = () => {
 
 // Linking Logic
 const isLinking = ref(false);
+const linkingToken = ref('');
+const showTokenInput = ref<string | null>(null);
 
 const handleLink = async (provider: string) => {
 	isLinking.value = true;
@@ -74,6 +76,21 @@ const handleLink = async (provider: string) => {
 		setTimeout(() => {
 			isLinking.value = false;
 		}, 2000);
+	}
+};
+
+const handleManualLink = async () => {
+	if (!linkingToken.value) return;
+	isLinking.value = true;
+	try {
+		await dashboardService.consumeLinkingToken(linkingToken.value);
+		await queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
+		showTokenInput.value = null;
+		linkingToken.value = '';
+	} catch (error) {
+		alert('Código inválido ou expirado');
+	} finally {
+		isLinking.value = false;
 	}
 };
 </script>
@@ -210,6 +227,43 @@ const handleLink = async (provider: string) => {
 							</button>
 						</div>
 					</div>
+				</div>
+
+				<!-- Manual Token Linking -->
+				<div class="pt-4 border-t border-surface-200 dark:border-surface-800">
+					<div v-if="showTokenInput" class="space-y-4 animate-fade-in">
+						<label class="block text-xs font-black uppercase tracking-widest text-surface-500">Já tem um código de vínculo?</label>
+						<div class="flex gap-2">
+							<input
+								v-model="linkingToken"
+								placeholder="Ex: AB12CD"
+								maxlength="14"
+								class="flex-1 px-4 py-2 bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none font-mono tracking-widest uppercase"
+							/>
+							<button
+								@click="handleManualLink"
+								:disabled="isLinking || !linkingToken"
+								class="px-6 py-2 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 disabled:opacity-50 transition-all flex items-center gap-2"
+							>
+								<Loader2 v-if="isLinking" class="w-4 h-4 animate-spin" />
+								Vincular
+							</button>
+							<button
+								@click="showTokenInput = null"
+								class="p-2 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-xl transition-all"
+							>
+								<XCircle class="w-5 h-5" />
+							</button>
+						</div>
+					</div>
+					<button
+						v-else
+						@click="showTokenInput = 'any'"
+						class="text-sm font-bold text-primary-600 hover:text-primary-700 flex items-center gap-2 px-1"
+					>
+						<Plus class="w-4 h-4" />
+						Tenho um código de vinculação
+					</button>
 				</div>
 			</div>
 		</div>

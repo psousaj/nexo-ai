@@ -6,33 +6,43 @@ import Preferences from '../views/PreferencesView.vue';
 import Memories from '../views/MemoriesView.vue';
 import AdminErrors from '../views/AdminErrorsView.vue';
 import AdminConversations from '../views/AdminConversationsView.vue';
+import Login from '../views/LoginView.vue';
+import Signup from '../views/SignupView.vue';
 
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
 	routes: [
 		{
+			path: '/login',
+			name: 'Login',
+			component: Login,
+			meta: { public: true },
+		},
+		{
+			path: '/signup',
+			name: 'Cadastro',
+			component: Signup,
+			meta: { public: true },
+		},
+		{
 			path: '/',
 			name: 'Dashboard',
 			component: Dashboard,
-			meta: { roles: ['admin', 'user'] },
 		},
 		{
 			path: '/profile',
 			name: 'Meu Perfil',
 			component: Profile,
-			meta: { roles: ['admin', 'user'] },
 		},
 		{
 			path: '/preferences',
 			name: 'Preferências',
 			component: Preferences,
-			meta: { roles: ['admin', 'user'] },
 		},
 		{
 			path: '/memories',
 			name: 'Minhas Memórias',
 			component: Memories,
-			meta: { roles: ['admin', 'user'] },
 		},
 		{
 			path: '/admin/errors',
@@ -49,14 +59,24 @@ const router = createRouter({
 	],
 });
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
 	const authStore = useAuthStore();
 
-	// Check if the route requires a specific role
+	// Wait for session to load if it's pending
+	// In a real app we might show a splash screen
+
+	if (!to.meta.public && !authStore.isAuthenticated) {
+		return next('/login');
+	}
+
+	if (to.meta.public && authStore.isAuthenticated) {
+		return next('/');
+	}
+
+	// Check roles for admin pages
 	if (to.meta.roles && Array.isArray(to.meta.roles)) {
 		const userRole = authStore.user?.role || 'user';
 		if (!to.meta.roles.includes(userRole)) {
-			console.warn(`Acesso negado: Rota ${to.path} requer permissão de ${to.meta.roles.join('/')}`);
 			return next('/');
 		}
 	}

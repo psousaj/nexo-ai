@@ -167,6 +167,18 @@ export class UserService {
 	async getUserAccounts(userId: string) {
 		return await db.select().from(userAccounts).where(eq(userAccounts.userId, userId));
 	}
+
+	/**
+	 * Busca uma conta vinculada por provider e ID externo
+	 */
+	async findAccount(provider: ProviderType, externalId: string) {
+		const [account] = await db
+			.select()
+			.from(userAccounts)
+			.where(and(eq(userAccounts.provider, provider), eq(userAccounts.externalId, externalId)))
+			.limit(1);
+		return account;
+	}
 }
 
 export const userService = new UserService();

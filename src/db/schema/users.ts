@@ -11,10 +11,16 @@ import { userPreferences } from './user-preferences';
  */
 export const users = pgTable('users', {
 	id: uuid('id').defaultRandom().primaryKey(),
-	name: text('full_name'),
-	email: varchar({ length: 255 }),
-	createdAt: timestamp('created_at').defaultNow(),
+	name: text('name'),
+	email: varchar('email', { length: 255 }).unique(),
+	emailVerified: timestamp('email_verified'),
+	image: text('image'),
 	password: varchar('password', { length: 256 }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull(),
+	// Controle de onboarding e trial
+	status: text('status').$type<'trial' | 'pending_signup' | 'active'>().default('trial').notNull(),
+	interactionCount: integer('interaction_count').default(0).notNull(),
 	// Controle de timeout por comportamento ofensivo
 	timeoutUntil: timestamp('timeout_until'),
 	offenseCount: integer('offense_count').default(0).notNull(),

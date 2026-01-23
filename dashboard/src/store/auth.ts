@@ -1,21 +1,26 @@
 import { defineStore } from 'pinia';
-import { ref, computed, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { ability } from '../plugins/casl';
-import type { User, UserRole } from '../types';
+import { authClient, useSession } from '../lib/auth-client';
+import type { User } from '../types';
 
 export const useAuthStore = defineStore('auth', () => {
-	const user = ref<User | null>(null);
+	const sessionInfo = useSession();
 
-	// Simulated initial state
-	user.value = {
-		id: '1',
-		name: 'Admin Nexo',
-		email: 'admin@nexo.ai',
-		role: 'admin',
-		image: 'A',
-	};
+	const user = computed(() => {
+		if (!sessionInfo.value?.data) return null;
+		const u = sessionInfo.value.data.user;
+		return {
+			id: u.id,
+			name: u.name,
+			email: u.email,
+			image: u.image || '',
+			role: 'user',
+		} as User & { role: string };
+	});
 
-	const isAuthenticated = computed(() => !!user.value);
+	const isAuthenticated = computed(() => !!sessionInfo.value?.data);
+	const isLoadingSession = computed(() => sessionInfo.value?.isPending);
 
 	// Update CASL abilities whenever user changes
 	watch(
@@ -24,44 +29,26 @@ export const useAuthStore = defineStore('auth', () => {
 			ability.update([]); // Reset
 
 			if (newUser?.role === 'admin') {
-				// Admin can do everything
 				ability.update([{ action: 'manage', subject: 'all' }]);
-			} else if (newUser?.role === 'user') {
-				// User can only see their own stuff
+			} else if (newUser?.role === 'user' || newUser) {
 				ability.update([
 					{ action: 'read', subject: 'UserContent' },
 					{ action: 'manage', subject: 'PersonalData' },
-					{ action: 'read', subject: 'Analytics' }, // Limited view
+					{ action: 'read', subject: 'Analytics' },
 				]);
 			}
 		},
 		{ immediate: true },
 	);
 
-	function login(profile: User) {
-		user.value = profile;
-	}
-
-	function logout() {
-		user.value = null;
-	}
-
-	function toggleRole() {
-		if (user.value) {
-			const newRole: UserRole = user.value.role === 'admin' ? 'user' : 'admin';
-			user.value = {
-				...user.value,
-				role: newRole,
-				name: newRole === 'admin' ? 'Admin Nexo' : 'José Usuário',
-			};
-		}
+	async function logout() {
+		await authClient.signOut();
 	}
 
 	return {
 		user,
 		isAuthenticated,
-		login,
+		isLoadingSession,
 		logout,
-		toggleRole,
 	};
 });
