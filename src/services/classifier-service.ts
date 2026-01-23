@@ -91,7 +91,7 @@ export class ClassifierService {
 		];
 
 		if (contextLeakPatterns.some((pattern) => pattern.test(query))) {
-			console.warn('⚠️ Detectado vazamento de contexto na query, limpando...');
+			loggers.ai.warn('⚠️ Detectado vazamento de contexto na query, limpando...');
 
 			// Tenta extrair apenas títulos entre aspas ou palavras capitalizadas
 			const quotedMatch = query.match(/["']([^"']+)["']/);

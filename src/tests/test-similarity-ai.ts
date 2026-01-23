@@ -1,6 +1,6 @@
 /**
  * Test: cosineSimilarity from 'ai' library
- * 
+ *
  * Testa se a biblioteca ai calcula corretamente a similaridade
  * usando os embeddings reais do Cloudflare Workers AI
  */
@@ -10,7 +10,7 @@ import { embeddingService } from '@/services/ai/embedding-service';
 import { loggers } from '@/utils/logger';
 
 async function testAISimilarity() {
-	console.log('🧪 Testando cosineSimilarity da biblioteca ai...\n');
+	loggers.ai.info('🧪 Testando cosineSimilarity da biblioteca ai...\n');
 
 	try {
 		// Gera embeddings de textos similares
@@ -18,7 +18,7 @@ async function testAISimilarity() {
 		const text2 = 'Inception - Christopher Nolan masterpiece';
 		const text3 = 'receita de bolo de chocolate';
 
-		console.log('📊 Gerando embeddings...');
+		loggers.ai.info('📊 Gerando embeddings...');
 		const [emb1, emb2, emb3] = await Promise.all([
 			embeddingService.generateEmbedding(text1),
 			embeddingService.generateEmbedding(text2),
@@ -26,9 +26,9 @@ async function testAISimilarity() {
 		]);
 
 		// Valida embeddings
-		console.log(`\n✅ Embedding 1: ${emb1.length} dimensões`);
-		console.log(`✅ Embedding 2: ${emb2.length} dimensões`);
-		console.log(`✅ Embedding 3: ${emb3.length} dimensões`);
+		loggers.ai.info(`\n✅ Embedding 1: ${emb1.length} dimensões`);
+		loggers.ai.info(`✅ Embedding 2: ${emb2.length} dimensões`);
+		loggers.ai.info(`✅ Embedding 3: ${emb3.length} dimensões`);
 
 		// Calcula similaridades usando biblioteca ai
 		const sim1_2 = cosineSimilarity(emb1, emb2);
@@ -36,37 +36,37 @@ async function testAISimilarity() {
 		const sim2_3 = cosineSimilarity(emb2, emb3);
 
 		// Resultados
-		console.log('\n📈 Resultados de Similaridade (usando ai SDK):');
-		console.log(`   "${text1}"`);
-		console.log(`   vs`);
-		console.log(`   "${text2}"`);
-		console.log(`   ➜ Similaridade: ${(sim1_2 * 100).toFixed(1)}%\n`);
+		loggers.ai.info('\n📈 Resultados de Similaridade (usando ai SDK):');
+		loggers.ai.info(`   "${text1}"`);
+		loggers.ai.info(`   vs`);
+		loggers.ai.info(`   "${text2}"`);
+		loggers.ai.info(`   ➜ Similaridade: ${(sim1_2 * 100).toFixed(1)}%\n`);
 
-		console.log(`   "${text1}"`);
-		console.log(`   vs`);
-		console.log(`   "${text3}"`);
-		console.log(`   ➜ Similaridade: ${(sim1_3 * 100).toFixed(1)}%\n`);
+		loggers.ai.info(`   "${text1}"`);
+		loggers.ai.info(`   vs`);
+		loggers.ai.info(`   "${text3}"`);
+		loggers.ai.info(`   ➜ Similaridade: ${(sim1_3 * 100).toFixed(1)}%\n`);
 
-		console.log(`   "${text2}"`);
-		console.log(`   vs`);
-		console.log(`   "${text3}"`);
-		console.log(`   ➜ Similaridade: ${(sim2_3 * 100).toFixed(1)}%\n`);
+		loggers.ai.info(`   "${text2}"`);
+		loggers.ai.info(`   vs`);
+		loggers.ai.info(`   "${text3}"`);
+		loggers.ai.info(`   ➜ Similaridade: ${(sim2_3 * 100).toFixed(1)}%\n`);
 
 		// Validações
 		if (sim1_2 > 0.7) {
-			console.log('✅ Alta similaridade entre textos relacionados (esperado)');
+			loggers.ai.info('✅ Alta similaridade entre textos relacionados (esperado)');
 		}
 		if (sim1_3 < 0.3) {
-			console.log('✅ Baixa similaridade entre textos não relacionados (esperado)');
+			loggers.ai.info('✅ Baixa similaridade entre textos não relacionados (esperado)');
 		}
 		if (!isNaN(sim1_2) && !isNaN(sim1_3) && !isNaN(sim2_3)) {
-			console.log('✅ Nenhum NaN detectado (bug corrigido!)');
+			loggers.ai.info('✅ Nenhum NaN detectado (bug corrigido!)');
 		}
 
-		console.log('\n🎉 Teste concluído com sucesso!');
+		loggers.ai.info('\n🎉 Teste concluído com sucesso!');
 		process.exit(0);
 	} catch (error) {
-		console.error('❌ Erro no teste:', error);
+		loggers.ai.error({ error }, '❌ Erro no teste');
 		process.exit(1);
 	}
 }

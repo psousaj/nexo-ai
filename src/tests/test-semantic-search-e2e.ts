@@ -15,11 +15,11 @@ import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
 
 async function testSemanticSearchE2E() {
-	console.log('🧪 Teste End-to-End: Busca Semântica\n');
+	loggers.ai.info('🧪 Teste End-to-End: Busca Semântica\n');
 
 	try {
 		// 1. SETUP: Criar usuário de teste
-		console.log('📦 1. Criando usuário de teste...');
+		loggers.ai.info('📦 1. Criando usuário de teste...');
 		const [user] = await db
 			.insert(users)
 			.values({ name: 'Test User E2E', email: `test-e2e-${Date.now()}@example.com` })
@@ -31,10 +31,10 @@ async function testSemanticSearchE2E() {
 			externalId: `test-${Date.now()}`,
 		});
 
-		console.log(`✅ Usuário criado: ${user.id}\n`);
+		loggers.ai.info(`✅ Usuário criado: ${user.id}\n`);
 
 		// 2. SALVAR: Filmes variados
-		console.log('📦 2. Salvando filmes com embeddings...');
+		loggers.ai.info('📦 2. Salvando filmes com embeddings...');
 
 		const movies = [
 			{
@@ -66,10 +66,10 @@ async function testSemanticSearchE2E() {
 				title: movie.title,
 				metadata: { overview: movie.description } as any,
 			});
-			console.log(`   ✅ ${movie.title} salvo com embedding`);
+			loggers.ai.info(`   ✅ ${movie.title} salvo com embedding`);
 		}
 
-		console.log('\n📦 3. Executando buscas semânticas...\n');
+		loggers.ai.info('\n📦 3. Executando buscas semânticas...\n');
 
 		// 3. BUSCAR: Queries semânticas
 		const searches = [
@@ -80,7 +80,7 @@ async function testSemanticSearchE2E() {
 		];
 
 		for (const search of searches) {
-			console.log(`🔍 Query: "${search.query}"`);
+			loggers.ai.info(`🔍 Query: "${search.query}"`);
 
 			const results = await itemService.searchItems({
 				userId: user.id,
@@ -89,36 +89,36 @@ async function testSemanticSearchE2E() {
 			});
 
 			if (results.length === 0) {
-				console.log(`   ❌ Nenhum resultado encontrado\n`);
+				loggers.ai.info(`   ❌ Nenhum resultado encontrado\n`);
 				continue;
 			}
 
-			console.log(`   📊 ${results.length} resultado(s):\n`);
+			loggers.ai.info(`   📊 ${results.length} resultado(s):\n`);
 
 			for (const [index, result] of results.entries()) {
 				const similarity = (result as any).similarity;
-				console.log(`      ${index + 1}. ${result.title} - ${(similarity * 100).toFixed(1)}% similar`);
+				loggers.ai.info(`      ${index + 1}. ${result.title} - ${(similarity * 100).toFixed(1)}% similar`);
 			}
 
 			const topResult = results[0];
 			if (topResult.title === search.expected) {
-				console.log(`   ✅ Resultado esperado encontrado!\n`);
+				loggers.ai.info(`   ✅ Resultado esperado encontrado!\n`);
 			} else {
-				console.log(`   ⚠️ Resultado diferente do esperado (esperado: ${search.expected})\n`);
+				loggers.ai.info(`   ⚠️ Resultado diferente do esperado (esperado: ${search.expected})\n`);
 			}
 		}
 
 		// 4. CLEANUP
-		console.log('🧹 4. Limpando dados de teste...');
+		loggers.ai.info('🧹 4. Limpando dados de teste...');
 		await db.delete(memoryItems).where(eq(memoryItems.userId, user.id));
 		await db.delete(userAccounts).where(eq(userAccounts.userId, user.id));
 		await db.delete(users).where(eq(users.id, user.id));
-		console.log('✅ Dados removidos\n');
+		loggers.ai.info('✅ Dados removidos\n');
 
-		console.log('🎉 Teste E2E concluído com sucesso!');
+		loggers.ai.info('🎉 Teste E2E concluído com sucesso!');
 		process.exit(0);
 	} catch (error) {
-		console.error('❌ Erro no teste E2E:', error);
+		loggers.ai.error({ error }, '❌ Erro no teste E2E');
 		process.exit(1);
 	}
 }

@@ -13,11 +13,11 @@ import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
 
 async function testSemanticEnrichment() {
-	console.log('🧪 Teste: Document Enrichment com TMDB Keywords\n');
+	loggers.ai.info('🧪 Teste: Document Enrichment com TMDB Keywords\n');
 
 	try {
 		// 1. SETUP: Criar usuário de teste
-		console.log('📦 1. Criando usuário de teste...');
+		loggers.ai.info('📦 1. Criando usuário de teste...');
 		const [user] = await db
 			.insert(users)
 			.values({ name: 'Test Enrichment', email: `test-enrich-${Date.now()}@example.com` })
@@ -29,10 +29,10 @@ async function testSemanticEnrichment() {
 			externalId: `test-enrich-${Date.now()}`,
 		});
 
-		console.log(`✅ Usuário criado: ${user.id}\n`);
+		loggers.ai.info(`✅ Usuário criado: ${user.id}\n`);
 
 		// 2. BUSCAR DADOS REAIS DO TMDB
-		console.log('📦 2. Buscando dados REAIS do TMDB...\n');
+		loggers.ai.info('📦 2. Buscando dados REAIS do TMDB...\n');
 
 		// Inception (filme sobre sonhos)
 		const inceptionResults = await tmdbService.searchMovies('Inception');
@@ -44,11 +44,11 @@ async function testSemanticEnrichment() {
 
 		const inceptionMetadata = await tmdbService.enrichMovie(inceptionTmdbId);
 
-		console.log(`🎬 Inception TMDB Data:`);
-		console.log(`   Keywords: ${inceptionMetadata.keywords?.join(', ') || 'N/A'}`);
-		console.log(`   Overview: ${inceptionMetadata.overview?.substring(0, 80)}...`);
-		console.log(`   Tagline: ${inceptionMetadata.tagline || 'N/A'}`);
-		console.log(`   Genres: ${inceptionMetadata.genres.join(', ')}\n`);
+		loggers.ai.info(`🎬 Inception TMDB Data:`);
+		loggers.ai.info(`   Keywords: ${inceptionMetadata.keywords?.join(', ') || 'N/A'}`);
+		loggers.ai.info(`   Overview: ${inceptionMetadata.overview?.substring(0, 80)}...`);
+		loggers.ai.info(`   Tagline: ${inceptionMetadata.tagline || 'N/A'}`);
+		loggers.ai.info(`   Genres: ${inceptionMetadata.genres.join(', ')}\n`);
 
 		// Interstellar (exploração espacial)
 		const interstellarResults = await tmdbService.searchMovies('Interstellar');
@@ -60,13 +60,13 @@ async function testSemanticEnrichment() {
 
 		const interstellarMetadata = await tmdbService.enrichMovie(interstellarTmdbId);
 
-		console.log(`🚀 Interstellar TMDB Data:`);
-		console.log(`   Keywords: ${interstellarMetadata.keywords?.join(', ') || 'N/A'}`);
-		console.log(`   Overview: ${interstellarMetadata.overview?.substring(0, 80)}...`);
-		console.log(`   Genres: ${interstellarMetadata.genres.join(', ')}\n`);
+		loggers.ai.info(`🚀 Interstellar TMDB Data:`);
+		loggers.ai.info(`   Keywords: ${interstellarMetadata.keywords?.join(', ') || 'N/A'}`);
+		loggers.ai.info(`   Overview: ${interstellarMetadata.overview?.substring(0, 80)}...`);
+		loggers.ai.info(`   Genres: ${interstellarMetadata.genres.join(', ')}\n`);
 
 		// 3. SALVAR COM METADATA ENRIQUECIDA
-		console.log('📦 3. Salvando filmes com metadata TMDB completa...\n');
+		loggers.ai.info('📦 3. Salvando filmes com metadata TMDB completa...\n');
 
 		await itemService.createItem({
 			userId: user.id,
@@ -82,10 +82,10 @@ async function testSemanticEnrichment() {
 			metadata: interstellarMetadata,
 		});
 
-		console.log('✅ Filmes salvos com embeddings enriquecidos\n');
+		loggers.ai.info('✅ Filmes salvos com embeddings enriquecidos\n');
 
 		// 4. BUSCAR SEMANTICAMENTE
-		console.log('📦 4. Testando busca semântica com enrichment...\n');
+		loggers.ai.info('📦 4. Testando busca semântica com enrichment...\n');
 
 		const dreamSearch = await itemService.searchItems({
 			userId: user.id,
@@ -93,46 +93,46 @@ async function testSemanticEnrichment() {
 			limit: 2,
 		});
 
-		console.log(`🔍 Query: "filmes sobre sonhos e subconsciente"\n`);
+		loggers.ai.info(`🔍 Query: "filmes sobre sonhos e subconsciente"\n`);
 
 		for (const [index, result] of dreamSearch.entries()) {
 			const similarity = (result as any).similarity;
-			console.log(`   ${index + 1}. ${result.title} - ${(similarity * 100).toFixed(1)}% similar`);
+			loggers.ai.info(`   ${index + 1}. ${result.title} - ${(similarity * 100).toFixed(1)}% similar`);
 		}
 
 		// VALIDAÇÃO
 		const topResult = dreamSearch[0];
 		if (topResult?.title === 'Inception') {
-			console.log('\n✅ SUCCESS: Inception é o TOP resultado!');
-			console.log('   🔥 Document enrichment funcionou!\n');
+			loggers.ai.info('\n✅ SUCCESS: Inception é o TOP resultado!');
+			loggers.ai.info('   🔥 Document enrichment funcionou!\n');
 		} else {
-			console.log(`\n⚠️ WARNING: Top resultado foi "${topResult?.title}" (esperado: Inception)`);
-			console.log('   Possíveis causas:');
-			console.log('   - Keywords TMDB não foram buscadas');
-			console.log('   - Overview não foi incluído no embedding');
-			console.log('   - Modelo de embedding não capturou semântica\n');
+			loggers.ai.info(`\n⚠️ WARNING: Top resultado foi "${topResult?.title}" (esperado: Inception)`);
+			loggers.ai.info('   Possíveis causas:');
+			loggers.ai.info('   - Keywords TMDB não foram buscadas');
+			loggers.ai.info('   - Overview não foi incluído no embedding');
+			loggers.ai.info('   - Modelo de embedding não capturou semântica\n');
 		}
 
 		// Mostrar documento semântico gerado
-		console.log('📄 Documento Semântico Gerado (primeiros 300 chars):\n');
+		loggers.ai.info('📄 Documento Semântico Gerado (primeiros 300 chars):\n');
 		const inceptionDoc = (itemService as any).prepareTextForEmbedding({
 			type: 'movie',
 			title: 'Inception',
 			metadata: inceptionMetadata,
 		});
-		console.log(`   ${inceptionDoc.substring(0, 300)}...\n`);
+		loggers.ai.info(`   ${inceptionDoc.substring(0, 300)}...\n`);
 
 		// 5. CLEANUP
-		console.log('🧹 5. Limpando dados de teste...');
+		loggers.ai.info('🧹 5. Limpando dados de teste...');
 		await db.delete(memoryItems).where(eq(memoryItems.userId, user.id));
 		await db.delete(userAccounts).where(eq(userAccounts.userId, user.id));
 		await db.delete(users).where(eq(users.id, user.id));
-		console.log('✅ Dados removidos\n');
+		loggers.ai.info('✅ Dados removidos\n');
 
-		console.log('🎉 Teste concluído!');
+		loggers.ai.info('🎉 Teste concluído!');
 		process.exit(0);
 	} catch (error) {
-		console.error('❌ Erro no teste:', error);
+		loggers.ai.error({ error }, '❌ Erro no teste');
 		process.exit(1);
 	}
 }

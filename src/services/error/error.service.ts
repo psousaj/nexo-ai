@@ -61,7 +61,7 @@ export class GlobalErrorService {
 			);
 		} catch (criticalError) {
 			// Failsafe para erro no próprio error handler
-			// Aqui usamos console.error pois o logger pode ter falhado
+			// Aqui usamos console.error pois o logger pode ter falhado (último recurso)
 			console.error('CRITICAL: Error passing global handler', criticalError);
 		}
 	}
