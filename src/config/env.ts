@@ -61,8 +61,8 @@ const envSchema = z.object({
 
 	// Application
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-	APP_URL: z.string().url().default('http://localhost:3000'),
-	DASHBOARD_URL: z.string().url().default('http://localhost:5173'),
+	APP_URL: z.string().url(),
+	DASHBOARD_URL: z.string().url(),
 	// Railway atribui porta aleatória via PORT env var
 	PORT: z.coerce.number().default(3000),
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
@@ -72,13 +72,13 @@ const envSchema = z.object({
 	ADMIN_EMAIL: z.string().email().optional(),
 
 	// Discord OAuth2
-	DISCORD_CLIENT_ID: z.string().optional(),
-	DISCORD_CLIENT_SECRET: z.string().optional(),
-	DISCORD_REDIRECT_URI: z.string().url().optional(),
+	DISCORD_CLIENT_ID: z.string(),
+	DISCORD_CLIENT_SECRET: z.string(),
+	DISCORD_REDIRECT_URI: z.string().url(),
 
 	// Better Auth
-	BETTER_AUTH_SECRET: z.string().min(32).optional(),
-	BETTER_AUTH_URL: z.string().url().optional(),
+	BETTER_AUTH_SECRET: z.string().min(32),
+	BETTER_AUTH_URL: z.string().url(),
 
 	// Google OAuth
 	GOOGLE_CLIENT_ID: z.string().optional(),
