@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+	margin: 0;
+	display: flex;
+	place-items: center;
+	min-width: 320px;
+	min-height: 100vh;
+	@apply bg-surface-50 text-surface-900;
+	font-family: var(--font-inter);
+}
+
+#app {
+	width: 100%;
+}
+
+.dark body {
+	@apply bg-surface-950 text-surface-50;
+}
+
+/* Glassmorphism utility */
+.glass {
+	@apply bg-white/70 backdrop-blur-md border border-white/20;
+}
+
+.dark .glass {
+	@apply bg-surface-900/70 border-surface-800/50;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	@apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	@apply bg-surface-300 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+	@apply bg-surface-700;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	@apply bg-primary-400;
+}
+
+/* Premium Card Transitions */
+.premium-card {
+	@apply transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-premium-hover rounded-2xl p-6 glass shadow-premium;
+}
