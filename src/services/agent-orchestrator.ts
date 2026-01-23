@@ -38,6 +38,7 @@ import {
 	FALLBACK_MESSAGES,
 	getRandomMessage as getRandomResponse,
 	formatItemsList,
+	CHOOSE_AGAIN_MESSAGES,
 } from '@/config/prompts';
 import { loggers, logError } from '@/utils/logger';
 import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
@@ -438,16 +439,6 @@ export class AgentOrchestrator {
 			if (!isNaN(index) && contextData.candidates && contextData.candidates[index]) {
 				const selected = contextData.candidates[index];
 
-				// 🆕 Feedback visual: mostra o que foi selecionado (estilo WhatsApp)
-				if (context.provider === 'telegram') {
-					const { getProvider } = await import('@/adapters/messaging');
-					const provider = getProvider(context.provider as 'telegram');
-					if (provider) {
-						const feedbackMsg = `✅ Selecionado: *${selected.title}* (${selected.year || ''})`;
-						await provider.sendMessage(context.externalId, feedbackMsg);
-					}
-				}
-
 				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
 				return await this.sendFinalConfirmation(context, conversation, selected);
 			}
@@ -506,6 +497,18 @@ export class AgentOrchestrator {
 
 		// Se usuário pediu para escolher novamente
 		if (context.callbackData === 'choose_again') {
+			// Mensagem aleatória de feedback (centralizada em config/prompts)
+			const randomMsg = getRandomResponse(CHOOSE_AGAIN_MESSAGES);
+
+			// Envia mensagem de feedback antes de mostrar a lista
+			if (context.provider === 'telegram') {
+				const { getProvider } = await import('@/adapters/messaging');
+				const provider = getProvider(context.provider as 'telegram');
+				if (provider) {
+					await provider.sendMessage(context.externalId, randomMsg);
+				}
+			}
+
 			// Volta para lista de candidatos
 			await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
 				selectedForConfirmation: null,
@@ -1145,8 +1148,8 @@ export class AgentOrchestrator {
 		limitedCandidates.forEach((candidate: any, index: number) => {
 			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
 			const overview = candidate.overview || '';
-			// Limita sinopse a 150 caracteres para lista mais limpa
-			const overviewSnippet = overview.length > 150 ? `${overview.substring(0, 150)}...` : overview;
+			// Limita sinopse a 85 caracteres para lista mais limpa
+			const overviewSnippet = overview.length > 85 ? `${overview.substring(0, 85)}...` : overview;
 
 			message += `${index + 1}. *${candidate.title}* (${year})\n`;
 			if (overviewSnippet) message += `   ${overviewSnippet}\n`;
