@@ -67,16 +67,11 @@ export class GlobalErrorService {
 	}
 
 	/**
-	 * Busca as últimas 10 mensagens da conversa para contexto
+	 * Busca todo o histórico da conversa para contexto
 	 */
 	private async fetchConversationHistory(conversationId: string) {
 		try {
-			return await db
-				.select()
-				.from(messages)
-				.where(eq(messages.conversationId, conversationId))
-				.orderBy(desc(messages.createdAt))
-				.limit(10);
+			return await db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(desc(messages.createdAt));
 		} catch (err) {
 			loggers.db.error({ err }, 'Failed to fetch conversation history for error reporting');
 			return [];
