@@ -4,8 +4,22 @@ import { db } from '@/db';
 import { conversations } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
-import { type IncomingMessage, type ProviderType, getProvider } from '@/adapters/messaging';
+import { type IncomingMessage, type ProviderType, getProvider, type MessagingProvider } from '@/adapters/messaging';
 import { globalErrorHandler } from '@/services/error/error.service';
+
+/**
+ * Response Queue Job Interface
+ */
+export interface ResponseJob {
+	externalId: string;
+	message: string;
+	provider: ProviderType;
+	metadata?: {
+		conversationId?: string;
+		userId?: string;
+		attempt?: number;
+	};
+}
 
 const queueLogger = loggers.queue;
 
@@ -56,6 +70,13 @@ export const messageQueue = new Queue<{
 
 queueLogger.info('✅ Queue "message-processing" criada');
 
+/**
+ * Queue para envio de respostas com retry automático
+ */
+export const responseQueue = new Queue<ResponseJob>('response-sending', REDIS_CONFIG);
+
+queueLogger.info('✅ Queue "response-sending" criada');
+
 queueLogger.info(`🎯 Bull configurado com sucesso (${env.REDIS_HOST})`);
 
 // ============================================================================
@@ -78,12 +99,24 @@ messageQueue.on('ready', () => {
 	queueLogger.info('✅ [message-processing] Queue pronta');
 });
 
+responseQueue.on('error', (error) => {
+	queueLogger.error({ err: error }, '❌ [response-sending] Erro na queue');
+});
+
+responseQueue.on('ready', () => {
+	queueLogger.info('✅ [response-sending] Queue pronta');
+});
+
 closeConversationQueue.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [close-conversation] Job ativo');
 });
 
 messageQueue.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [message-processing] Job ativo');
+});
+
+responseQueue.on('active', (job) => {
+	queueLogger.debug({ jobId: job.id }, '🔄 [response-sending] Job ativo');
 });
 
 closeConversationQueue.on('failed', async (job, error) => {
@@ -113,6 +146,20 @@ messageQueue.on('failed', async (job, error: any) => {
 			queue: 'message-processing',
 		},
 	});
+});
+
+responseQueue.on('failed', async (job, error) => {
+	if (job) {
+		queueLogger.error(
+			{
+				jobId: job.id,
+				externalId: job.data.externalId,
+				error: error.message,
+				attempts: job.attemptsMade,
+			},
+			'❌ [response-sending] Job falhou',
+		);
+	}
 });
 
 // ============================================================================
@@ -176,6 +223,57 @@ messageQueue.process('message-processing', async (job) => {
 			{ providerName, externalId: incomingMsg.externalId, jobId: job.id, err: error },
 			'❌ [Worker] Erro ao processar mensagem na fila',
 		);
+		throw error;
+	}
+});
+
+/**
+ * Worker: Processa envio de respostas
+ */
+responseQueue.process('send-response', 5, async (job) => {
+	const { externalId, message, provider: providerName, metadata } = job.data;
+
+	try {
+		queueLogger.info(
+			{
+				externalId,
+				provider: providerName,
+				charCount: message.length,
+				attempt: job.attemptsMade + 1,
+				conversationId: metadata?.conversationId,
+			},
+			'📤 Enviando resposta (via queue)',
+		);
+
+		const providerInstance = getProvider(providerName);
+		if (!providerInstance) {
+			throw new Error(`Provider ${providerName} não encontrado`);
+		}
+
+		await providerInstance.sendMessage(externalId, message);
+
+		queueLogger.info({ externalId, attempt: job.attemptsMade + 1 }, '✅ Resposta enviada com sucesso');
+		return { success: true };
+	} catch (error: any) {
+		const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 3) - 1;
+
+		queueLogger.error(
+			{
+				externalId,
+				provider: providerName,
+				error: error.message,
+				attempt: job.attemptsMade + 1,
+				maxAttempts: job.opts.attempts,
+				isLastAttempt,
+			},
+			'❌ Erro ao enviar resposta',
+		);
+
+		// Se erro de rede, deixa Bull retentar
+		if (error.cause?.code === 'ETIMEDOUT' || error.cause?.code === 'ECONNREFUSED') {
+			throw error; // Re-throw para Bull fazer retry
+		}
+		
 		throw error;
 	}
 });
@@ -321,16 +419,32 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 	}
 }
 
+/**
+ * Helper para enfileirar resposta
+ */
+export async function queueResponse(data: ResponseJob): Promise<void> {
+	await responseQueue.add('send-response', data, {
+		attempts: 3,
+		backoff: {
+			type: 'exponential',
+			delay: 2000, // 2s -> 4s -> 8s
+		},
+		removeOnComplete: 1000,
+		removeOnFail: true,
+	});
+	queueLogger.info({ externalId: data.externalId, provider: data.provider }, '📨 Resposta enfileirada');
+}
+
 // ============================================================================
 // GRACEFUL SHUTDOWN
 // ============================================================================
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close()]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close()]);
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close()]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close()]);
 });
