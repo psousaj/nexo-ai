@@ -277,6 +277,15 @@ export const FALLBACK_MESSAGES = [
 	'Tranquilo! 😌',
 ];
 
+// Mensagens quando usuário pede para escolher novamente
+export const CHOOSE_AGAIN_MESSAGES = [
+	'🔄 Ok, vamos ver a lista novamente...',
+	'🔍 Sem problemas! Veja as opções de novo:',
+	'👀 Certo! Dá uma olhada de novo:',
+	'🎬 Beleza! Aqui estão as opções novamente:',
+	'📋 Tranquilo! Escolha outra opção:',
+];
+
 // Helper para pegar mensagem aleatória de um array
 export const getRandomMessage = (messages: string[]): string => {
 	return messages[Math.floor(Math.random() * messages.length)];

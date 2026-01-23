@@ -123,7 +123,7 @@ export class ToolExecutor {
 			this.context.userId,
 			args.query,
 			args.type === 'all' ? undefined : args.type,
-			args.limit || 10
+			args.limit || 10,
 		);
 
 		return {
@@ -200,7 +200,7 @@ export class ToolExecutor {
 		const timeoutUntil = Date.now() + TIMEOUT_DURATION;
 
 		// Importa dinamicamente para evitar circular dependency
-		const { userTimeouts } = await import('@/routes/webhook');
+		const { userTimeouts } = await import('@/services/message-service');
 
 		userTimeouts.set(this.context.externalId, timeoutUntil);
 

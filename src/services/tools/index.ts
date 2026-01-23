@@ -35,14 +35,14 @@ export async function save_note(
 	context: ToolContext,
 	params: {
 		content: string;
-	}
+	},
 ): Promise<ToolOutput> {
 	loggers.ai.info('🔧 ' + getRandomLogMessage(toolLogs.executing, { tool: 'save_note' }));
 	loggers.ai.info(
 		'📦 ' +
 			getRandomLogMessage(toolLogs.params, {
 				params: JSON.stringify({ content: params.content?.substring(0, 100) + '...' }),
-			})
+			}),
 	);
 
 	if (!params.content?.trim()) {
@@ -51,7 +51,7 @@ export async function save_note(
 				getRandomLogMessage(toolLogs.error, {
 					tool: 'save_note',
 					error: 'Conteúdo vazio',
-				})
+				}),
 		);
 		return { success: false, error: 'Conteúdo vazio' };
 	}
@@ -84,7 +84,7 @@ export async function save_note(
 					getRandomLogMessage(toolLogs.error, {
 						tool: 'save_note',
 						error: 'itemService.createItem retornou null sem ser duplicata',
-					})
+					}),
 			);
 			loggers.ai.error({ result }, '❌ Erro ao criar nota no banco de dados');
 			return {
@@ -107,7 +107,7 @@ export async function save_note(
 				getRandomLogMessage(toolLogs.error, {
 					tool: 'save_note',
 					error: error instanceof Error ? error.message : 'Erro desconhecido',
-				})
+				}),
 		);
 
 		return {
@@ -129,7 +129,7 @@ export async function save_movie(
 		tmdb_id?: number;
 		rating?: number;
 		genres?: string[];
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
 		return { success: false, error: 'Título vazio' };
@@ -186,7 +186,7 @@ export async function save_tv_show(
 		tmdb_id?: number;
 		rating?: number;
 		genres?: string[];
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
 		return { success: false, error: 'Título vazio' };
@@ -243,7 +243,7 @@ export async function save_video(
 	params: {
 		url: string;
 		title?: string;
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.url?.trim()) {
 		return { success: false, error: 'URL vazia' };
@@ -283,7 +283,7 @@ export async function save_link(
 	params: {
 		url: string;
 		description?: string;
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.url?.trim()) {
 		return { success: false, error: 'URL vazia' };
@@ -346,7 +346,7 @@ export async function search_items(
 	params: {
 		query?: string;
 		limit?: number;
-	}
+	},
 ): Promise<ToolOutput> {
 	try {
 		const items = await itemService.getUserItems(context.userId, params.query, undefined, params.limit || 10);
@@ -384,7 +384,7 @@ export async function enrich_movie(
 	params: {
 		title: string;
 		year?: number;
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
 		return { success: false, error: 'Título vazio' };
@@ -410,6 +410,7 @@ export async function enrich_movie(
 					tmdb_id: r.id,
 					rating: r.vote_average || 0,
 					overview: r.overview || '',
+					poster_path: r.poster_path,
 				})),
 			},
 		};
@@ -430,7 +431,7 @@ export async function enrich_tv_show(
 	params: {
 		title: string;
 		year?: number;
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
 		return { success: false, error: 'Título vazio' };
@@ -456,6 +457,7 @@ export async function enrich_tv_show(
 					tmdb_id: r.id,
 					rating: r.rating,
 					overview: r.overview,
+					poster_path: r.poster_path,
 				})),
 			},
 		};
@@ -475,7 +477,7 @@ export async function enrich_video(
 	context: ToolContext,
 	params: {
 		url: string;
-	}
+	},
 ): Promise<ToolOutput> {
 	if (!params.url?.trim()) {
 		return { success: false, error: 'URL vazia' };
@@ -519,7 +521,7 @@ export async function delete_memory(
 	context: ToolContext,
 	params: {
 		item_id: string;
-	}
+	},
 ): Promise<ToolOutput> {
 	try {
 		if (!params.item_id) {
@@ -572,7 +574,7 @@ export async function update_user_settings(
 	context: ToolContext,
 	params: {
 		assistantName?: string;
-	}
+	},
 ): Promise<ToolOutput> {
 	try {
 		const { preferencesService } = await import('@/services/preferences-service');

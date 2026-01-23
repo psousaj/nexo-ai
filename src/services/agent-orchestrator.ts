@@ -38,6 +38,7 @@ import {
 	FALLBACK_MESSAGES,
 	getRandomMessage as getRandomResponse,
 	formatItemsList,
+	CHOOSE_AGAIN_MESSAGES,
 } from '@/config/prompts';
 import { loggers, logError } from '@/utils/logger';
 import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
@@ -85,6 +86,26 @@ export class AgentOrchestrator {
 		// A. TRATAR ESTADO AWAITING_CONTEXT (Clarificação)
 		if (conversation.state === 'awaiting_context') {
 			return this.handleClarificationResponse(context, conversation);
+		}
+
+		// B. TRATAR CALLBACKS DO TELEGRAM (botões inline)
+		// Quando há callbackData, são comandos internos do bot - não classificar via NLP
+		if (context.callbackData) {
+			const cb = context.callbackData;
+			const isKnownCallback = cb.startsWith('select_') || cb === 'confirm_final' || cb === 'choose_again';
+
+			if (isKnownCallback && (conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')) {
+				loggers.ai.info({ callbackData: cb, state: conversation.state }, '🔘 Callback do Telegram detectado');
+
+				// Cria intent artificial para handleConfirmation
+				const artificialIntent: IntentResult = {
+					intent: 'confirm',
+					action: 'confirm',
+					confidence: 1.0,
+				};
+
+				return this.handleConfirmation(context, conversation, artificialIntent);
+			}
 		}
 
 		// 1. CLASSIFICAR INTENÇÃO (determinístico)
@@ -476,6 +497,18 @@ export class AgentOrchestrator {
 
 		// Se usuário pediu para escolher novamente
 		if (context.callbackData === 'choose_again') {
+			// Mensagem aleatória de feedback (centralizada em config/prompts)
+			const randomMsg = getRandomResponse(CHOOSE_AGAIN_MESSAGES);
+
+			// Envia mensagem de feedback antes de mostrar a lista
+			if (context.provider === 'telegram') {
+				const { getProvider } = await import('@/adapters/messaging');
+				const provider = getProvider(context.provider as 'telegram');
+				if (provider) {
+					await provider.sendMessage(context.externalId, randomMsg);
+				}
+			}
+
 			// Volta para lista de candidatos
 			await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
 				selectedForConfirmation: null,
@@ -976,32 +1009,121 @@ export class AgentOrchestrator {
 		// ✅ Tipo detectado (via NLP ou número)! Continua o fluxo...
 		loggers.ai.info({ detectedType }, '✅ Tipo escolhido pelo usuário');
 
-		// Mapeia tipo para português
-		const typeNames: Record<string, string> = {
-			note: 'nota',
-			movie: 'filme',
-			series: 'série',
-			link: 'link',
+		const originalMessage = pendingClarification.originalMessage;
+		const toolContext: ToolContext = {
+			userId: context.userId,
+			conversationId: context.conversationId,
 		};
 
-		// Atualiza contexto com tipo forçado
+		// Limpa a clarificação pendente
 		await conversationService.updateState(conversation.id, 'processing', {
 			pendingClarification: undefined,
-			forcedType: detectedType,
 		});
 
-		// Confirma com o usuário antes de salvar
-		const typePt = typeNames[detectedType] || detectedType;
-		const confirmMsg = getRandomMessage(confirmationMessages, { type: typePt });
+		// 🎬 Para FILME ou SÉRIE: Buscar no TMDB e mostrar opções
+		if (detectedType === 'movie' || detectedType === 'series') {
+			const searchTool = detectedType === 'movie' ? 'enrich_movie' : 'enrich_tv_show';
+			const itemType = detectedType === 'movie' ? 'movie' : 'tv_show';
 
-		await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
-			forcedType: detectedType,
-			originalMessage: pendingClarification.originalMessage,
-		});
+			loggers.ai.info({ originalMessage, searchTool }, '🔍 Buscando no TMDB...');
 
+			const enrichResult = await executeTool(searchTool, toolContext, {
+				title: originalMessage,
+			});
+
+			if (enrichResult.success && enrichResult.data?.results?.length > 0) {
+				// Mapeia resultados para o formato esperado por sendCandidatesWithButtons
+				const candidates = enrichResult.data.results.map((r: any) => ({
+					...r,
+					type: itemType,
+					year: r.year,
+					genres: r.genres || [],
+					poster_path: r.poster_path,
+				}));
+
+				// Atualiza contexto com candidatos
+				await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+					candidates,
+					detected_type: itemType,
+					originalMessage,
+				});
+
+				// Envia lista com botões
+				return await this.sendCandidatesWithButtons(context, conversation, candidates);
+			} else {
+				// Não encontrou no TMDB - salva apenas com título
+				loggers.ai.warn({ originalMessage }, '⚠️ Nenhum resultado no TMDB, salvando apenas com título');
+
+				const saveToolName = detectedType === 'movie' ? 'save_movie' : 'save_tv_show';
+				const result = await executeTool(saveToolName, toolContext, {
+					title: originalMessage,
+				});
+
+				await conversationService.updateState(conversation.id, 'idle', {});
+
+				if (result.success) {
+					return {
+						message: `✅ Salvei "${originalMessage}" como ${detectedType === 'movie' ? 'filme' : 'série'}! (Não encontrei no TMDB para enriquecer)`,
+						state: 'idle',
+						toolsUsed: [saveToolName],
+					};
+				} else {
+					return {
+						message: result.error || '❌ Ops, algo deu errado ao salvar.',
+						state: 'idle',
+					};
+				}
+			}
+		}
+
+		// 📝 Para NOTA: Salva direto
+		if (detectedType === 'note') {
+			const result = await executeTool('save_note', toolContext, {
+				content: originalMessage,
+			});
+
+			await conversationService.updateState(conversation.id, 'idle', {});
+
+			if (result.success) {
+				return {
+					message: `✅ Nota salva!`,
+					state: 'idle',
+					toolsUsed: ['save_note'],
+				};
+			} else {
+				return {
+					message: result.error || '❌ Ops, algo deu errado ao salvar.',
+					state: 'idle',
+				};
+			}
+		}
+
+		// 🔗 Para LINK: Salva direto
+		if (detectedType === 'link') {
+			const result = await executeTool('save_link', toolContext, {
+				url: originalMessage,
+			});
+
+			await conversationService.updateState(conversation.id, 'idle', {});
+
+			if (result.success) {
+				return {
+					message: `✅ Link salvo!`,
+					state: 'idle',
+					toolsUsed: ['save_link'],
+				};
+			} else {
+				return {
+					message: result.error || '❌ Ops, algo deu errado ao salvar.',
+					state: 'idle',
+				};
+			}
+		}
+
+		// Fallback: tipo desconhecido
 		return {
-			message: confirmMsg,
-			state: 'awaiting_confirmation',
+			message: 'Não entendi o tipo. Pode tentar novamente?',
+			state: 'idle',
 		};
 	}
 
@@ -1021,17 +1143,16 @@ export class AgentOrchestrator {
 		let message =
 			limitedCandidates.length === 1
 				? `🎬 Encontrei este ${itemTypePt}. É esse que você quer?\n\n`
-				: `🎬 Encontrei ${limitedCandidates.length} ${itemTypePtPlural}. Qual você quer salvar?\n\n`;
+				: `🎬 Encontrei ${limitedCandidates.length} ${itemTypePtPlural}. Qual você quer salvar?\n_Selecione para ver mais detalhes._\n\n`;
 
 		limitedCandidates.forEach((candidate: any, index: number) => {
 			const year = candidate.year || candidate.release_date?.split('-')[0] || '';
-			const genres = candidate.genres?.slice(0, 2).join(', ') || '';
 			const overview = candidate.overview || '';
-			const overviewSnippet = overview.length > 300 ? `${overview.substring(0, 300)}...` : overview;
+			// Limita sinopse a 85 caracteres para lista mais limpa
+			const overviewSnippet = overview.length > 85 ? `${overview.substring(0, 85)}...` : overview;
 
 			message += `${index + 1}. *${candidate.title}* (${year})\n`;
-			if (genres) message += `   📁 ${genres}\n`;
-			if (overviewSnippet) message += `   📝 ${overviewSnippet}\n`;
+			if (overviewSnippet) message += `   ${overviewSnippet}\n`;
 			message += '\n';
 		});
 
@@ -1043,12 +1164,17 @@ export class AgentOrchestrator {
 
 		// Se for Telegram, envia com botões
 		if (context.provider === 'telegram') {
-			const buttons = limitedCandidates.map((candidate: any, index: number) => [
-				{
-					text: `${index + 1}. ${candidate.title} (${candidate.year || candidate.release_date?.split('-')[0] || ''})`,
-					callback_data: `select_${index}`,
-				},
-			]);
+			// Agrupa botões em linhas de 3 (apenas números, títulos estão na mensagem)
+			const candidateButtons = limitedCandidates.map((_: any, index: number) => ({
+				text: `${index + 1}`,
+				callback_data: `select_${index}`,
+			}));
+
+			// Agrupa em linhas de 3 botões cada
+			const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
+			for (let i = 0; i < candidateButtons.length; i += 3) {
+				buttons.push(candidateButtons.slice(i, i + 3));
+			}
 
 			// Obtém provider dinamicamente do contexto
 			const { getProvider } = await import('@/adapters/messaging');
