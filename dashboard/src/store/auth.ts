@@ -8,6 +8,19 @@ export const useAuthStore = defineStore('auth', () => {
 	const sessionInfo = useSession();
 	const manualSession = ref<any>(null);
 
+	const simulatedRole = ref<string | null>(null);
+
+	// Inicializa a role simulada com a role real do usuário ao carregar a sessão
+	watch(
+		() => sessionInfo.value?.data || manualSession.value,
+		(data) => {
+			if (data?.user && simulatedRole.value === null) {
+				simulatedRole.value = data.user.role;
+			}
+		},
+		{ immediate: true }
+	);
+
 	const user = computed(() => {
 		// Usa manualSession como fallback quando useSession ainda não atualizou
 		const data = sessionInfo.value?.data || manualSession.value;
@@ -16,16 +29,26 @@ export const useAuthStore = defineStore('auth', () => {
 			return null;
 		}
 		const u = data.user as any;
-		console.log('👤 Auth Store: Usuário carregado:', { email: u.email, role: u.role });
+		console.log('👤 Auth Store: Usuário carregado:', { email: u.email, role: u.role, raw: u });
 		return {
 			id: u.id,
 			name: u.name,
 			email: u.email,
 			image: u.image || '',
-			role: u.role || 'user',
+			role: simulatedRole.value || u.role || 'user',
 			permissions: u.permissions || [],
 		};
 	});
+// Simulação de troca de role (apenas frontend)
+function toggleRole() {
+	if (!user.value) return;
+	if (simulatedRole.value === 'admin') {
+		simulatedRole.value = 'user';
+	} else {
+		simulatedRole.value = 'admin';
+	}
+	console.log('🔄 Simulação de role:', simulatedRole.value);
+}
 
 	const isAuthenticated = computed(() => {
 		const data = sessionInfo.value?.data || manualSession.value;
@@ -98,5 +121,6 @@ export const useAuthStore = defineStore('auth', () => {
 		logout,
 		refetchSession,
 		setSessionFromLogin,
+		toggleRole,
 	};
 });
