@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, varchar, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb, index, varchar, integer, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { items } from './items';
 import { conversations } from './conversations';
@@ -11,19 +11,19 @@ import { userPermissions } from './permissions';
  * Pode ter múltiplas contas em diferentes providers via userAccounts
  */
 export const users = pgTable('users', {
-	id: uuid('id').defaultRandom().primaryKey(),
+	id: text('id').primaryKey(),
 	name: text('name'),
 	email: varchar('email', { length: 255 }).unique(),
-	emailVerified: timestamp('email_verified'),
+	emailVerified: boolean('email_verified').default(false).notNull(),
 	image: text('image'),
 	password: varchar('password', { length: 256 }),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at').defaultNow().notNull(),
+	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 	// Controle de onboarding e trial
 	status: text('status').$type<'trial' | 'pending_signup' | 'active'>().default('trial').notNull(),
 	interactionCount: integer('interaction_count').default(0).notNull(),
 	// Controle de timeout por comportamento ofensivo
-	timeoutUntil: timestamp('timeout_until'),
+	timeoutUntil: timestamp('timeout_until', { mode: 'date' }),
 	offenseCount: integer('offense_count').default(0).notNull(),
 	// Nome customizado para o assistente (definido pelo usuário)
 	assistantName: text('assistant_name'),

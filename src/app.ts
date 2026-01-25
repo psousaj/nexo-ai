@@ -31,8 +31,13 @@ app.use(
 	'*',
 	cors({
 		origin: (origin) => {
-			// Permitir localhost e domínios ngrok para desenvolvimento
-			if (!origin || origin.startsWith('http://localhost:') || origin.endsWith('ngrok-free.app')) {
+			// Permitir localhost e domínios ngrok/zrok para desenvolvimento
+			if (
+				!origin ||
+				origin.startsWith('http://localhost:') ||
+				origin.endsWith('ngrok-free.app') ||
+				origin.includes('zrok.io')
+			) {
 				return origin;
 			}
 			return origin; // Por enquanto permitir todos, mas com suporte a credentials
@@ -128,8 +133,8 @@ app.onError(async (error, c) => {
 app.route('/health', healthRouter);
 app.route('/webhook', webhookRouter);
 app.route('/items', itemsRouter);
-app.route('/api', dashboardRouter);
 app.route('/api/auth', authRouter);
+app.route('/api', dashboardRouter);
 
 app.get('/', (c) =>
 	c.json({

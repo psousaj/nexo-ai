@@ -2,9 +2,11 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { authClient } from '../lib/auth-client';
+import { useAuthStore } from '../store/auth';
 import { Mail, Lock, Loader2, LayoutGrid } from 'lucide-vue-next';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const email = ref('');
 const password = ref('');
 const isLoading = ref(false);
@@ -14,17 +16,33 @@ const handleLogin = async () => {
 	isLoading.value = true;
 	error.value = '';
 	try {
-		const { error: authError } = await authClient.signIn.email({
+		console.log('🔐 Tentando login com:', { email: email.value });
+		const response = await authClient.signIn.email({
 			email: email.value,
 			password: password.value,
 		});
+		
+		console.log('📦 Resposta do login:', response);
 
-		if (authError) {
-			error.value = authError.message || 'Erro ao fazer login';
+		if (response.error) {
+			console.error('❌ Erro no login:', response.error);
+			error.value = response.error.message || 'Erro ao fazer login';
 		} else {
+			console.log('✅ Login bem-sucedido, dados:', response.data);
+			// Define a sessão diretamente dos dados retornados pelo login
+			if (response.data) {
+				authStore.setSessionFromLogin(response.data);
+			}
+			// Também tenta buscar via $fetch para garantir
+			await authStore.refetchSession();
+			console.log('✅ Sessão atualizada, isAuthenticated:', authStore.isAuthenticated);
+			// Pequeno delay para garantir propagação do estado
+			await new Promise(resolve => setTimeout(resolve, 100));
+			console.log('✅ Redirecionando...');
 			router.push('/');
 		}
 	} catch (e) {
+		console.error('💥 Erro capturado:', e);
 		error.value = 'Ocorreu um erro inesperado';
 	} finally {
 		isLoading.value = false;
