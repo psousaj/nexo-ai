@@ -9,14 +9,15 @@ export const useAuthStore = defineStore('auth', () => {
 
 	const user = computed(() => {
 		if (!sessionInfo.value?.data) return null;
-		const u = sessionInfo.value.data.user;
+		const u = sessionInfo.value.data.user as any;
 		return {
 			id: u.id,
 			name: u.name,
 			email: u.email,
 			image: u.image || '',
-			role: 'user',
-		} as User & { role: string };
+			role: u.role || 'user',
+			permissions: u.permissions || [],
+		};
 	});
 
 	const isAuthenticated = computed(() => !!sessionInfo.value?.data);
@@ -26,16 +27,18 @@ export const useAuthStore = defineStore('auth', () => {
 	watch(
 		() => user.value,
 		(newUser) => {
-			ability.update([]); // Reset
-
-			if (newUser?.role === 'admin') {
-				ability.update([{ action: 'manage', subject: 'all' }]);
-			} else if (newUser?.role === 'user' || newUser) {
-				ability.update([
-					{ action: 'read', subject: 'UserContent' },
-					{ action: 'manage', subject: 'PersonalData' },
-					{ action: 'read', subject: 'Analytics' },
-				]);
+			if (newUser?.permissions && Array.isArray(newUser.permissions)) {
+				ability.update(newUser.permissions);
+			} else {
+				ability.update([]); // Reset or default
+				if (newUser) {
+					// Fallback for user with no specific permissions in table yet
+					ability.update([
+						{ action: 'read', subject: 'UserContent' },
+						{ action: 'manage', subject: 'PersonalData' },
+						{ action: 'read', subject: 'Analytics' },
+					]);
+				}
 			}
 		},
 		{ immediate: true },

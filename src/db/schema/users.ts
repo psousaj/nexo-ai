@@ -4,6 +4,7 @@ import { items } from './items';
 import { conversations } from './conversations';
 import { userAccounts } from './user-accounts';
 import { userPreferences } from './user-preferences';
+import { userPermissions } from './permissions';
 
 /**
  * Usuário único no sistema (entidade de domínio)
@@ -26,6 +27,7 @@ export const users = pgTable('users', {
 	offenseCount: integer('offense_count').default(0).notNull(),
 	// Nome customizado para o assistente (definido pelo usuário)
 	assistantName: text('assistant_name'),
+	role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
 });
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -33,4 +35,5 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	conversations: many(conversations),
 	accounts: many(userAccounts),
 	preferences: one(userPreferences),
+	permissions: many(userPermissions),
 }));

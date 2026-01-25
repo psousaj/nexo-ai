@@ -21,6 +21,8 @@ import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { loggers } from './utils/logger';
+import { swaggerUI } from '@hono/swagger-ui';
+import { apiReference } from '@scalar/hono-api-reference';
 
 const app = new Hono();
 
@@ -134,7 +136,42 @@ app.get('/', (c) =>
 		name: 'Nexo AI API',
 		version: pkg.version,
 		description: 'Assistente pessoal via WhatsApp/Telegram com IA',
+		docs: '/doc',
+		scalar: '/scalar',
 	}),
 );
+
+// OpenAPI Spec
+app.get('/openapi.json', (c) => {
+	return c.json({
+		openapi: '3.0.0',
+		info: {
+			title: 'Nexo AI API',
+			version: pkg.version,
+			description: 'API do assistente pessoal Nexo AI',
+		},
+		paths: {
+			'/health': {
+				get: {
+					summary: 'Verifica saúde da API',
+					responses: { 200: { description: 'OK' } },
+				},
+			},
+			'/api/auth/*': {
+				summary: 'Endpoints de Autenticação (Better Auth)',
+			},
+			'/items': {
+				get: {
+					summary: 'Lista itens do usuário',
+					parameters: [{ name: 'userId', in: 'query', required: true, schema: { type: 'string' } }],
+				},
+			},
+		},
+	});
+});
+
+// Documentation UIs
+app.get('/doc', swaggerUI({ url: '/openapi.json' }));
+app.get('/scalar', apiReference({ spec: { url: '/openapi.json' } }));
 
 export default app;
