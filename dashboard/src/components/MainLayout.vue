@@ -50,19 +50,22 @@ const handleLogout = () => {
 
 <template>
 	<div class="flex h-screen bg-surface-50 dark:bg-surface-950 transition-colors duration-300">
+		<!-- Mobile Sidebar Backdrop -->
+		<div v-if="isOpen" @click="toggleSidebar" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden transition-opacity"></div>
+
 		<!-- Sidebar -->
 		<aside
 			:class="[
-				'fixed inset-y-0 left-0 z-50 transition-all duration-300 transform lg:static lg:translate-x-0 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col',
+				'fixed inset-y-0 left-0 z-50 transition-all duration-300 transform lg:static lg:translate-x-0 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col shadow-lg lg:shadow-none',
 				isOpen ? 'w-64 translate-x-0' : 'w-20 -translate-x-full lg:translate-x-0',
 			]"
 		>
 			<!-- Logo Area -->
 			<div class="h-16 flex items-center px-6 border-b border-surface-200 dark:border-surface-800">
-				<div class="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary-600/30">
+				<div class="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center shrink-0 shadow-sm shadow-primary-600/30">
 					<span class="text-white font-bold">N</span>
 				</div>
-				<span v-if="isOpen" class="ml-3 font-bold text-xl tracking-tight text-surface-900 dark:text-white transition-opacity duration-300">
+				<span v-if="isOpen" class="ml-3 font-bold text-xl text-surface-900 dark:text-white transition-opacity duration-300">
 					Nexo<span class="text-primary-600">AI</span>
 				</span>
 			</div>
@@ -78,9 +81,9 @@ const handleLogout = () => {
 						<UserCircle v-else class="w-4 h-4" />
 					</div>
 					<div class="flex-1 text-left overflow-hidden">
-						<p class="text-xs font-bold text-surface-900 dark:text-white truncate">Trocar Modo (Simulação)</p>
+						<p class="text-sm font-semibold text-surface-900 dark:text-white truncate">Trocar Modo</p>
 						<p class="text-[10px] text-surface-500 uppercase tracking-wider">
-							{{ can('manage', 'AdminPanel') ? 'Modo Administrador' : 'Modo Usuário' }}
+							{{ can('manage', 'AdminPanel') ? 'Administrador' : 'Usuário' }}
 						</p>
 					</div>
 				</button>
@@ -91,14 +94,14 @@ const handleLogout = () => {
 				<router-link v-for="item in menuItems" :key="item.name" :to="item.path" v-slot="{ isActive }" class="block">
 					<div
 						:class="[
-							'flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group relative',
+							'flex items-center px-3 py-2 rounded-lg transition-all duration-200 group relative',
 							isActive
-								? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400 font-bold'
+								? 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400 font-medium'
 								: 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-white',
 						]"
 					>
-						<component :is="item.icon" :class="['w-5 h-5 shrink-0', isActive ? 'scale-110' : '']" />
-						<span v-if="isOpen" class="ml-3 whitespace-nowrap">{{ item.name }}</span>
+						<component :is="item.icon" :class="['w-5 h-5 shrink-0', isActive ? '' : '']" />
+						<span v-if="isOpen" class="ml-3 whitespace-nowrap text-sm">{{ item.name }}</span>
 
 						<!-- Tooltip for closed sidebar -->
 						<div
@@ -115,19 +118,19 @@ const handleLogout = () => {
 			<div class="p-4 border-t border-surface-200 dark:border-surface-800">
 				<button
 					@click="handleLogout"
-					class="flex items-center w-full px-3 py-2 text-surface-600 dark:text-surface-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-colors font-medium"
+					class="flex items-center w-full px-3 py-2 text-surface-600 dark:text-surface-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors font-medium"
 				>
 					<LogOut class="w-5 h-5" />
-					<span v-if="isOpen" class="ml-3">Sair</span>
+					<span v-if="isOpen" class="ml-3 text-sm">Sair</span>
 				</button>
 			</div>
 		</aside>
 
 		<!-- Main Content -->
-		<div class="flex-1 flex flex-col overflow-hidden">
+		<div class="flex-1 flex flex-col overflow-hidden relative">
 			<!-- Top Header -->
 			<header
-				class="h-16 bg-white/80 dark:bg-surface-900/80 backdrop-blur-md border-b border-surface-200 dark:border-surface-800 flex items-center justify-between px-6 sticky top-0 z-40"
+				class="h-16 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between px-6 sticky top-0 z-30"
 			>
 				<div class="flex items-center gap-4">
 					<button
@@ -137,7 +140,7 @@ const handleLogout = () => {
 						<Menu v-if="!isOpen" class="w-5 h-5" />
 						<X v-else class="w-5 h-5" />
 					</button>
-					<h1 class="text-lg font-bold text-surface-900 dark:text-white hidden md:block tracking-tight italic uppercase">
+					<h1 class="text-xl font-semibold text-surface-900 dark:text-white hidden md:block">
 						{{ route.name?.toString().replace('-', ' ') || 'Nexo AI' }}
 					</h1>
 				</div>

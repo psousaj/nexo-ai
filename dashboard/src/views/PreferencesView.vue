@@ -36,7 +36,7 @@ const tabs = [
 	<div class="max-w-4xl mx-auto space-y-8 animate-fade-in">
 		<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 			<div class="flex flex-col gap-2">
-				<h2 class="text-3xl font-black text-surface-900 dark:text-white uppercase tracking-tighter">Preferências</h2>
+				<h2 class="text-2xl font-bold text-surface-900 dark:text-white">Preferências</h2>
 				<p class="text-surface-500 dark:text-surface-400">Personalize como o Nexo AI interage com você.</p>
 			</div>
 
