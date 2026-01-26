@@ -66,18 +66,35 @@ function toggleRole() {
 	watch(
 		() => user.value,
 		(newUser) => {
-			if (newUser?.permissions && Array.isArray(newUser.permissions)) {
+			console.log('🔐 CASL: Atualizando abilities para usuário:', newUser);
+			
+			if (!newUser) {
+				// Sem usuário, sem permissões
+				ability.update([]);
+				console.log('🔐 CASL: Nenhum usuário, abilities resetadas');
+				return;
+			}
+
+			// Se tem permissions customizadas no banco, usa elas
+			if (newUser.permissions && Array.isArray(newUser.permissions) && newUser.permissions.length > 0) {
 				ability.update(newUser.permissions);
+				console.log('🔐 CASL: Usando permissions do banco:', newUser.permissions);
+				return;
+			}
+
+			// Fallback baseado na role
+			if (newUser.role === 'admin') {
+				ability.update([
+					{ action: 'manage', subject: 'all' }, // Admin pode tudo
+				]);
+				console.log('🔐 CASL: Admin - acesso total');
 			} else {
-				ability.update([]); // Reset or default
-				if (newUser) {
-					// Fallback for user with no specific permissions in table yet
-					ability.update([
-						{ action: 'read', subject: 'UserContent' },
-						{ action: 'manage', subject: 'PersonalData' },
-						{ action: 'read', subject: 'Analytics' },
-					]);
-				}
+				ability.update([
+					{ action: 'read', subject: 'UserContent' },
+					{ action: 'manage', subject: 'PersonalData' },
+					{ action: 'read', subject: 'Analytics' },
+				]);
+				console.log('🔐 CASL: User - acesso básico');
 			}
 		},
 		{ immediate: true },

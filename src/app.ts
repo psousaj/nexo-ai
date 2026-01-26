@@ -177,6 +177,13 @@ app.get('/openapi.json', (c) => {
 
 // Documentation UIs
 app.get('/doc', swaggerUI({ url: '/openapi.json' }));
-app.get('/scalar', apiReference({ spec: { url: '/openapi.json' } }));
+app.get(
+	'/scalar',
+	apiReference({
+		spec: {
+			url: '/openapi.json',
+		},
+	} as any),
+);
 
 export default app;

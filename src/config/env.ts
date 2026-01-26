@@ -71,10 +71,9 @@ const envSchema = z.object({
 	RESEND_API_KEY: z.string().optional(),
 	ADMIN_EMAIL: z.string().email().optional(),
 
-	// Discord OAuth2
+	// Discord OAuth2 (gerenciado pelo Better Auth)
 	DISCORD_CLIENT_ID: z.string().optional(),
 	DISCORD_CLIENT_SECRET: z.string().optional(),
-	DISCORD_REDIRECT_URI: z.string().url().optional(),
 
 	// Better Auth
 	BETTER_AUTH_SECRET: z.string().min(32),

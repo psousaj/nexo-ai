@@ -5,7 +5,7 @@
  * Permite integrar múltiplos providers sem acoplar a lógica de negócio
  */
 
-export type ProviderType = 'whatsapp' | 'telegram' | 'discord';
+export type ProviderType = 'whatsapp' | 'telegram' | 'discord' | 'google';
 
 /**
  * Mensagem normalizada recebida de qualquer provider

@@ -52,7 +52,7 @@ const handleLogin = async () => {
 const loginWithSocial = async (provider: 'google' | 'discord') => {
 	await authClient.signIn.social({
 		provider,
-		callbackURL: window.location.origin,
+		callbackURL: `${window.location.origin}/profile?success=${provider}`,
 	});
 };
 </script>
