@@ -1,17 +1,34 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare, Loader2 } from 'lucide-vue-next';
+import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare, Loader2, RefreshCw } from 'lucide-vue-next';
 import { useAuthStore } from '../store/auth';
 import { dashboardService } from '../services/dashboard.service';
+import { authClient } from '../lib/auth-client';
+import { useRoute } from 'vue-router';
 
 const authStore = useAuthStore();
 const queryClient = useQueryClient();
+const route = useRoute();
 
 // Fetch Real Accounts
 const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
 	queryKey: ['user-accounts'],
 	queryFn: () => dashboardService.getAccounts(),
+});
+
+// Sincronizar accounts automaticamente no mount e após redirect de OAuth
+onMounted(async () => {
+	// Se veio de um redirect de OAuth (success=discord ou success=google)
+	const successProvider = route.query.success;
+	
+	if (successProvider) {
+		console.log(`✅ [Profile] OAuth concluído para ${successProvider}, sincronizando...`);
+		// Aguardar 1s para garantir que o Better Auth finalizou tudo
+		setTimeout(async () => {
+			await syncAccounts();
+		}, 1000);
+	}
 });
 
 const connectedAccounts = computed(() => {
@@ -38,6 +55,13 @@ const connectedAccounts = computed(() => {
 			status: accounts.find((a) => a.provider === 'discord') ? 'connected' : 'disconnected',
 			username: accounts.find((a) => a.provider === 'discord')?.metadata?.username || null,
 		},
+		{
+			id: 'google',
+			name: 'Google',
+			icon: Mail,
+			status: accounts.find((a) => a.provider === 'google') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'google')?.metadata?.email || null,
+		},
 	];
 });
 
@@ -57,8 +81,24 @@ const handleSave = () => {
 
 // Linking Logic
 const isLinking = ref(false);
+const isSyncing = ref(false);
 const linkingToken = ref('');
 const showTokenInput = ref<string | null>(null);
+
+const syncAccounts = async () => {
+	isSyncing.value = true;
+	try {
+		const result = await dashboardService.syncAccounts();
+		console.log('✅ [Profile] Sincronização concluída:', result);
+		// Atualizar lista de accounts
+		await queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
+		return result;
+	} catch (error) {
+		console.error('❌ [Profile] Erro ao sincronizar:', error);
+	} finally {
+		isSyncing.value = false;
+	}
+};
 
 const handleLink = async (provider: string) => {
 	isLinking.value = true;
@@ -67,8 +107,17 @@ const handleLink = async (provider: string) => {
 			const { link } = await dashboardService.linkTelegram();
 			window.open(link, '_blank');
 		} else if (provider === 'discord') {
-			const { link } = await dashboardService.linkDiscord();
-			window.location.href = link;
+			// Usar Better Auth client-side para Discord OAuth
+			await authClient.signIn.social({
+				provider: 'discord',
+				callbackURL: `${window.location.origin}/profile?success=discord`,
+			});
+		} else if (provider === 'google') {
+			// Usar Better Auth client-side para Google OAuth
+			await authClient.signIn.social({
+				provider: 'google',
+				callbackURL: `${window.location.origin}/profile?success=google`,
+			});
 		}
 	} catch (error) {
 		console.error(`Failed to link ${provider}:`, error);
@@ -105,7 +154,7 @@ const handleManualLink = async () => {
 						<div
 							class="w-full h-full rounded-xl bg-gradient-to-tr from-primary-500 to-blue-400 flex items-center justify-center text-white text-3xl font-black italic"
 						>
-							{{ authStore.user?.name.charAt(0) }}
+							{{ authStore.user?.name?.charAt(0) }}
 						</div>
 					</div>
 				</div>
@@ -164,10 +213,21 @@ const handleManualLink = async () => {
 
 			<!-- Connected Accounts -->
 			<div class="premium-card space-y-6" :class="{ 'lg:col-span-2': !isEditing }">
-				<h3 class="text-xl font-bold flex items-center gap-2">
-					<LinkIcon class="w-5 h-5 text-primary-600" />
-					Contas Vinculadas
-				</h3>
+				<div class="flex items-center justify-between">
+					<h3 class="text-xl font-bold flex items-center gap-2">
+						<LinkIcon class="w-5 h-5 text-primary-600" />
+						Contas Vinculadas
+					</h3>
+					<button
+						@click="syncAccounts"
+						:disabled="isSyncing"
+						class="px-3 py-2 bg-surface-100 dark:bg-surface-800 text-surface-900 dark:text-white rounded-lg font-medium text-sm hover:bg-surface-200 transition-all border border-surface-200 dark:border-surface-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+						title="Sincronizar contas vinculadas"
+					>
+						<RefreshCw class="w-4 h-4" :class="{ 'animate-spin': isSyncing }" />
+						{{ isSyncing ? 'Sincronizando...' : 'Sincronizar' }}
+					</button>
+				</div>
 
 				<div v-if="isLoadingAccounts" class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
 					<div v-for="i in 3" :key="i" class="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>

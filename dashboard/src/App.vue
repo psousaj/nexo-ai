@@ -11,7 +11,10 @@ onMounted(() => {
 </script>
 
 <template>
-	<MainLayout />
+	<MainLayout v-if="!$route.meta.public">
+		<router-view />
+	</MainLayout>
+	<router-view v-else />
 </template>
 
 <style>

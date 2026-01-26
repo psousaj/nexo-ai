@@ -28,33 +28,37 @@ const router = createRouter({
 			path: '/',
 			name: 'Dashboard',
 			component: Dashboard,
+			meta: { public: false },
 		},
 		{
 			path: '/profile',
 			name: 'Meu Perfil',
 			component: Profile,
+			meta: { public: false },
 		},
 		{
 			path: '/preferences',
 			name: 'Preferências',
 			component: Preferences,
+			meta: { public: false },
 		},
 		{
 			path: '/memories',
 			name: 'Minhas Memórias',
 			component: Memories,
+			meta: { public: false },
 		},
 		{
 			path: '/admin/errors',
 			name: 'Relatório-de-Erros',
 			component: AdminErrors,
-			meta: { roles: ['admin'] },
+			meta: { roles: ['admin'], public: false },
 		},
 		{
 			path: '/admin/conversations',
 			name: 'Monitoramento-de-Conversas',
 			component: AdminConversations,
-			meta: { roles: ['admin'] },
+			meta: { roles: ['admin'], public: false },
 		},
 	],
 });
@@ -62,14 +66,25 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
 	const authStore = useAuthStore();
 
-	// Wait for session to load if it's pending
-	// In a real app we might show a splash screen
+	// Aguarda o carregamento da sessão se ainda estiver pendente
+	if (authStore.isLoadingSession) {
+		console.log('⏳ Aguardando carregamento da sessão...');
+		// Aguarda até 3 segundos para a sessão carregar
+		let attempts = 0;
+		while (authStore.isLoadingSession && attempts < 30) {
+			await new Promise(resolve => setTimeout(resolve, 100));
+			attempts++;
+		}
+		console.log('✅ Sessão carregada:', { isAuthenticated: authStore.isAuthenticated, user: authStore.user?.email });
+	}
 
 	if (!to.meta.public && !authStore.isAuthenticated) {
+		console.log('🔒 Rota protegida, redirecionando para login');
 		return next('/login');
 	}
 
 	if (to.meta.public && authStore.isAuthenticated) {
+		console.log('✅ Usuário já autenticado, redirecionando para dashboard');
 		return next('/');
 	}
 
@@ -77,6 +92,7 @@ router.beforeEach(async (to, _from, next) => {
 	if (to.meta.roles && Array.isArray(to.meta.roles)) {
 		const userRole = authStore.user?.role || 'user';
 		if (!to.meta.roles.includes(userRole)) {
+			console.log('⚠️ Usuário sem permissão para acessar rota admin');
 			return next('/');
 		}
 	}

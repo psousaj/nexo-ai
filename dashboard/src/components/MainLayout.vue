@@ -53,10 +53,9 @@ const handleLogout = () => {
 		<!-- Sidebar -->
 		<aside
 			:class="[
-				'fixed inset-y-0 left-0 z-50 transition-all duration-300 transform lg:static lg:translate-x-0',
+				'fixed inset-y-0 left-0 z-50 transition-all duration-300 transform lg:static lg:translate-x-0 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col',
 				isOpen ? 'w-64 translate-x-0' : 'w-20 -translate-x-full lg:translate-x-0',
 			]"
-			class="bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col"
 		>
 			<!-- Logo Area -->
 			<div class="h-16 flex items-center px-6 border-b border-surface-200 dark:border-surface-800">
@@ -170,7 +169,7 @@ const handleLogout = () => {
 						<div
 							class="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-600 to-blue-500 flex items-center justify-center text-white font-black ring-2 ring-white dark:ring-surface-900 shadow-lg group-hover:scale-105 transition-transform"
 						>
-							{{ authStore.user?.name.charAt(0) }}
+							{{ authStore.user?.name?.charAt(0) }}
 						</div>
 					</router-link>
 				</div>
@@ -178,11 +177,7 @@ const handleLogout = () => {
 
 			<!-- Page Content -->
 			<main class="flex-1 overflow-y-auto p-4 md:p-8 bg-surface-50 dark:bg-surface-950/50">
-				<router-view v-slot="{ Component }">
-					<transition name="fade" mode="out-in">
-						<component :is="Component" />
-					</transition>
-				</router-view>
+				<slot />
 			</main>
 		</div>
 	</div>

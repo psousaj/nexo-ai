@@ -93,6 +93,11 @@ export const dashboardService = {
 		return data.accounts;
 	},
 
+	async syncAccounts(): Promise<{ success: boolean; message: string; synced: number; skipped: number }> {
+		const { data } = await api.post('/user/accounts/sync');
+		return data;
+	},
+
 	async linkTelegram(): Promise<{ link: string; token: string }> {
 		const { data } = await api.post('/user/link/telegram');
 		return data;
@@ -100,6 +105,11 @@ export const dashboardService = {
 
 	async linkDiscord(): Promise<{ link: string }> {
 		const { data } = await api.get('/user/link/discord');
+		return data;
+	},
+
+	async linkGoogle(): Promise<{ link: string }> {
+		const { data } = await api.get('/user/link/google');
 		return data;
 	},
 

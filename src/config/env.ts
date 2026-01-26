@@ -65,16 +65,15 @@ const envSchema = z.object({
 	DASHBOARD_URL: z.string().url(),
 	// Railway atribui porta aleatória via PORT env var
 	PORT: z.coerce.number().default(3000),
-	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
 
 	// Email Reporting (Resend)
 	RESEND_API_KEY: z.string().optional(),
 	ADMIN_EMAIL: z.string().email().optional(),
 
-	// Discord OAuth2
-	DISCORD_CLIENT_ID: z.string(),
-	DISCORD_CLIENT_SECRET: z.string(),
-	DISCORD_REDIRECT_URI: z.string().url(),
+	// Discord OAuth2 (gerenciado pelo Better Auth)
+	DISCORD_CLIENT_ID: z.string().optional(),
+	DISCORD_CLIENT_SECRET: z.string().optional(),
 
 	// Better Auth
 	BETTER_AUTH_SECRET: z.string().min(32),

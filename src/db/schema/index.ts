@@ -9,3 +9,4 @@ export * from './semantic-external-items';
 export * from './error-reports';
 export * from './linking-tokens';
 export * from './auth';
+export * from './permissions';
