@@ -14,6 +14,10 @@ export interface UserPreferences {
 }
 
 export const usePreferencesStore = defineStore('preferences', () => {
+	// 1. Inicializar tema do localStorage se existir
+	const savedTheme = localStorage.getItem('nexo.theme') as 'light' | 'dark' | null;
+	const defaultTheme = savedTheme || 'dark';
+
 	const preferences = ref<UserPreferences>({
 		assistantName: 'Nexo AI',
 		notificationsBrowser: true,
@@ -21,9 +25,12 @@ export const usePreferencesStore = defineStore('preferences', () => {
 		notificationsEmail: false,
 		privacyShowMemoriesInSearch: false,
 		privacyShareAnalytics: true,
-		appearanceTheme: 'dark',
+		appearanceTheme: defaultTheme,
 		appearanceLanguage: 'pt-BR',
 	});
+
+	// Aplicar tema inicial imediatamente
+	applyTheme(defaultTheme);
 
 	const isLoading = ref(false);
 
@@ -35,10 +42,14 @@ export const usePreferencesStore = defineStore('preferences', () => {
 				preferences.value = {
 					...preferences.value,
 					...data,
-					// Garantir que tipos booleanos sejam respeitados se o backend retornar 0/1 (embora PostgreSQL use boolean real)
 				};
 
-				// Aplicar tema imediatamente
+				// Se o backend tiver um tema salvo, ele tem precedência?
+				// Geralmente sim, mas se quisermos forçar o local...
+				// Vamos manter a lógica: Backend > LocalStorage (sync)
+				// Mas se o usuário mudar localmente antes do fetch, pode dar flash.
+				// O ideal é: Use LocalStorage first (já feito no init).
+				// Se backend retornar diferente, atualiza local e UI.
 				applyTheme(preferences.value.appearanceTheme);
 			}
 		} catch (error) {
@@ -68,6 +79,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
 		} else {
 			document.documentElement.classList.remove('dark');
 		}
+		// Persistir no localStorage
+		localStorage.setItem('nexo.theme', theme);
 	}
 
 	return {
