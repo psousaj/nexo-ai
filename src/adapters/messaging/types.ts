@@ -63,7 +63,7 @@ export interface MessagingProvider {
 	 * @param recipient - ID do destinatário no formato do provider
 	 * @param text - Conteúdo da mensagem (texto puro)
 	 */
-	sendMessage(recipient: string, text: string): Promise<void>;
+	sendMessage(recipient: string, text: string, options?: any): Promise<void>;
 
 	/**
 	 * Retorna nome do provider

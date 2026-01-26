@@ -126,10 +126,16 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 					} else {
 						const signupToken = await accountLinkingService.generateLinkingToken(user.id, 'whatsapp', 'signup');
 						const signupLink = `${dashboardUrl}?token=${signupToken}`;
-						await provider.sendMessage(
-							incomingMsg.externalId,
-							`🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 ${signupLink}`,
-						);
+
+						if (provider.getProviderName() === 'telegram') {
+							const msg = `🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 <a href="${signupLink}">Clique aqui para criar conta</a>`;
+							await provider.sendMessage(incomingMsg.externalId, msg, { parseMode: 'HTML' });
+						} else {
+							await provider.sendMessage(
+								incomingMsg.externalId,
+								`🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 ${signupLink}`,
+							);
+						}
 						return;
 					}
 				}
@@ -149,10 +155,18 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				if (isNewUser) {
 					const signupToken = await accountLinkingService.generateLinkingToken(user.id, provider.getProviderName() as any, 'signup');
 					const signupLink = `${dashboardUrl}?token=${signupToken}`;
-					await provider.sendMessage(
-						incomingMsg.externalId,
-						`Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 ${signupLink}\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`,
-					);
+
+					// Formatação específica para Telegram (link clicável)
+					if (provider.getProviderName() === 'telegram') {
+						const msg = `Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 <a href="${signupLink}">Clique aqui para cadastrar</a>\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`;
+						await provider.sendMessage(incomingMsg.externalId, msg, { parseMode: 'HTML' });
+					} else {
+						// Padrão (WhatsApp e outros)
+						await provider.sendMessage(
+							incomingMsg.externalId,
+							`Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 ${signupLink}\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`,
+						);
+					}
 					return;
 				} else {
 					// Se tem mais contas, assume que é usuário existente e permite fluxo (provavelmente status desatualizado)
