@@ -108,23 +108,57 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
 
 			if (onboarding.reason === 'trial_exceeded') {
-				const signupToken = await accountLinkingService.generateLinkingToken(user.id, 'whatsapp', 'signup');
-				const signupLink = `${dashboardUrl}?token=${signupToken}`;
-				await provider.sendMessage(
-					incomingMsg.externalId,
-					`🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 ${signupLink}`,
-				);
-				return;
+				// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
+				// (Pode ser um erro de cache ou estado, mas evita spam de trial para usuários registrados)
+				if (user.status === 'active') {
+					loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando');
+					// Força update se necessário ou segue fluxo
+				} else {
+					// Verifica se o usuário tem conta vinculada no UserService
+					const accounts = await userService.getUserAccounts(user.id);
+					const hasLinkedAccount = accounts.some((acc) => acc.provider !== 'whatsapp'); // Assume que 'whatsapp' é o canal atual restrito
+
+					if (hasLinkedAccount) {
+						// Se tem conta vinculada, deveria estar active. Tenta corrigir ou logar erro.
+						loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário vinculado caiu no trial_exceeded - checkOnboardingStatus retornou false');
+						// Opcional: Auto-ativar usuário?
+						// Por segurança, não bloqueia o fluxo.
+					} else {
+						const signupToken = await accountLinkingService.generateLinkingToken(user.id, 'whatsapp', 'signup');
+						const signupLink = `${dashboardUrl}?token=${signupToken}`;
+						await provider.sendMessage(
+							incomingMsg.externalId,
+							`🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 ${signupLink}`,
+						);
+						return;
+					}
+				}
 			}
 
 			if (onboarding.reason === 'signup_required') {
-				const signupToken = await accountLinkingService.generateLinkingToken(user.id, provider.getProviderName() as any, 'signup');
-				const signupLink = `${dashboardUrl}?token=${signupToken}`;
-				await provider.sendMessage(
-					incomingMsg.externalId,
-					`Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 ${signupLink}\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`,
-				);
-				return;
+				// Verifica se já tem contas vinculadas (e.g. criou a conta no dashboard mas ainda está pending_signup ou algo assim)
+				const accounts = await userService.getUserAccounts(user.id);
+				// Logica: Se o cara tá vindo do telegram, ele já tem um account telegram criado no findOrCreate.
+				// O problema é saber se ele está "linked" a uma conta "real" (dashboard user).
+				// Como o sistema atual unifica tudo no 'users', se ele tem user.status != active, ele é "incompleto".
+
+				// Se ele tem APENAS essa conta que acabou de ser criada (provider atual), manda signup.
+				// Se ele tem MAIS de uma conta, ele provavelmente já é usuário antigo vinculando nova conta.
+				const isNewUser = accounts.length <= 1;
+
+				if (isNewUser) {
+					const signupToken = await accountLinkingService.generateLinkingToken(user.id, provider.getProviderName() as any, 'signup');
+					const signupLink = `${dashboardUrl}?token=${signupToken}`;
+					await provider.sendMessage(
+						incomingMsg.externalId,
+						`Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 ${signupLink}\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`,
+					);
+					return;
+				} else {
+					// Se tem mais contas, assume que é usuário existente e permite fluxo (provavelmente status desatualizado)
+					// Loga para debug
+					loggers.webhook.info({ userId: user.id, accounts: accounts.length }, 'ℹ️ Usuário multi-conta pending_signup ignorando bloqueio');
+				}
 			}
 		}
 
