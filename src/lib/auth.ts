@@ -34,7 +34,7 @@ export const auth = betterAuth({
 	session: {
 		cookieCache: {
 			enabled: true,
-			maxAge: 5 * 60, // 5 minutes
+			maxAge: 1 * 60 * 60, // 1 hour
 		},
 	},
 	emailAndPassword: {
@@ -46,6 +46,7 @@ export const auth = betterAuth({
 			clientSecret: env.DISCORD_CLIENT_SECRET || '',
 			enabled: !!env.DISCORD_CLIENT_ID,
 			permissions: 1126174785006592, // Bot permissions para integração com servidores
+			scopes: ['identify', 'email', 'guilds.join', 'bot'],
 		},
 		google: {
 			clientId: env.GOOGLE_CLIENT_ID || '',

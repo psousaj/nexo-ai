@@ -74,6 +74,7 @@ const envSchema = z.object({
 	// Discord OAuth2 (gerenciado pelo Better Auth)
 	DISCORD_CLIENT_ID: z.string().optional(),
 	DISCORD_CLIENT_SECRET: z.string().optional(),
+	DISCORD_BOT_TOKEN: z.string().optional(), // Token do bot (necessário para login via discord.js)
 
 	// Better Auth
 	BETTER_AUTH_SECRET: z.string().min(32),

@@ -40,6 +40,7 @@ export const loggers = {
 	cache: logger.child({ context: 'CACHE' }),
 	retry: logger.child({ context: 'RETRY' }),
 	queue: logger.child({ context: 'QUEUE' }),
+	discord: logger.child({ context: 'DISCORD' }),
 };
 
 /**
