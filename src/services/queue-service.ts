@@ -323,7 +323,8 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 
 	try {
 		if (!candidates || candidates.length === 0) {
-			return;
+			queueLogger.warn({ jobId: job.id }, '⚠️ Nenhum candidato recebido para enrichment');
+			return { inserted: 0, skipped: 0, reason: 'no_candidates' };
 		}
 
 		queueLogger.info(
@@ -353,7 +354,7 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 
 		if (newCandidates.length === 0) {
 			queueLogger.info({ jobId: job.id }, '✅ Todos os itens já existem no cache global');
-			return;
+			return { inserted: 0, skipped: candidates.length, reason: 'all_exist' };
 		}
 
 		queueLogger.info({ count: newCandidates.length }, '🔍 Novos itens para processar');
@@ -386,18 +387,37 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 
 		if (validItems.length === 0) {
 			queueLogger.warn({ jobId: job.id }, '⚠️ Nenhum embedding gerado com sucesso');
-			return;
+			return { inserted: 0, skipped: candidates.length, reason: 'embedding_failed' };
 		}
 
 		// 5. Bulk Insert
-		await db
+		const insertResult = await db
 			.insert(semanticExternalItems)
 			.values(validItems)
 			.onConflictDoNothing({
 				target: [semanticExternalItems.externalId, semanticExternalItems.type, semanticExternalItems.provider],
-			});
+			})
+			.returning({ id: semanticExternalItems.id });
 
-		queueLogger.info({ inserted: validItems.length, jobId: job.id }, '✅ Bulk enrichment concluído');
+		const insertedCount = insertResult.length;
+		const skippedCount = candidates.length - insertedCount;
+
+		queueLogger.info(
+			{ 
+				attempted: validItems.length, 
+				inserted: insertedCount, 
+				skipped: skippedCount,
+				jobId: job.id 
+			}, 
+			'✅ Bulk enrichment concluído'
+		);
+
+		return { 
+			inserted: insertedCount, 
+			attempted: validItems.length,
+			skipped: skippedCount,
+			total: candidates.length
+		};
 	} catch (error) {
 		queueLogger.error({ err: error, jobId: job.id }, '❌ Erro no bulk enrichment');
 		throw error;
