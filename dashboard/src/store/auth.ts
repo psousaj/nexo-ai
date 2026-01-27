@@ -82,7 +82,11 @@ export const useAuthStore = defineStore('auth', () => {
 
 	async function logout() {
 		manualSession.value = null;
-		await authClient.signOut();
+		try {
+			await authClient.signOut();
+		} catch (error) {
+			console.error('❌ Auth Store: Erro ao fazer logout:', error);
+		}
 	}
 
 	async function refetchSession() {

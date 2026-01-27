@@ -44,7 +44,7 @@ const menuItems = computed(() => {
 
 const handleLogout = async () => {
 	await authStore.logout();
-	router.push('/login');
+	window.location.href = '/login';
 };
 </script>
 

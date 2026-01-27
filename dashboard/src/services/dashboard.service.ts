@@ -116,4 +116,7 @@ export const dashboardService = {
 	async consumeLinkingToken(token: string): Promise<void> {
 		await api.post('/user/link/consume', { token });
 	},
+	async unlinkAccount(provider: string): Promise<void> {
+		await api.delete(`/user/accounts/${provider}`);
+	},
 };

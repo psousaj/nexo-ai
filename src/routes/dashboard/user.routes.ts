@@ -211,4 +211,27 @@ export const userRoutes = new Hono<{ Variables: { user: any; session: any } }>()
 		} catch (error) {
 			return c.json({ error: error instanceof Error ? error.message : 'Erro ao remover email' }, 400);
 		}
+	})
+	.delete('/accounts/:provider', zValidator('param', z.object({ provider: z.string() })), async (c) => {
+		const userState = c.get('user');
+		const { provider } = c.req.valid('param');
+
+		try {
+			// Deletar de user_accounts do nosso sistema
+			await db
+				.delete(userAccounts)
+				.where(and(eq(userAccounts.userId, userState.id), eq(userAccounts.provider, provider as any)));
+
+			// Deletar de accounts do Better Auth
+			await db
+				.delete(betterAuthAccounts)
+				.where(and(eq(betterAuthAccounts.userId, userState.id), eq(betterAuthAccounts.providerId, provider)));
+
+			console.log(`🗑️ [Auth] Conta ${provider} desvinculada para usuário ${userState.id}`);
+
+			return c.json({ success: true });
+		} catch (error) {
+			console.error(`❌ [Auth] Erro ao desvincular conta ${provider}:`, error);
+			return c.json({ error: 'Erro ao desvincular conta' }, 500);
+		}
 	});

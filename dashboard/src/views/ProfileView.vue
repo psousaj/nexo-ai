@@ -142,6 +142,22 @@ const handleManualLink = async () => {
 		isLinking.value = false;
 	}
 };
+
+const handleUnlink = async (provider: string) => {
+	if (!confirm(`Tem certeza que deseja desvincular a conta do ${provider}?`)) return;
+
+	isSyncing.value = true;
+	try {
+		await dashboardService.unlinkAccount(provider);
+		await queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
+		console.log(`✅ [Profile] Conta ${provider} desvinculada`);
+	} catch (error) {
+		console.error(`❌ [Profile] Erro ao desvincular ${provider}:`, error);
+		alert('Erro ao desvincular conta');
+	} finally {
+		isSyncing.value = false;
+	}
+};
 </script>
 
 <template>
@@ -281,8 +297,10 @@ const handleManualLink = async () => {
 						<div v-if="account.id !== 'whatsapp'">
 							<button
 								v-if="account.status === 'connected'"
+								@click="handleUnlink(account.id)"
 								class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
 								title="Desvincular"
+								:disabled="isSyncing"
 							>
 								<XCircle class="w-5 h-5" />
 							</button>
