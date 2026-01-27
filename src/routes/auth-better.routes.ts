@@ -42,9 +42,13 @@ export const authRouter = new Hono()
 			// Se foi callback OAuth bem-sucedido, sincronizar accounts
 			const url = new URL(request.url);
 			if (url.pathname.includes('/callback/')) {
+				loggers.webhook.info({ pathname: url.pathname }, '🔔 Callback OAuth detectado');
+				
 				// Aguarda um pouco para garantir que o Better Auth salvou no DB
 				setTimeout(async () => {
 					try {
+						loggers.webhook.info('⏰ setTimeout executado - iniciando detecção de duplicados');
+						
 						// Busca a conta OAuth mais recente (acabou de ser criada)
 						const [recentAccount] = await db
 							.select()
@@ -52,7 +56,16 @@ export const authRouter = new Hono()
 							.orderBy(desc(accounts.createdAt))
 							.limit(1);
 
-						if (recentAccount) {
+						if (!recentAccount) {
+							loggers.webhook.warn('⚠️ Nenhum account recente encontrado');
+							return;
+						}
+
+						loggers.webhook.info(
+							{ accountId: recentAccount.id, userId: recentAccount.userId },
+							'📋 Account recente encontrado',
+						);
+
 						// Busca email do usuário novo
 						const [newUser] = await db
 							.select()
@@ -65,21 +78,29 @@ export const authRouter = new Hono()
 							return;
 						}
 
-						// 🔍 DETECÇÃO DE DUPLICADOS: Busca usuário existente com mesmo email
-						const [existingUser] = await db
-							.select()
-							.from(users)
-							.where(eq(users.email, newUser.email))
-							.orderBy(users.createdAt) // Pega o mais antigo (original)
-							.limit(2); // Pega 2 para detectar se há duplicado
+						loggers.webhook.info(
+							{ userId: newUser.id, email: newUser.email },
+							'👤 Novo usuário OAuth criado',
+						);
 
+						// 🔍 DETECÇÃO DE DUPLICADOS: Busca usuário existente com mesmo email
 						const allWithEmail = await db
 							.select()
 							.from(users)
 							.where(eq(users.email, newUser.email));
 
+						loggers.webhook.info(
+							{ email: newUser.email, count: allWithEmail.length },
+							'🔍 Busca por email duplicado',
+						);
+
 						// Se há 2+ usuários com mesmo email = duplicação detectada
 						if (allWithEmail.length > 1) {
+							// Pega o mais antigo (preserva histórico)
+							const existingUser = allWithEmail.sort(
+								(a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+							)[0];
+
 							loggers.webhook.warn(
 								{
 									email: newUser.email,
@@ -113,6 +134,11 @@ export const authRouter = new Hono()
 								email: newUser.email,
 							});
 						} else {
+							loggers.webhook.info(
+								{ email: newUser.email },
+								'✅ Sem duplicação - sincronizando normalmente',
+							);
+							
 							// Sem duplicação, sincronizar normalmente
 							await syncOAuthAccount({
 								userId: recentAccount.userId,
@@ -121,12 +147,11 @@ export const authRouter = new Hono()
 								email: newUser.email,
 							});
 						}
+					} catch (syncError) {
+						loggers.webhook.error({ error: syncError }, '❌ Erro ao sincronizar OAuth');
 					}
-				} catch (syncError) {
-					console.error('⚠️ Erro ao sincronizar OAuth (não crítico):', syncError);
-				}
-			}, 500); // 500ms de delay
-		}
+				}, 500); // 500ms de delay
+			}
 
 		return response;
 	} catch (error) {
