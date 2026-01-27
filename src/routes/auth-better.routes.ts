@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { auth } from '@/lib/auth';
 import { syncOAuthAccount, findUserByEmail } from '@/lib/auth-account-sync-plugin';
 import { db } from '@/db';
-import { accounts, users } from '@/db/schema';
+import { accounts, users, sessions } from '@/db/schema';
 import { desc, eq, and } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
 
@@ -162,26 +162,33 @@ export const authRouter = new Hono()
 
 							loggers.webhook.info({ userId: newUser.id }, '✅ Usuário duplicado deletado');
 
-							// Sincronizar com usuário existente (adiciona email como secundário se diferente)
-							await syncOAuthAccount({
+						// Extrair username do user
+						const accountMetadata = {
+							username: newUser.name || recentAccount.accountId || null,
+							email: newUser.email || null,
+						};
+
+						// Sincronizar com usuário existente (adiciona email como secundário se diferente)
+						await syncOAuthAccount({
+							userId: existingUser.id,
+							provider: recentAccount.providerId,
+							externalId: recentAccount.accountId,
+							email: newUser.email, // Email do Discord será adicionado como secundário
+							metadata: accountMetadata,
+						});
+
+						loggers.webhook.info(
+							{
 								userId: existingUser.id,
-								provider: recentAccount.providerId,
-								externalId: recentAccount.accountId,
-								email: newUser.email, // Email do Discord será adicionado como secundário
-							});
+								primaryEmail: existingUser.email,
+								secondaryEmail: newUser.email,
+							},
+							'✅ Email do Discord adicionado como email secundário',
+						);
 
-							loggers.webhook.info(
-								{
-									userId: existingUser.id,
-									primaryEmail: existingUser.email,
-									secondaryEmail: newUser.email,
-								},
-								'✅ Email do Discord adicionado como email secundário',
-							);
-
-							return;
-						}
+						return;
 					}
+				}
 
 					// Estratégia 2: Se tem sessão anterior (usuário estava logado), SEMPRE vincula a ele
 					// (funciona mesmo se email for diferente OU igual)
@@ -215,31 +222,74 @@ export const authRouter = new Hono()
 								'✅ Account movido para usuário logado',
 							);
 
-							// Deletar usuário duplicado que Better Auth criou
-							await db.delete(users).where(eq(users.id, newUser.id));
+// Buscar metadados do account (nome de usuário, etc)
+						const [fullAccount] = await db
+							.select()
+							.from(accounts)
+							.where(eq(accounts.id, recentAccount.id))
+							.limit(1);
 
-							loggers.webhook.info({ userId: newUser.id }, '✅ Usuário duplicado deletado');
+						// Deletar usuário duplicado que Better Auth criou
+						await db.delete(users).where(eq(users.id, newUser.id));
 
-							// Sincronizar com usuário logado
-							await syncOAuthAccount({
+						loggers.webhook.info({ userId: newUser.id }, '✅ Usuário duplicado deletado');
+
+						// Extrair username/email do account metadata
+						const accountMetadata = {
+							username: newUser.name || fullAccount?.accountId || null,
+							email: newUser.email || null,
+						};
+
+						// Sincronizar com usuário logado
+						await syncOAuthAccount({
+							userId: loggedUser.id,
+							provider: recentAccount.providerId,
+							externalId: recentAccount.accountId,
+							email: newUser.email,
+							metadata: accountMetadata, // Adiciona username/email
+						});
+
+						loggers.webhook.info(
+							{
 								userId: loggedUser.id,
-								provider: recentAccount.providerId,
-								externalId: recentAccount.accountId,
-								email: newUser.email, // Adiciona como email secundário (se diferente)
-							});
+								primaryEmail: loggedUser.email,
+								secondaryEmail: newUser.email,
+							},
+							'✅ OAuth vinculado! Email adicionado à lista (se diferente)',
+						);
 
-							loggers.webhook.info(
-								{
-									userId: loggedUser.id,
-									primaryEmail: loggedUser.email,
-									secondaryEmail: newUser.email,
-								},
-								'✅ OAuth vinculado! Email adicionado à lista (se diferente)',
+						// 🔑 CRÍTICO: Invalida sessão antiga e cria nova para o usuário correto
+						// (senão frontend fica com sessão do usuário deletado)
+						try {
+							// Busca a sessão que acabou de ser criada pelo Better Auth (do usuário deletado)
+							const [oldSession] = await db
+								.select()
+								.from(sessions)
+								.where(eq(sessions.userId, newUser.id))
+								.limit(1);
+
+							if (oldSession) {
+								// Atualiza sessão para apontar pro usuário correto
+								await db
+									.update(sessions)
+									.set({ userId: loggedUser.id })
+									.where(eq(sessions.id, oldSession.id));
+
+								loggers.webhook.info(
+									{ sessionId: oldSession.id, newUserId: loggedUser.id },
+									'✅ Sessão redirecionada para usuário correto',
+								);
+							}
+						} catch (sessionError) {
+							loggers.webhook.error(
+								{ error: sessionError },
+								'⚠️ Erro ao atualizar sessão (não crítico)',
 							);
-
-							return;
 						}
+
+						return;
 					}
+				}
 
 					// Estratégia 3: Se NÃO tem sessão anterior, busca por email duplicado
 					const allWithEmail = await db
@@ -284,12 +334,19 @@ export const authRouter = new Hono()
 
 							loggers.webhook.info({ userId: newUser.id }, '✅ Usuário duplicado deletado');
 
-							// Sincronizar com usuário existente
-							await syncOAuthAccount({
-								userId: existingUser.id,
-								provider: recentAccount.providerId,
-								externalId: recentAccount.accountId,
-								email: newUser.email,
+						// Extrair username do Discord
+						const accountMeta = {
+							username: newUser.name || recentAccount.accountId || null,
+							email: newUser.email || null,
+						};
+
+						// Sincronizar com usuário existente
+						await syncOAuthAccount({
+							userId: existingUser.id,
+							provider: recentAccount.providerId,
+							externalId: recentAccount.accountId,
+							email: newUser.email,
+							metadata: accountMeta,
 							});
 						} else {
 							loggers.webhook.info(
@@ -302,8 +359,10 @@ export const authRouter = new Hono()
 								userId: recentAccount.userId,
 								provider: recentAccount.providerId,
 								externalId: recentAccount.accountId,
-								email: newUser.email,
-							});
+								email: newUser.email,							metadata: {
+								username: newUser.name || recentAccount.accountId || null,
+								email: newUser.email || null,
+							},							});
 						}
 					} catch (syncError) {
 						loggers.webhook.error({ error: syncError }, '❌ Erro ao sincronizar OAuth');

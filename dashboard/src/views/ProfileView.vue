@@ -265,6 +265,16 @@ const handleManualLink = async () => {
 									>
 								</div>
 								<p class="text-sm text-surface-500 font-medium">{{ account.username || 'Não vinculado' }}</p>
+								<!-- Link para adicionar bot Discord -->
+								<a
+									v-if="account.id === 'discord' && account.status === 'connected'"
+									href="https://discord.com/oauth2/authorize?client_id=1465015304244559892"
+									target="_blank"
+									class="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 mt-1"
+								>
+									<Plus class="w-3 h-3" />
+									Adicionar bot no servidor
+								</a>
 							</div>
 						</div>
 

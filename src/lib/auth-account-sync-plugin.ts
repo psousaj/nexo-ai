@@ -119,8 +119,9 @@ export async function syncOAuthAccount(params: {
 	provider: string;
 	externalId: string;
 	email?: string;
+	metadata?: Record<string, any>;
 }) {
-	const { userId, provider, externalId, email } = params;
+	const { userId, provider, externalId, email, metadata = {} } = params;
 
 	try {
 		loggers.webhook.info(
@@ -145,10 +146,23 @@ export async function syncOAuthAccount(params: {
 				userId,
 				provider: provider as any,
 				externalId,
-				metadata: {},
+				metadata: metadata || {},
 			});
 
-			loggers.webhook.info({ userId, provider }, '✅ user_account criado via OAuth');
+			loggers.webhook.info({ userId, provider, metadata }, '✅ user_account criado via OAuth');
+		} else {
+			// Atualizar metadata se já existe
+			await db
+				.update(schema.userAccounts)
+				.set({ metadata: metadata || {} })
+				.where(
+					and(
+						eq(schema.userAccounts.provider, provider as any),
+						eq(schema.userAccounts.externalId, externalId),
+					),
+				);
+
+			loggers.webhook.info({ userId, provider, metadata }, '✅ user_account atualizado com metadata');
 		}
 
 		// 2. Sincronizar email com user_emails (se fornecido pelo provider)
