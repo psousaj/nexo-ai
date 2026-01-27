@@ -45,6 +45,7 @@ export const auth = betterAuth({
 			clientId: env.DISCORD_CLIENT_ID || '',
 			clientSecret: env.DISCORD_CLIENT_SECRET || '',
 			enabled: !!env.DISCORD_CLIENT_ID,
+			permissions: 1126174785006592, // Bot permissions para integração com servidores
 		},
 		google: {
 			clientId: env.GOOGLE_CLIENT_ID || '',
@@ -52,15 +53,4 @@ export const auth = betterAuth({
 			enabled: !!env.GOOGLE_CLIENT_ID,
 		},
 	},
-	// HOOKS DESABILITADOS TEMPORARIAMENTE - Better Auth 1.4.17 tem bug com Hono
-	// Ver: https://github.com/better-auth/better-auth/issues/xxx
-	// TODO: Reativar quando Better Auth 1.5.x for lançado ou usar plugin específico
-	// hooks: {
-	// 	before: async (context) => {
-	// 		// Hook de linking OAuth com usuário existente
-	// 	},
-	// 	after: async (context) => {
-	// 		// Hook de sincronização user_accounts e user_emails
-	// 	},
-	// },
 });

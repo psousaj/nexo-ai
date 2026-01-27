@@ -70,24 +70,7 @@ const handleLogout = () => {
 				</span>
 			</div>
 
-			<!-- User Persona Switcher -->
-			<div v-if="isOpen" class="px-4 py-4">
-				<button
-					@click="authStore.toggleRole()"
-					class="w-full flex items-center gap-3 px-3 py-2 bg-surface-50 dark:bg-surface-800/50 rounded-xl border border-surface-200 dark:border-surface-800 hover:border-primary-500 transition-all group"
-				>
-					<div class="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 flex items-center justify-center">
-						<ShieldCheck v-if="can('manage', 'AdminPanel')" class="w-4 h-4" />
-						<UserCircle v-else class="w-4 h-4" />
-					</div>
-					<div class="flex-1 text-left overflow-hidden">
-						<p class="text-sm font-semibold text-surface-900 dark:text-white truncate">Trocar Modo</p>
-						<p class="text-[10px] text-surface-500 uppercase tracking-wider">
-							{{ can('manage', 'AdminPanel') ? 'Administrador' : 'Usuário' }}
-						</p>
-					</div>
-				</button>
-			</div>
+			<!-- User Persona Switcher removed -->
 
 			<!-- Navigation -->
 			<nav class="flex-1 overflow-y-auto p-4 space-y-1">

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, boolean, timestamp, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, boolean, timestamp, unique, text } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
 
@@ -11,8 +11,8 @@ export const userEmails = pgTable(
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
 
-		/** Referência ao usuário */
-		userId: uuid('user_id')
+		/** Referência ao usuário (text para compatibilidade com Better Auth) */
+		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 

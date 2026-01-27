@@ -1,4 +1,4 @@
-# Better Auth Hooks - Workaround Temporário
+# Better Auth Hooks - Solução Implementada ✅
 
 ## 🐛 Problema Identificado
 
@@ -16,32 +16,142 @@ O contexto interno do Better Auth (`context.context`) não é propagado corretam
 2. Tipos TypeScript incorretos (`MiddlewareInputContext` vs tipo esperado)
 3. Crash do servidor em requests de autenticação
 
-## ✅ Solução Aplicada
+## ✅ Solução Implementada
 
-### 1. Hooks Desabilitados Temporariamente
+### Arquitetura da Solução
 
-Os hooks customizados em [src/lib/auth.ts](../src/lib/auth.ts) foram **comentados**:
-
-```typescript
-// HOOKS DESABILITADOS TEMPORARIAMENTE - Better Auth 1.4.17 tem bug com Hono
-// Ver: https://github.com/better-auth/better-auth/issues/xxx
-// TODO: Reativar quando Better Auth 1.5.x for lançado ou usar plugin específico
+```
+OAuth Callback → Better Auth (salva no DB) → setTimeout(500ms) → Busca última account criada → syncOAuthAccount()
+                                                                                                      ↓
+                                                                               Sincroniza user_accounts + user_emails
 ```
 
-### 2. Funcionalidades Afetadas
+### Componentes
 
-Com os hooks desabilitados, **não funciona mais automaticamente**:
+#### 1. [auth-account-sync-plugin.ts](../src/lib/auth-account-sync-plugin.ts)
+Serviço de sincronização que:
+- Cria entrada em `user_accounts` (para mensageria Telegram/WhatsApp)
+- Adiciona email em `user_emails` (sistema multi-email)
+- Trata duplicações e conflitos
 
-- ❌ **Linking OAuth com usuário existente**: OAuth sempre cria novo usuário
-- ❌ **Sincronização automática**: `user_accounts` e `user_emails` não sincronizam via OAuth
-- ✅ **Autenticação básica**: Email/senha continua funcionando
-- ✅ **OAuth básico**: Login com Discord/Google funciona (mas cria novo usuário)
+#### 2. [auth-better.routes.ts](../src/routes/auth-better.routes.ts)
+Router customizado que:
+- Detecta callbacks OAuth (`/callback/discord`, `/callback/google`)
+- Aguarda 500ms para Better Auth salvar no DB
+- Busca account mais recente + email do user
+- Chama `syncOAuthAccount()` em background
+- **Não bloqueia** a resposta ao usuário
 
-## 🔧 Alternativas
+### 2. Funcionalidades
 
-### Opção 1: Sincronização Manual (Recomendado para MVP)
+✅ **Sincronização automática**: Após OAuth, `user_accounts` e `user_emails` são criados  
+✅ **Não bloqueia UX**: Sincronização roda em background (setTimeout)  
+✅ **Autenticação básica**: Email/senha continua funcionando  
+✅ **OAuth funcional**: Login com Discord/Google vincula corretamente  
+⚠️ **Linking manual**: Vincular conta existente ainda requer endpoint dedicado (futuro)
 
-Criar endpoint específico para vincular contas OAuth:
+## 🎯 Como Funciona
+
+### Fluxo OAuth Completo
+
+```
+1. Usuário clica "Login com Discord"
+   ↓
+2. Better Auth redireciona para Discord OAuth
+   ↓
+3. Usuário autoriza aplicação
+   ↓
+4. Discord redireciona para /api/auth/callback/discord
+   ↓
+5. Better Auth:
+   - Valida token
+   - Cria/atualiza user em `users`
+   - Cria account em `accounts`
+   - Retorna 200 OK
+   ↓
+6. Router detecta "/callback/" na URL
+   ↓
+7. setTimeout(500ms) → background sync:
+   - Busca última account criada (DESC createdAt)
+   - Busca email do user
+   - Chama syncOAuthAccount()
+   ↓
+8. syncOAuthAccount():
+   - Cria user_accounts (provider, externalId)
+   - Adiciona user_emails (se email fornecido)
+   ↓
+9. ✅ Usuário logado + accounts sincronizadas
+```
+
+## 🧪 Como Testar
+
+### Teste 1: OAuth Discord/Google
+1. Limpar banco de dados de teste
+2. Acessar dashboard: `http://localhost:5173`
+3. Clicar em "Login com Discord"
+4. Autorizar aplicação
+5. **Verificar logs**:
+```
+🔗 [Sync] Sincronizando OAuth account
+✅ user_account criado via OAuth
+✅ Email adicionado via OAuth
+```
+6. **Verificar banco**:
+```sql
+SELECT * FROM user_accounts WHERE provider = 'discord';
+SELECT * FROM user_emails WHERE provider = 'discord';
+```
+
+**Esperado**: 
+- ✅ Login com sucesso
+- ✅ `user_account` criado automaticamente
+- ✅ Email adicionado em `user_emails` automaticamente
+- ✅ Sem erros no console
+
+## 📊 Trade-offs da Solução
+
+### Vantagens
+- ✅ **Estável**: Não usa hooks bugados
+- ✅ **Não bloqueia UX**: Sincronização em background
+- ✅ **Simples**: Apenas 2 arquivos modificados
+- ✅ **Testável**: Função pura `syncOAuthAccount()`
+- ✅ **Logs claros**: Fácil debugar
+
+### Limitações
+- ⚠️ **Delay de 500ms**: Necessário para Better Auth salvar no DB
+- ⚠️ **Assume última account**: Se 2 usuários fizerem OAuth no mesmo segundo, pode haver race condition (improvável)
+- ⚠️ **Não previne duplicação de usuário**: Se email já existe, Better Auth cria novo user (futuro: implementar pré-check)
+
+## 🔮 Roadmap Futuro
+
+### v0.4.x (Atual - IMPLEMENTADO ✅)
+- ✅ Sincronização automática após OAuth
+- ✅ Logs detalhados
+- ✅ Sem crashes do servidor
+
+### v0.5.x (Próximo)
+- 🔄 Endpoint `/api/auth/link-account` para linking manual
+- 🔄 Prevenir duplicação de usuário (check email antes de criar)
+- 🔄 Dashboard para gerenciar contas vinculadas
+
+### v1.0.x (Futuro)
+- 🔄 Upgrade Better Auth quando bug for corrigido
+- 🔄 Migrar para hooks nativos (se corrigidos)
+- 🔄 Remover setTimeout hack
+
+## 📚 Referências
+
+- [Better Auth Issues](https://github.com/better-auth/better-auth/issues)
+- [ADR-007: Multi-Provider Support](./adr/007-multi-provider-support.md)
+- [Código: auth-account-sync-plugin.ts](../src/lib/auth-account-sync-plugin.ts)
+- [Código: auth-better.routes.ts](../src/routes/auth-better.routes.ts)
+
+---
+
+**Status**: ✅ Solução implementada e funcionando  
+**Última atualização**: 2026-01-27  
+**Responsável**: Sistema de autenticação
+
 
 ```typescript
 // POST /api/auth/link-oauth

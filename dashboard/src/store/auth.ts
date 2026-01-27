@@ -2,24 +2,13 @@ import { defineStore } from 'pinia';
 import { computed, watch, ref } from 'vue';
 import { ability } from '../plugins/casl';
 import { authClient, useSession } from '../lib/auth-client';
-import type { User } from '../types';
+
 
 export const useAuthStore = defineStore('auth', () => {
 	const sessionInfo = useSession();
 	const manualSession = ref<any>(null);
 
-	const simulatedRole = ref<string | null>(null);
 
-	// Inicializa a role simulada com a role real do usuário ao carregar a sessão
-	watch(
-		() => sessionInfo.value?.data || manualSession.value,
-		(data) => {
-			if (data?.user && simulatedRole.value === null) {
-				simulatedRole.value = data.user.role;
-			}
-		},
-		{ immediate: true }
-	);
 
 	const user = computed(() => {
 		// Usa manualSession como fallback quando useSession ainda não atualizou
@@ -35,20 +24,11 @@ export const useAuthStore = defineStore('auth', () => {
 			name: u.name,
 			email: u.email,
 			image: u.image || '',
-			role: simulatedRole.value || u.role || 'user',
+			role: u.role || 'user',
 			permissions: u.permissions || [],
 		};
 	});
-// Simulação de troca de role (apenas frontend)
-function toggleRole() {
-	if (!user.value) return;
-	if (simulatedRole.value === 'admin') {
-		simulatedRole.value = 'user';
-	} else {
-		simulatedRole.value = 'admin';
-	}
-	console.log('🔄 Simulação de role:', simulatedRole.value);
-}
+
 
 	const isAuthenticated = computed(() => {
 		const data = sessionInfo.value?.data || manualSession.value;
@@ -138,6 +118,5 @@ function toggleRole() {
 		logout,
 		refetchSession,
 		setSessionFromLogin,
-		toggleRole,
 	};
 });
