@@ -1,61 +1,95 @@
-# Metric Storage Normalization Plan
+
+# Metric Storage Normalization Plan (Revised)
 
 ## Goal
 
-Avoid data duplication by storing heavy metadata and embeddings for Movies, TV Shows, and Videos in a global `semantic_external_items` table. Implement **Bulk Async Enrichment** to cache entire batches of search results in the background.
+Evitar duplicação de dados armazenando metadados pesados e embeddings de Movies, TV Shows e Videos na tabela global `semantic_external_items`. Implementar **Bulk Async Enrichment** para cachear lotes inteiros de resultados de busca em background, otimizando performance e custo.
 
-## User Review Required
+## Bulk Async Workflow
 
-> [!IMPORTANT]
-> **Bulk Async Workflow**:
->
-> 1. User searches for "Matrix".
-> 2. TMDB returns 20 results.
-> 3. System immediately sends **all 20 candidates** as a SINGLE job to the `enrichmentQueue`.
-> 4. Worker processes this batch: calculates embeddings for new items and bulk inserts them into `semantic_external_items`.
-> 5. When User clicks "Save", the system links to the already-cached global item.
+1. Usuário busca por "Matrix".
+2. TMDB retorna 20 resultados.
+3. O sistema envia **todos os 20 candidatos** como um job único para a `enrichmentQueue`.
+4. O worker processa o batch: calcula embeddings para novos itens e faz bulk insert em `semantic_external_items`.
+5. Quando o usuário clica em "Salvar", o sistema faz o link para o item global já cacheado.
 
-## Proposed Changes
+---
 
-### 1. Queue Infrastructure (`src/services/queue-service.ts`)
+## Instruções Detalhadas e Melhorias
 
-- **New Queue**: `enrichmentQueue` ('enrichment-processing').
-- **Worker Logic**:
-  - **Job Name**: `bulk-enrich-candidates`
-  - **Payload**: `{ candidates: Array<ItemCandidate>, provider: 'tmdb' }`
-  - **Process**:
-    1. Extract all `externalIds` from payload.
-    2. Query `semantic_external_items` to find existing ones.
-    3. Filter out existing items.
-    4. **Bulk Vectorize**: Generate embeddings for the new items (parallel promises).
-    5. **Bulk Insert**: Insert all new items into `semantic_external_items` in one transaction.
+### 1. Schema e Idempotência
 
-### 2. Service Logic Updates
+- **Adicionar índice único** em `semantic_external_items` (`external_id`, `type`, `provider`) para garantir que não haja duplicatas no cache global. Criar migration específica.
+- Campo `semanticExternalItemId` já existe em `memory_items` e deve ser sempre usado para filmes, séries e vídeos.
+
+### 2. Queue Infrastructure (`src/services/queue-service.ts`)
+
+- **Nova fila**: `enrichmentQueue` (`'enrichment-processing'`).
+- **Worker**: `bulk-enrich-candidates`.
+  - **Payload**: `{ candidates: Array<ItemCandidate>, provider: 'tmdb' | 'youtube' | ... }`
+  - **Processo**:
+    1. Extrair todos os `externalIds` do payload.
+    2. Consultar `semantic_external_items` para encontrar já existentes.
+    3. Filtrar apenas os novos.
+    4. **Batch Vectorize**: Gerar embeddings para todos os novos itens (preferir batch na API, se suportado; senão, promises paralelas).
+    5. **Bulk Insert**: Inserir todos os novos itens em uma transação.
+
+### 3. Service Logic Updates
 
 #### `src/services/enrichment/tmdb-service.ts`
 
-- Modify `searchMovies` / `searchTVShows`:
-  - Fetch results from TMDB.
-  - **Dispatch Bulk Job**: `enrichmentQueue.add('bulk-enrich-candidates', { candidates: results })`.
-  - Return results to UI immediately.
+- Modificar `searchMovies` / `searchTVShows`:
+  - Buscar resultados na TMDB.
+  - **Disparar job bulk**: `enrichmentQueue.add('bulk-enrich-candidates', { candidates: results, provider: 'tmdb', type: 'movie' | 'tv_show' })`.
+  - Retornar resultados para UI imediatamente.
 
 #### `src/services/item-service.ts`
 
-- Modify `createItem`:
-  1.  **Check Global**: Query `semantic_external_items` by `externalId`.
-  2.  **Fallback**: If not found (job pending), create specific global item inline.
-  3.  **Create User Memory**:
+- Modificar `createItem`:
+  1. **Consultar cache global**: Buscar em `semantic_external_items` por `externalId`.
+  2. **Fallback**: Se não encontrado (job ainda pendente), criar item global inline (com embedding síncrono) e linkar.
+  3. **Criar memória do usuário**:
       - `embedding` = NULL.
-      - `semanticExternalItemId` = Global Item ID.
-      - `metadata` = Minimal JSON for UI.
+      - `semanticExternalItemId` = ID do item global.
+      - `metadata` = JSON mínimo para UI.
+  4. **Notas e links**: continuam gerando embedding inline, pois não têm cache global.
 
-### 3. Application Setup (`src/app.ts`)
+### 4. Application Setup (`src/app.ts`)
 
-- Register `enrichmentQueue` in Bull Board adapters.
+- Registrar `enrichmentQueue` no Bull Board para monitoramento.
 
-## Verification Plan
+### 5. Embedding Service (Otimização)
 
-1. **Search**: Search for a movie term.
-2. **Monitor**: Check Bull Board for `bulk-enrich-candidates` job success.
-3. **Database**: Verify `semantic_external_items` has new rows with vectors.
-4. **Save**: Save a movie and verify `memory_items` links to it with NULL embedding.
+- Se a API de embedding suportar batch, adaptar para enviar arrays de textos, reduzindo latência e custo.
+- Se não suportar, manter promises paralelas.
+
+### 6. Estratégia de Fallback e Consistência
+
+- Se o usuário salvar um item antes do job async terminar, gerar embedding síncrono e inserir no cache global imediatamente, garantindo UX sem bloqueio.
+- Worker deve ser idempotente: se já existir, ignorar/atualizar.
+
+### 7. Verificação e Testes
+
+1. **Busca**: Buscar termo de filme.
+2. **Monitorar**: Verificar job `bulk-enrich-candidates` no Bull Board.
+3. **Banco**: Conferir novos rows em `semantic_external_items` com vetores.
+4. **Salvar**: Salvar filme e garantir que `memory_items` referencia o item global e `embedding` está NULL.
+
+---
+
+## Considerações Finais
+
+- O schema e infraestrutura já estão prontos para a normalização.
+- O maior esforço está na criação do worker de enrichment e adaptação dos fluxos de save.
+- Garantir idempotência e consistência é fundamental para evitar duplicatas e race conditions.
+
+---
+
+**Checklist de Implementação:**
+
+- [x] Migration: índice único em `semantic_external_items`
+- [x] Nova fila Bull: `enrichmentQueue` + worker
+- [x] Dispatch job em `tmdb-service.ts`
+- [x] Consulta cache global em `item-service.ts`
+- [x] Registro no Bull Board
+- [ ] Testes de fallback e consistência

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { memoryItems } from '@/db/schema';
+import { memoryItems, semanticExternalItems } from '@/db/schema';
 import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
 import type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata } from '@/types/index';
@@ -316,15 +316,91 @@ export class ItemService {
 			}
 		}
 
-		// Gera embedding semântico
+		// Lógica para itens globais (Movies/TV/Videos) vs Itens Pessoais
+		let semanticExternalItemId: string | null = null;
 		let embedding: number[] | null = null;
-		try {
-			const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
-			embedding = await embeddingService.generateEmbedding(textToEmbed);
-			loggers.db.info({ title: title.substring(0, 30) }, '✨ Vetor gerado');
-		} catch (error) {
-			loggers.db.warn({ err: error }, '⚠️ Falha ao gerar embedding, salvando sem vetor');
+
+		const isGlobalType = ['movie', 'tv_show', 'video'].includes(type);
+		const provider = type === 'movie' || type === 'tv_show' ? 'tmdb' : type === 'video' ? 'youtube' : null;
+
+		if (isGlobalType && externalId && provider && metadata) {
+			// 1. Tenta buscar no cache global
+			const [globalItem] = await db
+				.select()
+				.from(semanticExternalItems)
+				.where(
+					and(
+						eq(semanticExternalItems.externalId, externalId),
+						eq(semanticExternalItems.type, type),
+						eq(semanticExternalItems.provider, provider),
+					),
+				)
+				.limit(1);
+
+			if (globalItem) {
+				semanticExternalItemId = globalItem.id;
+				loggers.db.debug({ externalId, type }, '🔗 Linkado com item global existente');
+			} else {
+				// 2. FALLBACK: Cria item global inline (síncrono)
+				try {
+					const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+					const globalEmbedding = await embeddingService.generateEmbedding(textToEmbed);
+
+					const [newGlobal] = await db
+						.insert(semanticExternalItems)
+						.values({
+							externalId,
+							type,
+							provider,
+							rawData: metadata,
+							embedding: globalEmbedding,
+						})
+						.onConflictDoNothing({
+							target: [semanticExternalItems.externalId, semanticExternalItems.type, semanticExternalItems.provider],
+						})
+						.returning();
+
+					// Pode ser undefined se race condition pegou (onConflictDoNothing)
+					if (newGlobal) {
+						semanticExternalItemId = newGlobal.id;
+						loggers.db.info({ externalId }, '🌍 Item global criado inline (fallback)');
+					} else {
+						// Se falhar insert por conflito, busca novamente
+						const [existing] = await db
+							.select()
+							.from(semanticExternalItems)
+							.where(
+								and(
+									eq(semanticExternalItems.externalId, externalId),
+									eq(semanticExternalItems.type, type),
+									eq(semanticExternalItems.provider, provider),
+								),
+							)
+							.limit(1);
+						if (existing) semanticExternalItemId = existing.id;
+					}
+				} catch (error) {
+					loggers.db.warn({ err: error }, '⚠️ Falha ao criar item global, salvando localmente');
+				}
+			}
 		}
+
+
+		// Se não linkou com global (ou falhou), gera embedding local somente se não tiver
+		// (Para notas e links, sempre gera local)
+		if (!semanticExternalItemId) {
+			try {
+				const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+				embedding = await embeddingService.generateEmbedding(textToEmbed);
+				loggers.db.info({ title: title.substring(0, 30) }, '✨ Vetor gerado (local)');
+			} catch (error) {
+				loggers.db.warn({ err: error }, '⚠️ Falha ao gerar embedding local, salvando sem vetor');
+			}
+		}
+
+		// Se linkado, NÃO salva duplicata de metadata e embedding no banco
+		const metadataToSave = semanticExternalItemId ? {} : metadata;
+		// Embedding já é null se semanticExternalItemId existe (na lógica acima)
 
 		// Cria nova memória
 		const [item] = await db
@@ -335,8 +411,9 @@ export class ItemService {
 				title,
 				externalId,
 				contentHash,
-				metadata,
+				metadata: metadataToSave,
 				embedding,
+				semanticExternalItemId,
 			})
 			.returning();
 
@@ -354,12 +431,27 @@ export class ItemService {
 			conditions.push(eq(memoryItems.type, type));
 		}
 
-		return await db
-			.select()
+		const result = await db
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				// Coalesce metadata e embedding (prioriza global se existir)
+				metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+				embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+				createdAt: memoryItems.createdAt,
+				semanticExternalItemId: memoryItems.semanticExternalItemId,
+			})
 			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 			.where(and(...conditions))
 			.orderBy(desc(memoryItems.createdAt))
 			.limit(limit);
+
+		return result;
 	}
 
 	/**
@@ -367,8 +459,20 @@ export class ItemService {
 	 */
 	async getItemById(itemId: string, userId: string) {
 		const [item] = await db
-			.select()
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+				embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+				createdAt: memoryItems.createdAt,
+				semanticExternalItemId: memoryItems.semanticExternalItemId,
+			})
 			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 			.where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)))
 			.limit(1);
 
@@ -395,18 +499,25 @@ export class ItemService {
 			// 1. BUSCA VETORIAL (Semântica)
 			const queryEmbedding = await embeddingService.generateEmbedding(expandedQuery);
 
-			// Busca todos os itens com embedding
+			// Busca todos os itens com embedding (Local ou Global)
+			// Coalesce garante que pegamos o embedding de onde ele estiver
 			const itemsWithEmbedding = await db
 				.select({
 					id: memoryItems.id,
 					title: memoryItems.title,
 					type: memoryItems.type,
-					metadata: memoryItems.metadata,
-					embedding: memoryItems.embedding,
+					metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+					embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
 					createdAt: memoryItems.createdAt,
 				})
 				.from(memoryItems)
-				.where(and(eq(memoryItems.userId, userId), sql`${memoryItems.embedding} IS NOT NULL`));
+				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
+				.where(
+					and(
+						eq(memoryItems.userId, userId),
+						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
+					),
+				);
 
 			if (itemsWithEmbedding.length === 0) {
 				loggers.db.warn('Nenhum item com embedding encontrado');
@@ -446,14 +557,24 @@ export class ItemService {
 		// 2. FALLBACK: BUSCA KEYWORD (Literal)
 		loggers.db.info({ query }, '📜 Usando busca literal');
 		return await db
-			.select()
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+				createdAt: memoryItems.createdAt,
+			})
 			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 			.where(
 				and(
 					eq(memoryItems.userId, userId),
 					or(
 						sql`LOWER(${memoryItems.title}) LIKE LOWER(${searchPattern})`,
-						sql`CAST(${memoryItems.metadata} AS TEXT) ILIKE ${searchPattern}`,
+						sql`CAST(COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData}) AS TEXT) ILIKE ${searchPattern}`,
 					),
 				),
 			)
@@ -495,16 +616,22 @@ export class ItemService {
 			conditions.push(sql`LOWER(${memoryItems.title}) LIKE LOWER(${'%' + query + '%'})`);
 		}
 
+		// Lógica complexa de filtro unificado (metadata local vs global)
+		// Precisamos usar sql`` para referenciar o COALESCE corretamente nas clausulas WHERE
+
+		// Helper para referenciar o metadata correto (local ou global)
+		const metadataRef = sql`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`;
+
 		// Filtro por ano (movies/tv_shows)
 		if (yearRange) {
 			const [minYear, maxYear] = yearRange;
 			conditions.push(
 				sql`(
           (${memoryItems.type} = 'movie' AND 
-           (${memoryItems.metadata}->>'year')::int BETWEEN ${minYear} AND ${maxYear})
+           (${metadataRef}->>'year')::int BETWEEN ${minYear} AND ${maxYear})
           OR 
           (${memoryItems.type} = 'tv_show' AND 
-           (${memoryItems.metadata}->>'first_air_date')::int BETWEEN ${minYear} AND ${maxYear})
+           (${metadataRef}->>'first_air_date')::int BETWEEN ${minYear} AND ${maxYear})
         )`,
 			);
 		}
@@ -513,25 +640,25 @@ export class ItemService {
 		if (hasStreaming !== undefined) {
 			if (hasStreaming) {
 				conditions.push(
-					sql`${memoryItems.metadata}->'streaming' IS NOT NULL AND 
-              jsonb_array_length(${memoryItems.metadata}->'streaming') > 0`,
+					sql`${metadataRef}->'streaming' IS NOT NULL AND 
+              jsonb_array_length(${metadataRef}->'streaming') > 0`,
 				);
 			} else {
 				conditions.push(
-					sql`(${memoryItems.metadata}->'streaming' IS NULL OR 
-               jsonb_array_length(${memoryItems.metadata}->'streaming') = 0)`,
+					sql`(${metadataRef}->'streaming' IS NULL OR 
+               jsonb_array_length(${metadataRef}->'streaming') = 0)`,
 				);
 			}
 		}
 
 		// Filtro por rating mínimo
 		if (minRating !== undefined) {
-			conditions.push(sql`(${memoryItems.metadata}->>'rating')::float >= ${minRating}`);
+			conditions.push(sql`(${metadataRef}->>'rating')::float >= ${minRating}`);
 		}
 
 		// Filtro por gêneros (OR: item tem pelo menos um dos gêneros)
 		if (genres && genres.length > 0) {
-			const genreConditions = genres.map((genre) => sql`${memoryItems.metadata}->'genres' @> ${JSON.stringify([genre])}`);
+			const genreConditions = genres.map((genre) => sql`${metadataRef}->'genres' @> ${JSON.stringify([genre])}`);
 			conditions.push(or(...genreConditions)!);
 		}
 
@@ -539,12 +666,12 @@ export class ItemService {
 		let orderClause;
 		switch (orderBy) {
 			case 'rating':
-				orderClause = sql`(${memoryItems.metadata}->>'rating')::float DESC NULLS LAST`;
+				orderClause = sql`(${metadataRef}->>'rating')::float DESC NULLS LAST`;
 				break;
 			case 'year':
 				orderClause = sql`COALESCE(
-          (${memoryItems.metadata}->>'year')::int,
-          (${memoryItems.metadata}->>'first_air_date')::int
+          (${metadataRef}->>'year')::int,
+          (${metadataRef}->>'first_air_date')::int
         ) DESC NULLS LAST`;
 				break;
 			default:
@@ -552,8 +679,21 @@ export class ItemService {
 		}
 
 		return await db
-			.select()
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				// Unifica metadata
+				metadata: sql<ItemMetadata>`${metadataRef}`,
+				embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+				createdAt: memoryItems.createdAt,
+				semanticExternalItemId: memoryItems.semanticExternalItemId,
+			})
 			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 			.where(and(...conditions))
 			.orderBy(orderClause)
 			.limit(limit);

@@ -165,22 +165,24 @@ export class UserService {
 					// Invalida cache pois metadata mudou
 					await cacheDelete(cacheKey);
 				}
+				loggers.webhook.info({ userId, provider, externalId }, '✅ Conta já vinculada ao usuário correto');
 				return existing;
 			}
 
-			// Conflito: conta já vinculada a outro usuário.
-			// Em um cenário real poderíamos unificar usuários, mas no MVP vamos error ou sobrescrever.
-			// Vamos sobrescrever o vínculo para o novo userId (re-vinculação)
-			const [updated] = await db
-				.update(userAccounts)
-				.set({ userId, metadata, updatedAt: new Date() })
-				.where(eq(userAccounts.id, existing.id))
-				.returning();
+			// Conflito: conta já vinculada a outro usuário diferente
+			// Esse caso pode acontecer em cenários válidos (ex: migrações, ou Better Auth criando account antes do hook)
+			loggers.webhook.warn(
+				{
+					existingUserId: existing.userId,
+					targetUserId: userId,
+					provider,
+					externalId,
+				},
+				'⚠️ Conta já vinculada a outro usuário - mantendo vínculo original',
+			);
 
-			// Invalida cache pois userId mudou
-			await cacheDelete(cacheKey);
-
-			return updated;
+			// NÃO sobrescrever - retornar a existente e avisar
+			return existing;
 		}
 
 		// 2. Senão existe, cria novo vínculo
@@ -193,6 +195,8 @@ export class UserService {
 				metadata,
 			})
 			.returning();
+
+		loggers.webhook.info({ userId, provider, externalId }, '✅ Nova conta vinculada');
 
 		// Invalida cache (para garantir que next fetch pegue o novo)
 		await cacheDelete(cacheKey);

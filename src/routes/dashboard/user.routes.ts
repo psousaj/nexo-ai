@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { userService } from '@/services/user-service';
+import { userEmailService } from '@/services/user-email-service';
 import { preferencesService } from '@/services/preferences-service';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { zValidator } from '@hono/zod-validator';
@@ -155,4 +156,59 @@ export const userRoutes = new Hono<{ Variables: { user: any; session: any } }>()
 			await preferencesService.updatePreferences(userState.id, updates);
 			return c.json({ success: true });
 		},
-	);
+	)
+	// ============================================================================
+	// EMAIL MANAGEMENT ROUTES
+	// ============================================================================
+	.get('/emails', async (c) => {
+		const userState = c.get('user');
+		const emails = await userEmailService.getUserEmails(userState.id);
+		return c.json({ emails });
+	})
+	.post(
+		'/emails',
+		zValidator(
+			'json',
+			z.object({
+				email: z.string().email(),
+				provider: z.string().default('manual'),
+			}),
+		),
+		async (c) => {
+			const userState = c.get('user');
+			const { email, provider } = c.req.valid('json');
+
+			try {
+				const newEmail = await userEmailService.addEmail(userState.id, email, provider, false);
+				return c.json({ email: newEmail }, 201);
+			} catch (error) {
+				return c.json({ error: error instanceof Error ? error.message : 'Erro ao adicionar email' }, 400);
+			}
+		},
+	)
+	.patch(
+		'/emails/:emailId/primary',
+		zValidator('param', z.object({ emailId: z.string().uuid() })),
+		async (c) => {
+			const userState = c.get('user');
+			const { emailId } = c.req.valid('param');
+
+			try {
+				await userEmailService.setPrimaryEmail(userState.id, emailId);
+				return c.json({ success: true });
+			} catch (error) {
+				return c.json({ error: error instanceof Error ? error.message : 'Erro ao definir email primário' }, 400);
+			}
+		},
+	)
+	.delete('/emails/:emailId', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
+		const userState = c.get('user');
+		const { emailId } = c.req.valid('param');
+
+		try {
+			await userEmailService.removeEmail(userState.id, emailId);
+			return c.json({ success: true });
+		} catch (error) {
+			return c.json({ error: error instanceof Error ? error.message : 'Erro ao remover email' }, 400);
+		}
+	});

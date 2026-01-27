@@ -3,7 +3,6 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import { env } from '@/config/env';
-import { eq } from 'drizzle-orm';
 
 export const auth = betterAuth({
 	secret: env.BETTER_AUTH_SECRET,
@@ -45,10 +44,23 @@ export const auth = betterAuth({
 		discord: {
 			clientId: env.DISCORD_CLIENT_ID || '',
 			clientSecret: env.DISCORD_CLIENT_SECRET || '',
+			enabled: !!env.DISCORD_CLIENT_ID,
 		},
 		google: {
 			clientId: env.GOOGLE_CLIENT_ID || '',
 			clientSecret: env.GOOGLE_CLIENT_SECRET || '',
+			enabled: !!env.GOOGLE_CLIENT_ID,
 		},
 	},
+	// HOOKS DESABILITADOS TEMPORARIAMENTE - Better Auth 1.4.17 tem bug com Hono
+	// Ver: https://github.com/better-auth/better-auth/issues/xxx
+	// TODO: Reativar quando Better Auth 1.5.x for lançado ou usar plugin específico
+	// hooks: {
+	// 	before: async (context) => {
+	// 		// Hook de linking OAuth com usuário existente
+	// 	},
+	// 	after: async (context) => {
+	// 		// Hook de sincronização user_accounts e user_emails
+	// 	},
+	// },
 });

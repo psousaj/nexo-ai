@@ -12,6 +12,7 @@ import {
 	messageQueue,
 	closeConversationQueue,
 	responseQueue,
+	enrichmentQueue,
 } from '@/services/queue-service';
 import pkg from '../package.json';
 import cron from 'node-cron';
@@ -60,7 +61,12 @@ const serverAdapter = new HonoAdapter(serveStatic);
 
 // Criar Bull Board com as filas
 createBullBoard({
-	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue), new BullAdapter(responseQueue)],
+	queues: [
+		new BullAdapter(messageQueue),
+		new BullAdapter(closeConversationQueue),
+		new BullAdapter(responseQueue),
+		new BullAdapter(enrichmentQueue),
+	],
 	serverAdapter,
 });
 

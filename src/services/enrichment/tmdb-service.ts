@@ -3,6 +3,7 @@ import type { MovieMetadata, TVShowMetadata } from '@/types';
 import { cacheGet, cacheSet } from '@/config/redis';
 import { fetchWithRetry } from '@/utils/retry';
 import { loggers } from '@/utils/logger';
+import { enrichmentQueue } from '@/services/queue-service';
 
 export interface TMDBMovie {
 	id: number;
@@ -104,6 +105,16 @@ export class TMDBService {
 		// Cache por 24h
 		await cacheSet(cacheKey, results, 86400);
 
+		// Bulk Enrichment Job (fire-and-forget)
+		if (results.length > 0) {
+			loggers.enrichment.debug({ count: results.length }, '🚀 Disparando bulk enrichment para filmes');
+			enrichmentQueue.add('bulk-enrich-candidates', {
+				candidates: results,
+				provider: 'tmdb',
+				type: 'movie',
+			});
+		}
+
 		return results;
 	}
 
@@ -139,6 +150,16 @@ export class TMDBService {
 
 		// Cache por 24h
 		await cacheSet(cacheKey, results, 86400);
+
+		// Bulk Enrichment Job (fire-and-forget)
+		if (results.length > 0) {
+			loggers.enrichment.debug({ count: results.length }, '🚀 Disparando bulk enrichment para sÃ©ries');
+			enrichmentQueue.add('bulk-enrich-candidates', {
+				candidates: results,
+				provider: 'tmdb',
+				type: 'tv_show',
+			});
+		}
 
 		return results;
 	}
