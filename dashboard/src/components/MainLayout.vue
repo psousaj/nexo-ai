@@ -42,8 +42,8 @@ const menuItems = computed(() => {
 	return allItems.filter((item) => can(item.action, item.subject));
 });
 
-const handleLogout = () => {
-	authStore.logout();
+const handleLogout = async () => {
+	await authStore.logout();
 	router.push('/login');
 };
 </script>
