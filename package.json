@@ -6,7 +6,6 @@
     "scripts": {
         "dev": "tsx watch src/index.ts",
         "build:binary": "tsup",
-        "build": "",
         "start": "NODE_ENV=production node --experimental-loader=newrelic/esm-loader.mjs dist/index.js",
         "start:no-newrelic": "NODE_ENV=production node dist/index.js",
         "start:binary": "./server",
