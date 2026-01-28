@@ -8,14 +8,14 @@ Esta é a Landing Page do Nexo AI, criada com Nuxt 3 e Tailwind CSS.
 ```bash
 npm install
 # ou
-bun install
+pnpm install
 ```
 
 2. Rode o servidor de desenvolvimento:
 ```bash
 npm run dev
 # ou
-bun run dev
+pnpm run dev
 ```
 
 Acesse http://localhost:3000

@@ -193,7 +193,7 @@ Detectadas por `hasQuestionWords()`:
 Para testar manualmente no terminal:
 
 ```bash
-bun -e "
+pnpm exec tsx -e "
 import {intentClassifier} from './src/services/intent-classifier';
 const msg = 'SUA MENSAGEM AQUI';
 const result = intentClassifier.classify(msg);
@@ -205,7 +205,7 @@ console.log(JSON.stringify(result, null, 2));
 
 ```bash
 # Teste 1: Descrição longa
-bun -e "
+pnpm exec tsx -e "
 import {intentClassifier} from './src/services/intent-classifier';
 const r = intentClassifier.classify('Aplicativo over screen que conecta no spotify e permite adicionar a musica atual a várias playlists');
 console.log('Intent:', r.intent, '| Confidence:', r.confidence);
@@ -213,7 +213,7 @@ console.log('Intent:', r.intent, '| Confidence:', r.confidence);
 # Esperado: Intent: save_content | Confidence: 0.9
 
 # Teste 2: Título curto (ambíguo)
-bun -e "
+pnpm exec tsx -e "
 import {intentClassifier} from './src/services/intent-classifier';
 const r = intentClassifier.classify('clube da luta');
 console.log('Intent:', r.intent, '| Confidence:', r.confidence);
@@ -222,7 +222,7 @@ console.log('Intent:', r.intent, '| Confidence:', r.confidence);
 # Motivo: Deixa LLM decidir se é save ou outro
 
 # Teste 3: Busca
-bun -e "
+pnpm exec tsx -e "
 import {intentClassifier} from './src/services/intent-classifier';
 const r = intentClassifier.classify('mostra meus filmes');
 console.log('Intent:', r.intent, '| Query:', r.entities?.query);
@@ -230,7 +230,7 @@ console.log('Intent:', r.intent, '| Query:', r.entities?.query);
 # Esperado: Intent: search_content | Query: "meus filmes"
 
 # Teste 4: Salva anterior
-bun -e "
+pnpm exec tsx -e "
 import {intentClassifier} from './src/services/intent-classifier';
 const r = intentClassifier.classify('salva ai');
 console.log('Intent:', r.intent, '| Refers to previous:', r.entities?.refersToPrevious);

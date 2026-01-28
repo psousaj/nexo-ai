@@ -10,8 +10,7 @@ export class EmbeddingService {
 	private apiToken: string;
 	// Modelo Cloudflare Workers AI: BGE Small (384 dimensões)
 	// Ref: https://developers.cloudflare.com/workers-ai/models/text-embeddings/
-	private model: string = '@cf/baai/bge-small-en-v1.5';
-	private dimensions: number = 384;
+	private model: string = '@cf/google/embeddinggemma-300m';
 
 	constructor() {
 		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {

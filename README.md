@@ -148,33 +148,33 @@ bun run start            # Roda build
 bun run db:generate      # Gera migrations
 bun run db:push          # Aplica migrations
 bun run db:studio        # Abre Drizzle Studio
-
+pnpm run db:generate
 # Testes
 bun test                 # Roda testes
-
+pnpm run db:push
 # Deploy
 wrangler deploy          # Deploy Cloudflare Workers
 wrangler tail            # Logs em tempo real
 ```
 
-## ��� Deploy
+pnpm run dev
 
 ### Cloudflare Workers
 
 ```bash
 # 1. Login
 wrangler login
-
-# 2. Configurar secrets
-wrangler secret put DATABASE_URL
+pnpm run dev              # Roda servidor local
+pnpm run build            # Build para produção
+pnpm run start            # Roda build
 wrangler secret put META_WHATSAPP_TOKEN
 wrangler secret put ANTHROPIC_API_KEY
-# ... (ver docs/DEPLOYMENT.md)
-
-# 3. Deploy
+pnpm run db:generate      # Gera migrations
+pnpm run db:push          # Aplica migrations
+pnpm run db:studio        # Abre Drizzle Studio
 wrangler deploy
 ```
-
+pnpm test                 # Roda testes
 Ver guia completo em [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## ���️ Arquitetura
