@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
 import { dashboardService } from '../services/dashboard.service';
-import { AlertCircle, Search, Filter, ExternalLink, Clock, CheckCircle2 } from 'lucide-vue-next';
+import { AlertCircle, Search, Filter as _F, ExternalLink, Clock, CheckCircle2 } from 'lucide-vue-next';
 
 const { data: errorReports, isLoading } = useQuery({
 	queryKey: ['admin-errors'],
