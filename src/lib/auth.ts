@@ -26,13 +26,17 @@ export const auth = betterAuth({
 		},
 	},
 	session: {
-		cookie: {
-			sameSite: 'none',
-			secure: env.NODE_ENV === 'production',
-		},
+		preserveSessionInDatabase: true,
 		cookieCache: {
 			enabled: true,
-			maxAge: 1 * 60 * 60, // 1 hour
+			maxAge: 7 * 24 * 60 * 60, // 7 days
+		},
+	},
+	advanced: {
+		useSecureCookies: env.NODE_ENV === 'production',
+		crossSubDomainCookies: {
+			enabled: true,
+			domain: env.BETTER_AUTH_URL,
 		},
 	},
 	emailAndPassword: {
