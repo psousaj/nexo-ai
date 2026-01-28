@@ -23,6 +23,13 @@ export class PreferencesService {
 	}
 
 	/**
+	 * Atalho para atualizar apenas o nome do assistente
+	 */
+	async setAssistantName(userId: string, assistantName: string): Promise<void> {
+		await this.updatePreferences(userId, { assistantName });
+	}
+
+	/**
 	 * Atualiza as preferências do usuário
 	 */
 	async updatePreferences(

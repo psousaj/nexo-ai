@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "tsx watch src/index.ts",
         "build:binary": "tsup",
+        "build": "tsc",
         "start": "NODE_ENV=production node --experimental-loader=newrelic/esm-loader.mjs dist/index.js",
         "start:no-newrelic": "NODE_ENV=production node dist/index.js",
         "start:binary": "./server",
@@ -61,10 +62,16 @@
         "biome": "^0.3.3",
         "cross-env": "^10.1.0",
         "drizzle-kit": "^0.31.8",
-        "tsc": "^2.0.4",
         "tsup": "^8.5.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
         "vitest": "^2.1.9"
+    },
+    "pnpm": {
+        "neverBuiltDependencies": [
+            "@newrelic/fn-inspect",
+            "@newrelic/native-metrics",
+            "msgpackr-extract"
+        ]
     }
 }

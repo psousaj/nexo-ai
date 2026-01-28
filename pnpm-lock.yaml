@@ -117,9 +117,6 @@ importers:
       drizzle-kit:
         specifier: ^0.31.8
         version: 0.31.8
-      tsc:
-        specifier: ^2.0.4
-        version: 2.0.4
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
@@ -3121,10 +3118,6 @@ packages:
 
   ts-mixer@6.0.4:
     resolution: {integrity: sha512-ufKpbmrugz5Aou4wcr5Wc1UUFWOLhq+Fm6qa6P0w0K5Qw2yhaUoiWszhCVuNQyNwrlGiscHOmqYoAox1PtvgjA==}
-
-  tsc@2.0.4:
-    resolution: {integrity: sha512-fzoSieZI5KKJVBYGvwbVZs/J5za84f2lSTLPYf6AGiIf43tZ3GNrI1QzTLcjtyDDP4aLxd46RTZq1nQxe7+k5Q==}
-    hasBin: true
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -6207,8 +6200,6 @@ snapshots:
   ts-interface-checker@0.1.13: {}
 
   ts-mixer@6.0.4: {}
-
-  tsc@2.0.4: {}
 
   tslib@2.8.1: {}
 

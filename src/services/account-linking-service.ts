@@ -12,7 +12,7 @@ export class AccountLinkingService {
 	 */
 	async generateLinkingToken(
 		userId: string,
-		provider?: 'whatsapp' | 'telegram' | 'discord',
+		provider?: ProviderType,
 		tokenType: 'link' | 'signup' = 'link',
 		externalId?: string,
 	): Promise<string> {
