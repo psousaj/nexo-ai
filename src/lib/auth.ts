@@ -26,6 +26,10 @@ export const auth = betterAuth({
 		},
 	},
 	session: {
+		cookie: {
+			sameSite: 'none',
+			secure: env.NODE_ENV === 'production',
+		},
 		cookieCache: {
 			enabled: true,
 			maxAge: 1 * 60 * 60, // 1 hour
