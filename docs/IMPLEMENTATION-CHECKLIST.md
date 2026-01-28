@@ -344,13 +344,13 @@ Se algo falhar:
 
 ```bash
 # Ver logs do servidor
-bun run dev
+pnpm run dev
 
 # Testar tool isoladamente
-bun run test src/services/tools/index.test.ts
+pnpm test src/services/tools/index.test.ts
 
 # Validar JSON manualmente
-bun run scripts/test-llm-response.ts
+pnpm run scripts/test-llm-response.ts
 ```
 
 ## 📚 Referências

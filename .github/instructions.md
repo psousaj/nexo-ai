@@ -32,7 +32,7 @@ Isso levanta:
 # 🏗️ 3. Instalar dependências
 
 ```bash
-bun install
+pnpm install
 ```
 
 ---
@@ -40,8 +40,8 @@ bun install
 # 🧪 4. Drizzle: gerar e rodar migrations
 
 ```bash
-bunx drizzle-kit generate
-bunx drizzle-kit push
+pnpm exec drizzle-kit generate
+pnpm exec drizzle-kit push
 ```
 
 ---
@@ -49,7 +49,7 @@ bunx drizzle-kit push
 # 🟢 5. Rodar servidor dev
 
 ```bash
-bun run dev
+pnpm run dev
 ```
 
 Endpoints úteis:
@@ -130,7 +130,7 @@ O handler:
 ### Unit
 
 ```bash
-bun test --filter unit
+pnpm test -- --filter unit
 ```
 
 ### Integration
@@ -138,13 +138,13 @@ bun test --filter unit
 Requer Docker:
 
 ```bash
-bun test --filter integration
+pnpm test -- --filter integration
 ```
 
 ### E2E
 
 ```bash
-bun test --filter e2e
+pnpm test -- --filter e2e
 ```
 
 ---
@@ -164,7 +164,7 @@ A IA deve **sempre**:
 # 📦 12. Build para produção
 
 ```bash
-bun run build
+pnpm run build
 ```
 
 ---

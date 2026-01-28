@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	min-height: 100vh;
+	@apply bg-surface-50 text-surface-900;
+	font-family: var(--font-inter);
+}
+
+html,
+body,
+#app {
+	height: 100%;
+	width: 100%;
+}
+
+.dark body {
+	@apply bg-surface-950 text-surface-50;
+}
+
+/* Clean Card Utility */
+.glass {
+	@apply bg-white border border-surface-200;
+}
+
+.dark .glass {
+	@apply bg-surface-900 border-surface-800;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	@apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	@apply bg-surface-300 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+	@apply bg-surface-700;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	@apply bg-primary-400;
+}
+
+/* Standard Card Transitions */
+.premium-card {
+	@apply transition-all duration-200 ease-in-out rounded-xl p-6 glass shadow-sm hover:shadow-md;
+}

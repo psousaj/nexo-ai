@@ -4,6 +4,7 @@
  * Valida que intenções são detectadas corretamente
  */
 
+
 import { describe, test, expect } from 'vitest';
 import { IntentClassifier } from '@/services/intent-classifier';
 
@@ -297,7 +298,7 @@ describe('IntentClassifier', () => {
 			const result = await classifier.classify('deleta o filme 1');
 			expect(result.intent).toBe('delete_content');
 			expect(result.action).toBe('delete_selected');
-			expect(result.entities?.selection).toEqual([1]);
+			expect(result.entities?.selection).toBe(1);
 			expect(result.entities?.itemType).toBe('movie');
 		});
 
@@ -305,7 +306,7 @@ describe('IntentClassifier', () => {
 			const result = await classifier.classify('remove a série 2');
 			expect(result.intent).toBe('delete_content');
 			expect(result.action).toBe('delete_selected');
-			expect(result.entities?.selection).toEqual([2]);
+			expect(result.entities?.selection).toBe(2);
 			expect(result.entities?.itemType).toBe('tv_show');
 		});
 	});

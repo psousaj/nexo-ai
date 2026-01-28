@@ -4,12 +4,15 @@ import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { itemsRouter } from '@/routes/items';
+import { dashboardRouter } from '@/routes/dashboard';
+import { authRouter } from '@/routes/auth-better.routes';
 import {
 	runConversationCloseCron,
 	runAwaitingConfirmationTimeoutCron,
 	messageQueue,
 	closeConversationQueue,
 	responseQueue,
+	enrichmentQueue,
 } from '@/services/queue-service';
 import pkg from '../package.json';
 import cron from 'node-cron';
@@ -19,11 +22,34 @@ import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { loggers } from './utils/logger';
+import { swaggerUI } from '@hono/swagger-ui';
+import { apiReference } from '@scalar/hono-api-reference';
 
 const app = new Hono();
 
 // CORS
-app.use('*', cors());
+app.use(
+	'*',
+	cors({
+		origin: (origin) => {
+			// Permitir localhost e domínios ngrok/zrok para desenvolvimento
+			if (
+				!origin ||
+				origin.startsWith('http://localhost:') ||
+				origin.endsWith('ngrok-free.app') ||
+				origin.includes('zrok.io')
+			) {
+				return origin;
+			}
+			return origin; // Por enquanto permitir todos, mas com suporte a credentials
+		},
+		credentials: true,
+		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+		allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+		exposeHeaders: ['Content-Length', 'X-Kuma-Revision'],
+		maxAge: 600,
+	}),
+);
 
 // ============================================================================
 // BULL BOARD - Dashboard para filas
@@ -35,7 +61,12 @@ const serverAdapter = new HonoAdapter(serveStatic);
 
 // Criar Bull Board com as filas
 createBullBoard({
-	queues: [new BullAdapter(messageQueue), new BullAdapter(closeConversationQueue), new BullAdapter(responseQueue)],
+	queues: [
+		new BullAdapter(messageQueue),
+		new BullAdapter(closeConversationQueue),
+		new BullAdapter(responseQueue),
+		new BullAdapter(enrichmentQueue),
+	],
 	serverAdapter,
 });
 
@@ -108,14 +139,57 @@ app.onError(async (error, c) => {
 app.route('/health', healthRouter);
 app.route('/webhook', webhookRouter);
 app.route('/items', itemsRouter);
+app.route('/api/auth', authRouter);
+app.route('/api', dashboardRouter);
 
-// Root point for compatibility/version check
 app.get('/', (c) =>
 	c.json({
 		name: 'Nexo AI API',
 		version: pkg.version,
 		description: 'Assistente pessoal via WhatsApp/Telegram com IA',
+		docs: '/doc',
+		scalar: '/scalar',
 	}),
+);
+
+// OpenAPI Spec
+app.get('/openapi.json', (c) => {
+	return c.json({
+		openapi: '3.0.0',
+		info: {
+			title: 'Nexo AI API',
+			version: pkg.version,
+			description: 'API do assistente pessoal Nexo AI',
+		},
+		paths: {
+			'/health': {
+				get: {
+					summary: 'Verifica saúde da API',
+					responses: { 200: { description: 'OK' } },
+				},
+			},
+			'/api/auth/*': {
+				summary: 'Endpoints de Autenticação (Better Auth)',
+			},
+			'/items': {
+				get: {
+					summary: 'Lista itens do usuário',
+					parameters: [{ name: 'userId', in: 'query', required: true, schema: { type: 'string' } }],
+				},
+			},
+		},
+	});
+});
+
+// Documentation UIs
+app.get('/doc', swaggerUI({ url: '/openapi.json' }));
+app.get(
+	'/scalar',
+	apiReference({
+		spec: {
+			url: '/openapi.json',
+		},
+	} as any),
 );
 
 export default app;

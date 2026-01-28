@@ -3,6 +3,8 @@ import { whatsappAdapter, telegramAdapter } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { loggers, logError } from '@/utils/logger';
 import { messageQueue } from '@/services/queue-service';
+import { accountLinkingService } from '@/services/account-linking-service';
+import { userService } from '@/services/user-service';
 
 export const webhookRoutes = new Hono()
 	// TELEGRAM
@@ -25,7 +27,7 @@ export const webhookRoutes = new Hono()
 					await telegramAdapter.answerCallbackQuery(message.callbackQueryId);
 				}
 
-				// Enfileira processamento assíncrono
+				// Enfileira processamento assíncrono para todas as mensagens (incluindo comandos e tokens)
 				await messageQueue.add(
 					'message-processing',
 					{

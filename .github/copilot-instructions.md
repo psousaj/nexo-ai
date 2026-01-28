@@ -100,20 +100,20 @@ src/
 ## Comandos
 
 ```bash
-bun install && cp .env.example .env
-bun run dev              # http://localhost:3000
-bun run db:generate      # gera migrations Drizzle
-bun run db:push          # aplica no Supabase
-bun run db:studio        # UI visual do banco
-bun test                 # roda testes com Bun
-bun run lint             # TypeScript type check
+pnpm install && cp .env.example .env
+pnpm run dev              # http://localhost:3000
+pnpm run db:generate      # gera migrations Drizzle
+pnpm run db:push          # aplica no Supabase
+pnpm run db:studio        # UI visual do banco
+pnpm test                 # roda testes
+pnpm run lint             # TypeScript type check
 ```
 
 ## Testes (Bun Test)
 
 ```bash
-bun test                           # todos os testes
-bun test src/tests/intent-classifier.test.ts  # arquivo específico
+pnpm test                           # todos os testes
+pnpm test src/tests/intent-classifier.test.ts  # arquivo específico
 ```
 
 **Arquivos de teste** em `src/tests/`:

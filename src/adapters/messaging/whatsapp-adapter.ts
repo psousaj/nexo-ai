@@ -123,7 +123,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 		}
 	}
 
-	async sendMessage(to: string, text: string): Promise<void> {
+	async sendMessage(to: string, text: string, options?: any): Promise<void> {
 		const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
 
 		const payload = {

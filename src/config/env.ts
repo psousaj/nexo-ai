@@ -13,6 +13,7 @@ const envSchema = z.object({
 
 	// Telegram Bot API (PADRÃO)
 	TELEGRAM_BOT_TOKEN: z.string(),
+	TELEGRAM_BOT_USERNAME: z.string().optional(),
 	TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 
 	// Meta WhatsApp API (OPCIONAL - Feature futura)
@@ -22,12 +23,11 @@ const envSchema = z.object({
 	META_VERIFY_TOKEN: z.string().optional(),
 	META_BUSINESS_ACCOUNT_ID: z.string().optional(),
 
-	// AI (pelo menos um provider deve estar configurado)
-	// Cloudflare Workers AI (default)
-	CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
-	CLOUDFLARE_API_TOKEN: z.string().optional(),
-	// Outros providers
-	GOOGLE_API_KEY: z.string().optional(),
+	// Cloudflare AI Gateway (obrigatório)
+	CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
+	CLOUDFLARE_API_TOKEN: z.string().min(1),
+	CLOUDFLARE_GATEWAY_ID: z.string().default('nexo-ai-gateway'),
+	// Outros providers (opcional - para fallback manual se necessário)
 
 	// Observability
 	UPTRACE_DSN: z.string().optional(),
@@ -60,14 +60,28 @@ const envSchema = z.object({
 
 	// Application
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-	APP_URL: z.string().url().default('http://localhost:3000'),
+	APP_URL: z.string().url(),
+	DASHBOARD_URL: z.string().url(),
 	// Railway atribui porta aleatória via PORT env var
 	PORT: z.coerce.number().default(3000),
-	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
 
 	// Email Reporting (Resend)
 	RESEND_API_KEY: z.string().optional(),
 	ADMIN_EMAIL: z.string().email().optional(),
+
+	// Discord OAuth2 (gerenciado pelo Better Auth)
+	DISCORD_CLIENT_ID: z.string().optional(),
+	DISCORD_CLIENT_SECRET: z.string().optional(),
+	DISCORD_BOT_TOKEN: z.string().optional(), // Token do bot (necessário para login via discord.js)
+
+	// Better Auth
+	BETTER_AUTH_SECRET: z.string().min(32),
+	BETTER_AUTH_URL: z.string().url(),
+
+	// Google OAuth
+	GOOGLE_CLIENT_ID: z.string().optional(),
+	GOOGLE_CLIENT_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

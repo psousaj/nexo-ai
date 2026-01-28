@@ -5,85 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1768005413297,
-      "tag": "0000_common_santa_claus",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1768011375442,
-      "tag": "0001_good_paibok",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1768054282857,
-      "tag": "0002_massive_owl",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1768056157010,
-      "tag": "0003_nervous_reaper",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1768262247565,
-      "tag": "0004_stale_tattoo",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1768263067607,
-      "tag": "0005_happy_doctor_spectrum",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1768344047381,
-      "tag": "0006_watery_peter_parker",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1768434128648,
-      "tag": "0007_red_echo",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1768521131534,
-      "tag": "0008_certain_cable",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1768845609231,
-      "tag": "0009_elite_dreadnoughts",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1768845692335,
-      "tag": "0010_thick_vertigo",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1769109787914,
-      "tag": "0011_friendly_next_avengers",
+      "when": 1769566699959,
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]

@@ -1,8 +1,9 @@
 import Queue from 'bull';
 import { env } from '@/config/env';
 import { db } from '@/db';
-import { conversations } from '@/db/schema';
-import { eq, and, lte } from 'drizzle-orm';
+import { conversations, semanticExternalItems } from '@/db/schema';
+import { eq, and, lte, inArray } from 'drizzle-orm';
+import { embeddingService } from '@/services/ai/embedding-service';
 import { loggers } from '@/utils/logger';
 import { type IncomingMessage, type ProviderType, getProvider, type MessagingProvider } from '@/adapters/messaging';
 import { globalErrorHandler } from '@/services/error/error.service';
@@ -19,6 +20,23 @@ export interface ResponseJob {
 		userId?: string;
 		attempt?: number;
 	};
+}
+
+/**
+ * Enrichment Queue Job Interface
+ */
+export interface ItemCandidate {
+	id: number | string;
+	title?: string;
+	name?: string;
+	overview?: string;
+	[key: string]: any;
+}
+
+export interface EnrichmentJob {
+	candidates: ItemCandidate[];
+	provider: 'tmdb' | 'youtube';
+	type: 'movie' | 'tv_show' | 'video';
 }
 
 const queueLogger = loggers.queue;
@@ -77,6 +95,13 @@ export const responseQueue = new Queue<ResponseJob>('response-sending', REDIS_CO
 
 queueLogger.info('✅ Queue "response-sending" criada');
 
+/**
+ * Queue para enriquecimento de dados em background (Bulk Async Enrichment)
+ */
+export const enrichmentQueue = new Queue<EnrichmentJob>('enrichment-processing', REDIS_CONFIG);
+
+queueLogger.info('✅ Queue "enrichment-processing" criada');
+
 queueLogger.info(`🎯 Bull configurado com sucesso (${env.REDIS_HOST})`);
 
 // ============================================================================
@@ -107,6 +132,14 @@ responseQueue.on('ready', () => {
 	queueLogger.info('✅ [response-sending] Queue pronta');
 });
 
+enrichmentQueue.on('error', (error) => {
+	queueLogger.error({ err: error }, '❌ [enrichment-processing] Erro na queue');
+});
+
+enrichmentQueue.on('ready', () => {
+	queueLogger.info('✅ [enrichment-processing] Queue pronta');
+});
+
 closeConversationQueue.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [close-conversation] Job ativo');
 });
@@ -117,6 +150,10 @@ messageQueue.on('active', (job) => {
 
 responseQueue.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [response-sending] Job ativo');
+});
+
+enrichmentQueue.on('active', (job) => {
+	queueLogger.debug({ jobId: job.id }, '🔄 [enrichment-processing] Job ativo');
 });
 
 closeConversationQueue.on('failed', async (job, error) => {
@@ -274,6 +311,121 @@ responseQueue.process('send-response', 5, async (job) => {
 			throw error; // Re-throw para Bull fazer retry
 		}
 		
+		throw error;
+	}
+});
+
+/**
+ * Worker: Processa enriquecimento em lote (Bulk Async Enrichment)
+ */
+enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
+	const { candidates, provider, type } = job.data;
+
+	try {
+		if (!candidates || candidates.length === 0) {
+			queueLogger.warn({ jobId: job.id }, '⚠️ Nenhum candidato recebido para enrichment');
+			return { inserted: 0, skipped: 0, reason: 'no_candidates' };
+		}
+
+		queueLogger.info(
+			{ provider, type, count: candidates.length, jobId: job.id },
+			'🚀 [Worker] Iniciando bulk enrichment',
+		);
+
+		// 1. Extrair IDs
+		const externalIds = candidates.map((c) => String(c.id));
+
+		// 2. Verificar existentes
+		const existingItems = await db
+			.select({ externalId: semanticExternalItems.externalId })
+			.from(semanticExternalItems)
+			.where(
+				and(
+					eq(semanticExternalItems.provider, provider),
+					eq(semanticExternalItems.type, type),
+					inArray(semanticExternalItems.externalId, externalIds),
+				),
+			);
+
+		const existingIds = new Set(existingItems.map((i) => i.externalId));
+
+		// 3. Filtrar novos
+		const newCandidates = candidates.filter((c) => !existingIds.has(String(c.id)));
+
+		if (newCandidates.length === 0) {
+			queueLogger.info({ jobId: job.id }, '✅ Todos os itens já existem no cache global');
+			return { inserted: 0, skipped: candidates.length, reason: 'all_exist' };
+		}
+
+		queueLogger.info({ count: newCandidates.length }, '🔍 Novos itens para processar');
+
+		// 4. Batch Vectorize (Promises paralelas)
+		// Prepara texto para embedding: "Title: <title>. Overview: <overview>"
+		const itemsToInsert = await Promise.all(
+			newCandidates.map(async (candidate) => {
+				const text = `Title: ${candidate.title || candidate.name}\nOverview: ${candidate.overview || ''}`.trim();
+
+				let embedding: number[] | null = null;
+				try {
+					embedding = await embeddingService.generateEmbedding(text);
+				} catch (err) {
+					queueLogger.error({ err, candidateId: candidate.id }, '⚠️ Falha ao gerar embedding (ignorando item)');
+					return null;
+				}
+
+				return {
+					externalId: String(candidate.id),
+					type,
+					provider,
+					rawData: candidate,
+					embedding,
+				};
+			}),
+		);
+
+
+		const validItems = itemsToInsert.filter((i): i is NonNullable<typeof i> => {
+			if (!i || !i.embedding) return false;
+			// Valida embedding: array, 384 dimensões, todos números válidos
+			return (
+				Array.isArray(i.embedding) &&
+				i.embedding.length === 384 &&
+				i.embedding.every((v) => typeof v === 'number' && !isNaN(v))
+			);
+		});
+
+		if (validItems.length === 0) {
+			queueLogger.warn({ jobId: job.id }, '⚠️ Nenhum embedding gerado com sucesso');
+			return { inserted: 0, skipped: candidates.length, reason: 'embedding_failed' };
+		}
+
+		// 5. Bulk Insert
+		const insertResult = await db
+			.insert(semanticExternalItems)
+			.values(validItems)
+			.returning({ id: semanticExternalItems.id });
+
+		const insertedCount = insertResult.length;
+		const skippedCount = candidates.length - insertedCount;
+
+		queueLogger.info(
+			{ 
+				attempted: validItems.length, 
+				inserted: insertedCount, 
+				skipped: skippedCount,
+				jobId: job.id 
+			}, 
+			'✅ Bulk enrichment concluído'
+		);
+
+		return { 
+			inserted: insertedCount, 
+			attempted: validItems.length,
+			skipped: skippedCount,
+			total: candidates.length
+		};
+	} catch (error) {
+		queueLogger.error({ err: error, jobId: job.id }, '❌ Erro no bulk enrichment');
 		throw error;
 	}
 });
@@ -441,10 +593,10 @@ export async function queueResponse(data: ResponseJob): Promise<void> {
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close()]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close()]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
 });

@@ -24,9 +24,9 @@ export const userAccounts = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
 
-    /** Tipo de provider (telegram, whatsapp, discord) */
+    /** Tipo de provider (telegram, whatsapp, discord, google) */
     provider: text("provider")
-      .$type<"telegram" | "whatsapp" | "discord">()
+      .$type<"telegram" | "whatsapp" | "discord" | "google">()
       .notNull(),
 
     /** ID externo do usuário no provider (chat_id, phone number, user_id) */

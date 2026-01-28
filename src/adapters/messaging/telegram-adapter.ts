@@ -72,6 +72,12 @@ export class TelegramAdapter implements MessagingProvider {
 		// Telefone: raramente disponível (apenas se usuário compartilhou contato)
 		const phoneNumber = message.contact?.phone_number;
 
+		// Detecta tokens de vinculação em comandos /start
+		let linkingToken: string | undefined;
+		if (text && text.startsWith('/start ')) {
+			linkingToken = text.split(' ')[1];
+		}
+
 		return {
 			messageId: message.message_id.toString(),
 			externalId: chatId,
@@ -80,6 +86,7 @@ export class TelegramAdapter implements MessagingProvider {
 			timestamp: new Date(message.date * 1000),
 			provider: 'telegram',
 			phoneNumber,
+			linkingToken,
 		};
 	}
 
@@ -161,7 +168,7 @@ export class TelegramAdapter implements MessagingProvider {
 	async sendMessageWithButtons(
 		chatId: string,
 		text: string,
-		buttons: Array<Array<{ text: string; callback_data: string }>>,
+		buttons: Array<Array<{ text: string; callback_data?: string; url?: string }>>,
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
@@ -210,7 +217,7 @@ export class TelegramAdapter implements MessagingProvider {
 		chatId: string,
 		photoUrl: string,
 		caption?: string,
-		buttons?: Array<Array<{ text: string; callback_data: string }>>,
+		buttons?: Array<Array<{ text: string; callback_data?: string; url?: string }>>,
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
@@ -282,6 +289,23 @@ export class TelegramAdapter implements MessagingProvider {
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify(payload),
+		});
+	}
+
+	/**
+	 * Envia indicador de atividade (typing, upload_photo, etc)
+	 * Status dura 5 segundos ou até próxima mensagem
+	 */
+	async sendChatAction(
+		chatId: string,
+		action: 'typing' | 'upload_photo' | 'upload_video' | 'upload_document',
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendChatAction`;
+
+		await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ chat_id: chatId, action }),
 		});
 	}
 
