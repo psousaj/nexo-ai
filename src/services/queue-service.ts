@@ -383,7 +383,16 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 			}),
 		);
 
-		const validItems = itemsToInsert.filter((i): i is NonNullable<typeof i> => i !== null && i.embedding !== null);
+
+		const validItems = itemsToInsert.filter((i): i is NonNullable<typeof i> => {
+			if (!i || !i.embedding) return false;
+			// Valida embedding: array, 384 dimensões, todos números válidos
+			return (
+				Array.isArray(i.embedding) &&
+				i.embedding.length === 384 &&
+				i.embedding.every((v) => typeof v === 'number' && !isNaN(v))
+			);
+		});
 
 		if (validItems.length === 0) {
 			queueLogger.warn({ jobId: job.id }, '⚠️ Nenhum embedding gerado com sucesso');
@@ -394,9 +403,6 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 		const insertResult = await db
 			.insert(semanticExternalItems)
 			.values(validItems)
-			.onConflictDoNothing({
-				target: [semanticExternalItems.externalId, semanticExternalItems.type, semanticExternalItems.provider],
-			})
 			.returning({ id: semanticExternalItems.id });
 
 		const insertedCount = insertResult.length;
