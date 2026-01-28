@@ -73,6 +73,8 @@ export interface AgentResponse {
  * Orquestrador principal do agente
  */
 export class AgentOrchestrator {
+	private readonly MAX_CLARIFICATION_ATTEMPTS = 4;
+
 	/**
 	 * Processa mensagem do usuário
 	 */
@@ -82,6 +84,36 @@ export class AgentOrchestrator {
 		// 0. BUSCAR ESTADO ATUAL
 		const conversation = await conversationService.findOrCreateConversation(context.userId);
 		loggers.ai.info({ state: conversation.state }, '📊 Estado atual');
+
+		// A0. TRATAR ESTADO OFF_TOPIC_CHAT
+		if (conversation.state === 'off_topic_chat') {
+			// Re-classifica intenção para ver se usuário voltou ao escopo
+			const intent = await intentClassifier.classify(context.message);
+
+			// Se intenção for clara (confiança alta), reseta para idle e processa normalmente
+			if (intent.intent !== 'unknown' && intent.confidence >= 0.85) {
+				loggers.ai.info({ intent: intent.intent }, '🎯 Usuário voltou ao escopo, limpando off_topic');
+				await conversationService.updateState(conversation.id, 'idle', {
+					clarificationAttempts: 0,
+					lastClarificationMessage: undefined,
+				});
+				conversation.state = 'idle';
+				// Continua para o fluxo normal de processamento
+			} else {
+				// Continua em off_topic, responde com mensagem amigável aleatória
+				const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
+				const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
+
+				await conversationService.addMessage(conversation.id, 'user', context.message);
+				await conversationService.addMessage(conversation.id, 'assistant', responseMessage);
+
+				return {
+					message: responseMessage,
+					state: 'off_topic_chat',
+					skipFallback: true,
+				};
+			}
+		}
 
 		// A. TRATAR ESTADO AWAITING_CONTEXT (Clarificação)
 		if (conversation.state === 'awaiting_context') {
@@ -1010,6 +1042,12 @@ export class AgentOrchestrator {
 		loggers.ai.info({ detectedType }, '✅ Tipo escolhido pelo usuário');
 
 		const originalMessage = pendingClarification.originalMessage;
+
+		// Resetar tentativas de clarificação se teve sucesso
+		await conversationService.updateState(conversation.id, 'processing', {
+			clarificationAttempts: 0,
+		});
+
 		const toolContext: ToolContext = {
 			userId: context.userId,
 			conversationId: context.conversationId,
@@ -1120,15 +1158,73 @@ export class AgentOrchestrator {
 			}
 		}
 
-		// Fallback: tipo desconhecido
+		// Fallback: tipo desconhecido - CONVERSA LIVRE OU OFF-TOPIC
+		const attempts = (conversation.context?.clarificationAttempts || 0) + 1;
+
+		if (attempts >= this.MAX_CLARIFICATION_ATTEMPTS) {
+			loggers.ai.info({ attempts }, '🛑 Limite de clarificações atingido, entrando em off_topic');
+
+			const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
+			const offTopicMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
+
+			await conversationService.updateState(conversation.id, 'off_topic_chat', {
+				clarificationAttempts: attempts,
+				lastClarificationMessage: pendingClarification.originalMessage,
+				pendingClarification: undefined, // Limpa para não entrar em loop
+			});
+
+			await conversationService.addMessage(conversation.id, 'user', context.message);
+			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage);
+
+			return {
+				message: offTopicMessage,
+				state: 'off_topic_chat',
+				skipFallback: true,
+			};
+		}
+
+		// Conversa livre com IA
+		loggers.ai.info({ attempts }, '💬 NLP inconclusivo, gerando resposta conversacional via IA');
+
+		const conversationalResponse = await this.getConversationalClarification(context, pendingClarification.originalMessage, attempts);
+
+		await conversationService.updateState(conversation.id, 'awaiting_context', {
+			clarificationAttempts: attempts,
+		});
+
+		await conversationService.addMessage(conversation.id, 'user', context.message);
+		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse);
+
 		return {
-			message: 'Não entendi o tipo. Pode tentar novamente?',
-			state: 'idle',
+			message: conversationalResponse,
+			state: 'awaiting_context',
+			skipFallback: true,
 		};
 	}
 
 	/**
+	 * Gera resposta conversacional durante clarificação usando LLM
+	 */
+	private async getConversationalClarification(context: AgentContext, originalMessage: string, attempt: number): Promise<string> {
+		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
+
+		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
+			.replace('{user_response}', context.message)
+			.replace('{attempt}', String(attempt))
+			.replace('{max_attempts}', String(this.MAX_CLARIFICATION_ATTEMPTS));
+
+		const response = await llmService.callLLM({
+			message: context.message,
+			systemPrompt: prompt,
+			history: [],
+		});
+
+		return response.message || 'Desculpa, não entendi bem. O que você gostaria de fazer com isso?';
+	}
+
+	/**
 	 * Envia lista de candidatos com botões clicáveis (Telegram Inline Keyboard)
+
 	 */
 	private async sendCandidatesWithButtons(context: AgentContext, conversation: any, candidates: any[]): Promise<AgentResponse> {
 		const contextData = conversation.context || {};

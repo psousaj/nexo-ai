@@ -8,6 +8,7 @@ export type ConversationState =
 	| 'idle' // Conversa inativa, pronta para receber comandos
 	| 'processing' // Ação em andamento (evita concorrência)
 	| 'awaiting_context' // Aguardando contexto do usuário
+	| 'off_topic_chat' // Usuário entrou em conversa paralela fora do escopo
 	| 'awaiting_confirmation' // Aguardando confirmação do usuário (lista com botões)
 	| 'awaiting_final_confirmation' // Aguardando confirmação final com imagem
 	| 'enriching' // Buscando informações adicionais
@@ -157,6 +158,8 @@ export interface ConversationContext {
 		detectedType: string | null;
 		clarificationOptions: string[];
 	};
+	clarificationAttempts?: number; // Contador de tentativas de clarificação
+	lastClarificationMessage?: string; // Última mensagem original antes de off_topic
 
 	// Batch processing
 	batch_queue?: Array<{
