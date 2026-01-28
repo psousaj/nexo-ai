@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { users, userAccounts } from '@/db/schema';
-import { conversation } from '@/db/schema/conversation'; // Hypothetical path
+import { conversations } from '@/db/schema/conversations';
 import { eq, notInArray } from 'drizzle-orm';
 
 async function checkOrphans() {
@@ -24,9 +24,9 @@ async function checkOrphans() {
 	console.log('\n--- checking conversations ---');
 	// I need to check conversation schema path if it fails, but assuming defaults
 	try {
-		const conversations = await db.select().from(conversation);
+		const conversationsData = await db.select().from(conversations);
 		const convsByUser = new Map<string, number>();
-		for (const conv of conversations) {
+		for (const conv of conversationsData) {
 			const count = convsByUser.get(conv.userId) || 0;
 			convsByUser.set(conv.userId, count + 1);
 		}

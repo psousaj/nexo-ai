@@ -385,7 +385,6 @@ export class ItemService {
 			}
 		}
 
-
 		// Se não linkou com global (ou falhou), gera embedding local somente se não tiver
 		// (Para notas e links, sempre gera local)
 		if (!semanticExternalItemId) {
@@ -513,10 +512,7 @@ export class ItemService {
 				.from(memoryItems)
 				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 				.where(
-					and(
-						eq(memoryItems.userId, userId),
-						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
-					),
+					and(eq(memoryItems.userId, userId), sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`),
 				);
 
 			if (itemsWithEmbedding.length === 0) {
@@ -719,6 +715,14 @@ export class ItemService {
 	 */
 	async deleteItem(itemId: string, userId: string) {
 		await db.delete(memoryItems).where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)));
+	}
+
+	/**
+	 * Deleta todas as memórias do usuário
+	 */
+	async deleteAllItems(userId: string): Promise<number> {
+		const result = await db.delete(memoryItems).where(eq(memoryItems.userId, userId)).returning();
+		return result.length;
 	}
 
 	/**
