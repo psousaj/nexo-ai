@@ -23,12 +23,11 @@ const envSchema = z.object({
 	META_VERIFY_TOKEN: z.string().optional(),
 	META_BUSINESS_ACCOUNT_ID: z.string().optional(),
 
-	// AI (pelo menos um provider deve estar configurado)
-	// Cloudflare Workers AI (default)
-	CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
-	CLOUDFLARE_API_TOKEN: z.string().optional(),
-	// Outros providers
-	GOOGLE_API_KEY: z.string().optional(),
+	// Cloudflare AI Gateway (obrigatório)
+	CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
+	CLOUDFLARE_API_TOKEN: z.string().min(1),
+	CLOUDFLARE_GATEWAY_ID: z.string().default('nexo-ai-gateway'),
+	// Outros providers (opcional - para fallback manual se necessário)
 
 	// Observability
 	UPTRACE_DSN: z.string().optional(),

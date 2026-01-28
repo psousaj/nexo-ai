@@ -37,4 +37,4 @@ export interface AIProvider {
 	getName(): string;
 }
 
-export type AIProviderType = 'cloudflare' | 'gemini';
+export type AIProviderType = 'ai-gateway';

@@ -1,34 +1,42 @@
+import OpenAI from 'openai';
 import { env } from '@/config/env';
 import { loggers } from '@/utils/logger';
 
 /**
- * Serviço de Embeddings usando Cloudflare Workers AI
- * Usa API REST direta (não SDK OpenAI) para evitar bugs de formatação
+ * Serviço de Embeddings usando Cloudflare AI Gateway
+ * Usa SDK OpenAI apontando para o endpoint compat do AI Gateway
+ * 
+ * Benefícios:
+ * - Cache nativo de embeddings (economia massiva)
+ * - Analytics unificado
+ * - Rate limiting automático
  */
 export class EmbeddingService {
-	private accountId: string;
-	private apiToken: string;
-	// Modelo Cloudflare Workers AI: BGE Small (384 dimensões)
-	// Ref: https://developers.cloudflare.com/workers-ai/models/text-embeddings/
-	private model: string = '@cf/google/embeddinggemma-300m';
+	private client: OpenAI;
+	private model: string = 'dynamic/embeddings';
 
 	constructor() {
-		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN || !env.CLOUDFLARE_GATEWAY_ID) {
 			throw new Error('Cloudflare credentials não configuradas para Embeddings');
 		}
 
-		this.accountId = env.CLOUDFLARE_ACCOUNT_ID;
-		this.apiToken = env.CLOUDFLARE_API_TOKEN;
+		const baseURL = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`;
+
+		this.client = new OpenAI({
+			apiKey: env.CLOUDFLARE_API_TOKEN,
+			baseURL,
+		});
+
+		loggers.enrichment.info(`✅ EmbeddingService configurado via AI Gateway`);
 	}
 
 	/**
 	 * Trunca texto para caber no limite do modelo
-	 * Cloudflare Workers AI: ~2048 chars safe (512 tokens)
+	 * ~2048 chars safe (512 tokens)
 	 */
 	private truncateText(text: string, maxChars: number = 2000): string {
 		if (text.length <= maxChars) return text;
 
-		// Trunca e adiciona indicador
 		const truncated = text.slice(0, maxChars);
 		loggers.enrichment.warn({ originalLength: text.length, truncatedLength: maxChars }, '⚠️ Texto truncado para embedding');
 
@@ -37,7 +45,7 @@ export class EmbeddingService {
 
 	/**
 	 * Gera embedding para um texto
-	 * Usa API REST direta do Cloudflare Workers AI
+	 * Usa SDK OpenAI via AI Gateway compat endpoint
 	 */
 	async generateEmbedding(text: string): Promise<number[]> {
 		try {
@@ -51,45 +59,16 @@ export class EmbeddingService {
 
 			loggers.enrichment.debug({ textLength: processedText.length, model: this.model }, '📤 Gerando embedding');
 
-			// Chamar API diretamente (não usar SDK OpenAI - causa bug)
-			const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/ai/run/${this.model}`;
-
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${this.apiToken}`,
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					text: processedText,
-				}),
+			// Chamar API via OpenAI SDK
+			const response = await this.client.embeddings.create({
+				model: this.model,
+				input: processedText,
 			});
 
-			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(`Cloudflare API error (${response.status}): ${errorText}`);
-			}
-
-			const data = (await response.json()) as {
-				success: boolean;
-				result?: { data?: number[][] };
-			};
-
-			// Log da resposta para debug
-			loggers.enrichment.debug(
-				{
-					success: data.success,
-					hasResult: !!data.result,
-					hasData: !!data.result?.data,
-				},
-				'📦 Resposta da API de embedding',
-			);
-
-			// Cloudflare retorna: { success: true, result: { data: [[...embedding...]] } }
-			const embedding = data.result?.data?.[0];
+			const embedding = response.data[0]?.embedding;
 
 			if (!embedding || !Array.isArray(embedding)) {
-				throw new Error('Formato de resposta inválido da API Cloudflare');
+				throw new Error('Formato de resposta inválido da API');
 			}
 
 			// Validar se o embedding não é um vetor de zeros
@@ -97,7 +76,7 @@ export class EmbeddingService {
 			if (isZeroVector) {
 				loggers.enrichment.error(
 					{ textLength: processedText.length, model: this.model },
-					'❌ API retornou vetor de zeros! Possível problema no modelo',
+					'❌ API retornou vetor de zeros!'
 				);
 				throw new Error('Embedding inválido: vetor de zeros retornado');
 			}
@@ -110,7 +89,7 @@ export class EmbeddingService {
 					sample: embedding.slice(0, 3),
 					magnitude: magnitude.toFixed(4),
 				},
-				'✅ Embedding gerado',
+				'✅ Embedding gerado'
 			);
 
 			return embedding;
@@ -122,7 +101,7 @@ export class EmbeddingService {
 					model: this.model,
 					status: error?.status,
 				},
-				'❌ Erro ao gerar embedding',
+				'❌ Erro ao gerar embedding'
 			);
 			throw error;
 		}
