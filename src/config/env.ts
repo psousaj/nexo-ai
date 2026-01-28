@@ -64,7 +64,12 @@ const envSchema = z.object({
 	CORS_ORIGINS: z
 		.string()
 		.min(1, 'CORS_ORIGINS é obrigatório')
-		.transform((val) => val.split(',').map((origin) => origin.trim())),
+		.transform((val) =>
+			val
+				.trim()
+				.split(',')
+				.map((origin) => origin.trim()),
+		),
 	DASHBOARD_URL: z.string().url(),
 	// Railway atribui porta aleatória via PORT env var
 	PORT: z.coerce.number().default(3000),

@@ -31,17 +31,7 @@ const app = new Hono();
 app.use(
 	'*',
 	cors({
-		origin: (origin) => {
-			// Requests sem origin header (ex: curl, postman)
-			if (!origin) return origin;
-
-			// Verifica se a origin está na lista permitida
-			const isAllowed = env.CORS_ORIGINS.some(
-				(allowed) => origin === allowed || origin.startsWith(allowed),
-			);
-
-			return isAllowed ? origin : null;
-		},
+		origin: env.CORS_ORIGINS,
 		credentials: true,
 		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 		allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
