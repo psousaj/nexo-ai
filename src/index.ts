@@ -1,6 +1,6 @@
 import 'newrelic';
 import { serve } from '@hono/node-server';
-import app from '@/app';
+import app from '@/server';
 import { env } from '@/config/env';
 import { logger } from '@/utils/logger';
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
