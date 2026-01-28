@@ -14,7 +14,7 @@ COPY . .
 RUN pnpm train:nexo
 
 # Builda o projeto (ajuste para seu comando de build)
-RUN pnpm run build
+RUN pnpm run build:binary
 
 # Stage final para produção
 FROM node:20-alpine

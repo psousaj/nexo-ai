@@ -1,6 +1,5 @@
-
 import { describe, expect, it } from 'vitest';
-import app from '../app';
+import app from '../server';
 
 describe('Health Endpoint', () => {
 	it('should return OK status', async () => {
