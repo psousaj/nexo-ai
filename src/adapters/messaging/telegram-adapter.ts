@@ -293,6 +293,23 @@ export class TelegramAdapter implements MessagingProvider {
 	}
 
 	/**
+	 * Envia indicador de atividade (typing, upload_photo, etc)
+	 * Status dura 5 segundos ou até próxima mensagem
+	 */
+	async sendChatAction(
+		chatId: string,
+		action: 'typing' | 'upload_photo' | 'upload_video' | 'upload_document',
+	): Promise<void> {
+		const url = `${this.baseUrl}/bot${this.token}/sendChatAction`;
+
+		await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ chat_id: chatId, action }),
+		});
+	}
+
+	/**
 	 * Define webhook do Telegram (usar em setup inicial)
 	 */
 	async setWebhook(webhookUrl: string): Promise<void> {

@@ -1353,6 +1353,10 @@ export class AgentOrchestrator {
 
 			if (provider && 'sendPhoto' in provider) {
 				loggers.ai.info({ posterUrl, title: selected.title }, '🖼️ Enviando foto do TMDB');
+				// Envia indicador "enviando foto..." antes de enviar a imagem
+				if ('sendChatAction' in provider) {
+					await (provider as any).sendChatAction(context.externalId, 'upload_photo');
+				}
 				await (provider as any).sendPhoto(context.externalId, posterUrl, caption, buttons);
 			}
 

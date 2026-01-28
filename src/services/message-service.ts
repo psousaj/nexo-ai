@@ -173,6 +173,11 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		// Incrementa interações APENAS se não for bloqueado
 		await onboardingService.incrementInteractionCount(user.id);
 
+		// Envia indicador "digitando..." para o usuário enquanto processa IA
+		if (provider.getProviderName() === 'telegram') {
+			await (provider as any).sendChatAction(incomingMsg.externalId, 'typing');
+		}
+
 		const agentResponse = await agentOrchestrator.processMessage({
 			userId: user.id,
 			conversationId: conversation.id,
