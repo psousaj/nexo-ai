@@ -66,7 +66,7 @@ export class UserService {
 
 		// 3. Se não encontrou usuário existente, cria novo
 		if (!userId) {
-			const [newUser] = await db.insert(users).values({ name }).returning();
+			const [newUser] = await db.insert(users).values({ id: crypto.randomUUID(), name }).returning();
 			userId = newUser.id;
 		}
 

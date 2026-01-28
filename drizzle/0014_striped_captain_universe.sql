@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX "semantic_external_items_unique_idx" ON "semantic_external_items" USING btree ("external_id","type","provider");

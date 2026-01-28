@@ -11,7 +11,7 @@ import { userPermissions } from './permissions';
  * Pode ter múltiplas contas em diferentes providers via userAccounts
  */
 export const users = pgTable('users', {
-	id: text('id').primaryKey(),
+	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 	name: text('name'),
 	email: varchar('email', { length: 255 }).unique(),
 	emailVerified: boolean('email_verified').default(false).notNull(),

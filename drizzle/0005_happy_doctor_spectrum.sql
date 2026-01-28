@@ -1,1 +1,0 @@
-ALTER TABLE "conversations" ALTER COLUMN "state" SET DEFAULT 'idle';
