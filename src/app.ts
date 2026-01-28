@@ -27,21 +27,20 @@ import { apiReference } from '@scalar/hono-api-reference';
 
 const app = new Hono();
 
-// CORS
+// CORS - Origins definidas em CORS_ORIGINS (separadas por vírgula)
 app.use(
 	'*',
 	cors({
 		origin: (origin) => {
-			// Permitir localhost e domínios ngrok/zrok para desenvolvimento
-			if (
-				!origin ||
-				origin.startsWith('http://localhost:') ||
-				origin.endsWith('ngrok-free.app') ||
-				origin.includes('zrok.io')
-			) {
-				return origin;
-			}
-			return origin; // Por enquanto permitir todos, mas com suporte a credentials
+			// Requests sem origin header (ex: curl, postman)
+			if (!origin) return origin;
+
+			// Verifica se a origin está na lista permitida
+			const isAllowed = env.CORS_ORIGINS.some(
+				(allowed) => origin === allowed || origin.startsWith(allowed),
+			);
+
+			return isAllowed ? origin : null;
 		},
 		credentials: true,
 		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],

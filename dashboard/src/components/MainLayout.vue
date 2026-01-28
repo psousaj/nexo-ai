@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter as _uR, useRoute } from 'vue-router';
 import { useAuthStore } from '../store/auth';
 import {
 	LayoutDashboard,
@@ -15,7 +15,7 @@ import {
 	AlertCircle,
 	ShieldCheck,
 	UserCircle,
-	Link as LinkIcon,
+	Link as _LinkIcon,
 } from 'lucide-vue-next';
 import { useAbility } from '@casl/vue';
 
@@ -23,7 +23,7 @@ const isOpen = ref(true);
 const toggleSidebar = () => (isOpen.value = !isOpen.value);
 
 const authStore = useAuthStore();
-const router = useRouter();
+// const _router = useRouter();
 const route = useRoute();
 const { can } = useAbility();
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref as _r, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAuthStore } from '../store/auth';
 import { dashboardService } from '../services/dashboard.service';
 
 import KPICard from '../components/KPICard.vue';
 import ChartCard from '../components/ChartCard.vue';
-import { Users, Database, MessageSquare, Activity, Calendar, Download, Filter } from 'lucide-vue-next';
+import { Users, Database, MessageSquare, Activity, Calendar as _C, Download, Filter } from 'lucide-vue-next';
 import { useAbility } from '@casl/vue';
 
 // Chart.js imports

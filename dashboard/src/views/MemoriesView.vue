@@ -14,12 +14,12 @@ import {
 	Type,
 	Image as ImageIcon,
 	FileText,
-	Loader2,
+	Loader2 as _L,
 } from 'lucide-vue-next';
 import AddMemoryModal from '../components/AddMemoryModal.vue';
 import EditMemoryModal from '../components/EditMemoryModal.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import type { MemoryItem, ItemType } from '../types';
+import type { MemoryItem, ItemType as _IT } from '../types';
 
 const queryClient = useQueryClient();
 const searchQuery = ref('');
