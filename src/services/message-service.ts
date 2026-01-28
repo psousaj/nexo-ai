@@ -128,8 +128,9 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						const signupLink = `${dashboardUrl}?token=${signupToken}`;
 
 						if (provider.getProviderName() === 'telegram') {
-							const msg = `🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 <a href="${signupLink}">Clique aqui para criar conta</a>`;
-							await provider.sendMessage(incomingMsg.externalId, msg, { parseMode: 'HTML' });
+							const msg = `🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:`;
+							const buttons = [[{ text: '🔗 Clique aqui para criar conta', url: signupLink }]];
+							await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
 						} else {
 							await provider.sendMessage(
 								incomingMsg.externalId,
@@ -142,24 +143,17 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			}
 
 			if (onboarding.reason === 'signup_required') {
-				// Verifica se já tem contas vinculadas (e.g. criou a conta no dashboard mas ainda está pending_signup ou algo assim)
 				const accounts = await userService.getUserAccounts(user.id);
-				// Logica: Se o cara tá vindo do telegram, ele já tem um account telegram criado no findOrCreate.
-				// O problema é saber se ele está "linked" a uma conta "real" (dashboard user).
-				// Como o sistema atual unifica tudo no 'users', se ele tem user.status != active, ele é "incompleto".
-
-				// Se ele tem APENAS essa conta que acabou de ser criada (provider atual), manda signup.
-				// Se ele tem MAIS de uma conta, ele provavelmente já é usuário antigo vinculando nova conta.
 				const isNewUser = accounts.length <= 1;
 
 				if (isNewUser) {
 					const signupToken = await accountLinkingService.generateLinkingToken(user.id, provider.getProviderName() as any, 'signup');
 					const signupLink = `${dashboardUrl}?token=${signupToken}`;
 
-					// Formatação específica para Telegram (link clicável)
 					if (provider.getProviderName() === 'telegram') {
-						const msg = `Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 <a href="${signupLink}">Clique aqui para cadastrar</a>\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`;
-						await provider.sendMessage(incomingMsg.externalId, msg, { parseMode: 'HTML' });
+						const msg = `Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`;
+						const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
+						await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
 					} else {
 						// Padrão (WhatsApp e outros)
 						await provider.sendMessage(

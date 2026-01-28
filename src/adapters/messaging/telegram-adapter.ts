@@ -168,7 +168,7 @@ export class TelegramAdapter implements MessagingProvider {
 	async sendMessageWithButtons(
 		chatId: string,
 		text: string,
-		buttons: Array<Array<{ text: string; callback_data: string }>>,
+		buttons: Array<Array<{ text: string; callback_data?: string; url?: string }>>,
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
@@ -217,7 +217,7 @@ export class TelegramAdapter implements MessagingProvider {
 		chatId: string,
 		photoUrl: string,
 		caption?: string,
-		buttons?: Array<Array<{ text: string; callback_data: string }>>,
+		buttons?: Array<Array<{ text: string; callback_data?: string; url?: string }>>,
 		options?: {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
