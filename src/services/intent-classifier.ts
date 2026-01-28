@@ -157,6 +157,7 @@ export class IntentClassifier {
 			'info.assistant_name': 'get_info',
 			'info.help': 'get_info',
 			'settings.change_name': 'update_content',
+			'greetings.thank': 'casual_chat',
 		};
 
 		// Mapa de action neural -> ActionVerb
@@ -178,22 +179,40 @@ export class IntentClassifier {
 			deny: 'deny',
 			get_assistant_name: 'get_assistant_name',
 			get_help: 'get_details',
+			thank: 'thank',
 			update_settings: 'update_settings',
 		};
 
 		const intent = intentMap[neural.intent] || 'unknown';
 		const action = actionMap[neural.action] || 'unknown';
 
+		// Determinar target baseado na ação
+		let target: 'all' | 'item' | 'selection' | undefined;
+		if (action === 'delete_all') target = 'all';
+		else if (action === 'delete_selected') target = 'selection';
+		else if (action === 'delete_item') target = 'item';
+
+		// Extrair query limpa se for busca ou info
+		let query = neural.entities?.query || originalMessage.trim();
+		if (intent === 'search_content') {
+			query = this.extractSearchQuery(originalMessage) || query;
+		} else if (intent === 'get_info') {
+			query = this.extractInfoQuery(originalMessage) || query;
+		} else if (action === 'delete_item') {
+			query = originalMessage.replace(/deleta|deletar|apaga|apagar|remove|remover|exclui|excluir/gi, '').trim();
+		}
+
 		return {
 			intent,
 			action,
 			confidence: neural.confidence,
 			entities: {
-				query: originalMessage.trim(),
+				query,
 				selection: neural.entities?.selection,
 				itemType: neural.entities?.itemType,
 				url: this.extractURL(originalMessage),
 				refersToPrevious: neural.action === 'save_previous',
+				target,
 			},
 		};
 	}
@@ -674,7 +693,7 @@ export class IntentClassifier {
 				action: 'delete_selected',
 				confidence: 0.9,
 				entities: {
-					selection: Array.isArray(selection) ? selection : [selection],
+					selection, // Mantém formato original do extractSelection
 					itemType, // Adiciona tipo se mencionado (ex: "deleta as notas 2 e 3")
 					target: 'selection',
 				},
@@ -682,7 +701,7 @@ export class IntentClassifier {
 		}
 
 		// Item específico (query)
-		const cleaned = msg.replace(/deleta|deletar|apaga|apagar|remove|remover/gi, '').trim();
+		const cleaned = msg.replace(/deleta|deletar|apaga|apagar|remove|remover|exclui|excluir|limpa|limpar/gi, '').trim();
 
 		if (cleaned) {
 			return {
