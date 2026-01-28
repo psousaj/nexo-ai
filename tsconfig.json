@@ -1,11 +1,8 @@
 {
 	"compilerOptions": {
-		"lib": [
-			"ESNext"
-		],
-		"target": "ES2022",
+		"target": "ESNext",
 		"module": "ESNext",
-		"moduleResolution": "bundler",
+		"moduleResolution": "Bundler",
 		"allowJs": true,
 		"outDir": "./dist",
 		"strict": true,
@@ -20,19 +17,13 @@
 		"declaration": true,
 		"declarationMap": true,
 		"sourceMap": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "hono/jsx",
+		"lib": ["ESNext"],
 		"paths": {
-			"@/*": [
-				"./src/*"
-			]
+			"@/*": ["./src/*"]
 		}
 	},
-	"include": [
-		"src/**/*.ts"
-	],
-	"exclude": [
-		"node_modules",
-		"dist",
-		"landing",
-		"dashboard"
-	]
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules", "dist", "landing", "dashboard"]
 }
