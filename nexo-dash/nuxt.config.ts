@@ -1,8 +1,4 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import { validateEnv } from './app/config/env';
-
-validateEnv();
-
 export default defineNuxtConfig({
 	modules: ['@nuxt/eslint', '@nuxt/ui', '@nuxt/image', '@nuxt/scripts', '@nuxt/test-utils', '@pinia/nuxt'],
 

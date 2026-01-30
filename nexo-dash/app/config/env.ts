@@ -16,19 +16,4 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export function validateEnv() {
-	if (process.env.SKIP_ENV_VALIDATION) return;
-
-	const parsed = envSchema.safeParse(process.env);
-
-	if (!parsed.success) {
-		console.error('❌ Environment Validation Failed:', parsed.error.flatten().fieldErrors);
-		throw new Error('Invalid environment variables');
-	}
-
-	return parsed.data;
-}
-
-// Side-effect: validate on import if strictly required,
-// but often better to call explicitly in nuxt.config.ts
-// export const env = validateEnv()
+export const env = envSchema.parse(process.env);
