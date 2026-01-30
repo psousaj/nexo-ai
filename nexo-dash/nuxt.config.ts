@@ -25,8 +25,8 @@ export default defineNuxtConfig({
 
 	runtimeConfig: {
 		public: {
-			apiUrl: process.env.NUXT_PUBLIC_API_URL || 'http://localhost:3002/api',
-			authBaseUrl: process.env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3002/api/auth',
+			apiUrl: process.env.NUXT_PUBLIC_API_URL, // Nuxt will automatically pick this up if mapped, but explicit is fine
+			authBaseUrl: process.env.NUXT_PUBLIC_AUTH_BASE_URL,
 		},
 	},
 });
