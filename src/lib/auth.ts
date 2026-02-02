@@ -1,10 +1,11 @@
 import { betterAuth } from 'better-auth';
+import type { BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import { env } from '@/config/env';
 
-export const auth = betterAuth({
+export const authPlugin = betterAuth({
 	secret: env.BETTER_AUTH_SECRET,
 	baseURL: env.BETTER_AUTH_URL,
 	trustedOrigins: env.NODE_ENV === 'development' ? ['http://localhost:5173', 'http://localhost:3000'] : env.CORS_ORIGINS,
@@ -36,7 +37,12 @@ export const auth = betterAuth({
 		useSecureCookies: env.NODE_ENV === 'production',
 		crossSubDomainCookies: {
 			enabled: true,
-			domain: env.BETTER_AUTH_URL,
+			// ⚠️ IMPORTANTE: Deve ser apenas o domínio raiz com ponto, NÃO a URL completa
+			// Produção: '.crudbox.tech' | Dev: undefined (desabilitado)
+			domain: env.NODE_ENV === 'production' ? '.crudbox.tech' : undefined,
+		},
+		cookieOptions: {
+			sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax', // none para cross-origin em prod
 		},
 	},
 	emailAndPassword: {
@@ -56,4 +62,4 @@ export const auth = betterAuth({
 			enabled: !!env.GOOGLE_CLIENT_ID,
 		},
 	},
-});
+} satisfies BetterAuthOptions);

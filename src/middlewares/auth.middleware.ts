@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { auth } from '@/lib/auth';
+import { authPlugin } from '@/lib/auth';
 
 /**
  * Middleware para proteger rotas e injetar o usuário na Context
@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth';
 export async function authMiddleware(c: Context, next: Next) {
 	// Log headers para debug
 	console.log('🔒 [authMiddleware] Headers recebidos:', Object.fromEntries(c.req.raw.headers.entries()));
-	const session = await auth.api.getSession({
+	const session = await authPlugin.api.getSession({
 		headers: c.req.raw.headers,
 	});
 	console.log('🔒 [authMiddleware] Sessão encontrada:', session);

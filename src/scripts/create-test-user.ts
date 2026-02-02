@@ -1,4 +1,4 @@
-import { auth } from '../lib/auth';
+import { authPlugin } from '../lib/auth';
 import { db } from '../db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -18,28 +18,28 @@ async function createTestUser() {
 
 	console.log('Creating user via better-auth API...');
 	try {
-        // Calling signUpEmail server-side
-        // The type definition might require a context or request, but let's try calling it directly
-        // as better-auth often exposes these as callable functions.
-        // If this fails, we might need to mock a request.
-		const res = await auth.api.signUpEmail({
+		// Calling signUpEmail server-side
+		// The type definition might require a context or request, but let's try calling it directly
+		// as better-auth often exposes these as callable functions.
+		// If this fails, we might need to mock a request.
+		const res = await authPlugin.api.signUpEmail({
 			body: {
 				email,
 				password,
 				name,
 			},
-            // We might need to pass headers or undefined context
-            asResponse: false
+			// We might need to pass headers or undefined context
+			asResponse: false,
 		});
 
 		console.log('User created successfully:', res);
 	} catch (error) {
 		console.error('Error creating user:', error);
-        if (error instanceof Error) {
-            console.error('Stack:', error.stack);
-        }
+		if (error instanceof Error) {
+			console.error('Stack:', error.stack);
+		}
 	}
-    process.exit(0);
+	process.exit(0);
 }
 
 createTestUser();
