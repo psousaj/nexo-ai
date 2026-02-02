@@ -55,3 +55,26 @@ export interface ConversationSummary {
 	lastInteraction: string;
 	highlights: string[];
 }
+
+export interface Account {
+	userId: string;
+	provider: string;
+	providerAccountId: string;
+	metadata?: {
+		phone?: string;
+		username?: string;
+		email?: string;
+		[key: string]: any;
+	};
+}
+
+export interface UserPreferences {
+	assistantName: string;
+	notificationsBrowser: boolean;
+	notificationsWhatsapp: boolean;
+	notificationsEmail: boolean;
+	privacyShowMemoriesInSearch: boolean;
+	privacyShareAnalytics: boolean;
+	appearanceTheme: 'light' | 'dark';
+	appearanceLanguage: string;
+}

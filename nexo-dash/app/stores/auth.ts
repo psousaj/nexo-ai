@@ -2,6 +2,15 @@
 import { authClient } from '~/utils/auth-client';
 import { ability } from '~/plugins/casl';
 
+interface BetterAuthUser {
+	id: string;
+	email: string;
+	name: string;
+	image?: string;
+	role?: string;
+	permissions?: any[];
+}
+
 export const useAuthStore = defineStore('auth', () => {
 	const session = authClient.useSession();
 
@@ -20,14 +29,14 @@ export const useAuthStore = defineStore('auth', () => {
 		if (!data) return null;
 		if (!data.user) return null;
 
-		const u = data.user;
+		const u = data.user as BetterAuthUser;
 		return {
 			id: u.id,
 			name: u.name,
 			email: u.email,
 			image: u.image || '',
-			role: (u as any).role || 'user',
-			permissions: (u as any).permissions || [],
+			role: u.role || 'user',
+			permissions: u.permissions || [],
 		};
 	});
 

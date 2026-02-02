@@ -1,4 +1,4 @@
-import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType } from '~/types/dashboard';
+import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType, Account, UserPreferences } from '~/types/dashboard';
 import api from '~/utils/api';
 
 export const useDashboard = () => {
@@ -8,15 +8,15 @@ export const useDashboard = () => {
 	};
 
 	const getMemories = async (search?: string): Promise<MemoryItem[]> => {
-		const { data } = await api.get<any>('/memories', {
+		const { data } = await api.get<{ items?: any[]; data?: any[] } | any[]>('/memories', {
 			params: {
 				search: search || undefined,
 			},
 		});
 
-		const items = Array.isArray(data) ? data : data.items || data;
+		const items = Array.isArray(data) ? data : (data as any).items || (data as any).data || data;
 
-		return items.map((item: any) => ({
+		return (items as any[]).map((item: any) => ({
 			id: item.id,
 			title: item.title,
 			content: item.metadata?.full_content || item.title,
@@ -42,12 +42,12 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const updateMemory = async (id: string | number, payload: { title?: string; content?: string }): Promise<any> => {
-		const updates: any = {};
+	const updateMemory = async (id: string | number, payload: { title?: string; content?: string }): Promise<{ success: boolean }> => {
+		const updates: Record<string, any> = {};
 		if (payload.title) updates.title = payload.title;
 		if (payload.content) updates.metadata = { full_content: payload.content };
 
-		const { data } = await api.patch(`/memories/${id}`, updates);
+		const { data } = await api.patch<{ success: boolean }>(`/memories/${id}`, updates);
 		return data;
 	};
 
@@ -81,17 +81,17 @@ export const useDashboard = () => {
 		}));
 	};
 
-	const getPreferences = async (): Promise<any> => {
-		const { data } = await api.get('/user/preferences');
+	const getPreferences = async (): Promise<UserPreferences> => {
+		const { data } = await api.get<UserPreferences>('/user/preferences');
 		return data;
 	};
 
-	const updatePreferences = async (updates: any): Promise<void> => {
+	const updatePreferences = async (updates: Partial<UserPreferences>): Promise<void> => {
 		await api.patch('/user/preferences', updates);
 	};
 
-	const getAccounts = async (): Promise<any[]> => {
-		const { data } = await api.get<any>('/user/accounts');
+	const getAccounts = async (): Promise<Account[]> => {
+		const { data } = await api.get<{ accounts: Account[] }>('/user/accounts');
 		return data.accounts || [];
 	};
 

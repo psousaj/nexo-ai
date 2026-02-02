@@ -1,15 +1,5 @@
+import type { UserPreferences } from '~/types/dashboard';
 import { useDashboard } from '~/composables/useDashboard';
-
-export interface UserPreferences {
-	assistantName: string;
-	notificationsBrowser: boolean;
-	notificationsWhatsapp: boolean;
-	notificationsEmail: boolean;
-	privacyShowMemoriesInSearch: boolean;
-	privacyShareAnalytics: boolean;
-	appearanceTheme: 'light' | 'dark';
-	appearanceLanguage: string;
-}
 
 export const usePreferencesStore = defineStore('preferences', () => {
 	const dashboard = useDashboard();

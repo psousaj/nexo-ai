@@ -4,7 +4,7 @@ import { useDashboard } from '~/composables/useDashboard';
 import { AlertCircle, Search, Clock, CheckCircle2, ExternalLink } from 'lucide-vue-next';
 
 definePageMeta({
-	middleware: ['auth', 'role'],
+	middleware: ['role'],
 });
 
 const dashboard = useDashboard();

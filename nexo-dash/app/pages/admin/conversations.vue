@@ -4,7 +4,7 @@ import { useDashboard } from '~/composables/useDashboard';
 import { MessageSquare, User, Clock, ChevronRight, EyeOff, MessageCircle, ThumbsUp, ThumbsDown } from 'lucide-vue-next';
 
 definePageMeta({
-	middleware: ['auth', 'role'],
+	middleware: ['role'],
 });
 
 const dashboard = useDashboard();
