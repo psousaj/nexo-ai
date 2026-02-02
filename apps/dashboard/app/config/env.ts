@@ -6,6 +6,9 @@ const envSchema = z.object({
 
 	// API
 	NUXT_PUBLIC_API_URL: z.string().url(),
+
+	// Config
+	PORT: z.coerce.number().default(3004),
 });
 
 export type Env = z.infer<typeof envSchema>;
