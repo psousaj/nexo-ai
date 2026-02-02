@@ -6,7 +6,8 @@
         "packages/*"
     ],
     "scripts": {
-        "dev": "turbo dev",
+        "dev:all": "turbo dev",
+        "dev": "turbo dev --filter=@nexo/api --filter=@nexo/dashboard --filter=@nexo/landing",
         "build": "turbo build",
         "lint": "turbo lint",
         "test": "turbo test",
