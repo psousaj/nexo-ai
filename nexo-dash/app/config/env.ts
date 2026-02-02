@@ -10,4 +10,5 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export const env = envSchema.parse(process.env);
+// Only parse on server side to avoid client-side validation errors
+export const env = (import.meta.server ? envSchema.parse(process.env) : {}) as Env;

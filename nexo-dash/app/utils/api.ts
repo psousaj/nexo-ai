@@ -1,9 +1,8 @@
 import axios from 'axios';
 import { env } from '~/config/env';
-
 // Base API configuration
 export const api = axios.create({
-	baseURL: env.NUXT_PUBLIC_API_URL,
+	baseURL: env.NUXT_PUBLIC_API_URL ?? 'http://localhost:3002/api',
 	headers: {
 		'Content-Type': 'application/json',
 	},
