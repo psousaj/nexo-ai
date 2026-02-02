@@ -6,8 +6,11 @@
 node_modules
 
 # Build
-dist
-.next
+*dist
+*.next
+*.turbo
+
+*.output
 
 # Logs
 *.log

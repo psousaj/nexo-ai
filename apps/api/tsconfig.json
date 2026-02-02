@@ -1,29 +1,13 @@
 {
+	"extends": "@nexo/typescript-config/node.json",
 	"compilerOptions": {
-		"target": "ESNext",
-		"module": "ESNext",
-		"moduleResolution": "Bundler",
-		"allowJs": true,
 		"outDir": "./dist",
 		"strict": true,
-		"skipLibCheck": true,
-		"noFallthroughCasesInSwitch": true,
-		"noUnusedLocals": false,
-		"noUnusedParameters": false,
-		"noPropertyAccessFromIndexSignature": false,
-		"esModuleInterop": true,
-		"resolveJsonModule": true,
-		"isolatedModules": true,
-		"declaration": true,
-		"declarationMap": true,
-		"sourceMap": true,
-		"jsx": "react-jsx",
-		"jsxImportSource": "hono/jsx",
 		"lib": ["ESNext"],
 		"paths": {
 			"@/*": ["./src/*"]
 		}
 	},
 	"include": ["src/**/*.ts"],
-	"exclude": ["node_modules", "dist", "landing", "dashboard"]
+	"exclude": ["node_modules", "dist"]
 }

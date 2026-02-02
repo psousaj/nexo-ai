@@ -1,12 +1,9 @@
-import { createAuthClient } from 'better-auth/vue';
+import { createVueAuthClient } from '@nexo/auth/client';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
-export const authClient = createAuthClient({
+export const authClient = createVueAuthClient({
 	baseURL: `${apiUrl}/auth`,
-	fetchOptions: {
-		credentials: 'include',
-	},
 });
 
 export const { signIn, signUp, signOut, useSession } = authClient;

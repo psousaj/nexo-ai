@@ -2,7 +2,10 @@ import { loggers } from '@/utils/logger';
 
 // Types básicos do sistema
 
-export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note';
+// Re-export shared types
+// Re-export shared types
+import type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@nexo/shared';
+export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
 
 export type ConversationState =
 	| 'idle' // Conversa inativa, pronta para receber comandos
@@ -78,74 +81,6 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 
 	return true;
 }
-
-// Metadata por tipo de item
-export interface MovieMetadata {
-	tmdb_id: number;
-	year: number;
-	genres: string[];
-	rating: number;
-	streaming?: Array<{
-		provider: string;
-		url: string;
-	}>;
-	poster_url?: string;
-	director?: string;
-	cast?: string[];
-	// 🔥 Campos para enrichment semântico
-	overview?: string; // Sinopse do filme
-	tagline?: string; // Frase de efeito
-	keywords?: string[]; // Keywords TMDB (CRÍTICO para busca)
-}
-
-export interface TVShowMetadata {
-	tmdb_id: number;
-	first_air_date: number; // Ano de estreia
-	last_air_date?: number; // Ano do último episódio
-	number_of_seasons: number;
-	number_of_episodes: number;
-	status: string; // "Ended", "Returning Series", etc
-	genres: string[];
-	rating: number;
-	streaming?: Array<{
-		provider: string;
-		url: string;
-	}>;
-	poster_url?: string;
-	created_by?: string[];
-	cast?: string[];
-	// 🔥 Campos para enrichment semântico
-	overview?: string; // Sinopse da série
-	tagline?: string; // Frase de efeito
-	keywords?: string[]; // Keywords TMDB (CRÍTICO para busca)
-}
-
-export interface VideoMetadata {
-	video_id: string;
-	platform: 'youtube' | 'vimeo';
-	channel_name: string;
-	duration: number;
-	views?: number;
-	thumbnail_url?: string;
-}
-
-export interface LinkMetadata {
-	url: string;
-	og_title?: string;
-	og_description?: string;
-	og_image?: string;
-	domain?: string;
-}
-
-export interface NoteMetadata {
-	full_content?: string;
-	category?: string;
-	related_topics?: string[];
-	priority?: 'low' | 'medium' | 'high';
-	created_via?: 'chat' | 'api';
-}
-
-export type ItemMetadata = MovieMetadata | TVShowMetadata | VideoMetadata | LinkMetadata | NoteMetadata;
 
 // Contexto de conversação
 export interface ConversationContext {

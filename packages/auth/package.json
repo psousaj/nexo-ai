@@ -5,7 +5,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./client": "./src/client.ts",
-        "./server": "./src/server.ts"
+        "./types": "./src/types.ts"
     },
     "peerDependencies": {
         "better-auth": "^1.1.0"
