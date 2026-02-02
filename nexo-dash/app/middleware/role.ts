@@ -1,23 +1,17 @@
-import { useAbility } from '@casl/vue';
+import { useAuthStore } from '~/stores/auth';
 
 export default defineNuxtRouteMiddleware((to) => {
-	if (process.server) return;
-
-	const { can } = useAbility();
 	const authStore = useAuthStore();
 
-	// Rotas admin que requerem verificação
-	const adminRoutes = ['/admin/errors', '/admin/conversations', '/admin/users'];
-	const isAdminRoute = adminRoutes.some((route) => to.path.startsWith(route));
+	// Required permissions/roles for specific routes
+	// For now, only /admin routes require admin role
+	if (to.path.startsWith('/admin')) {
+		const user = authStore.user;
+		const isAdmin = user?.role === 'admin';
 
-	if (isAdminRoute) {
-		// Check roles for admin pages
-		const userRole = authStore.user?.role || 'user';
-
-		// Verifica se pode gerenciar AdminPanel
-		if (!can('manage', 'AdminPanel') && userRole !== 'admin') {
-			console.log('⚠️ Usuário sem permissão para acessar rota admin');
-			return navigateTo('/');
+		if (!isAdmin) {
+			console.warn('🔒 Admin route access denied for user:', user?.email);
+			return navigateTo('/', { replace: true });
 		}
 	}
 });

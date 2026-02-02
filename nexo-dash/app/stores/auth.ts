@@ -62,7 +62,13 @@ export const useAuthStore = defineStore('auth', () => {
 	);
 
 	async function logout() {
-		await authClient.signOut();
+		try {
+			await authClient.signOut();
+			// No need to manually clear session as useSession is reactive to better-auth internal state
+			await navigateTo('/login', { replace: true });
+		} catch (error) {
+			console.error('Logout error:', error);
+		}
 	}
 
 	return {

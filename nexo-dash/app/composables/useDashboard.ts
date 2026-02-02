@@ -1,4 +1,4 @@
-import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType } from '~/types';
+import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType } from '~/types/dashboard';
 import api from '~/utils/api';
 
 export const useDashboard = () => {
@@ -20,7 +20,7 @@ export const useDashboard = () => {
 			id: item.id,
 			title: item.title,
 			content: item.metadata?.full_content || item.title,
-			type: item.type,
+			type: item.type as ItemType,
 			category: item.type,
 			platform: item.metadata?.platform || 'Web',
 			createdAt: item.createdAt,
@@ -30,7 +30,9 @@ export const useDashboard = () => {
 	const createMemory = async (payload: { title: string; type: ItemType; content: string }): Promise<any> => {
 		const metadata: any = {};
 		if (payload.type === 'link') metadata.url = payload.content;
-		if (payload.type === 'note') metadata.full_content = payload.content;
+		if (payload.type === 'note' || payload.type === 'text') {
+			metadata.full_content = payload.content;
+		}
 
 		const { data } = await api.post('/memories', {
 			type: payload.type,
@@ -89,11 +91,16 @@ export const useDashboard = () => {
 	};
 
 	const getAccounts = async (): Promise<any[]> => {
-		const { data } = await api.get('/user/accounts');
-		return data.accounts;
+		const { data } = await api.get<any>('/user/accounts');
+		return data.accounts || [];
 	};
 
-	const syncAccounts = async (): Promise<{ success: boolean; message: string; synced: number; skipped: number }> => {
+	const syncAccounts = async (): Promise<{
+		success: boolean;
+		message: string;
+		synced: number;
+		skipped: number;
+	}> => {
 		const { data } = await api.post('/user/accounts/sync');
 		return data;
 	};
