@@ -1,0 +1,37 @@
+{
+  "name": "@nexo/old-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@casl/ability": "^6.8.0",
+    "@casl/vue": "^2.2.6",
+    "@tanstack/vue-query": "^5.92.9",
+    "autoprefixer": "^10.4.23",
+    "axios": "^1.13.2",
+    "better-auth": "^1.4.17",
+    "chart.js": "^4.5.1",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^0.563.0",
+    "pinia": "^3.0.4",
+    "postcss": "^8.5.6",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^3.4.19",
+    "vue": "^3.5.24",
+    "vue-chartjs": "^5.3.3",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4",
+    "vue-tsc": "^3.1.4"
+  }
+}
