@@ -10,11 +10,4 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-// We must access process.env.KEY explicitely so the bundler can replace it
-// because process.env is usually empty in the browser
-const values = {
-	NUXT_PUBLIC_AUTH_BASE_URL: process.env.NUXT_PUBLIC_AUTH_BASE_URL,
-	NUXT_PUBLIC_API_URL: process.env.NUXT_PUBLIC_API_URL,
-};
-
-export const env = envSchema.parse(values);
+export const env = envSchema.parse(process.env);

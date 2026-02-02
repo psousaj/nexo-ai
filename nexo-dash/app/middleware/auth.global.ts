@@ -1,7 +1,7 @@
 import { useAuthStore } from '~/stores/auth';
 
 export default defineNuxtRouteMiddleware(async (to) => {
-	if (process.server) return;
+	// if (process.server) return; // Removed to allow server-side protection
 
 	const authStore = useAuthStore();
 
