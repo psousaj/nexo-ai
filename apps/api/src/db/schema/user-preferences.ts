@@ -12,7 +12,7 @@ export const userPreferences = pgTable(
 	'user_preferences',
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
-		userId: uuid('user_id')
+		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' })
 			.unique(), // one-to-one

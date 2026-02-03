@@ -12,7 +12,7 @@ export const memoryItems = pgTable(
 	'memory_items',
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
-		userId: uuid('user_id')
+		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		type: text('type').$type<ItemType>().notNull(),

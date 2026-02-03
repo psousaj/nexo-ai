@@ -10,7 +10,7 @@ export const linkingTokens = pgTable(
 	'linking_tokens',
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
-		userId: uuid('user_id')
+		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		token: text('token').notNull().unique(),

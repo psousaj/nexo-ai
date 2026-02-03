@@ -4,7 +4,7 @@ import { users } from './users';
 
 export const userPermissions = pgTable('user_permissions', {
 	id: uuid('id').defaultRandom().primaryKey(),
-	userId: uuid('user_id')
+	userId: text('user_id')
 		.notNull()
 		.references(() => users.id, { onDelete: 'cascade' }),
 	action: text('action').notNull(), // 'manage', 'read', 'create', etc.
