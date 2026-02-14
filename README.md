@@ -9,7 +9,7 @@ Assistente pessoal via Telegram que organiza, categoriza e enriquece automaticam
 - ✅ **11 tools específicas** - Contratos fortes (save_note, save_movie, enrich_movie, etc)
 - ✅ **Zero conversação livre** - LLM nunca pergunta "quer que eu salve?"
 - ✅ **Ações determinísticas** - delete_all, list_all sem LLM
-- 📖 [Ver refatoração completa](docs/REFACTORING-v0.3.0.md)
+- 📖 [Ver refatoração completa](docs/concepts/deterministic-runtime.md)
 
 v0.2.0: Dashboard web para linking manual de contas
 Futuro: Ativar WhatsApp quando houver demanda
@@ -53,7 +53,7 @@ cp .env.example .env
 # Edite .env com suas credenciais
 ```
 
-**Principais variáveis** (ver [docs/SETUP.md](docs/SETUP.md) para detalhes):
+**Principais variáveis** (ver [docs/tutorials/setup-environment.md](docs/tutorials/setup-environment.md) para detalhes):
 
 - `DATABASE_URL` - PostgreSQL (ou Supabase)
 - `TELEGRAM_BOT_TOKEN` - Token do bot Telegram (via @BotFather)
@@ -86,20 +86,17 @@ API disponível em `http://localhost:3000`
 
 ```
 nexo-ai/
-├── src/
-│   ├── adapters/        # Messaging providers (Telegram, WhatsApp)
-│   ├── config/          # Environment, database
-│   ├── db/schema/       # Drizzle schemas
-│   ├── services/        # Lógica de negócio
-│   │   ├── ai/          # AI integration (Cloudflare/Gemini)
-│   │   └── enrichment/  # TMDB, YouTube, OpenGraph
-│   ├── routes/          # REST endpoints
-│   └── index.ts         # Entry point
-├── docs/                # Documentação detalhada
-└── scripts/             # Setup e deploy
+├── apps/
+│   ├── api/              # API principal (Bun + Elysia)
+│   ├── dashboard/        # Dashboard web (Vue 3)
+│   ├── landing/          # Landing page (Vite)
+│   └── old-dashboard/    # Dashboard legado
+├── docs/                 # Documentação completa (BMAD-style)
+├── packages/             # Packages compartilhados
+└── package.json          # Monorepo root
 ```
 
-Ver [docs/ESTRUTURA.md](docs/ESTRUTURA.md) para detalhes completos.
+Ver [docs/README.md](docs/README.md) para documentação completa.
 
 ## 🛠️ Stack Tecnológico
 
@@ -119,22 +116,32 @@ Ver [docs/ESTRUTURA.md](docs/ESTRUTURA.md) para detalhes completos.
 
 ## ��� Documentação
 
-### Guias
+### 📖 Tutorials
 
-- **[Arquitetura](docs/ARQUITETURA.md)** - Camadas, state machine, fluxos
-- **[Setup & Deploy](docs/SETUP.md)** - Environment, secrets, deploy
-- **[Deployment](docs/DEPLOYMENT.md)** - Guia Cloudflare Workers
-- **[Estrutura](docs/ESTRUTURA.md)** - Organização do código
-- **[Referência](docs/REFERENCIA.md)** - Database schema e API
+- **[Getting Started](docs/tutorials/getting-started.md)** - Instalação e primeiro uso em 5 minutos
+- **[Setup de Ambiente](docs/tutorials/setup-environment.md)** - Configuração completa
 
-### ADRs (Architecture Decision Records)
+### 🛠️ How-To Guides
 
-- [ADR-001](docs/adr/001-cloudflare-workers.md) - Cloudflare Workers
-- [ADR-002](docs/adr/002-supabase-postgres.md) - Supabase PostgreSQL
-- [ADR-003](docs/adr/003-jsonb-metadata.md) - JSONB metadata
-- [ADR-004](docs/adr/004-state-machine.md) - State machine
-- [ADR-005](docs/adr/005-ai-agnostic.md) - AI-agnostic architecture
-- [ADR-006](docs/adr/006-meta-whatsapp-api.md) - Meta WhatsApp API
+- **[Busca Avançada](docs/how-to/advanced-search.md)** - Filtros avançados e queries complexas
+- **[Busca Semântica](docs/how-to/semantic-search.md)** - Sistema de embeddings e cache
+
+### 💡 Concepts
+
+- **[Visão Geral da Arquitetura](docs/concepts/architecture-overview.md)** - Camadas, fluxos e componentes
+- **[Controle Runtime Determinístico](docs/concepts/deterministic-runtime.md)** - Pattern Hugging Face Agents
+- **[State Machine](docs/concepts/state-machine.md)** - Máquina de estados de conversação
+
+### 📋 Reference
+
+- **[BMAD Agents](docs/reference/agents.md)** - Agentes e workflows BMAD
+- **[Implementation Checklist](docs/reference/implementation-checklist.md)** - Status da refatoração v0.3.0
+- **[Roadmap](docs/reference/roadmap.md)** - Planejamento de versões
+
+### 📐 ADRs (Architecture Decision Records)
+
+- **[Todos os ADRs](docs/adr/README.md)** - Decisões arquiteturais documentadas
+- [ADR-011](docs/adr/011-deterministic-runtime-control.md) - Controle runtime determinístico
 
 ## ��� Comandos
 
