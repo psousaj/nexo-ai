@@ -1,17 +1,10 @@
-import { z } from 'zod';
+// Re-export do pacote centralizado @nexo/env
+export { env, validateEnv, type Env } from '@nexo/env';
 
-const envSchema = z.object({
-	// Better Auth - Frontend only needs the base URL
-	NUXT_PUBLIC_AUTH_BASE_URL: z.string().url(),
-
-	// API
-	NUXT_PUBLIC_API_URL: z.string().url(),
-
-	// Config
-	PORT: z.coerce.number().default(3004),
-});
-
-export type Env = z.infer<typeof envSchema>;
-
-// Only parse on server side to avoid client-side validation errors
-export const env = (import.meta.server ? envSchema.parse(process.env) : {}) as Env;
+// Helper para pegar variáveis públicas no client-side do Nuxt
+export function getPublicEnv() {
+	return {
+		authBaseUrl: import.meta.env.NUXT_PUBLIC_AUTH_BASE_URL,
+		apiUrl: import.meta.env.NUXT_PUBLIC_API_URL,
+	};
+}

@@ -9,7 +9,7 @@ export default defineNuxtConfig({
 	},
 
 	devServer: {
-		port: env.PORT,
+		port: env.PORT_DASHBOARD || 5173,
 	},
 
 	css: ['~/assets/css/main.css'],
@@ -31,8 +31,8 @@ export default defineNuxtConfig({
 
 	runtimeConfig: {
 		public: {
-			apiUrl: env.NUXT_PUBLIC_API_URL, // Nuxt will automatically pick this up if mapped, but explicit is fine
-			authBaseUrl: env.NUXT_PUBLIC_AUTH_BASE_URL,
+			apiUrl: env.NUXT_PUBLIC_API_URL || 'http://localhost:3001',
+			authBaseUrl: env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001',
 		},
 	},
 });

@@ -5,8 +5,8 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
 	plugins: [vue()],
 	server: {
-		port: 3005,
-		strictPort: true,
+		port: process.env.PORT_LANDING ? parseInt(process.env.PORT_LANDING) : 3005,
+		strictPort: false, // Permite porta alternativa se 3005 estiver ocupada
 	},
 	resolve: {
 		alias: {

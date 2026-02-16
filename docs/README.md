@@ -61,8 +61,8 @@ bun run db:push
 bun run dev
 ```
 
-**API disponível em:** `http://localhost:3000`
-**Documentação OpenAPI:** `http://localhost:3000/reference`
+**API disponível em:** `http://localhost:3001`
+**Documentação OpenAPI:** `http://localhost:3001/reference`
 
 ---
 

@@ -40,7 +40,8 @@
     "vue-chartjs": "^5.3.3",
     "zod": "^4.3.6",
     "@nexo/auth": "workspace:*",
-    "@nexo/shared": "workspace:*"
+    "@nexo/shared": "workspace:*",
+    "@nexo/env": "workspace:*"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.13.0",

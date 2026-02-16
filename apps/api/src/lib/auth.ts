@@ -8,7 +8,7 @@ import { env } from '@/config/env';
 export const authPlugin = betterAuth({
 	secret: env.BETTER_AUTH_SECRET,
 	baseURL: env.BETTER_AUTH_URL,
-	trustedOrigins: env.NODE_ENV === 'development' ? ['http://localhost:5173', 'http://localhost:3000'] : env.CORS_ORIGINS,
+	trustedOrigins: env.NODE_ENV === 'development' ? ['http://localhost:5173', `http://localhost:${env.PORT}`] : env.CORS_ORIGINS,
 	database: drizzleAdapter(db, {
 		provider: 'pg',
 		schema: {

@@ -787,7 +787,7 @@ REDIS_PASSWORD=your-redis-password
 
 # Better Auth
 BETTER_AUTH_SECRET=at-least-32-chars
-BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:3001
 DASHBOARD_URL=http://localhost:5173
 ```
 
@@ -1072,7 +1072,7 @@ Key ADRs to understand:
 
 ### View Queue Status
 
-**Bull Board**: `http://localhost:3000/admin/queues`
+**Bull Board**: `http://localhost:3001/admin/queues`
 
 ### View Database
 
@@ -1093,7 +1093,7 @@ pnpm run dev | pino-pretty
 
 ### API Docs
 
-**Scalar UI**: `http://localhost:3000/reference`
+**Scalar UI**: `http://localhost:3001/reference`
 
 ---
 

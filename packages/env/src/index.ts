@@ -73,14 +73,16 @@ const envSchema = z.object({
 		.string()
 		.optional()
 		.transform((val) => {
-			if (!val) return ['http://localhost:3000'];
+			if (!val) return ['http://localhost:5173', 'http://localhost:3001'];
 			return val
 				.trim()
 				.split(',')
 				.map((origin) => origin.trim());
 		}),
 	DASHBOARD_URL: z.string().url().optional(),
-	PORT: z.coerce.number().default(3000),
+	PORT: z.coerce.number().default(3001), // API na 3001
+	PORT_DASHBOARD: z.coerce.number().default(5173), // Dashboard na 5173
+	PORT_LANDING: z.coerce.number().default(3005), // Landing na 3005
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
 
 	// Email Reporting (Resend)
@@ -99,6 +101,10 @@ const envSchema = z.object({
 	// Google OAuth
 	GOOGLE_CLIENT_ID: z.string().optional(),
 	GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+	// Nuxt Dashboard (frontend - public vars)
+	NUXT_PUBLIC_AUTH_BASE_URL: z.string().url().optional(),
+	NUXT_PUBLIC_API_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

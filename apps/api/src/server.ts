@@ -65,7 +65,7 @@ serverAdapter.setBasePath('/admin/queues');
 // IMPORTANTE: Registrar antes de outras rotas
 app.route('/admin/queues', serverAdapter.registerPlugin());
 
-loggers.app.info('✅ Bull Board configurado em http://localhost:3000/admin/queues');
+loggers.app.info(`✅ Bull Board configurado em http://localhost:${env.PORT}/admin/queues`);
 
 // ============================================================================
 // CRON JOBS - Fechamento automático de conversas

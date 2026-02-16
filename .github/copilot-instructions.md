@@ -101,7 +101,7 @@ src/
 
 ```bash
 pnpm install && cp .env.example .env
-pnpm run dev              # http://localhost:3000
+pnpm run dev              # http://localhost:3001 (API)
 pnpm run db:generate      # gera migrations Drizzle
 pnpm run db:push          # aplica no Supabase
 pnpm run db:studio        # UI visual do banco
