@@ -1,12 +1,16 @@
-import { env } from '@nexo/env';
+import { config } from 'dotenv';
+import { resolve } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
+
+// Carrega .env da raiz do monorepo
+config({ path: resolve(__dirname, '../../.env') });
 
 export default defineConfig({
 	schema: './src/db/schema/index.ts',
 	out: './drizzle',
 	dialect: 'postgresql',
 	dbCredentials: {
-		url: env.DATABASE_URL,
+		url: process.env.DATABASE_URL!,
 	},
 	verbose: true,
 });

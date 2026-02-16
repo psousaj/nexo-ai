@@ -1,34 +1,20 @@
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
-import { defineVitestProject } from '@nuxt/test-utils/config'
+import { defineConfig } from 'vitest/config';
+import vue from '@vitejs/plugin-vue';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  plugins: [vue()],
   test: {
-    projects: [
-      {
-        test: {
-          name: 'unit',
-          include: ['test/unit/*.{test,spec}.ts'],
-          environment: 'node',
-        },
-      },
-      await defineVitestProject({
-        test: {
-          name: 'nuxt',
-          include: ['test/nuxt/*.{test,spec}.ts'],
-          environment: 'nuxt',
-          environmentOptions: {
-            nuxt: {
-              rootDir: fileURLToPath(new URL('.', import.meta.url)),
-              domEnvironment: 'happy-dom',
-            },
-          },
-        },
-      }),
-    ],
-    coverage: {
-      enabled: true,
-      provider: 'v8',
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: [],
+    include: ['src/tests/**/*.{test,spec}.{ts,js}'],
+    exclude: ['node_modules', 'dist'],
+  },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '~': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-})
+});
