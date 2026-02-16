@@ -625,6 +625,132 @@ export async function get_assistant_name(context: ToolContext, params: {}): Prom
 }
 
 // ============================================================================
+// MEMORY SEARCH TOOLS (OpenClaw Pattern)
+// ============================================================================
+
+/**
+ * Tool: memory_search
+ * Search user memory using hybrid vector + keyword search
+ */
+export async function memory_search(
+	context: ToolContext,
+	params: {
+		query: string;
+		maxResults?: number;
+		types?: string[];
+	},
+): Promise<ToolOutput> {
+	try {
+		const { searchMemory } = await import('@/services/memory-search');
+
+		const results = await searchMemory({
+			query: params.query,
+			userId: context.userId,
+			maxResults: params.maxResults || 10,
+			types: params.types,
+		});
+
+		loggers.ai.info({ query: params.query, resultsCount: results.length }, '✅ Memory search tool executed');
+
+		return {
+			success: true,
+			data: {
+				results: results.map((r) => ({
+					id: r.id,
+					type: r.type,
+					title: r.title,
+					metadata: r.metadata,
+					score: r.score,
+				})),
+				count: results.length,
+			},
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Memory search tool failed');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao buscar memória',
+		};
+	}
+}
+
+/**
+ * Tool: memory_get
+ * Get specific memory item by ID
+ */
+export async function memory_get(
+	context: ToolContext,
+	params: {
+		id: string;
+	},
+): Promise<ToolOutput> {
+	try {
+		const { getMemoryItem } = await import('@/services/memory-search');
+
+		const item = await getMemoryItem(params.id, context.userId);
+
+		if (!item) {
+			return {
+				success: false,
+				error: 'Item não encontrado',
+			};
+		}
+
+		return {
+			success: true,
+			data: {
+				id: item.id,
+				type: item.type,
+				title: item.title,
+				metadata: item.metadata,
+			},
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Memory get tool failed');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao buscar item',
+		};
+	}
+}
+
+/**
+ * Tool: daily_log_search
+ * Search daily logs for specific date or content
+ */
+export async function daily_log_search(
+	context: ToolContext,
+	params: {
+		date?: string; // YYYY-MM-DD format
+		query?: string;
+	},
+): Promise<ToolOutput> {
+	try {
+		const { searchDailyLogs } = await import('@/services/memory-search');
+
+		const logs = await searchDailyLogs({
+			userId: context.userId,
+			date: params.date,
+			query: params.query,
+		});
+
+		return {
+			success: true,
+			data: {
+				logs,
+				count: logs.length,
+			},
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Daily log search tool failed');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao buscar diário',
+		};
+	}
+}
+
+// ============================================================================
 // REGISTRO DE TOOLS
 // ============================================================================
 
@@ -651,6 +777,11 @@ export const AVAILABLE_TOOLS = {
 	// Preferences tools
 	get_assistant_name,
 	update_user_settings,
+
+	// Memory search tools (OpenClaw pattern)
+	memory_search,
+	memory_get,
+	daily_log_search,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;
