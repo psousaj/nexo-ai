@@ -15,15 +15,36 @@ function escapeMarkdownV2(text: string): string {
 }
 import { env } from '@/config/env';
 import { loggers } from '@/utils/logger';
-import type { MessagingProvider, IncomingMessage, ProviderType } from './types';
+import type {
+	MessagingProvider,
+	IncomingMessage,
+	ProviderType,
+	MessageMetadata,
+	SessionKeyParams,
+	SessionKeyParts,
+	ChatAction,
+	CommandParams,
+	ChatCommand,
+} from './types';
+import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 
 /**
- * Adapter para Telegram Bot API
+ * Adapter para Telegram Bot API com suporte a grupos e OpenClaw patterns
  */
 export class TelegramAdapter implements MessagingProvider {
 	private baseUrl = 'https://api.telegram.org';
 	private token = env.TELEGRAM_BOT_TOKEN;
 	private webhookSecret = env.TELEGRAM_WEBHOOK_SECRET;
+	private botUsername?: string;
+	private commands: Map<string, ChatCommand> = new Map();
+
+	constructor() {
+		// Fetch bot info on init to get username
+		this.getMe().then((me) => {
+			this.botUsername = me.result?.username;
+			loggers.webhook.info({ username: this.botUsername }, '🤖 Telegram bot initialized');
+		});
+	}
 
 	getProviderName(): ProviderType {
 		return 'telegram';
@@ -43,12 +64,18 @@ export class TelegramAdapter implements MessagingProvider {
 			return {
 				messageId: callbackQuery.id,
 				externalId: chatId,
+				userId: callbackQuery.from?.id?.toString(),
 				senderName,
+				username: callbackQuery.from?.username,
 				text: callbackQuery.data || '', // callback_data vira o "texto"
 				timestamp: new Date(),
 				provider: 'telegram',
 				callbackQueryId: callbackQuery.id,
 				callbackData: callbackQuery.data,
+				metadata: {
+					isGroupMessage: callbackQuery.message?.chat?.type !== 'private',
+					messageType: 'callback',
+				},
 			};
 		}
 
@@ -59,15 +86,42 @@ export class TelegramAdapter implements MessagingProvider {
 		// Texto pode vir de text ou caption (fotos/vídeos/documentos)
 		const text = message.text || message.caption;
 
-		if (!text) {
-			return null; // Ignora se não houver texto
-		}
+		// Check if it's a command
+		const isCommand = text?.startsWith('/');
 
 		// Telegram usa chat.id como identificador único
 		const chatId = message.chat.id.toString();
+		const chatType = message.chat.type; // 'private', 'group', 'supergroup', 'channel'
 
 		// Nome: fallback chain
 		const senderName = [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') || message.from.username || 'Usuário';
+
+		// Detect group and mention gating
+		const isGroupMessage = chatType !== 'private';
+		let botMentioned = false;
+
+		// Check for bot mention in groups
+		if (isGroupMessage && text && this.botUsername) {
+			// Check if message contains @bot_username
+			botMentioned = text.includes(`@${this.botUsername}`);
+
+			// For commands without mention, check if it's directly addressed to bot
+			if (isCommand && !botMentioned) {
+				// Commands without @mention in groups should be ignored unless configured otherwise
+				// This implements mention gating
+				loggers.webhook.debug(
+					{ chatId, chatType, text: text.substring(0, 50) },
+					'⚠️ Command in group without mention - ignoring',
+				);
+				return null; // Ignore messages in groups without mention
+			}
+
+			// For non-command text, also require mention
+			if (!isCommand && !botMentioned) {
+				loggers.webhook.debug({ chatId, chatType }, '⚠️ Message in group without mention - ignoring');
+				return null;
+			}
+		}
 
 		// Telefone: raramente disponível (apenas se usuário compartilhou contato)
 		const phoneNumber = message.contact?.phone_number;
@@ -78,15 +132,30 @@ export class TelegramAdapter implements MessagingProvider {
 			linkingToken = text.split(' ')[1];
 		}
 
+		// Extract command name if present
+		let messageType: 'text' | 'command' | 'callback' | 'unknown' = 'text';
+		if (isCommand) {
+			messageType = 'command';
+		}
+
 		return {
 			messageId: message.message_id.toString(),
 			externalId: chatId,
+			userId: message.from?.id?.toString(),
 			senderName,
+			username: message.from?.username,
 			text,
 			timestamp: new Date(message.date * 1000),
 			provider: 'telegram',
 			phoneNumber,
 			linkingToken,
+			metadata: {
+				isGroupMessage,
+				groupId: isGroupMessage ? chatId : undefined,
+				groupTitle: isGroupMessage ? message.chat.title : undefined,
+				botMentioned,
+				messageType,
+			},
 		};
 	}
 
@@ -100,7 +169,7 @@ export class TelegramAdapter implements MessagingProvider {
 		// Elysia/Fetch API usa Headers object com .get()
 		// Express usa objeto plain com lowercase keys
 		const headers = request.headers;
-		const secretToken = headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token']; // Fetch API (case-insensitive) // Express-style
+		const secretToken = headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token'];
 
 		if (secretToken !== this.webhookSecret) {
 			loggers.webhook.error({ secretToken: secretToken || '(nenhum)' }, 'Telegram webhook secret inválido ou ausente');
@@ -296,17 +365,100 @@ export class TelegramAdapter implements MessagingProvider {
 	 * Envia indicador de atividade (typing, upload_photo, etc)
 	 * Status dura 5 segundos ou até próxima mensagem
 	 */
+	async sendTypingIndicator(chatId: string): Promise<void> {
+		await this.sendChatAction(chatId, 'typing');
+	}
+
 	async sendChatAction(
 		chatId: string,
-		action: 'typing' | 'upload_photo' | 'upload_video' | 'upload_document',
+		action: ChatAction,
 	): Promise<void> {
 		const url = `${this.baseUrl}/bot${this.token}/sendChatAction`;
+
+		// Map generic action to Telegram-specific action
+		const telegramActions: Record<ChatAction, string> = {
+			typing: 'typing',
+			upload_photo: 'upload_photo',
+			upload_video: 'upload_video',
+			upload_document: 'upload_document',
+			find_location: 'find_location',
+			record_video: 'record_video',
+			record_audio: 'record_audio',
+			record_video_note: 'record_video_note',
+		};
 
 		await fetch(url, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ chat_id: chatId, action }),
+			body: JSON.stringify({ chat_id: chatId, action: telegramActions[action] || action }),
 		});
+	}
+
+	/**
+	 * Constroi session key no formato OpenClaw
+	 * Format: agent:{agentId}:{channel}:{peerKind}:{peerId}
+	 */
+	buildSessionKey(params: SessionKeyParams): string {
+		return buildSessionKey(params);
+	}
+
+	/**
+	 * Parse session key em componentes
+	 */
+	parseSessionKey(key: string): SessionKeyParts {
+		return parseSessionKeyUtil(key);
+	}
+
+	/**
+	 * Registra comando de chat
+	 */
+	registerCommand(command: ChatCommand): void {
+		this.commands.set(command.name, command);
+		if (command.aliases) {
+			for (const alias of command.aliases) {
+				this.commands.set(alias, command);
+			}
+		}
+		loggers.webhook.info({ name: command.name, aliases: command.aliases }, '✅ Command registered');
+	}
+
+	/**
+	 * Executa comando de chat
+	 */
+	async handleCommand(command: string, params: CommandParams): Promise<void> {
+		const cmd = this.commands.get(command);
+		if (!cmd) {
+			loggers.webhook.warn({ command }, '⚠️ Unknown command');
+			return;
+		}
+
+		// Check if command is allowed in groups
+		const isGroup = params.sessionKey.includes(':group:');
+		if (isGroup && !cmd.allowedInGroups) {
+			loggers.webhook.warn({ command }, '⚠️ Command not allowed in groups');
+			return;
+		}
+
+		try {
+			const response = await cmd.handler(params);
+			if (response) {
+				// Extract chat ID from session key
+				const parts = this.parseSessionKey(params.sessionKey);
+				const peerId = parts.peerId;
+				await this.sendMessage(peerId, response);
+			}
+		} catch (error) {
+			loggers.webhook.error({ error, command }, '❌ Command execution failed');
+		}
+	}
+
+	/**
+	 * Marca mensagem como lida (via Telegram read receipt)
+	 */
+	async markAsRead(messageId: string): Promise<void> {
+		// Telegram doesn't have a native "read receipt" feature like WhatsApp
+		// This is a no-op for Telegram
+		loggers.webhook.debug({ messageId }, '📭 Mark as read (no-op for Telegram)');
 	}
 
 	/**

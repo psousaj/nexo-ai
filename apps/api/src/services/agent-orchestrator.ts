@@ -27,6 +27,7 @@ import { userService } from '@/services/user-service';
 import { llmService } from './ai';
 import { executeTool, type ToolContext, type ToolOutput } from './tools';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import {
 	AGENT_SYSTEM_PROMPT,
 	CASUAL_GREETINGS,
@@ -60,6 +61,8 @@ export interface AgentContext {
 	// Telegram callback data
 	callbackData?: string;
 	provider: string; // Provider sempre obrigatório (vem do webhook)
+	// OpenClaw pattern: session key for context building
+	sessionKey?: string; // Optional for backward compatibility
 }
 
 export interface AgentResponse {
@@ -326,11 +329,33 @@ export class AgentOrchestrator {
 			content: m.content,
 		}));
 
-		// Personaliza System Prompt com nome do assistente
-		const user = await userService.getUserById(context.userId);
-		const assistantName = user?.assistantName || 'Nexo';
+		// ============================================================================
+		// OPENCLAW PATTERN: Build personalized context
+		// ============================================================================
+		let systemPrompt: string;
 
-		const systemPrompt = AGENT_SYSTEM_PROMPT.replace('You are Nexo,', `You are ${assistantName},`);
+		if (context.sessionKey) {
+			// Use context builder for personalized system prompt
+			const agentContext = await buildAgentContext(context.userId, context.sessionKey);
+			systemPrompt = agentContext.systemPrompt;
+
+			loggers.context.info(
+				{
+					userId: context.userId,
+					sessionKey: context.sessionKey,
+					hasSoul: !!agentContext.soulContent,
+					hasIdentity: !!agentContext.identityContent,
+					promptLength: systemPrompt.length,
+				},
+				'🎭 Using personalized context from OpenClaw pattern',
+			);
+		} else {
+			// Fallback to original method for backward compatibility
+			const user = await userService.getUserById(context.userId);
+			const assistantName = user?.assistantName || 'Nexo';
+			systemPrompt = AGENT_SYSTEM_PROMPT.replace('You are Nexo,', `You are ${assistantName},`);
+		}
+		// ============================================================================
 
 		// Chama LLM
 		const llmResponse = await llmService.callLLM({
