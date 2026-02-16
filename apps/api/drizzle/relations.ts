@@ -1,23 +1,11 @@
 import { relations } from "drizzle-orm/relations";
-import { users, userAccounts, userEmails, userPreferences, userPermissions, conversations, messages, memoryItems, account, session, linkingTokens } from "./schema";
+import { users, userAccounts, userEmails, userPreferences, userPermissions, conversations, messages, memoryItems, account, session, linkingTokens, agentMemoryProfiles, agentSessions, sessionTranscripts, agentDailyLogs } from "./schema";
 
 export const userAccountsRelations = relations(userAccounts, ({one}) => ({
 	user: one(users, {
 		fields: [userAccounts.userId],
 		references: [users.id]
 	}),
-}));
-
-export const usersRelations = relations(users, ({many}) => ({
-	userAccounts: many(userAccounts),
-	userEmails: many(userEmails),
-	userPreferences: many(userPreferences),
-	userPermissions: many(userPermissions),
-	memoryItems: many(memoryItems),
-	accounts: many(account),
-	sessions: many(session),
-	conversations: many(conversations),
-	linkingTokens: many(linkingTokens),
 }));
 
 export const userEmailsRelations = relations(userEmails, ({one}) => ({
@@ -82,4 +70,57 @@ export const linkingTokensRelations = relations(linkingTokens, ({one}) => ({
 		fields: [linkingTokens.userId],
 		references: [users.id]
 	}),
+}));
+
+// ============================================================================
+// OPENCLAW-INSPIRED RELATIONS
+// ============================================================================
+
+export const agentMemoryProfilesRelations = relations(agentMemoryProfiles, ({one}) => ({
+	user: one(users, {
+		fields: [agentMemoryProfiles.userId],
+		references: [users.id]
+	}),
+}));
+
+export const agentSessionsRelations = relations(agentSessions, ({one, many}) => ({
+	user: one(users, {
+		fields: [agentSessions.userId],
+		references: [users.id]
+	}),
+	conversation: one(conversations, {
+		fields: [agentSessions.conversationId],
+		references: [conversations.id]
+	}),
+	transcripts: many(sessionTranscripts),
+}));
+
+export const sessionTranscriptsRelations = relations(sessionTranscripts, ({one}) => ({
+	session: one(agentSessions, {
+		fields: [sessionTranscripts.sessionId],
+		references: [agentSessions.id]
+	}),
+}));
+
+export const agentDailyLogsRelations = relations(agentDailyLogs, ({one}) => ({
+	user: one(users, {
+		fields: [agentDailyLogs.userId],
+		references: [users.id]
+	}),
+}));
+
+// Users relations with all tables
+export const usersRelations = relations(users, ({many}) => ({
+	userAccounts: many(userAccounts),
+	userEmails: many(userEmails),
+	userPreferences: many(userPreferences),
+	userPermissions: many(userPermissions),
+	memoryItems: many(memoryItems),
+	accounts: many(account),
+	sessions: many(session),
+	conversations: many(conversations),
+	linkingTokens: many(linkingTokens),
+	memoryProfiles: many(agentMemoryProfiles),
+	agentSessions: many(agentSessions),
+	dailyLogs: many(agentDailyLogs),
 }));

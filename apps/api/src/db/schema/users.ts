@@ -5,6 +5,9 @@ import { conversations } from './conversations';
 import { userAccounts } from './user-accounts';
 import { userPreferences } from './user-preferences';
 import { userPermissions } from './permissions';
+import { agentMemoryProfiles } from './agent-memory-profiles';
+import { agentSessions } from './agent-sessions';
+import { agentDailyLogs } from './agent-daily-logs';
 
 /**
  * Usuário único no sistema (entidade de domínio)
@@ -27,6 +30,11 @@ export const users = pgTable('users', {
 	offenseCount: integer('offense_count').default(0).notNull(),
 	// Nome customizado para o assistente (definido pelo usuário)
 	assistantName: text('assistant_name'),
+	// OpenClaw-inspired personality fields
+	assistantEmoji: text('assistant_emoji'), // Emoji que representa o assistente
+	assistantCreature: text('assistant_creature'), // "creature" (ex: "fox", "owl")
+	assistantTone: varchar('assistant_tone', { length: 50 }), // friendly, professional, playful, etc
+	assistantVibe: text('assistant_vibe'), // Descrição livre de vibe
 	role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
 });
 
@@ -36,4 +44,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	accounts: many(userAccounts),
 	preferences: one(userPreferences),
 	permissions: many(userPermissions),
+	// OpenClaw-inspired relations
+	memoryProfiles: many(agentMemoryProfiles),
+	agentSessions: many(agentSessions),
+	dailyLogs: many(agentDailyLogs),
 }));

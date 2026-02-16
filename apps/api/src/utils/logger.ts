@@ -41,6 +41,9 @@ export const loggers = {
 	retry: logger.child({ context: 'RETRY' }),
 	queue: logger.child({ context: 'QUEUE' }),
 	discord: logger.child({ context: 'DISCORD' }),
+	// OpenClaw-inspired loggers
+	context: logger.child({ context: 'CONTEXT' }),
+	session: logger.child({ context: 'SESSION' }),
 };
 
 /**

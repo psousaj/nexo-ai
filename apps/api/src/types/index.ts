@@ -111,3 +111,143 @@ export interface ConversationContext {
 
 // Re-export AI types from ai service
 export type { AIResponse, Message, AIProvider, AIProviderType } from '@/services/ai/types';
+
+// ============================================================================
+// OPENCLAW-INSPIRED TYPES
+// ============================================================================
+
+/**
+ * Session key parameters (OpenClaw pattern)
+ */
+export interface SessionKeyParams {
+	/** Agent identifier (default: 'main') */
+	agentId?: string;
+	/** Channel: telegram, discord, whatsapp, web */
+	channel: string;
+	/** Account ID for multi-account support */
+	accountId?: string;
+	/** Peer kind: direct, group, channel */
+	peerKind: 'direct' | 'group' | 'channel';
+	/** Peer ID: userId, groupId, channelId */
+	peerId: string;
+	/** Isolation scope for DMs */
+	dmScope?: 'main' | 'per-peer' | 'per-channel-peer' | 'per-account-channel-peer';
+}
+
+/**
+ * Parsed session key components
+ */
+export interface SessionKeyParts {
+	agentId: string;
+	channel: string;
+	accountId?: string;
+	peerKind: string;
+	peerId: string;
+	dmScope?: string;
+}
+
+/**
+ * Agent context built from user profile (OpenClaw pattern)
+ */
+export interface AgentContext {
+	/** Complete system prompt with all sections */
+	systemPrompt: string;
+	/** Individual sections for fine-grained control */
+	agentsContent?: string;
+	soulContent?: string;
+	identityContent?: string;
+	userContent?: string;
+	toolsContent?: string;
+	memoryContent?: string;
+	/** Assistant personality fields */
+	assistantName?: string;
+	assistantEmoji?: string;
+	assistantCreature?: string;
+	assistantTone?: string;
+	assistantVibe?: string;
+}
+
+/**
+ * Agent session record
+ */
+export interface AgentSession {
+	id: string;
+	sessionKey: string;
+	agentId: string;
+	channel: string;
+	accountId: string | null;
+	peerKind: string;
+	peerId: string;
+	userId: string | null;
+	conversationId: string | null;
+	model: string | null;
+	thinkingLevel: string | null;
+	createdAt: string;
+	updatedAt: string;
+	lastActivityAt: string;
+	dmScope: string;
+}
+
+/**
+ * Agent memory profile record
+ */
+export interface AgentMemoryProfile {
+	id: string;
+	userId: string;
+	agentsContent: string | null;
+	soulContent: string | null;
+	identityContent: string | null;
+	userContent: string | null;
+	toolsContent: string | null;
+	memoryContent: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+/**
+ * Chat command interface (for future slash commands)
+ */
+export interface ChatCommand {
+	name: string;
+	description: string;
+	aliases?: string[];
+	handler: (params: CommandParams) => Promise<string>;
+	allowedInGroups?: boolean;
+	requireAuth?: boolean;
+}
+
+/**
+ * Command parameters
+ */
+export interface CommandParams {
+	userId: string;
+	conversationId: string;
+	sessionKey: string;
+	args?: string;
+	provider: string;
+}
+
+/**
+ * Memory search options (for hybrid search)
+ */
+export interface MemorySearchOptions {
+	query: string;
+	userId: string;
+	maxResults?: number;
+	minScore?: number;
+	types?: string[];
+	includeDailyLogs?: boolean;
+}
+
+/**
+ * Memory search result
+ */
+export interface MemorySearchResult {
+	id: string;
+	type: string;
+	title: string;
+	content: string;
+	metadata: any;
+	score: number;
+	source: 'memory' | 'daily_log';
+}

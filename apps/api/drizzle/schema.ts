@@ -153,6 +153,11 @@ export const users = pgTable("users", {
 	timeoutUntil: timestamp("timeout_until", { mode: 'string' }),
 	offenseCount: integer("offense_count").default(0).notNull(),
 	assistantName: text("assistant_name"),
+	// OpenClaw-inspired personality fields
+	assistantEmoji: text("assistant_emoji"),
+	assistantCreature: text("assistant_creature"),
+	assistantTone: varchar("assistant_tone", { length: 50 }), // friendly, professional, playful, etc
+	assistantVibe: text("assistant_vibe"),
 	emailVerified: boolean("email_verified").default(false).notNull(),
 	image: text(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
@@ -248,4 +253,113 @@ export const linkingTokens = pgTable("linking_tokens", {
 			name: "linking_tokens_user_id_users_id_fk"
 		}).onDelete("cascade"),
 	unique("linking_tokens_token_unique").on(table.token),
+]);
+
+// ============================================================================
+// OPENCLAW-INSPIRED TABLES
+// ============================================================================
+
+/**
+ * Agent memory profiles - stores personality and context files
+ * Equivalent to OpenClaw's AGENTS.md, SOUL.md, IDENTITY.md, USER.md, etc
+ */
+export const agentMemoryProfiles = pgTable("agent_memory_profiles", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	// Personality profiles (equivalent to .md files in OpenClaw)
+	agentsContent: text("agents_content"), // AGENTS.md: workspace instructions
+	soulContent: text("soul_content"), // SOUL.md: personality, voice tone
+	identityContent: text("identity_content"), // IDENTITY.md: name, creature, emoji
+	userContent: text("user_content"), // USER.md: human user profile
+	toolsContent: text("tools_content"), // TOOLS.md: tool documentation
+	memoryContent: text("memory_content"), // MEMORY.md: long-term memory
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("agent_memory_profiles_user_id_idx").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "agent_memory_profiles_user_id_users_id_fk"
+		}).onDelete("cascade"),
+	unique("agent_memory_profiles_user_id_unique").on(table.userId),
+]);
+
+/**
+ * Agent sessions - session key management for multi-channel routing
+ * OpenClaw-style session keys: agent:{agentId}:{channel}:{peerKind}:{peerId}
+ */
+export const agentSessions = pgTable("agent_sessions", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	sessionKey: varchar("session_key", { length: 500 }).notNull().unique(),
+	// Routing info
+	agentId: varchar("agent_id", { length: 100 }).default('main'),
+	channel: varchar("channel", { length: 50 }).notNull(), // telegram, discord, whatsapp, web
+	accountId: varchar("account_id", { length: 100 }), // for multi-account
+	peerKind: varchar("peer_kind", { length: 20 }).notNull(), // direct, group, channel
+	peerId: varchar("peer_id", { length: 255 }).notNull(), // userId, groupId, channelId
+	// Session state
+	userId: text("user_id"),
+	conversationId: uuid("conversation_id"),
+	// Metadata
+	model: varchar("model", { length: 100 }),
+	thinkingLevel: varchar("thinking_level", { length: 20 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+	lastActivityAt: timestamp("last_activity_at", { mode: 'string' }).defaultNow().notNull(),
+	// Isolation control
+	dmScope: varchar("dm_scope", { length: 50 }).default('per-peer'), // main, per-peer, per-channel-peer
+}, (table) => [
+	index("agent_sessions_session_key_idx").using("btree", table.sessionKey.asc().nullsLast().op("text_ops")),
+	index("agent_sessions_user_channel_idx").using("btree", table.userId.asc().nullsLast().op("text_ops"), table.channel.asc().nullsLast().op("text_ops")),
+	index("agent_sessions_peer_idx").using("btree", table.channel.asc().nullsLast().op("text_ops"), table.peerKind.asc().nullsLast().op("text_ops"), table.peerId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "agent_sessions_user_id_users_id_fk"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.conversationId],
+			foreignColumns: [conversations.id],
+			name: "agent_sessions_conversation_id_conversations_id_fk"
+		}).onDelete("set null"),
+]);
+
+/**
+ * Session transcripts - JSONL export format for session history
+ */
+export const sessionTranscripts = pgTable("session_transcripts", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	sessionId: uuid("session_id").notNull(),
+	// JSONL format
+	content: jsonb("content").notNull(), // {"type":"message","role":"user",...}
+	sequence: integer("sequence").notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("session_transcripts_session_idx").using("btree", table.sessionId.asc().nullsLast().op("uuid_ops"), table.sequence.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.sessionId],
+			foreignColumns: [agentSessions.id],
+			name: "session_transcripts_session_id_agent_sessions_id_fk"
+		}).onDelete("cascade"),
+	unique("session_transcripts_session_sequence_unique").on(table.sessionId, table.sequence),
+]);
+
+/**
+ * Agent daily logs - heartbeat/diary system
+ */
+export const agentDailyLogs = pgTable("agent_daily_logs", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	logDate: varchar("log_date", { length: 10 }).notNull(), // YYYY-MM-DD format
+	content: text().notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("agent_daily_logs_user_date_idx").using("btree", table.userId.asc().nullsLast().op("text_ops"), table.logDate.desc().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "agent_daily_logs_user_id_users_id_fk"
+		}).onDelete("cascade"),
+	unique("agent_daily_logs_user_date_unique").on(table.userId, table.logDate),
 ]);

@@ -11,3 +11,8 @@ export * from './error-reports';
 export * from './linking-tokens';
 export * from './auth';
 export * from './permissions';
+// OpenClaw-inspired tables
+export * from './agent-memory-profiles';
+export * from './agent-sessions';
+export * from './session-transcripts';
+export * from './agent-daily-logs';
