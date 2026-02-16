@@ -15,6 +15,16 @@ export const useAuthStore = defineStore('auth', () => {
 	const session = authClient.useSession();
 
 	const user = computed(() => {
+		// Logging for debugging
+		if (process.client) {
+			console.log('👤 User Computed:', {
+				hasSession: !!session.value,
+				hasData: !!session.value?.data,
+				hasUser: !!session.value?.data?.user,
+				sessionValue: session.value,
+			});
+		}
+
 		// Logging for SSR debugging
 		if (process.server) {
 			console.log('SSR Session State:', {
@@ -40,8 +50,21 @@ export const useAuthStore = defineStore('auth', () => {
 		};
 	});
 
-	const isAuthenticated = computed(() => !!session.value?.data);
-	const isLoadingSession = computed(() => session.value?.isPending);
+	const isAuthenticated = computed(() => {
+		const auth = !!session.value?.data;
+		if (process.client) {
+			console.log('🔐 isAuthenticated:', auth);
+		}
+		return auth;
+	});
+	
+	const isLoadingSession = computed(() => {
+		const loading = session.value?.isPending;
+		if (process.client) {
+			console.log('⏳ isLoadingSession:', loading);
+		}
+		return loading;
+	});
 
 	// Update CASL abilities whenever user changes
 	watch(
