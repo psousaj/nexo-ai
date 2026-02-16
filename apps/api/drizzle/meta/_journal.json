@@ -8,6 +8,13 @@
       "when": 1769566699959,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1771282424029,
+      "tag": "0001_volatile_rockslide",
+      "breakpoints": true
     }
   ]
 }

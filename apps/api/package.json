@@ -50,7 +50,8 @@
         "postgres": "^3.4.8",
         "resend": "^6.8.0",
         "zod": "^3.25.76",
-        "@nexo/shared": "workspace:*"
+        "@nexo/shared": "workspace:*",
+        "@nexo/env": "workspace:*"
     },
     "devDependencies": {
         "@biomejs/biome": "^1.9.4",

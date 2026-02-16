@@ -1,7 +1,7 @@
 # Copilot Instructions - Nexo AI
 
 Assistente pessoal via Telegram/WhatsApp que organiza conteúdo (filmes, séries, vídeos, links, notas) usando IA.
-**Stack**: Bun + Elysia + Drizzle ORM + PostgreSQL (Supabase) + Gemini/Cloudflare Workers AI
+**Stack**: Node.js + Hono + Drizzle ORM + PostgreSQL (Supabase) + Gemini/Cloudflare Workers AI
 
 ## Arquitetura v0.3.0 - Controle Determinístico
 
@@ -109,7 +109,7 @@ pnpm test                 # roda testes
 pnpm run lint             # TypeScript type check
 ```
 
-## Testes (Bun Test)
+## Testes (Vitest)
 
 ```bash
 pnpm test                           # todos os testes
@@ -121,9 +121,9 @@ pnpm test src/tests/intent-classifier.test.ts  # arquivo específico
 - `ai-fallback.test.ts` - fallback entre providers AI
 - `api.test.ts` - endpoints HTTP
 
-**Padrão**: `describe/test` com `expect` do `bun:test`
+**Padrão**: `describe/test` com `expect` do `vitest`
 ```typescript
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 ```
 
 ## Convenções Críticas
@@ -146,7 +146,7 @@ export async function save_podcast(context, params: { url: string }) { ... }
 
 // 3. services/enrichment/ - criar enricher se necessário
 // 4. config/prompts.ts - atualizar INTENT_CLASSIFIER_PROMPT e AGENT_SYSTEM_PROMPT
-// 5. Criar migration: bun run db:generate && bun run db:push
+// 5. Criar migration: pnpm run db:generate && pnpm run db:push
 ```
 
 ## AI Provider Multi-Fallback

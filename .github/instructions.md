@@ -1,14 +1,14 @@
 # Development Instructions
 
-Essas instruções descrevem como rodar, desenvolver, migrar e testar o sistema completo usando Bun + Fastify + Drizzle + PostgreSQL + Evolution API, com IA opcional plug-and-play.
+Essas instruções descrevem como rodar, desenvolver, migrar e testar o sistema completo usando pnpm + Hono + Drizzle + PostgreSQL, com IA opcional plug-and-play.
 
 ---
 
 # 📌 1. Requisitos
 
-- Bun >= 1.1
-- Node opcional (apenas ferramentas)
-- Docker (para Postgres + Evolution API)
+- Node.js >= 20
+- pnpm >= 9
+- Docker (para Postgres)
 - Chaves de API:
   - TMDB
   - YouTube Data API

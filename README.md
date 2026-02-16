@@ -43,7 +43,7 @@ Bot: ✅ Fight Club (1999)
 ### 1. Instalar dependências
 
 ```bash
-bun install
+pnpm install
 ```
 
 ### 2. Configurar environment
@@ -67,16 +67,16 @@ cp .env.example .env
 
 ```bash
 # Gera migrations
-bun run db:generate
+pnpm run db:generate
 
 # Aplica no banco
-bun run db:push
+pnpm run db:push
 ```
 
 ### 4. Rodar em desenvolvimento
 
 ```bash
-bun run dev
+pnpm run dev
 ```
 
 API disponível em `http://localhost:3000`  
