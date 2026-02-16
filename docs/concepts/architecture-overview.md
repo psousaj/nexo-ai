@@ -8,27 +8,28 @@ Entenda como o Nexo AI funciona sob o capô.
 ┌─────────────────────────────────────────────────────────────────┐
 │                         CLIENTES                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │  Telegram    │  │  WhatsApp    │  │  Dashboard Web      │ │
-│  │  Bot API     │  │  Meta API    │  │  (Vue 3)             │ │
+│  │  Telegram    │  │  WhatsApp    │  │  Discord            │
+│  │  Bot API     │  │  Meta API    │  │  Bot.js             │
 │  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘ │
 └─────────┼─────────────────┼─────────────────────┼──────────────┘
           │                 │                     │
           ▼                 ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     ADAPTER LAYER                               │
-│  ┌──────────────────┐  ┌──────────────────┐                    │
-│  │ Telegram Adapter │  │ WhatsApp Adapter │  (REST API)        │
-│  │ Webhook Handler  │  │ Webhook Handler  │                    │
-│  └────────┬─────────┘  └────────┬─────────┘                    │
-└───────────┼────────────────────┼───────────────────────────────┘
-            │                    │
-            └────────┬───────────┘
-                     ▼
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐│
+│  │ Telegram Adapter │  │ WhatsApp Adapter │  │Discord Adapter││
+│  │ Webhook Handler  │  │ Webhook Handler  │  │Event Handler  ││
+│  │ + Session Keys   │  │ + Session Keys   │  │+ Session Keys ││
+│  └────────┬─────────┘  └────────┬─────────┘  └───────┬───────┘│
+└───────────┼────────────────────┼─────────────────────┼─────────┘
+            │                    │                     │
+            └────────┬───────────┘                     │
+                     ▼                                 │
 ┌─────────────────────────────────────────────────────────────────┐
 │                   CONVERSATION MANAGER                          │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │  State Machine (idle → awaiting_confirmation → saving)  │  │
-│  │  - Context persistence                                   │  │
+│  │  - Context persistence (JSONB)                           │  │
 │  │  - Multi-turn conversations                              │  │
 │  └──────────────────────┬───────────────────────────────────┘  │
 └─────────────────────────┼──────────────────────────────────────┘
@@ -37,8 +38,8 @@ Entenda como o Nexo AI funciona sob o capô.
 │                     AGENT ORCHESTRATOR                          │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │  Intent Classifier → Action Router → Tool Executor       │  │
-│  │  - Deterministic actions (delete_all, list_all)          │  │
-│  │  - LLM planner mode (save, search)                       │  │
+│  │  - Context Builder (OpenClaw)                            │  │
+│  │  - Agent Profiles (AGENTS/SOUL/IDENTITY/USER.md)          │  │
 │  └────────────┬─────────────────────────────┬───────────────┘  │
 └───────────────┼─────────────────────────────┼──────────────────┘
                 │                             │
@@ -46,28 +47,56 @@ Entenda como o Nexo AI funciona sob o capô.
         │  AI Service      │        │  Tools Service   │
         │  (LLM Planner)   │        │  - save_movie    │
         │  - Gemini        │        │  - enrich_movie  │
-        │  - Cloudflare    │        │  - search_items  │
-        └────────┬─────────┘        │  - delete_items  │
-                 │                  │  ... (11 tools)  │
-                 └──────────┬───────┴──────────────────┘
-                            ▼
-            ┌───────────────────────────────┐
-            │     ENRICHMENT SERVICES       │
-            │  ┌────────┐  ┌────────┐       │
-            │  │  TMDB  │  │YouTube │       │
-            │  └────────┘  └────────┘       │
-            │  ┌────────┐  ┌────────┐       │
-            │  │OpenGraph│  │...     │       │
-            │  └────────┘  └────────┘       │
-            └──────────────┬────────────────┘
-                           ▼
-            ┌───────────────────────────────┐
-            │     CACHE + PERSISTENCE       │
-            │  ┌───────────┐  ┌───────────┐ │
-            │  │   Redis   │  │PostgreSQL │ │
-            │  │ (Cache)   │  │  (Data)   │ │
-            │  └───────────┘  └───────────┘ │
-            └───────────────────────────────┘
+        │  - Cloudflare    │        │  - memory_search ││
+        │  - Context from  │        │  - memory_get    ││
+        │    Agent Profiles│        │  - daily_log_    ││
+        │                   │        │    search        ││
+        └────────┬─────────┘        │  ... (14 tools)  │
+                 │                  └────────┬──────────┘
+                 └──────────┬───────┘         │
+                            ▼                 │
+            ┌───────────────────────────────┐ │
+            │     ENRICHMENT SERVICES       │ │
+            │  ┌────────┐  ┌────────┐       │ │
+            │  │  TMDB  │  │YouTube │       │ │
+            │  └────────┘  └────────┘       │ │
+            │  ┌────────┐  ┌────────┐       │ │
+            │  │OpenGraph│  │...     │       │ │
+            │  └────────┘  └────────┘       │ │
+            └──────────────┬────────────────┘ │
+                           ▼                 │
+            ┌───────────────────────────────┐ │
+            │     HYBRID MEMORY SEARCH      │ │
+            │  ┌────────┐  ┌────────┐       │ │
+            │  │Vector  │  │Keyword │       │ │
+            │  │(pgvector)│ │(PostgreSQL)│   │ │
+            │  │  FTS    │  │  FTS    │       │ │
+            │  └────────┘  └────────┘       │ │
+            │        ↓            ↓          │ │
+            │        └────────────┴───────┐  │ │
+            │        Merge Strategies     │  │ │
+            │  (weighted/avg/rrf)        │  │ │
+            └──────────────┬────────────────┘ │
+                           ▼                 │
+            ┌───────────────────────────────┐ │
+            │     CACHE + PERSISTENCE       │ │
+            │  ┌───────────┐  ┌───────────┐ │ │
+            │  │   Redis   │  │PostgreSQL │ │ │
+            │  │ (Cache)   │  │  (Data)   │ │ │
+            │  │           │  │ + Session │ │ │
+            │  │           │  │   Keys    │ │ │
+            │  │           │  │ + Agent   │ │ │
+            │  │           │  │   Logs    │ │ │
+            │  └───────────┘  └───────────┘ │ │
+            └───────────────────────────────┘ │
+                                              ▼
+                                ┌───────────────────────┐
+                                │   DASHBOARD UI         │
+                                │  - Profile Editor     │
+                                │  - Session Viewer     │
+                                │  - Memory Search      │
+                                │  - Daily Logs         │
+                                └───────────────────────┘
 ```
 
 ---
@@ -230,7 +259,7 @@ interface AgentLLMResponse {
 
 **Responsabilidade**: Executar ações específicas com contratos fortes.
 
-**11 Tools Disponíveis**:
+**14 Tools Disponíveis**:
 
 #### Save Tools (5)
 ```typescript
@@ -248,9 +277,16 @@ enrich_tv_show(title: string, year?: number)
 enrich_video(url: string)
 ```
 
-#### Search Tool (1)
+#### Search Tools (2)
 ```typescript
 search_items(query?: string, limit?: number)
+memory_search(query: string, maxResults?: number, types?: string[])  // OpenClaw hybrid search
+```
+
+#### Memory Tools (2) - OpenClaw Pattern
+```typescript
+memory_get(id: string)  // Get specific memory item by ID
+daily_log_search(date?: string, query?: string)  // Search daily logs
 ```
 
 #### Delete Tools (2)
@@ -267,6 +303,7 @@ delete_all_items()  // determinístico
 - ✅ **Observáveis** - logs estruturados
 
 > Ver [Tools Reference](../reference/tools-reference.md)
+> Ver [ADR-018: Hybrid Memory Search](../adr/018-hybrid-memory-search.md)
 
 ---
 
@@ -307,25 +344,54 @@ OpenGraph:   24h cache (ou 1h se erro)
 
 ```typescript
 // Tabelas principais
-users            // Usuários do bot
-user_accounts    // Contas cross-provider
-memory_items     // Itens salvos (filmes, notas, etc)
-conversations    // Estado de conversas
-messages         // Histórico de mensagens
+users                  // Usuários do bot (com perfil OpenClaw)
+user_accounts          // Contas cross-provider
+user_emails            // Endereços de email
+user_preferences       // Preferências do usuário
+memory_items           // Itens salvos (filmes, notas, etc)
+conversations          // Estado de conversas
+messages               // Histórico de mensagens
+agent_sessions         // Sessões OpenClaw (session keys)
+agent_memory_profiles  // Perfis de memória por sessão
+session_transcripts    // Transcrições de sessões
+agent_daily_logs       // Logs diários do agente
+semantic_external_items // Cache externo para normalização
 ```
 
 **Schema Key**:
 
 ```typescript
-// memory_items com embedding VECTOR(1024)
+// memory_items com embedding VECTOR(384)
 {
   id: uuid,
   type: 'movie' | 'tv_show' | 'video' | 'link' | 'note',
   title: string,
   metadata: JSONB,  // flexível por tipo
-  embedding: VECTOR(1024),  // busca semântica
+  embedding: VECTOR(384),  // busca semântica
   user_id: uuid,
   created_at: timestamp
+}
+
+// agent_sessions (OpenClaw pattern)
+{
+  id: uuid,
+  user_id: uuid,
+  session_key: string,  // "main:telegram::direct:123456789:main"
+  peer_kind: 'direct' | 'group' | 'channel',
+  peer_id: string,
+  metadata: JSONB,
+  created_at: timestamp,
+  updated_at: timestamp
+}
+
+// agent_daily_logs
+{
+  id: uuid,
+  user_id: uuid,
+  log_date: date,  // YYYY-MM-DD
+  content: text,
+  created_at: timestamp,
+  updated_at: timestamp
 }
 ```
 
@@ -346,6 +412,109 @@ opengraph:{url}                   → 24h TTL
 - ✅ **Fallback automático** - se cache miss, chama API
 
 > Ver [ADR-002: Supabase Postgres](../adr/002-supabase-postgres.md)
+
+---
+
+### 8. OpenClaw Patterns
+
+**Responsabilidade**: Sistema de memória persistente e personalização de agente.
+
+**Componentes**:
+
+#### Session Keys
+Sistema de identificação única para contexto de conversação.
+
+```typescript
+// Formato: {agentId}:{channel}:{accountId}:{peerKind}:{peerId}:{dmScope}
+"main:telegram::direct:123456789:main"
+"main:discord:account1:channel:987654321:per-peer"
+```
+
+**Propósito**:
+- Isolar contexto por peer (DMs, grupos, canais)
+- Suportar múltiplas contas por provider
+- Permitir diferentes agentes em mesmo bot
+
+> Ver [ADR-016: Session Key Architecture](../adr/016-session-key-architecture.md)
+
+#### Agent Profiles
+Personalização de comportamento do agente via arquivos markdown.
+
+```markdown
+# AGENTS.md - Configuração geral
+# SOUL.md - Personalidade e tom
+# IDENTITY.md - Contexto e memória de longo prazo
+# USER.md - Preferências específicas do usuário
+```
+
+**Campos no banco**:
+```typescript
+users: {
+  assistant_emoji: string;        // Ex: "🤖"
+  assistant_creature: string;     // Ex: "owl"
+  assistant_tone: string;        // Ex: "friendly"
+  assistant_vibe: string;        // Ex: "helpful"
+}
+```
+
+> Ver [ADR-017: Agent Profile System](../adr/017-agent-profile-system.md)
+
+#### Hybrid Memory Search
+Combinação de busca vetorial semântica + busca por palavras-chave.
+
+```typescript
+memory_search({
+  query: "filmes de ação",
+  maxResults: 10,
+  types: ['movie', 'tv_show']
+})
+```
+
+**Merge Strategies**:
+- `weighted` - ponderação configurável (70% vector + 30% keyword)
+- `average` - média simples dos scores
+- `reciprocal_rank_fusion` - fusão de rankings (RRF)
+
+**Tecnologias**:
+- pgvector para busca semântica (embeddings 384-dim)
+- PostgreSQL FTS (Full-Text Search) para busca por palavras-chave
+- HNSW index para aproximação rápida
+
+> Ver [ADR-018: Hybrid Memory Search](../adr/018-hybrid-memory-search.md)
+> Ver [OpenClaw Patterns Guide](../how-to/openclaw-patterns.md)
+
+#### Context Builder
+Constrói contexto rico para o LLM baseado em session key e perfis.
+
+```typescript
+const agentContext = await buildAgentContext(userId, sessionKey);
+// Retorna: { systemPrompt, soulContent, identityContent, userContent }
+```
+
+**Processo**:
+1. Parse session key
+2. Buscar/agrupar arquivos de perfil (AGENTS.md, SOUL.md, IDENTITY.md, USER.md)
+3. Montar system prompt personalizado
+4. Injetar na chamada do LLM
+
+#### Daily Logs
+Registro diário de interações e insights do agente.
+
+```typescript
+// Tabela agent_daily_logs
+{
+  user_id: uuid,
+  log_date: date,  // YYYY-MM-DD
+  content: text,
+  created_at: timestamp,
+  updated_at: timestamp
+}
+```
+
+**Integração**:
+- Atualizado automaticamente após cada conversa significativa
+- Buscável via `daily_log_search` tool
+- Visualizável no dashboard
 
 ---
 
@@ -494,8 +663,13 @@ let state = 'idle';  // perde em cold start
 - [Controle Runtime Determinístico](deterministic-runtime.md) - Pattern Hugging Face Agents
 - [State Machine](state-machine.md) - Máquina de estados detalhada
 - [Busca Semântica](../how-to/semantic-search.md) - Embeddings e cache
+- [OpenClaw Patterns Guide](../how-to/openclaw-patterns.md) - Padrões OpenClaw no Nexo AI
 - [ADRs](../adr/README.md) - Decisões arquiteturais
+  - [ADR-011: Deterministic Runtime Control](../adr/011-deterministic-runtime-control.md) - Princípio crítico da arquitetura
+  - [ADR-016: Session Key Architecture](../adr/016-session-key-architecture.md) - Sistema de chaves de sessão
+  - [ADR-017: Agent Profile System](../adr/017-agent-profile-system.md) - Personalização de agentes
+  - [ADR-018: Hybrid Memory Search](../adr/018-hybrid-memory-search.md) - Busca híbrida vetorial + keyword
 
 ---
 
-**Última atualização**: 14 de fevereiro de 2026
+**Última atualização**: 16 de fevereiro de 2026 (OpenClaw patterns integrados)
