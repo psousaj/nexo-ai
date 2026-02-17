@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Mail, MessageSquare, Smartphone } from 'lucide-vue-next';
+import { Loader2, Mail, MessageSquare, Plus, Smartphone, XCircle } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 import { authClient } from '~/utils/auth-client';
@@ -30,7 +30,7 @@ onMounted(async () => {
 	}
 });
 
-const _connectedAccounts = computed(() => {
+const connectedAccounts = computed(() => {
 	const accounts = (accountsData.value as any[]) || [];
 	return [
 		{
@@ -65,12 +65,12 @@ const _connectedAccounts = computed(() => {
 });
 
 const isEditing = ref(false);
-const _profileForm = ref({
+const profileForm = ref({
 	name: authStore.user?.name || '',
 	email: authStore.user?.email || '',
 });
 
-const _handleSave = () => {
+const handleSave = () => {
 	// In a real app, this would call an API
 	// For now we'll just toggle the UI as per oldDash logic
 	isEditing.value = false;
@@ -97,7 +97,7 @@ const syncAccounts = async () => {
 	}
 };
 
-const _handleLink = async (provider: string) => {
+const handleLink = async (provider: string) => {
 	isLinking.value = true;
 	try {
 		if (provider === 'telegram') {
@@ -125,7 +125,7 @@ const _handleLink = async (provider: string) => {
 	}
 };
 
-const _handleManualLink = async () => {
+const handleManualLink = async () => {
 	if (!linkingToken.value) return;
 	isLinking.value = true;
 	try {
@@ -142,7 +142,7 @@ const _handleManualLink = async () => {
 	}
 };
 
-const _handleUnlink = async (provider: string) => {
+const handleUnlink = async (provider: string) => {
 	if (process.client) {
 		if (!confirm(`Tem certeza que deseja desvincular a conta do ${provider}?`)) return;
 	}

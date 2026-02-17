@@ -20,7 +20,7 @@ import { useAuthStore } from '~/stores/auth';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler);
 
-const _authStore = useAuthStore();
+const authStore = useAuthStore();
 const dashboard = useDashboard();
 const { can } = useAbility();
 
@@ -31,7 +31,7 @@ const { data: analytics, isLoading } = useQuery({
 	staleTime: 5 * 60 * 1000,
 });
 
-const _iconMap: Record<string, any> = {
+const iconMap: Record<string, any> = {
 	Users,
 	Database,
 	MessageSquare,
@@ -39,7 +39,7 @@ const _iconMap: Record<string, any> = {
 };
 
 // Chart Data
-const _lineChartData = computed(() => {
+const lineChartData = computed(() => {
 	const trends = analytics.value?.trends;
 	if (!trends) return { labels: [], datasets: [] };
 	return {
@@ -57,7 +57,7 @@ const _lineChartData = computed(() => {
 	};
 });
 
-const _lineChartOptions = {
+const lineChartOptions = {
 	responsive: true,
 	maintainAspectRatio: false,
 	plugins: {
@@ -91,7 +91,7 @@ const _lineChartOptions = {
 	},
 };
 
-const _doughnutData = computed(() => {
+const doughnutData = computed(() => {
 	const breakdown = analytics.value?.breakdown;
 	if (!breakdown) return { labels: [], datasets: [] };
 	return {
@@ -107,7 +107,7 @@ const _doughnutData = computed(() => {
 	};
 });
 
-const _doughnutOptions = {
+const doughnutOptions = {
 	responsive: true,
 	maintainAspectRatio: false,
 	cutout: '70%',
@@ -124,7 +124,7 @@ const _doughnutOptions = {
 };
 
 // Filtered KPIs based on role/CASL
-const _displayKPIs = computed(() => {
+const displayKPIs = computed(() => {
 	if (!analytics.value?.kpis) return [];
 	return can('manage', 'AdminPanel')
 		? analytics.value.kpis
