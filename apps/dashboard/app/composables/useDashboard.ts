@@ -154,8 +154,8 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const setWhatsAppApi = async (api: 'meta' | 'baileys'): Promise<{ success: boolean; activeApi: string }> => {
-		const { data } = await api.post('/admin/whatsapp-settings/api', { api });
+	const setWhatsAppApi = async (whatsappApi: 'meta' | 'baileys'): Promise<{ success: boolean; activeApi: string }> => {
+		const { data } = await api.post('/admin/whatsapp-settings/api', { api: whatsappApi });
 		return data;
 	};
 

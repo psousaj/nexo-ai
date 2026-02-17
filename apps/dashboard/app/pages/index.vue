@@ -14,7 +14,7 @@ import {
 	Tooltip,
 } from 'chart.js';
 import { Activity, Database, Download, Filter, MessageSquare, Users } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, markRaw } from 'vue';
 import { Doughnut, Line } from 'vue-chartjs';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
@@ -45,7 +45,7 @@ const lineChartData = computed(() => {
 	if (!trends) return { labels: [], datasets: [] };
 	return {
 		labels: trends.labels,
-		datasets: trends.datasets.map((ds) => ({
+		datasets: trends.datasets.map((ds) => markRaw({
 			label: ds.label,
 			data: ds.data,
 			borderColor: ds.color,
@@ -98,12 +98,12 @@ const doughnutData = computed(() => {
 	return {
 		labels: breakdown.labels,
 		datasets: [
-			{
+			markRaw({
 				data: breakdown.data,
 				backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'],
 				borderWidth: 0,
 				hoverOffset: 10,
-			},
+			}),
 		],
 	};
 });

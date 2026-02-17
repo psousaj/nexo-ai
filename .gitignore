@@ -2,6 +2,9 @@
 .env
 .env.local
 
+# Baileys WhatsApp authentication
+baileys-auth/
+
 # Dependencies
 node_modules
 

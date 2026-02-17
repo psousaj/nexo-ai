@@ -205,7 +205,6 @@ async function loadTools() {
 			stats.value = response.data.stats;
 		}
 	} catch (error) {
-		console.error('Erro ao carregar tools:', error);
 		toast.add({
 			title: 'Erro ao carregar tools',
 			color: 'red',
@@ -244,7 +243,6 @@ async function toggleTool(toolName: string, enabled: boolean) {
 			icon: enabled ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle',
 		});
 	} catch (error) {
-		console.error('Erro ao atualizar tool:', error);
 		toast.add({
 			title: 'Erro ao atualizar tool',
 			color: 'red',
@@ -271,7 +269,6 @@ async function enableAllTools() {
 			icon: 'i-heroicons-check-circle',
 		});
 	} catch (error) {
-		console.error('Erro ao habilitar todas as tools:', error);
 		toast.add({
 			title: 'Erro ao habilitar todas as tools',
 			color: 'red',
@@ -298,7 +295,6 @@ async function disableAllTools() {
 			icon: 'i-heroicons-x-circle',
 		});
 	} catch (error) {
-		console.error('Erro ao desabilitar todas as tools:', error);
 		toast.add({
 			title: 'Erro ao desabilitar todas as tools',
 			color: 'red',

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { conversations, errorReports, messages, users } from '@/db/schema';
+import { conversations, errorReports, messages, users, userAccounts } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
 
 export class AdminService {
@@ -44,6 +44,47 @@ export class AdminService {
 			lastMessage: c.updatedAt,
 			messages: Number(c.messageCount),
 		}));
+	}
+
+	/**
+	 * Lista todos os usuários com suas contas
+	 */
+	async getAllUsersWithAccounts() {
+		const allUsers = await db
+			.select({
+				id: users.id,
+				name: users.name,
+				email: users.email,
+				assistantName: users.assistantName,
+				timeoutUntil: users.timeoutUntil,
+				createdAt: users.createdAt,
+				updatedAt: users.updatedAt,
+			})
+			.from(users)
+			.orderBy(desc(users.createdAt));
+
+		// Para cada usuário, buscar suas contas
+		const usersWithAccounts = await Promise.all(
+			allUsers.map(async (user) => {
+				const accounts = await db
+					.select({
+						id: userAccounts.id,
+						provider: userAccounts.provider,
+						externalId: userAccounts.externalId,
+						createdAt: userAccounts.createdAt,
+					})
+					.from(userAccounts)
+					.where(eq(userAccounts.userId, user.id));
+
+				return {
+					...user,
+					accounts,
+					isActive: !user.timeoutUntil || new Date(user.timeoutUntil) < new Date(),
+				};
+			}),
+		);
+
+		return usersWithAccounts;
 	}
 }
 

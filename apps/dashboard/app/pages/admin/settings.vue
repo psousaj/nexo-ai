@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
 import { useDashboard } from '~/composables/useDashboard';
-import { ref } from 'vue';
+import { ref, computed, watchEffect, watch } from 'vue';
 
 definePageMeta({
 	middleware: ['role'],
@@ -31,14 +31,25 @@ watchEffect(() => {
 const changeApiMutation = useMutation({
 	mutationFn: async (api: 'meta' | 'baileys') => {
 		isChangingApi.value = true;
-		return await dashboard.setWhatsAppApi(api);
+		const result = await dashboard.setWhatsAppApi(api);
+		return result;
 	},
 	onSuccess: (data) => {
-		toast.success(`API WhatsApp alterada para ${data.activeApi.toUpperCase()}`);
+		toast.add({
+			title: 'API WhatsApp Alterada',
+			description: `API alterada para ${data.activeApi.toUpperCase()} com sucesso`,
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
 		queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] });
 	},
 	onError: (error: any) => {
-		toast.error(error.message || 'Erro ao alterar API WhatsApp');
+		toast.add({
+			title: 'Erro ao alterar API',
+			description: error.message || 'Erro ao alterar API WhatsApp',
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
 	},
 	onSettled: () => {
 		isChangingApi.value = false;
@@ -51,10 +62,54 @@ const clearCacheMutation = useMutation({
 		return await dashboard.clearWhatsAppCache();
 	},
 	onSuccess: () => {
-		toast.success('Cache do WhatsApp limpo com sucesso');
+		toast.add({
+			title: 'Cache Limpo',
+			description: 'Cache do WhatsApp limpo com sucesso',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
 	},
 	onError: (error: any) => {
-		toast.error(error.message || 'Erro ao limpar cache');
+		toast.add({
+			title: 'Erro ao limpar cache',
+			description: error.message || 'Erro ao limpar cache',
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
+	},
+});
+
+// Mutation to restart Baileys connection
+const restartBaileysMutation = useMutation({
+	mutationFn: async () => {
+		const response = await fetch(`${import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/admin/whatsapp-settings/baileys/restart`, {
+			method: 'POST',
+			credentials: 'include',
+		});
+		if (!response.ok) {
+			throw new Error('Erro ao reiniciar conexão');
+		}
+		return response.json();
+	},
+	onSuccess: async () => {
+		toast.add({
+			title: 'Sessão Reiniciada',
+			description: 'Novo QR Code gerado! Escaneie em até 30 segundos.',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
+		// Recarregar QR Code múltiplas vezes para garantir que pegamos o novo
+		await refetchQRCode();
+		setTimeout(() => refetchQRCode(), 500);
+		setTimeout(() => refetchQRCode(), 1000);
+	},
+	onError: (error: any) => {
+		toast.add({
+			title: 'Erro ao reiniciar',
+			description: error.message || 'Erro ao reiniciar conexão',
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
 	},
 });
 
@@ -78,10 +133,36 @@ const handleClearCache = () => {
 
 // Fetch QR Code when Baileys is selected
 const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
-	queryKey: ['whatsapp-qr-code'],
+	queryKey: ['whatsapp-qr-code', selectedApi],
 	queryFn: () => dashboard.getWhatsAppQRCode(),
-	refetchInterval: selectedApi.value === 'baileys' ? 3000 : false, // Atualiza a cada 3s se Baileys
 	enabled: computed(() => selectedApi.value === 'baileys'),
+	refetchInterval: computed(() => selectedApi.value === 'baileys' ? 2000 : false),
+});
+
+// Connection status computed from QR code data
+const baileysConnectionStatus = computed(() => {
+	if (!qrCodeData.value?.connectionStatus) return null;
+	const { status, phoneNumber, error } = qrCodeData.value.connectionStatus;
+	return {
+		status,
+		phoneNumber,
+		error,
+	};
+});
+
+// Watch for API changes and refetch QR code when Baileys is selected
+watch(selectedApi, (newApi) => {
+	if (newApi === 'baileys') {
+		refetchQRCode();
+	}
+});
+
+// Watch for connection status changes - auto-reload on error/disconnect
+watch(baileysConnectionStatus, (newStatus) => {
+	if (newStatus && (newStatus.status === 'error' || newStatus.status === 'disconnected')) {
+		// Recarregar QR Code para tentar pegar um novo
+		setTimeout(() => refetchQRCode(), 1000);
+	}
 });
 </script>
 
@@ -291,7 +372,38 @@ const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
 			<div v-if="selectedApi === 'baileys'" class="premium-card !p-8">
 				<h3 class="text-xl font-black text-surface-900 dark:text-white mb-6">QR Code de Conexão</h3>
 
-				<div v-if="!qrCodeData?.qrCode" class="text-center py-8">
+				<!-- Connection Status -->
+				<div v-if="baileysConnectionStatus" class="mb-6 p-4 rounded-lg" :class="{
+					'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800': baileysConnectionStatus.status === 'connected',
+					'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800': baileysConnectionStatus.status === 'connecting',
+					'bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800': baileysConnectionStatus.status === 'error' || baileysConnectionStatus.status === 'disconnected',
+				}">
+					<div class="flex items-center gap-3">
+						<div v-if="baileysConnectionStatus.status === 'connected'" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+						<div v-else-if="baileysConnectionStatus.status === 'connecting'" class="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></div>
+						<div v-else class="w-3 h-3 rounded-full bg-rose-500"></div>
+						<div>
+							<p class="text-sm font-bold" :class="{
+								'text-emerald-900 dark:text-emerald-100': baileysConnectionStatus.status === 'connected',
+								'text-amber-900 dark:text-amber-100': baileysConnectionStatus.status === 'connecting',
+								'text-rose-900 dark:text-rose-100': baileysConnectionStatus.status === 'error' || baileysConnectionStatus.status === 'disconnected',
+							}">
+								{{ baileysConnectionStatus.status === 'connected' ? '🟢 Conectado' : '' }}
+								{{ baileysConnectionStatus.status === 'connecting' ? '🟡 Conectando...' : '' }}
+								{{ baileysConnectionStatus.status === 'disconnected' ? '🔴 Desconectado' : '' }}
+								{{ baileysConnectionStatus.status === 'error' ? '❌ Erro' : '' }}
+							</p>
+							<p v-if="baileysConnectionStatus.phoneNumber" class="text-xs text-surface-600 dark:text-surface-400 mt-1">
+								📱 {{ baileysConnectionStatus.phoneNumber }}
+							</p>
+							<p v-if="baileysConnectionStatus.error" class="text-xs text-rose-700 dark:text-rose-300 mt-1">
+								{{ baileysConnectionStatus.error }}
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<div v-if="!qrCodeData?.qrCode && baileysConnectionStatus?.status !== 'connected'" class="text-center py-8">
 					<p class="text-surface-500 dark:text-surface-400 mb-4">
 						📱 Aguardando QR Code... O servidor está conectando ao WhatsApp.
 					</p>
@@ -303,7 +415,42 @@ const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
 					</button>
 				</div>
 
-				<div v-else class="flex flex-col items-center gap-4">
+				<!-- Show error and restart button -->
+				<div v-else-if="baileysConnectionStatus?.status === 'error' || baileysConnectionStatus?.status === 'disconnected'" class="text-center py-8">
+					<p class="text-rose-600 dark:text-rose-400 text-lg font-medium mb-4">
+						❌ Erro na conexão WhatsApp
+					</p>
+					<p v-if="baileysConnectionStatus.error" class="text-sm text-surface-600 dark:text-surface-400 mb-6">
+						{{ baileysConnectionStatus.error }}
+					</p>
+					<div class="flex flex-col sm:flex-row gap-3 justify-center">
+						<button
+							:disabled="restartBaileysMutation.isPending.value"
+							@click="() => restartBaileysMutation.mutate()"
+							class="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<svg v-if="!restartBaileysMutation.isPending.value" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+							</svg>
+							<svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Gerar Novo QR Code
+						</button>
+						<button
+							@click="() => refetchQRCode()"
+							class="px-6 py-3 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-900 dark:text-white font-bold rounded-xl transition-all"
+						>
+							Verificar Status
+						</button>
+					</div>
+					<p class="text-xs text-surface-500 dark:text-surface-400 mt-4">
+						💡 Clique em "Gerar Novo QR Code" para limpar a sessão e tentar novamente
+					</p>
+				</div>
+
+				<div v-else-if="baileysConnectionStatus?.status !== 'connected'" class="flex flex-col items-center gap-4">
 					<div class="bg-white p-4 rounded-xl shadow-lg">
 						<img :src="`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData.qrCode)}`"
 						     alt="WhatsApp QR Code"
@@ -316,7 +463,26 @@ const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
 							3. Toque em <strong>Conectar um aparelho</strong><br />
 							4. Escaneie este QR Code
 						</p>
+						<p class="text-xs text-amber-600 dark:text-amber-400 mt-3">
+							⏱️ O QR Code expira em ~30 segundos. Se não conectar, clique abaixo para gerar um novo.
+						</p>
+						<button
+							:disabled="restartBaileysMutation.isPending.value"
+							@click="() => restartBaileysMutation.mutate()"
+							class="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{{ restartBaileysMutation.isPending.value ? 'Gerando...' : 'Gerar Novo QR Code' }}
+						</button>
 					</div>
+				</div>
+
+				<div v-else class="text-center py-8">
+					<p class="text-emerald-600 dark:text-emerald-400 text-lg font-medium mb-2">
+						✅ WhatsApp conectado com sucesso!
+					</p>
+					<p class="text-sm text-surface-600 dark:text-surface-400">
+						Você pode enviar mensagens para o bot agora.
+					</p>
 				</div>
 			</div>
 
@@ -340,6 +506,23 @@ const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
 						Limpar Cache
 					</button>
 
+					<!-- Botão Reiniciar Conexão Baileys -->
+					<button
+						v-if="selectedApi === 'baileys'"
+						:disabled="restartBaileysMutation.isPending.value"
+						class="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+						@click="() => restartBaileysMutation.mutate()"
+					>
+						<svg v-if="!restartBaileysMutation.isPending.value" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+						</svg>
+						<svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						Reiniciar Conexão
+					</button>
+
 					<a
 						href="https://github.com/openclaw/openclaw"
 						target="_blank"
@@ -347,9 +530,7 @@ const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
 						class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition-all flex items-center gap-2"
 					>
 						<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-							<path
-								d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-.522-.624-1.412-.876-2.614l-.236-1.074c-.233-1.054-.633-1.744-1.189-2.07-.559-.326-1.179-.231-1.486.229l-.008.011c-.357.508-.519 1.102-.487 1.746.016.319.045.637.088.954l.036.269c.356 2.618 1.86 4.299 4.021 4.713.18.037.293.206.293.416 0 .431-.348.828-.855.828-.478 0-.858-.34-.858-.753 0-.256.127-.487.327-.62.253-.172.567-.199.854-.084.537.217.971.672 1.391 1.395.435.752.824 1.391 1.18 1.391.809 0 2.665-1.163 3.23-2.509.304-.709.093-1.423.137-2.137.067-2.956-.072-.373-.179-.745-.321-1.112-.69-1.741-2.064-2.354-3.875-1.809-1.904.562-3.229 2.064-3.229 2.064-.217.242-.427.54-.627.852-.201.242-.394.501-.627.733-.225.222-.415.426-.536.577-.121.151-.209.255-.238.34-.106.257.13.389.368.389.618 0 .498-.405.904-.904.904-.5 0-.904-.406-.904-.904 0-.27.114-.531.303-.743.33-.366.771-.676 1.229-.923.457-.247.94-.385 1.394-.415.463-.031.928.024 1.384.163.459.139.916.321 1.367.546.448.224.898.447 1.345.671.892.419 1.776.842 2.653 1.266.877.424 1.756.848 2.629 1.269z"
-							/>
+							<path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
 						</svg>
 						Ver Documentação OpenClaw
 					</a>

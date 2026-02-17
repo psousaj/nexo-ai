@@ -45,11 +45,11 @@ async function getActiveWhatsAppApi(): Promise<'meta' | 'baileys'> {
 
 		cachedApiType = settings?.activeApi || 'meta';
 
-		logger.info({ activeApi: cachedApiType }, '📱 API WhatsApp ativa definida');
+		loggers.ai.info({ activeApi: cachedApiType }, '📱 API WhatsApp ativa definida');
 
 		return cachedApiType;
 	} catch (error) {
-		logger.error({ error }, '❌ Erro ao buscar API WhatsApp ativa');
+		loggers.ai.error({ error }, '❌ Erro ao buscar API WhatsApp ativa');
 		return 'meta'; // Padrão para Meta API em caso de erro
 	}
 }
@@ -74,11 +74,11 @@ export async function getProvider(name: ProviderType): Promise<MessagingProvider
 			// Lazy load do adapter Baileys
 			const { createBaileysAdapter } = await import('./baileys-adapter');
 			cachedWhatsAppProvider = createBaileysAdapter();
-			logger.info('📱 Provider Baileys carregado');
+			loggers.ai.info('📱 Provider Baileys carregado');
 		} else {
 			// Meta API (padrão)
 			cachedWhatsAppProvider = whatsappAdapter;
-			logger.info('📱 Provider Meta API carregado');
+			loggers.ai.info('📱 Provider Meta API carregado');
 		}
 
 		return cachedWhatsAppProvider;
@@ -111,24 +111,32 @@ export async function setActiveWhatsAppApi(api: 'meta' | 'baileys'): Promise<voi
 	// Invalidar cache
 	invalidateWhatsAppProviderCache();
 
-	logger.info({ api }, '✅ API WhatsApp alterada com sucesso');
+	loggers.ai.info({ api }, '✅ API WhatsApp alterada com sucesso');
 }
 
 /**
  * Obtém configurações atuais do WhatsApp
+ * Cria registro padrão se não existir
  */
 export async function getWhatsAppSettings() {
-	const [settings] = await db
+	let [settings] = await db
 		.select()
 		.from(whatsappSettings)
 		.limit(1);
 
-	return settings || {
-		id: 'global',
-		activeApi: 'meta',
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	};
+	// Se não existe, criar registro padrão
+	if (!settings) {
+		loggers.ai.info('📱 Criando configurações padrão do WhatsApp');
+		[settings] = await db
+			.insert(whatsappSettings)
+			.values({
+				id: 'global',
+				activeApi: 'meta',
+			})
+			.returning();
+	}
+
+	return settings;
 }
 
 // Export síncrono para backward compatibility
