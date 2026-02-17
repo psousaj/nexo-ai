@@ -71,7 +71,6 @@ const envSchema = z.object({
 		.string()
 		.optional()
 		.transform((val) => {
-			if (!val) return ['http://localhost:5173', 'http://localhost:3001'];
 			return val
 				.trim()
 				.split(',')

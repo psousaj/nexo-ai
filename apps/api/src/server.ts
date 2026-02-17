@@ -29,6 +29,7 @@ import { loggers } from './utils/logger';
 const app = new Hono();
 
 // CORS - Origins definidas em CORS_ORIGINS (separadas por vírgula)
+// Em dev: permite qualquer origem (útil para túneis zrok/ngrok)
 app.use(
 	'*',
 	cors({
