@@ -16,6 +16,7 @@ export default defineNuxtConfig({
 
 	devServer: {
 		port: env.PORT_DASHBOARD || 5173,
+		host: '0.0.0.0', // Permite conexões de qualquer host (incluindo zrok)
 	},
 
 	css: ['~/assets/css/main.css'],
@@ -40,5 +41,6 @@ export default defineNuxtConfig({
 			apiUrl: env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api',
 			authBaseUrl: env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001',
 		},
-	},
-});
+
+}
+	});

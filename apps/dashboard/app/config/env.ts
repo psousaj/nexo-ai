@@ -12,6 +12,8 @@ const dashboardEnvSchema = z.object({
 	DATABASE_URL: z.string().url().optional(),
 	// Port (opcional)
 	PORT_DASHBOARD: z.coerce.number().optional(),
+	// CORS origins (opcional)
+	CORS_ORIGINS: z.string().default('localhost,share.zrok.io'),
 });
 
 export type DashboardEnv = z.infer<typeof dashboardEnvSchema>;
@@ -24,6 +26,7 @@ export const env = {
 	BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || 'http://localhost:3001',
 	DATABASE_URL: process.env.DATABASE_URL,
 	PORT_DASHBOARD: Number.parseInt(process.env.PORT_DASHBOARD || '5173', 10),
+	CORS_ORIGINS: process.env.CORS_ORIGINS || 'localhost,share.zrok.io',
 } satisfies DashboardEnv;
 
 // Helper para pegar variáveis públicas no client-side do Nuxt
