@@ -4,7 +4,7 @@
     "description": "Assistente pessoal via WhatsApp com IA",
     "type": "module",
     "scripts": {
-        "dev": "tsx -r dotenv/config src/index.ts",
+        "dev": "tsx -r dotenv/config --env-file=../../.env src/index.ts",
         "build": "tsup",
         "start": "NODE_ENV=production node --experimental-loader=newrelic/esm-loader.mjs dist/index.js",
         "start:no-newrelic": "NODE_ENV=production node dist/index.js",

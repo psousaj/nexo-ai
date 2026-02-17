@@ -126,4 +126,14 @@ export function validateEnv(): Env {
 	return parsed.data;
 }
 
-export const env = validateEnv();
+// Não valida automaticamente no import - espera que app chame validateEnv()
+// ou acesse env (que usa lazy getter)
+let _lazyEnv: Env | null = null;
+export const env: Env = new Proxy({} as Env, {
+	get(_target, prop: string) {
+		if (!_lazyEnv) {
+			_lazyEnv = validateEnv();
+		}
+		return (_lazyEnv as any)[prop];
+	},
+});
