@@ -131,7 +131,69 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ---
 
-## 🟡 v0.4.0 - Advanced Features (Planejado)
+## ✅ v0.4.0 - OpenClaw Patterns (Concluído - 16/02/2026)
+
+**Objetivo**: Implementar padrões OpenClaw para memória persistente e personalização de agente.
+
+### ✅ Implementado
+
+#### 🔑 Session Key Architecture
+
+- Sistema de chaves de sessão para contexto de conversação
+- Formato: `{agentId}:{channel}:{accountId}:{peerKind}:{peerId}:{dmScope}`
+- Suporte a múltiplas contas por provider
+- Isolamento de contexto por peer (DMs, grupos, canais)
+
+> Ver [ADR-016: Session Key Architecture](../adr/016-session-key-architecture.md)
+
+#### 🤖 Agent Profile System
+
+- Personalização via arquivos markdown (AGENTS.md, SOUL.md, IDENTITY.md, USER.md)
+- Campos de personalidade: emoji, creature, tone, vibe
+- Context builder que agrupa perfis e injeta no LLM
+- Dashboard UI para edição de perfis
+
+> Ver [ADR-017: Agent Profile System](../adr/017-agent-profile-system.md)
+
+#### 🔍 Hybrid Memory Search
+
+- Combinação de busca vetorial (pgvector) + busca por palavras-chave (PostgreSQL FTS)
+- Múltiplas estratégias de merge: weighted, average, reciprocal_rank_fusion
+- Configuração de pesos: vectorWeight (0.7) + textWeight (0.3)
+- Tools: memory_search, memory_get, daily_log_search
+
+> Ver [ADR-018: Hybrid Memory Search](../adr/018-hybrid-memory-search.md)
+
+#### 📊 Database Schema Updates
+
+- Tabela `agent_sessions` - gerenciamento de sessões OpenClaw
+- Tabela `agent_memory_profiles` - perfis de memória por sessão
+- Tabela `session_transcripts` - transcrições de sessões
+- Tabela `agent_daily_logs` - logs diários do agente
+- Campos de personalidade em `users`: assistant_emoji, assistant_creature, assistant_tone, assistant_vibe
+
+#### 🎨 Dashboard UI
+
+- Editor de perfil de agente (AGENTS.md, SOUL.md, IDENTITY.md, USER.md)
+- Visualizador de sessões com export JSONL
+- Dashboard de busca de memória
+- Gerenciador de daily logs
+- Visualização de session keys
+
+#### 🧪 Tests
+
+- session-service.test.ts
+- context-builder.test.ts
+- chat-commands.test.ts
+- memory-search.test.ts
+- discord-adapter.test.ts
+- telegram-adapter-mention-gating.test.ts
+
+**Estado:** ✅ Concluído e deployado
+
+---
+
+## 🟡 v0.5.0 - Advanced Features (Planejado)
 
 **Objetivo:** Features que agregam valor mas não são críticas
 
@@ -156,7 +218,7 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ---
 
-## 🔵 v0.5.0 - Integrations (Planejado)
+## 🔵 v0.6.0 - Integrations (Planejado)
 
 **Objetivo:** Integrar com produtividade e calendário
 
@@ -170,7 +232,7 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ---
 
-## 🔵 v0.6.0 - Performance Optimization (Planejado)
+## 🔵 v0.7.0 - Performance Optimization (Planejado)
 
 **Objetivo:** Otimizações para escala
 
@@ -283,4 +345,4 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ---
 
-**Última atualização**: 19 de janeiro de 2026
+**Última atualização**: 16 de fevereiro de 2026 (v0.4.0 - OpenClaw Patterns)

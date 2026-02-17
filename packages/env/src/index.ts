@@ -1,15 +1,13 @@
-import 'dotenv/config';
 import { z } from 'zod';
-import { resolve, dirname } from 'node:path';
-import { config } from 'dotenv';
-import { fileURLToPath } from 'node:url';
 
-// ESM-friendly __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Carrega .env da raiz do monorepo
-config({ path: resolve(__dirname, '../../../.env') });
+/**
+ * @nexo/env - Pacote centralizado de variáveis de ambiente
+ *
+ * Dev: dotenv carrega .env da raiz do monorepo (via -r dotenv/config no tsx)
+ * Prod: process.env já vem preenchido pelo runtime (Railway, Docker, etc)
+ *
+ * Não faz hack de path relativo — quem carrega o .env é o runner (tsx, node, etc)
+ */
 
 const envSchema = z.object({
 	// Database

@@ -2,16 +2,40 @@
     "name": "@nexo/auth",
     "version": "0.1.0",
     "private": true,
+    "type": "module",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "exports": {
-        ".": "./src/index.ts",
-        "./client": "./src/client.ts",
-        "./types": "./src/types.ts"
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs",
+            "types": "./dist/index.d.ts"
+        },
+        "./client": {
+            "import": "./dist/client.js",
+            "require": "./dist/client.cjs",
+            "types": "./dist/client.d.ts"
+        },
+        "./types": {
+            "import": "./dist/types.js",
+            "require": "./dist/types.cjs",
+            "types": "./dist/types.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch"
     },
     "peerDependencies": {
         "better-auth": "^1.1.0"
     },
     "dependencies": {
         "better-auth": "^1.1.0"
+    },
+    "devDependencies": {
+        "tsup": "^8.5.0",
+        "typescript": "^5.0.0"
     },
     "license": "MIT"
 }
