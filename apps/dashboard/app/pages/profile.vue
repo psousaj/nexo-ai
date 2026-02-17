@@ -33,8 +33,14 @@ onMounted(async () => {
 
 const connectedAccounts = computed(() => {
 	const accounts = (accountsData.value as any[]) || [];
+
+	// Limpa o externalId do WhatsApp (remove sufixo @lid / @s.whatsapp.net)
+	const wa = accounts.find((a) => a.provider === 'whatsapp');
+	const waPhone = wa?.metadata?.phone
+		|| (wa?.externalId ? `+${wa.externalId.replace(/@.+$/, '')}` : null);
+
 	return [
-		{ id: 'whatsapp', name: 'WhatsApp', icon: Smartphone, status: accounts.find((a) => a.provider === 'whatsapp') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'whatsapp')?.metadata?.phone || null },
+		{ id: 'whatsapp', name: 'WhatsApp', icon: Smartphone, status: wa ? 'connected' : 'disconnected', username: waPhone },
 		{ id: 'telegram', name: 'Telegram', icon: MessageSquare, status: accounts.find((a) => a.provider === 'telegram') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'telegram')?.metadata?.username || null },
 		{ id: 'discord', name: 'Discord', icon: MessageSquare, status: accounts.find((a) => a.provider === 'discord') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'discord')?.metadata?.username || null },
 		{ id: 'google', name: 'Google', icon: Mail, status: accounts.find((a) => a.provider === 'google') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'google')?.metadata?.email || null },

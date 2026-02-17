@@ -1,6 +1,8 @@
 import type { ProviderType } from '@/adapters/messaging';
+import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
-import { linkingTokens } from '@/db/schema';
+import { conversations, linkingTokens, memoryItems, userAccounts, users } from '@/db/schema';
+import { loggers } from '@/utils/logger';
 import { and, eq, gte } from 'drizzle-orm';
 import { userService } from './user-service';
 
@@ -98,10 +100,15 @@ export class AccountLinkingService {
 	}
 
 	/**
-	 * Fluxo 2: Bot -> Dashboard (Manual Code)
-	 * O usuário está no Bot, digita /vincular, recebe um token (que contém seu externalId).
-	 * Ele digita o token no Dashboard (onde é o targetUserId).
-	 * Vinculamos a conta associada ao token ao targetUserId.
+	 * Fluxo 2: Bot -> Dashboard (signup ou link)
+	 *
+	 * Para tokenType = 'signup' (fluxo WhatsApp/Telegram trial → conta real):
+	 *   - Migra TODOS os dados do usuário trial para o novo usuário Better Auth
+	 *   - userAccounts, memory_items e conversations são reatribuídos
+	 *   - Novo usuário recebe status 'active'
+	 *
+	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
+	 *   - Apenas vincula a conta do bot ao usuário do Dashboard
 	 */
 	async linkTokenAccountToUser(
 		token: string,
@@ -115,24 +122,93 @@ export class AccountLinkingService {
 
 		if (!linkToken || !linkToken.provider) return null;
 
-		// Buscamos as contas do userId do token (usuário temporário do Bot)
-		const accounts = await userService.getUserAccounts(linkToken.userId);
-		const accountToLink = accounts.find((a: any) => a.provider === linkToken.provider);
+		const trialUserId = linkToken.userId;
+		const provider = linkToken.provider as ProviderType;
 
-		if (!accountToLink) return null;
+		if (linkToken.tokenType === 'signup') {
+			// Migração completa: trial user → conta real
+			await this.migrateTrialUserToAccount(trialUserId, targetUserId, provider);
+		} else {
+			// Vínculo simples (link manual code)
+			const accounts = await userService.getUserAccounts(trialUserId);
+			const accountToLink = accounts.find((a: any) => a.provider === provider);
+			if (!accountToLink) return null;
 
-		// Vincula a conta ao targetUserId (Usuário do Dashboard)
-		await userService.linkAccountToUser(
-			targetUserId,
-			accountToLink.provider as ProviderType,
-			accountToLink.externalId,
-			accountToLink.metadata,
-		);
+			await userService.linkAccountToUser(
+				targetUserId,
+				accountToLink.provider as ProviderType,
+				accountToLink.externalId,
+				accountToLink.metadata,
+			);
+		}
 
 		// Remove o token após uso
 		await db.delete(linkingTokens).where(eq(linkingTokens.id, linkToken.id));
 
-		return { userId: targetUserId, provider: linkToken.provider };
+		return { userId: targetUserId, provider };
+	}
+
+	/**
+	 * Migra TODOS os dados de um usuário trial para um usuário Better Auth recém-criado.
+	 *
+	 * Executa:
+	 * 1. Reatribui userAccounts (provider accounts do bot)
+	 * 2. Migra memory_items (itens salvos durante o trial)
+	 * 3. Migra conversations (histórico)
+	 * 4. Ativa o novo usuário (status → active)
+	 * 5. Invalida cache das contas migradas
+	 */
+	private async migrateTrialUserToAccount(
+		trialUserId: string,
+		targetUserId: string,
+		provider: ProviderType,
+	): Promise<void> {
+		loggers.webhook.info(
+			{ trialUserId, targetUserId, provider },
+			'🔄 Iniciando migração trial → conta real',
+		);
+
+		// Busca contas do trial user antes de migrar (para invalidar cache depois)
+		const trialAccounts = await userService.getUserAccounts(trialUserId);
+
+		// 1. Migra userAccounts: reatribui do trial para o target
+		await db
+			.update(userAccounts)
+			.set({ userId: targetUserId, updatedAt: new Date() })
+			.where(eq(userAccounts.userId, trialUserId));
+
+		// 2. Migra memory_items
+		await db
+			.update(memoryItems)
+			.set({ userId: targetUserId })
+			.where(eq(memoryItems.userId, trialUserId));
+
+		// 3. Migra conversations
+		await db
+			.update(conversations)
+			.set({ userId: targetUserId })
+			.where(eq(conversations.userId, trialUserId));
+
+		// 4. Ativa o novo usuário
+		await db
+			.update(users)
+			.set({ status: 'active', updatedAt: new Date() })
+			.where(eq(users.id, targetUserId));
+
+		// 5. Invalida cache de todas as contas migradas
+		for (const account of trialAccounts) {
+			const cacheKey = `user:account:${account.provider}:${account.externalId}`;
+			await cacheDelete(cacheKey);
+		}
+
+		loggers.webhook.info(
+			{
+				trialUserId,
+				targetUserId,
+				migratedAccounts: trialAccounts.length,
+			},
+			'✅ Migração concluída: trial → conta real',
+		);
 	}
 }
 
