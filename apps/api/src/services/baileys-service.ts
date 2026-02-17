@@ -265,12 +265,14 @@ export class BaileysService {
 			throw new Error('Baileys não está conectado');
 		}
 
-		// Formatar JID (Jaber ID)
+		// Formatar JID (Jaber ID) - preserva @lid, @g.us, etc
 		const jid = this.formatJid(phoneNumber);
 
-		logger.info({ jid, textLength: text.length }, '📤 Enviando mensagem via Baileys');
+		logger.info({ recipient: phoneNumber, jid, textLength: text.length }, '📤 Enviando mensagem via Baileys');
 
 		await this.sock.sendMessage(jid, { text });
+		
+		logger.info({ jid }, '✅ Mensagem enviada com sucesso via Baileys');
 	}
 
 	/**
@@ -549,12 +551,18 @@ export class BaileysService {
 
 	/**
 	 * Formatar número de telefone para JID
+	 * Preserva JIDs já formatados (@lid, @g.us, @s.whatsapp.net, etc)
 	 */
 	private formatJid(phoneNumber: string): string {
+		// Se já está formatado com @, retorna como está
+		if (phoneNumber.includes('@')) {
+			return phoneNumber;
+		}
+
 		// Remover caracteres não numéricos
 		const cleaned = phoneNumber.replace(/\D/g, '');
 
-		// Adicionar sufixo @s.whatsapp.net
+		// Adicionar sufixo @s.whatsapp.net para números puros
 		return `${cleaned}@s.whatsapp.net`;
 	}
 

@@ -159,14 +159,14 @@ export class BaileysAdapter implements MessagingProvider {
 
 	/**
 	 * Enviar mensagem de texto
-	 * @param recipient - JID do destinatário (ex: "5511999999999@s.whatsapp.net" ou apenas "5511999999999")
+	 * @param recipient - JID do destinatário (ex: "5511999999999@s.whatsapp.net", "228513835667612@lid", "grupo@g.us" ou apenas "5511999999999")
 	 * @param text - Conteúdo da mensagem
 	 */
 	async sendMessage(recipient: string, text: string, _options?: any): Promise<void> {
 		const service = await this.getService();
 
-		// Se recipient já está formatado com @s.whatsapp.net, usa direto
-		// Senão, formata para JID
+		// Se recipient já está formatado com @ (qualquer sufixo: @s.whatsapp.net, @lid, @g.us), usa direto
+		// Senão, formata como número de telefone
 		const phoneNumber = recipient.includes('@') ? recipient : recipient;
 
 		logger.info({ recipient, textLength: text.length }, '📤 Enviando mensagem via Baileys');
@@ -194,7 +194,7 @@ export class BaileysAdapter implements MessagingProvider {
 		const sock = (service as any).sock;
 
 		if (sock && chatId) {
-			// Formatar JID se necessário
+			// Formatar JID se necessário (preserva @lid, @g.us, etc)
 			const jid = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`;
 
 			await sock.chatModify({ markChatRead: false }, jid);
@@ -229,7 +229,7 @@ export class BaileysAdapter implements MessagingProvider {
 			throw new Error('Socket não inicializado');
 		}
 
-		// Formatar JID se necessário
+		// Formatar JID se necessário (preserva @lid, @g.us, etc)
 		const jid = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`;
 
 		// Converter botões para formato do WhatsApp
@@ -274,7 +274,7 @@ export class BaileysAdapter implements MessagingProvider {
 			throw new Error('Socket não inicializado');
 		}
 
-		// Formatar JID se necessário
+		// Formatar JID se necessário (preserva @lid, @g.us, etc)
 		const jid = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`;
 
 		// Enviar imagem
