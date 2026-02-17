@@ -38,12 +38,66 @@ export const adminRoutes = new Hono()
 			return c.json({ error: 'API must be "meta" or "baileys"' }, 400);
 		}
 
-		await setActiveWhatsAppApi(api);
-
-		// Invalidar cache para garantir que a nova API seja usada
-		invalidateWhatsAppProviderCache();
-
-		return c.json({ success: true, activeApi: api });
+		try {
+			// Se está mudando para Baileys, inicializar
+			if (api === 'baileys') {
+				const { getBaileysService } = await import('@/services/baileys-service');
+				
+				// Atualizar configuração no banco
+				await setActiveWhatsAppApi(api);
+				
+				// Inicializar Baileys (vai começar a conectar)
+				await getBaileysService();
+				
+				// Invalidar cache
+				invalidateWhatsAppProviderCache();
+				
+				return c.json({ 
+					success: true, 
+					activeApi: api,
+					message: 'Baileys ativado e conectando. Use /admin/whatsapp-settings/qr-code para obter QR Code.'
+				});
+			}
+			
+			// Se está mudando para Meta, desconectar Baileys
+			if (api === 'meta') {
+				const { resetBaileysService } = await import('@/services/baileys-service');
+				
+				// Atualizar configuração no banco
+				await setActiveWhatsAppApi(api);
+				
+				// Desconectar e limpar Baileys
+				try {
+					await resetBaileysService();
+				} catch (error) {
+					// Ignorar erro se Baileys não estava conectado
+					console.warn('Baileys não estava conectado:', error);
+				}
+				
+				// Invalidar cache
+				invalidateWhatsAppProviderCache();
+				
+				return c.json({ 
+					success: true, 
+					activeApi: api,
+					message: 'Meta API ativada. Baileys desconectado.'
+				});
+			}
+			
+			// Fallback (nunca deveria chegar aqui devido à validação no início)
+			await setActiveWhatsAppApi(api);
+			invalidateWhatsAppProviderCache();
+			
+			return c.json({ success: true, activeApi: api });
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao alterar API',
+				},
+				500
+			);
+		}
 	})
 	.post('/whatsapp-settings/cache/clear', async (c) => {
 		invalidateWhatsAppProviderCache();

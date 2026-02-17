@@ -8,6 +8,30 @@ import pkg from '../package.json';
 
 const port = env.PORT;
 
+/**
+ * Inicializar Baileys se a API ativa for 'baileys'
+ * Necessário para receber mensagens via WebSocket
+ */
+async function initializeBaileysIfActive(): Promise<void> {
+	try {
+		const { getWhatsAppSettings } = await import('@/adapters/messaging');
+		const settings = await getWhatsAppSettings();
+
+		if (settings.activeApi === 'baileys') {
+			logger.info('📱 Baileys é a API ativa, inicializando...');
+			
+			const { getBaileysService } = await import('@/services/baileys-service');
+			await getBaileysService();
+			
+			logger.info('✅ Baileys inicializado e pronto para receber mensagens');
+		} else {
+			logger.info('📱 Meta API é a API ativa (Baileys não será inicializado)');
+		}
+	} catch (error) {
+		logger.error({ error }, '❌ Erro ao verificar/inicializar Baileys');
+	}
+}
+
 serve(
 	{
 		fetch: app.fetch,
@@ -22,6 +46,9 @@ serve(
 				logger.error({ error }, '❌ Falha ao iniciar bot Discord');
 			}
 		}
+
+		// Iniciar Baileys se for a API ativa do WhatsApp
+		await initializeBaileysIfActive();
 
 		logger.info(`🚀 Nexo AI rodando em http://0.0.0.0:${info.port}`);
 		logger.info(`📦 Version: ${pkg.version}`);

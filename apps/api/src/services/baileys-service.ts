@@ -21,12 +21,8 @@ import {
 	WAMessage,
 	type ConnectionState,
 	type WASocket,
-	botomy,
 } from '@whiskeysockets/baileys';
-import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
-import { join } from 'path';
-import type { ClientToDeviceMessage, proto } from '@whiskeysockets/baileys';
 
 const logger = loggers.ai;
 
@@ -79,9 +75,21 @@ export class BaileysService {
 	 * Conectar ao WhatsApp
 	 */
 	async connect(): Promise<void> {
-		if (this.isConnecting || this.sock) {
-			logger.warn('Baileys já está conectando ou conectado');
+		if (this.isConnecting) {
+			logger.warn('Baileys já está em processo de conexão');
 			return;
+		}
+
+		// Se já existe socket conectado, não reconectar
+		if (this.sock && this.connectionState.connection === 'open') {
+			logger.warn('Baileys já está conectado');
+			return;
+		}
+
+		// Se existe socket mas não está conectado, limpar primeiro
+		if (this.sock) {
+			logger.info('♻️ Socket anterior detectado, limpando antes de reconectar...');
+			this.sock = null;
 		}
 
 		this.isConnecting = true;
@@ -94,11 +102,38 @@ export class BaileysService {
 			// Autenticação com arquivos locais
 			const { state, saveCreds } = await useMultiFileAuthState(this.config.authPath);
 
-			// Criar socket
+			// Criar socket com configurações mais robustas
 			this.sock = makeWASocket({
 				auth: state,
 				printQRInTerminal: this.config.printQRInTerminal,
 				defaultQueryTimeoutMs: undefined,
+				// Configurações para melhorar estabilidade
+				syncFullHistory: false, // Não sincronizar todo histórico (evita timeout)
+				browser: ['Nexo AI', 'Chrome', '120.0.0'], // Identificação do cliente
+				markOnlineOnConnect: true, // Marcar online ao conectar
+				generateHighQualityLinkPreview: false, // Desabilitar preview de links pesado
+				patchMessageBeforeSending: (message) => {
+					// Remover extended text message desnecessário
+					const requiresPatch = !!(
+						message.buttonsMessage ||
+						message.listMessage ||
+						message.templateMessage
+					);
+					if (requiresPatch) {
+						message = {
+							viewOnceMessage: {
+								message: {
+									messageContextInfo: {
+										deviceListMetadataVersion: 2,
+										deviceListMetadata: {},
+									},
+									...message,
+								},
+							},
+						};
+					}
+					return message;
+				},
 			});
 
 			// Salvar credenciais quando atualizadas
@@ -156,6 +191,12 @@ export class BaileysService {
 		// Desconectar se estiver conectado
 		if (this.sock) {
 			try {
+				// Remover event listeners antes de desconectar
+				logger.info('🗑️ Removendo event listeners...');
+				this.sock.ev.removeAllListeners('connection.update');
+				this.sock.ev.removeAllListeners('creds.update');
+				this.sock.ev.removeAllListeners('messages.upsert');
+				
 				await this.sock.logout();
 			} catch (error) {
 				logger.warn({ error }, '⚠️ Erro ao fazer logout');
@@ -269,7 +310,14 @@ export class BaileysService {
 	 * Gerenciar eventos de conexão
 	 */
 	private handleConnectionUpdate(update: Partial<ConnectionState>): void {
-		const { connection, lastDisconnect } = update;
+		const { connection, lastDisconnect, qr } = update;
+
+		logger.info({ 
+			connection, 
+			hasQr: !!qr,
+			hasLastDisconnect: !!lastDisconnect,
+			statusCode: (lastDisconnect?.error as any)?.output?.statusCode 
+		}, '📡 Connection update received');
 
 		if (connection) {
 			this.connectionState.connection = connection;
@@ -287,30 +335,87 @@ export class BaileysService {
 			}
 
 			if (connection === 'close') {
+				this.isConnecting = false;
 				this.connectionStatus = 'disconnected';
 				const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-				const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+				const errorMessage = (lastDisconnect?.error as any)?.message || 'Unknown';
 
-				logger.info({ shouldReconnect, statusCode, lastDisconnect }, '🔌 Conexão fechada');
+				logger.info({ 
+					statusCode, 
+					errorMessage,
+					lastDisconnect 
+				}, '🔌 Conexão fechada - detalhes');
+
+				// DisconnectReason enum values
+				// loggedOut: 401
+				// restartRequired: 515
+				// timedOut: 408
+				// connectionLost: 428
+				// badSession: 440
 
 				if (statusCode === DisconnectReason.loggedOut) {
 					this.connectionStatus = 'error';
 					this.connectionError = 'Desconectado (logout). Escaneie o QR Code novamente.';
-					logger.warn('⚠️ Baileys desconectado por logout');
+					logger.warn('⚠️ Baileys desconectado por logout (401)');
 					// Limpar credenciais para permitir novo QR code
 					this.latestQRCode = null;
-				} else if (!shouldReconnect) {
+					this.sock = null;
+				} else if (statusCode === 515) {
+					// Restart required - pode acontecer após pareamento bem-sucedido
+					logger.warn('⚠️ Restart necessário (515)');
+					this.connectionStatus = 'connecting';
+					this.connectionError = 'Reiniciando conexão...';
+					this.sock = null;
+					const credsPath = `${this.config.authPath}/creds.json`;
+					setTimeout(async () => {
+						try {
+							await fs.access(credsPath);
+							logger.info('♻️ Credenciais encontradas, reconectando...');
+							this.connect();
+						} catch {
+							logger.warn('📂 Sem credenciais, limpando...');
+							try {
+								await this.clearSession();
+								this.connect();
+							} catch (err) {
+								logger.error({ err }, '❌ Erro');
+							}
+						}
+					}, 2000);
+				} else if (statusCode === 440) {
+					// Bad session - limpar e gerar novo QR
+					logger.warn('⚠️ Sessão inválida (440) - limpando...');
 					this.connectionStatus = 'error';
-					this.connectionError = 'Desconectado permanentemente';
-					logger.warn('⚠️ Baileys desconectado permanentemente');
-				} else {
-					this.connectionError = 'Conexão perdida, tentando reconectar...';
-					// Reconectar após 5 segundos
+					this.connectionError = 'Sessão inválida. Gerando novo QR Code...';
+					this.sock = null;
+					this.latestQRCode = null;
+					// Limpar sessão e gerar novo QR
 					setTimeout(() => {
+						this.clearSession().then(() => {
+							logger.info('♻️ Gerando novo QR Code...');
+							this.connect();
+						}).catch((err) => {
+							logger.error({ err }, '❌ Erro ao limpar sessão');
+						});
+					}, 2000);
+				} else if (!statusCode || statusCode === 408 || statusCode === 428) {
+					// Timeout ou connection lost - reconectar
+					logger.warn(`⚠️ Conexão perdida (${statusCode}) - tentando reconectar...`);
+					this.connectionError = 'Conexão perdida, tentando reconectar...';
+					this.sock = null;
+					// Reconectar após 3 segundos
+					setTimeout(() => {
+						logger.info('♻️ Tentando reconectar...');
 						this.connect().catch((err) => {
 							logger.error({ err }, '❌ Erro ao reconectar Baileys');
 						});
-					}, 5000);
+					}, 3000);
+				} else {
+					// Outro erro desconhecido
+					logger.error({ statusCode, errorMessage }, '❌ Erro desconhecido ao desconectar');
+					this.connectionStatus = 'error';
+					this.connectionError = `Erro ${statusCode}: ${errorMessage}`;
+					this.sock = null;
 				}
 			}
 
@@ -371,7 +476,10 @@ export class BaileysService {
 			const senderName = message.pushName || '';
 
 			// Timestamp
-			const timestamp = new Date((message.messageTimestamp || 0) * 1000);
+			const timestampValue = typeof message.messageTimestamp === 'number' 
+				? message.messageTimestamp 
+				: (message.messageTimestamp as any)?.toNumber?.() || 0;
+			const timestamp = new Date(timestampValue * 1000);
 
 			return {
 				messageId: message.key.id || '',
