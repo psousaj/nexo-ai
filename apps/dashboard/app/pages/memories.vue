@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { FileText, Image as ImageIcon, Layers, Link as LinkIcon, Type } from 'lucide-vue-next';
+import { Calendar, Edit3, FileText, Image as ImageIcon, Layers, Link as LinkIcon, Search, Tag, Trash2, Type } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import type { MemoryItem } from '~/types/dashboard';
 
@@ -13,7 +13,7 @@ const { data: memories, isLoading } = useQuery({
 	queryFn: () => dashboard.getMemories(searchQuery.value),
 });
 
-const _iconMap: Record<string, any> = {
+const iconMap: Record<string, any> = {
 	movie: Layers,
 	tv_show: Layers,
 	text: Type,
@@ -57,7 +57,7 @@ const deleteMutation = useMutation({
 	},
 });
 
-const _handleAdd = async (payload: any) => {
+const handleAdd = async (payload: any) => {
 	isSubmitting.value = true;
 	try {
 		await createMutation.mutateAsync(payload);
@@ -66,12 +66,12 @@ const _handleAdd = async (payload: any) => {
 	}
 };
 
-const _handleEdit = (memory: MemoryItem) => {
+const handleEdit = (memory: MemoryItem) => {
 	selectedMemory.value = memory;
 	isEditModalOpen.value = true;
 };
 
-const _handleUpdate = async (payload: any) => {
+const handleUpdate = async (payload: any) => {
 	if (!selectedMemory.value) return;
 	isSubmitting.value = true;
 	try {
@@ -81,12 +81,12 @@ const _handleUpdate = async (payload: any) => {
 	}
 };
 
-const _handleDeleteClick = (memory: MemoryItem) => {
+const handleDeleteClick = (memory: MemoryItem) => {
 	selectedMemory.value = memory;
 	isConfirmModalOpen.value = true;
 };
 
-const _handleConfirmDelete = async () => {
+const handleConfirmDelete = async () => {
 	if (!selectedMemory.value) return;
 	isSubmitting.value = true;
 	try {
@@ -96,7 +96,7 @@ const _handleConfirmDelete = async () => {
 	}
 };
 
-const _filteredMemories = computed(() => memories.value || []);
+const filteredMemories = computed(() => memories.value || []);
 </script>
 
 <template>

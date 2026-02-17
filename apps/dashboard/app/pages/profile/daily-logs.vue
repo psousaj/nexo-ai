@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { BookOpen, Calendar, ChevronLeft, ChevronRight, FileText, Plus, Save } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 
@@ -73,7 +74,7 @@ function formatDisplayDate(dateString: string): string {
 }
 
 // Get logs sorted by date (newest first)
-const _sortedLogs = computed(() => {
+const sortedLogs = computed(() => {
 	if (!logs.value) return [];
 	return [...logs.value].sort((a: any, b: any) => b.logDate.localeCompare(a.logDate));
 });

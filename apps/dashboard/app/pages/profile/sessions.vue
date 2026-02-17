@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { Bot, Brain, Calendar, Clock, Download, FileText, MessageCircle, Search } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 
@@ -49,7 +50,7 @@ async function exportSessionJsonl(sessionId: string, sessionKey: string) {
 }
 
 // Filter sessions
-const _filteredSessions = computed(() => {
+const filteredSessions = computed(() => {
 	if (!sessions.value) return [];
 
 	let filtered = sessions.value;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { Activity, Eye, ExternalLink, Key, MessageSquare, Search, Users } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 
@@ -26,10 +27,10 @@ const {
 });
 
 // Session details modal
-const _selectedSession = ref<any>(null);
+const selectedSession = ref<any>(null);
 
 // Filter sessions
-const _filteredSessions = computed(() => {
+const filteredSessions = computed(() => {
 	if (!sessions.value) return [];
 
 	let filtered = sessions.value;
@@ -60,7 +61,7 @@ const _filteredSessions = computed(() => {
 });
 
 // Statistics
-const _stats = computed(() => {
+const stats = computed(() => {
 	if (!sessions.value) return { total: 0, channels: {}, peerKinds: {}, activeLast24h: 0 };
 
 	const total = sessions.value.length;

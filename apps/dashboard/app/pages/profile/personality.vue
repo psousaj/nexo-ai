@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Brain, FileText, Heart, Sparkles, User, Wrench } from 'lucide-vue-next';
+import { Brain, FileText, Heart, RotateCcw, Save, Sparkles, User, Wrench } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 
@@ -12,7 +12,7 @@ const auth = useAuth();
 const queryClient = useQueryClient();
 
 // Tab state
-const _activeTab = ref<'personality' | 'identity' | 'instructions' | 'user' | 'memory' | 'tools'>('personality');
+const activeTab = ref<'personality' | 'identity' | 'instructions' | 'user' | 'memory' | 'tools'>('personality');
 
 // Fetch current profile
 const { data: profile, isLoading } = useQuery({
@@ -49,7 +49,7 @@ watchEffect(() => {
 });
 
 // Save mutation
-const _saveMutation = useMutation({
+const saveMutation = useMutation({
 	mutationFn: async () => {
 		return api.post('/api/agent/profile', formData.value);
 	},
@@ -61,7 +61,7 @@ const _saveMutation = useMutation({
 });
 
 // Reset to defaults
-const _resetMutation = useMutation({
+const resetMutation = useMutation({
 	mutationFn: async () => {
 		return api.post('/api/agent/profile/reset');
 	},
@@ -81,7 +81,7 @@ function showResetNotification() {
 	console.log('Profile reset to defaults');
 }
 
-const _tabs = [
+const tabs = [
 	{
 		id: 'personality',
 		label: 'Personalidade',
@@ -100,7 +100,7 @@ const _tabs = [
 	{ id: 'tools', label: 'Ferramentas', icon: Wrench, description: 'TOOLS.md - Documentação de ferramentas' },
 ];
 
-const _examples = {
+const examples = {
 	personality: [
 		{
 			title: 'Amigável',
