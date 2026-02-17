@@ -139,6 +139,31 @@ export const useDashboard = () => {
 		await api.delete(`/user/accounts/${provider}`);
 	};
 
+	// WhatsApp Settings
+	const getWhatsAppSettings = async (): Promise<{
+		id: string;
+		activeApi: 'meta' | 'baileys';
+		baileysPhoneNumber?: string;
+		metaPhoneNumberId?: string;
+		baileysConnectionStatus?: string;
+		lastError?: string;
+		updatedAt: string;
+		createdAt: string;
+	}> => {
+		const { data } = await api.get('/admin/whatsapp-settings');
+		return data;
+	};
+
+	const setWhatsAppApi = async (api: 'meta' | 'baileys'): Promise<{ success: boolean; activeApi: string }> => {
+		const { data } = await api.post('/admin/whatsapp-settings/api', { api });
+		return data;
+	};
+
+	const clearWhatsAppCache = async (): Promise<{ success: boolean; message: string }> => {
+		const { data } = await api.post('/admin/whatsapp-settings/cache/clear');
+		return data;
+	};
+
 	return {
 		getAnalytics,
 		getMemories,
@@ -156,5 +181,8 @@ export const useDashboard = () => {
 		linkGoogle,
 		consumeLinkingToken,
 		unlinkAccount,
+		getWhatsAppSettings,
+		setWhatsAppApi,
+		clearWhatsAppCache,
 	};
 };
