@@ -1,18 +1,17 @@
 <script setup lang="ts">
+import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
 import { authClient } from '~/utils/auth-client';
 
 definePageMeta({
 	layout: false,
 });
 
-const _router = useRouter();
-
 const email = ref('');
 const password = ref('');
 const isLoading = ref(false);
 const error = ref('');
 
-const _handleLogin = async () => {
+const handleLogin = async () => {
 	isLoading.value = true;
 	error.value = '';
 
@@ -49,13 +48,13 @@ const _handleLogin = async () => {
 	}
 };
 
-const _loginWithSocial = async (provider: 'google' | 'discord') => {
+const loginWithSocial = async (provider: 'google' | 'discord') => {
 	isLoading.value = true;
 	try {
 		console.log('🔗 Login social com:', provider);
 		await authClient.signIn.social({
 			provider,
-			callbackURL: `${window.location.origin}/?auth=success`,
+			callbackURL: process.client ? `${window.location.origin}/?auth=success` : '/?auth=success',
 		});
 	} catch (e) {
 		console.error('Erro no login social:', e);

@@ -4,10 +4,8 @@ import type { UserPreferences } from '~/types/dashboard';
 export const usePreferencesStore = defineStore('preferences', () => {
 	const dashboard = useDashboard();
 
-	// 1. Inicializar tema do localStorage se existir
-	const savedTheme = process.client ? (localStorage.getItem('nexo.theme') as 'light' | 'dark' | null) : null;
-	const defaultTheme = savedTheme || 'dark';
-
+	// Inicializar sempre com 'dark' para garantir consistência SSR
+	// O tema do localStorage será aplicado apenas após hydration
 	const preferences = ref<UserPreferences>({
 		assistantName: 'Nexo AI',
 		notificationsBrowser: true,
@@ -15,16 +13,26 @@ export const usePreferencesStore = defineStore('preferences', () => {
 		notificationsEmail: false,
 		privacyShowMemoriesInSearch: false,
 		privacyShareAnalytics: true,
-		appearanceTheme: defaultTheme,
+		appearanceTheme: 'dark',
 		appearanceLanguage: 'pt-BR',
 	});
 
-	// Aplicar tema inicial imediatamente
-	if (process.client) {
-		applyTheme(defaultTheme);
-	}
-
 	const isLoading = ref(false);
+	const _isInitialized = ref(false);
+
+	// Função para inicializar o tema do localStorage após hydration
+	function initializeTheme() {
+		if (!process.client || _isInitialized.value) return;
+		
+		const savedTheme = localStorage.getItem('nexo.theme') as 'light' | 'dark' | null;
+		if (savedTheme) {
+			preferences.value.appearanceTheme = savedTheme;
+			applyTheme(savedTheme);
+		} else {
+			applyTheme('dark');
+		}
+		_isInitialized.value = true;
+	}
 
 	async function fetchPreferences() {
 		isLoading.value = true;
@@ -77,5 +85,6 @@ export const usePreferencesStore = defineStore('preferences', () => {
 		isLoading,
 		fetchPreferences,
 		updatePreferences,
+		initializeTheme,
 	};
 });

@@ -1,11 +1,10 @@
 <script setup lang="ts">
+import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
 import { authClient } from '~/utils/auth-client';
 
 definePageMeta({
 	layout: false,
 });
-
-const router = useRouter();
 
 const name = ref('');
 const email = ref('');
@@ -14,7 +13,7 @@ const confirmPassword = ref('');
 const isLoading = ref(false);
 const error = ref('');
 
-const _handleSignup = async () => {
+const handleSignup = async () => {
 	// Validações básicas
 	if (password.value !== confirmPassword.value) {
 		error.value = 'As senhas não coincidem';
@@ -50,10 +49,10 @@ const _handleSignup = async () => {
 	}
 };
 
-const _loginWithSocial = async (provider: 'google' | 'discord') => {
+const loginWithSocial = async (provider: 'google' | 'discord') => {
 	await authClient.signIn.social({
 		provider,
-		callbackURL: `${window.location.origin}/`,
+		callbackURL: process.client ? `${window.location.origin}/` : '/',
 	});
 };
 </script>

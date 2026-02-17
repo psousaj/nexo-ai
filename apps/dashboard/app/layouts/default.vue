@@ -1,18 +1,27 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
-import { AlertCircle, Database, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { AlertCircle, Bell, Database, LayoutDashboard, LogOut, Menu, MessageSquare, Settings, ShieldCheck, UserCircle, Users, X } from 'lucide-vue-next';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 
-const isOpen = ref(true);
-const _toggleSidebar = () => (isOpen.value = !isOpen.value);
+// Inicializa fechado para garantir consistência SSR
+// Será aberto automaticamente em desktop após hydration
+const isOpen = ref(false);
+const toggleSidebar = () => (isOpen.value = !isOpen.value);
+
+// Abrir sidebar automaticamente em desktop após hydration
+onMounted(() => {
+	if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+		isOpen.value = true;
+	}
+});
 
 const authStore = useAuthStore();
-const _route = useRoute();
+const route = useRoute();
 const { can } = useAbility();
 
-const _menuItems = computed(() => {
+const menuItems = computed(() => {
 	const allItems = [
 		{ name: 'Dashboard', icon: LayoutDashboard, path: '/', subject: 'Analytics', action: 'read' },
 		{ name: 'Minhas Memórias', icon: Database, path: '/memories', subject: 'UserContent', action: 'read' },
@@ -27,9 +36,9 @@ const _menuItems = computed(() => {
 	return allItems.filter((item) => can(item.action, item.subject as any));
 });
 
-const _handleLogout = async () => {
+const handleLogout = async () => {
 	await authStore.logout();
-	window.location.href = '/login';
+	await navigateTo('/login', { external: true });
 };
 </script>
 

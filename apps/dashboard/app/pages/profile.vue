@@ -103,17 +103,17 @@ const _handleLink = async (provider: string) => {
 		if (provider === 'telegram') {
 			const { link } = await dashboard.linkTelegram();
 			if (process.client) {
-				window.open(link, '_blank');
+				if (process.client) window.open(link, '_blank');
 			}
 		} else if (provider === 'discord') {
 			await authClient.signIn.social({
 				provider: 'discord',
-				callbackURL: `${window.location.origin}/profile?success=discord`,
+				callbackURL: process.client ? `${window.location.origin}/profile?success=discord` : '/profile?success=discord',
 			});
 		} else if (provider === 'google') {
 			await authClient.signIn.social({
 				provider: 'google',
-				callbackURL: `${window.location.origin}/profile?success=google`,
+				callbackURL: process.client ? `${window.location.origin}/profile?success=google` : '/profile?success=google',
 			});
 		}
 	} catch (error) {

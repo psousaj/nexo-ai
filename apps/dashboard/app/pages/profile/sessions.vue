@@ -26,6 +26,8 @@ const { data: sessions, isLoading } = useQuery({
 
 // Export session as JSONL
 async function exportSessionJsonl(sessionId: string, sessionKey: string) {
+	if (!process.client) return;
+	
 	try {
 		const response = await api.get(`/api/agent/sessions/${sessionId}/export`, {
 			responseType: 'blob',
