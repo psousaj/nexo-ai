@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { users } from '@/db/schema';
+import { accounts as betterAuthAccounts } from '@/db/schema/auth';
 import { eq, sql } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
 
@@ -35,7 +36,24 @@ export async function checkOnboardingStatus(
 		return { allowed: true, interactionCount: user.interactionCount };
 	}
 
-	// 2. WhatsApp tem TRIAL de 10 mensagens
+	// 2. Verifica se o user tem conta Better Auth (fez signup no dashboard)
+	//    Se sim, auto-ativa e permite
+	const [betterAuthAccount] = await db
+		.select({ id: betterAuthAccounts.id })
+		.from(betterAuthAccounts)
+		.where(eq(betterAuthAccounts.userId, userId))
+		.limit(1);
+
+	if (betterAuthAccount) {
+		loggers.app.info({ userId }, '🔓 Auto-ativando usuário com conta Better Auth vinculada');
+		await db
+			.update(users)
+			.set({ status: 'active', updatedAt: new Date() })
+			.where(eq(users.id, userId));
+		return { allowed: true, interactionCount: user.interactionCount };
+	}
+
+	// 3. WhatsApp tem TRIAL de 10 mensagens
 	if (provider === 'whatsapp') {
 		if (user.interactionCount < TRIAL_LIMIT) {
 			return { allowed: true, interactionCount: user.interactionCount };
@@ -43,7 +61,15 @@ export async function checkOnboardingStatus(
 		return { allowed: false, reason: 'trial_exceeded', interactionCount: user.interactionCount };
 	}
 
-	// 3. Outros providers exigem cadastro (status active) para interações normais
+	// 4. Telegram: trial de TRIAL_LIMIT mensagens (mesmo que WhatsApp)
+	if (provider === 'telegram') {
+		if (user.interactionCount < TRIAL_LIMIT) {
+			return { allowed: true, interactionCount: user.interactionCount };
+		}
+		return { allowed: false, reason: 'trial_exceeded', interactionCount: user.interactionCount };
+	}
+
+	// 5. Outros providers exigem cadastro (status active)
 	if (user.status === 'pending_signup' || user.status === 'trial') {
 		return { allowed: false, reason: 'signup_required', interactionCount: user.interactionCount };
 	}
