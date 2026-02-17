@@ -36,8 +36,7 @@ export const webhookRoutes = new Hono()
 					},
 					{
 						removeOnComplete: true,
-						attempts: 3,
-						backoff: { type: 'exponential', delay: 2000 },
+						attempts: 1,
 					},
 				);
 
@@ -86,8 +85,7 @@ export const webhookRoutes = new Hono()
 					},
 					{
 						removeOnComplete: true,
-						attempts: 3,
-						backoff: { type: 'exponential', delay: 2000 },
+						attempts: 1,
 					},
 				);
 
