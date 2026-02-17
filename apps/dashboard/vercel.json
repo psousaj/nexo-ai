@@ -1,0 +1,7 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"buildCommand": "cd ../.. && pnpm build --filter=@nexo/dashboard",
+	"outputDirectory": ".output",
+	"installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+	"framework": "nuxt"
+}
