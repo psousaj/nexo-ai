@@ -1,8 +1,9 @@
 import axios from 'axios';
-import { env } from '~/config/env';
+
 // Base API configuration
+// NUXT_PUBLIC_API_URL já inclui o sufixo /api
 export const api = axios.create({
-	baseURL: env.NUXT_PUBLIC_API_URL ?? 'http://localhost:3002/api',
+	baseURL: import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api',
 	headers: {
 		'Content-Type': 'application/json',
 	},

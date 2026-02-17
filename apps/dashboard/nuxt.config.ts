@@ -1,4 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { config } from 'dotenv';
+import { resolve } from 'node:path';
+
+// Carregar .env da raiz do monorepo
+config({ path: resolve(__dirname, '../../.env') });
+
 import { env } from './app/config/env';
 
 export default defineNuxtConfig({
@@ -31,7 +37,7 @@ export default defineNuxtConfig({
 
 	runtimeConfig: {
 		public: {
-			apiUrl: env.NUXT_PUBLIC_API_URL || 'http://localhost:3001',
+			apiUrl: env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api',
 			authBaseUrl: env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001',
 		},
 	},

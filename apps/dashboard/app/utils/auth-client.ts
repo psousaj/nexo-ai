@@ -1,7 +1,8 @@
 import { createAuthClient } from 'better-auth/vue';
-import { env } from '@nexo/env';
 
-const baseURL = env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001';
+// Use runtime config via useRuntimeConfig() no plugin ou composable
+// Fallback para variável de ambiente do Nuxt
+const baseURL = import.meta.env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001';
 
 console.log('🔧 Auth Client baseURL:', baseURL);
 
