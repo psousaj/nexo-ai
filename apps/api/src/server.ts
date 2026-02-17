@@ -33,7 +33,14 @@ const app = new Hono();
 app.use(
 	'*',
 	cors({
-		origin: env.CORS_ORIGINS,
+		origin: (origin) => {
+			// Em desenvolvimento, aceita qualquer origem
+			if (env.NODE_ENV === 'development') {
+				return origin || '*';
+			}
+			// Em produção, valida contra CORS_ORIGINS
+			return env.CORS_ORIGINS.includes(origin || '') ? origin : false;
+		},
 		credentials: true,
 		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 		allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
