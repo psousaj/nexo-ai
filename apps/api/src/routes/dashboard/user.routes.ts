@@ -124,6 +124,19 @@ export const userRoutes = new Hono<AuthContext>()
 
 		return c.json({ link });
 	})
+	// Discord Bot Installation Info
+	.get('/discord-bot-info', async (c) => {
+		return c.json({
+			clientId: env.DISCORD_CLIENT_ID,
+			botTokenConfigured: !!env.DISCORD_BOT_TOKEN,
+			installUrl: env.DISCORD_CLIENT_ID
+				? `https://discord.com/oauth2/authorize?client_id=${env.DISCORD_CLIENT_ID}&permissions=268445712&scope=bot%20applications.commands`
+				: null,
+			permissions: '268445712',
+			scopes: ['bot', 'applications.commands'],
+			botUsername: env.DISCORD_BOT_USERNAME || 'NexoAssistente_bot',
+		});
+	})
 	.post('/link/consume', zValidator('json', z.object({ token: z.string() })), async (c) => {
 		const userState = c.get('user');
 		const { token } = c.req.valid('json');

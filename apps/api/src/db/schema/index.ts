@@ -2,6 +2,7 @@
 export * from './users';
 export * from './user-accounts';
 export * from './user-emails';
+export * from './user-tools';
 export * from './items';
 export * from './conversations';
 export * from './messages';

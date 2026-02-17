@@ -164,6 +164,19 @@ export const useDashboard = () => {
 		return data;
 	};
 
+	// Discord Bot Info
+	const getDiscordBotInfo = async (): Promise<{
+		clientId: string;
+		botTokenConfigured: boolean;
+		installUrl: string | null;
+		permissions: string;
+		scopes: string[];
+		botUsername: string;
+	}> => {
+		const { data } = await api.get('/user/discord-bot-info');
+		return data;
+	};
+
 	return {
 		getAnalytics,
 		getMemories,
@@ -184,5 +197,6 @@ export const useDashboard = () => {
 		getWhatsAppSettings,
 		setWhatsAppApi,
 		clearWhatsAppCache,
+		getDiscordBotInfo,
 	};
 };

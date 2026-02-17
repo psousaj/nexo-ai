@@ -16,6 +16,12 @@ const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
 	queryFn: () => dashboard.getAccounts(),
 });
 
+// Fetch Discord Bot Info
+const { data: discordBotInfo } = useQuery({
+	queryKey: ['discord-bot-info'],
+	queryFn: () => dashboard.getDiscordBotInfo(),
+});
+
 // Sincronizar accounts automaticamente no mount e após redirect de OAuth
 onMounted(async () => {
 	// Se veio de um redirect de OAuth (success=discord ou success=google)
@@ -281,19 +287,29 @@ const handleUnlink = async (provider: string) => {
 										v-if="account.status === 'connected'"
 										class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-tighter rounded"
 										>Ativo</span
-									>
 								</div>
 								<p class="text-sm text-surface-500 font-medium">{{ account.username || 'Não vinculado' }}</p>
 								<!-- Link para adicionar bot Discord -->
 								<a
-									v-if="account.id === 'discord' && account.status === 'connected'"
-									href="https://discord.com/oauth2/authorize?client_id=1465015304244559892"
+									v-if="account.id === 'discord' && account.status === 'connected' && discordBotInfo?.installUrl"
+									:href="discordBotInfo.installUrl"
 									target="_blank"
-									class="text-xs text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 mt-1"
+									class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg transition-all"
 								>
-									<Plus class="w-3 h-3" />
-									Adicionar bot no servidor
+									<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+										<path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.75.75 0 00-.18.07c-.29.12-.55.3-.78.53-.47-.2-.97-.3-1.48-.28-.74.05-1.47.18-2.15.36a.75.75 0 00-.57.06c-.36.06-.69.2-.97.43-.63.43-1.14.95-1.51 1.47-.52.74-.89 1.41-1.09 2.12-.18.65-.27-1.33-.27-2.03 0-1.42.67-2.68 1.74-3.75C7.72 5.55 9.15 5 10.65 5c.25 0 .5.05.74.15.45.26.86.64 1.32.97 1.88.76.45.15.92-.08 1.4-.26.48-.2 1-.36 1.55-.54.55-.18 1.12-.26 1.7-.27.68 0 1.36.27 1.95.82.57.52.89 1.1 1.46 1.53-.38.27-.76.42-1.17.27-.5-.18-.85-.05-1.31.18-.46.23-.69.68-.98.87-.28.2-.61.47-1.15.6-1.74.12-.58.3-.98.38-1.55.32-.57-.06-1.15-.19-1.76-.13-.61.06-1.24.13-1.87.2-.63.07-1.27-.19-1.89-.2-.62 0-1.24.13-1.86.21-.62.08-1.25.2-1.87.35-.62.15-1.24.35-1.83.6-.59.25-1.18.41-1.75.54-.57.13-1.15.36-1.7.68-.55.32-1.1.76-1.62.94-.52.18-1.05.28-1.6.38-.55.1-1.12.23-1.67.43-.55.2-1.1.48-1.62.77-.52.29-1.05.63-1.55 1.03-.5.4-1 .84-1.47 1.32-.47.48-.85.81-1.31.97-.46.16-.9.38-1.38-.5-.48-.12-.96-.27-1.42-.39-.46-.12-.93-.19-1.39-.32-.46-.13-.93-.31-1.4-.49-.47-.18-.93-.37-1.4-.44-.46-.07-.92-.12-1.39-.24-.47-.12-.95-.35-1.41-.59-.46-.24-.92-.6-1.39-.58-.47.02-.94.21-1.41.59-.47.38-.89.92-1.23 1.58-.34.66-.63 1.02-1.29 1.2-1.92.18-.63.47-.98.36-1.38 1.01-.4.65-.67.58-1.31.52-1.94.33-.63.76-.22 1.39-.24 2.08-.02.69-.18 1.35-.52 1.99-.34.64-.64 1.23-1.08 1.91-1.31.68-.23 1.34-.47 2.68-.7 4.02z"/>
+									</svg>
+									Adicionar bot ao servidor
 								</a>
+								<!-- Aviso se bot não configurado -->
+								<div
+									v-if="account.id === 'discord' && account.status === 'connected' && !discordBotInfo?.botTokenConfigured"
+									class="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"
+								>
+									<p class="text-xs text-amber-700 dark:text-amber-300">
+										⚠️ Bot não configurado - Token ausente
+									</p>
+								</div>
 							</div>
 						</div>
 
