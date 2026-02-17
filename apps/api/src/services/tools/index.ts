@@ -14,6 +14,8 @@ import { logError, loggers } from '@/utils/logger';
 export interface ToolContext {
 	userId: string;
 	conversationId: string;
+	provider?: 'telegram' | 'whatsapp' | 'discord';
+	externalId?: string;
 }
 
 export interface ToolOutput {
@@ -747,6 +749,278 @@ export async function daily_log_search(
 }
 
 // ============================================================================
+// INTEGRATION TOOLS - Calendar, Todo, Reminders
+// ============================================================================
+
+/**
+ * Tool: list_calendar_events
+ * List events from Google Calendar
+ */
+export async function list_calendar_events(
+	context: ToolContext,
+	params: {
+		startDate?: string; // ISO string or natural language date
+		endDate?: string; // ISO string or natural language date
+		maxResults?: number;
+	},
+): Promise<ToolOutput> {
+	try {
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
+
+		// Check if user has connected Google Calendar
+		const isConnected = await hasGoogleCalendarConnected(context.userId);
+		if (!isConnected) {
+			return {
+				success: false,
+				error: 'Você precisa conectar sua conta Google primeiro. Use o link no dashboard para conectar.',
+			};
+		}
+
+		// Parse dates if provided
+		let startDate: Date | undefined;
+		let endDate: Date | undefined;
+
+		if (params.startDate) {
+			const { parseNaturalDate } = await import('@/services/date-parser');
+			startDate = await parseNaturalDate(params.startDate);
+		}
+
+		if (params.endDate) {
+			const { parseNaturalDate } = await import('@/services/date-parser');
+			endDate = await parseNaturalDate(params.endDate);
+		}
+
+		const events = await listCalendarEvents(context.userId, startDate, endDate, params.maxResults || 10);
+
+		return {
+			success: true,
+			data: {
+				events: events.map((e) => ({
+					id: e.id,
+					title: e.title,
+					description: e.description,
+					start: e.start.toISOString(),
+					end: e.end?.toISOString(),
+					location: e.location,
+				})),
+				count: events.length,
+			},
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Erro ao listar eventos do calendário');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao listar eventos',
+		};
+	}
+}
+
+/**
+ * Tool: create_calendar_event
+ * Create an event in Google Calendar
+ */
+export async function create_calendar_event(
+	context: ToolContext,
+	params: {
+		title: string;
+		startDate: string; // ISO string or natural language date
+		endDate?: string; // ISO string or natural language date
+		description?: string;
+		duration?: number; // Duration in minutes (used if endDate not provided)
+		location?: string;
+	},
+): Promise<ToolOutput> {
+	try {
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import('@/services/integrations/google-calendar.service');
+
+		// Check if user has connected Google Calendar
+		const isConnected = await hasGoogleCalendarConnected(context.userId);
+		if (!isConnected) {
+			return {
+				success: false,
+				error: 'Você precisa conectar sua conta Google primeiro. Use o link no dashboard para conectar.',
+			};
+		}
+
+		// Parse start date
+		const { parseNaturalDate } = await import('@/services/date-parser');
+		const startDate = await parseNaturalDate(params.startDate);
+
+		// Parse end date or calculate from duration
+		let endDate: Date | undefined;
+		if (params.endDate) {
+			endDate = await parseNaturalDate(params.endDate);
+		} else if (params.duration) {
+			endDate = new Date(startDate.getTime() + params.duration * 60 * 1000);
+		} else {
+			// Default: 1 hour
+			endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+		}
+
+		const eventId = await createEvent(context.userId, {
+			title: params.title,
+			description: params.description,
+			startDate,
+			endDate,
+			location: params.location,
+		});
+
+		return {
+			success: true,
+			message: `Evento "${params.title}" criado com sucesso para ${startDate.toLocaleString('pt-BR')}`,
+			data: { eventId },
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Erro ao criar evento no calendário');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao criar evento',
+		};
+	}
+}
+
+/**
+ * Tool: list_todos
+ * List tasks from Microsoft To Do
+ */
+export async function list_todos(context: ToolContext, _params: {}): Promise<ToolOutput> {
+	try {
+		const { hasMicrosoftTodoConnected, listTasks } = await import('@/services/integrations/microsoft-todo.service');
+
+		// Check if user has connected Microsoft To Do
+		const isConnected = await hasMicrosoftTodoConnected(context.userId);
+		if (!isConnected) {
+			return {
+				success: false,
+				error: 'Você precisa conectar sua conta Microsoft primeiro. Use o link no dashboard para conectar.',
+			};
+		}
+
+		const tasks = await listTasks(context.userId);
+
+		return {
+			success: true,
+			data: {
+				tasks: tasks.map((t) => ({
+					id: t.id,
+					title: t.title,
+					description: t.description,
+					dueDateTime: t.dueDateTime?.toISOString(),
+					isCompleted: t.isCompleted,
+				})),
+				count: tasks.length,
+			},
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Erro ao listar tarefas');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao listar tarefas',
+		};
+	}
+}
+
+/**
+ * Tool: create_todo
+ * Create a task in Microsoft To Do
+ */
+export async function create_todo(
+	context: ToolContext,
+	params: {
+		title: string;
+		description?: string;
+		dueDate?: string; // ISO string or natural language date
+	},
+): Promise<ToolOutput> {
+	try {
+		const { hasMicrosoftTodoConnected, createTask } = await import('@/services/integrations/microsoft-todo.service');
+
+		// Check if user has connected Microsoft To Do
+		const isConnected = await hasMicrosoftTodoConnected(context.userId);
+		if (!isConnected) {
+			return {
+				success: false,
+				error: 'Você precisa conectar sua conta Microsoft primeiro. Use o link no dashboard para conectar.',
+			};
+		}
+
+		// Parse due date if provided
+		let dueDateTime: Date | undefined;
+		if (params.dueDate) {
+			const { parseNaturalDate } = await import('@/services/date-parser');
+			dueDateTime = await parseNaturalDate(params.dueDate);
+		}
+
+		const taskId = await createTask(context.userId, {
+			title: params.title,
+			description: params.description,
+			dueDateTime,
+		});
+
+		return {
+			success: true,
+			message: `Tarefa "${params.title}" criada com sucesso`,
+			data: { taskId },
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Erro ao criar tarefa');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao criar tarefa',
+		};
+	}
+}
+
+/**
+ * Tool: schedule_reminder
+ * Schedule a reminder to be sent at a specific time
+ */
+export async function schedule_reminder(
+	context: ToolContext,
+	params: {
+		title: string;
+		description?: string;
+		when: string; // Natural language date/time
+	},
+): Promise<ToolOutput> {
+	try {
+		if (!context.provider || !context.externalId) {
+			return {
+				success: false,
+				error: 'Não foi possível identificar o canal para enviar o lembrete',
+			};
+		}
+
+		// Parse the date
+		const { parseNaturalDate } = await import('@/services/date-parser');
+		const scheduledFor = await parseNaturalDate(params.when);
+
+		// Schedule the reminder
+		const { scheduleReminder } = await import('@/services/scheduler-service');
+		const reminderId = await scheduleReminder({
+			userId: context.userId,
+			title: params.title,
+			description: params.description,
+			scheduledFor,
+			provider: context.provider,
+			externalId: context.externalId,
+		});
+
+		return {
+			success: true,
+			message: `Lembrete agendado para ${scheduledFor.toLocaleString('pt-BR')}`,
+			data: { reminderId, scheduledFor: scheduledFor.toISOString() },
+		};
+	} catch (error) {
+		loggers.ai.error({ err: error }, '❌ Erro ao agendar lembrete');
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao agendar lembrete',
+		};
+	}
+}
+
+// ============================================================================
 // REGISTRO DE TOOLS
 // ============================================================================
 
@@ -778,6 +1052,13 @@ export const AVAILABLE_TOOLS = {
 	memory_search,
 	memory_get,
 	daily_log_search,
+
+	// Integration tools
+	list_calendar_events,
+	create_calendar_event,
+	list_todos,
+	create_todo,
+	schedule_reminder,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;

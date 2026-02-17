@@ -16,3 +16,7 @@ export * from './agent-memory-profiles';
 export * from './agent-sessions';
 export * from './session-transcripts';
 export * from './agent-daily-logs';
+// Integration tables
+export * from './integrations';
+// WhatsApp settings
+export * from './whatsapp-settings';

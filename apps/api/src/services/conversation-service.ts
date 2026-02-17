@@ -148,7 +148,7 @@ export class ConversationService {
 			const optionsText = options.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
 
 			// Multi-provider: obtém provider correto e envia mensagem
-			const provider = getProvider(providerType);
+			const provider = await getProvider(providerType);
 			if (provider) {
 				await provider.sendMessage(externalId, `${msg}\n\n${optionsText}`);
 			} else {

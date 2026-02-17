@@ -66,6 +66,38 @@ export class DiscordAdapter implements MessagingProvider {
 
 	constructor() {
 		this.setupEventHandlers();
+		this.registerSlashCommandHandlers();
+	}
+
+	/**
+	 * Register slash command handlers
+	 */
+	private registerSlashCommandHandlers(): void {
+		// /start command - Initiate DM conversation
+		this.commandHandlers.set('start', async (interaction: ChatInputCommandInteraction) => {
+			try {
+				await interaction.deferReply({ ephemeral: true });
+
+				const dmChannel = await interaction.user.createDM();
+
+				await dmChannel.send({
+					content: `👋 Olá ${interaction.user.username}! Eu sou o **NEXO AI**.\n\n` +
+						`Agora você pode conversar comigo privado! Tente:\n` +
+						`• "Salvar: filme A Origem"\n` +
+						`• "Quais filmes eu salvei?"\n` +
+						`• "Criar tarefa: ligar pro dentista amanhã"\n` +
+						`• "Criar evento: reunião sexta às 15h"\n\n` +
+						`Use /help para ver mais comandos.`,
+				});
+
+				await interaction.editReply({ content: '✅ Enviei um DM para você!' });
+			} catch (error) {
+				loggers.discord.error({ error }, '❌ Failed to send DM');
+				await interaction.editReply({
+					content: '❌ Não consegui enviar DM. Verifique se suas DMs estão abertas.',
+				});
+			}
+		});
 	}
 
 	getProviderName(): ProviderType {
@@ -326,6 +358,7 @@ export class DiscordAdapter implements MessagingProvider {
 	 */
 	private async registerSlashCommands(): Promise<void> {
 		const commands = [
+			new SlashCommandBuilder().setName('start').setDescription('Iniciar conversa privada com o NEXO AI'),
 			new SlashCommandBuilder().setName('status').setDescription('Show session status'),
 			new SlashCommandBuilder()
 				.setName('new')

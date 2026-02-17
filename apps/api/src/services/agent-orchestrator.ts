@@ -315,6 +315,8 @@ export class AgentOrchestrator {
 		const toolContext: ToolContext = {
 			userId: context.userId,
 			conversationId: context.conversationId,
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 		};
 
 		// Monta histórico (últimas 10 mensagens)
@@ -516,6 +518,8 @@ export class AgentOrchestrator {
 			const toolContext: ToolContext = {
 				userId: context.userId,
 				conversationId: context.conversationId,
+				provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+				externalId: context.externalId,
 			};
 
 			const itemType = selectedItem.type || contextData.detected_type || 'note';
@@ -586,6 +590,8 @@ export class AgentOrchestrator {
 		// Se há forcedType (veio do fluxo de clarificação)
 		if (contextData.forcedType && contextData.originalMessage) {
 			const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 				userId: context.userId,
 				conversationId: context.conversationId,
 			};
@@ -695,6 +701,8 @@ export class AgentOrchestrator {
 
 		// Salva como nota
 		const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 			userId: context.userId,
 			conversationId: context.conversationId,
 		};
@@ -759,6 +767,8 @@ export class AgentOrchestrator {
 	 */
 	private async handleGetAssistantName(context: AgentContext): Promise<AgentResponse> {
 		const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 			userId: context.userId,
 			conversationId: context.conversationId,
 		};
@@ -778,6 +788,8 @@ export class AgentOrchestrator {
 	 */
 	private async handleSearch(context: AgentContext, intent: IntentResult): Promise<AgentResponse> {
 		const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 			userId: context.userId,
 			conversationId: context.conversationId,
 		};
@@ -818,6 +830,8 @@ export class AgentOrchestrator {
 	 */
 	private async handleDeleteAll(context: AgentContext): Promise<AgentResponse> {
 		const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 			userId: context.userId,
 			conversationId: context.conversationId,
 		};
@@ -845,6 +859,8 @@ export class AgentOrchestrator {
 	 */
 	private async handleDeleteItem(context: AgentContext, intent: IntentResult): Promise<AgentResponse> {
 		const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 			userId: context.userId,
 			conversationId: context.conversationId,
 		};
@@ -1086,6 +1102,8 @@ export class AgentOrchestrator {
 		});
 
 		const toolContext: ToolContext = {
+			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+			externalId: context.externalId,
 			userId: context.userId,
 			conversationId: context.conversationId,
 		};
@@ -1319,7 +1337,7 @@ export class AgentOrchestrator {
 
 			// Obtém provider dinamicamente do contexto
 			const { getProvider } = await import('@/adapters/messaging');
-			const provider = getProvider(context.provider as 'telegram');
+			const provider = await getProvider(context.provider as 'telegram');
 
 			if (provider && 'sendMessageWithButtons' in provider) {
 				await (provider as any).sendMessageWithButtons(context.externalId, message, buttons);
@@ -1394,7 +1412,7 @@ export class AgentOrchestrator {
 
 			// Obtém provider dinamicamente do contexto
 			const { getProvider } = await import('@/adapters/messaging');
-			const provider = getProvider(context.provider as 'telegram');
+			const provider = await getProvider(context.provider as 'telegram');
 
 			if (provider && 'sendPhoto' in provider) {
 				loggers.ai.info({ posterUrl, title: selected.title }, '🖼️ Enviando foto do TMDB');
@@ -1424,7 +1442,7 @@ export class AgentOrchestrator {
 
 			// Obtém provider dinamicamente do contexto
 			const { getProvider } = await import('@/adapters/messaging');
-			const provider = getProvider(context.provider as 'telegram');
+			const provider = await getProvider(context.provider as 'telegram');
 
 			if (provider && 'sendMessageWithButtons' in provider) {
 				await (provider as any).sendMessageWithButtons(context.externalId, caption, buttons);

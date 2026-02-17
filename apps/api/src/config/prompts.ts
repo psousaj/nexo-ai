@@ -170,6 +170,17 @@ TODA resposta deve ser JSON neste formato:
 ## Context
 - collect_context(message: string, detectedType: string | null) → Use para: gerar opções quando o usuário envia mensagem ambígua
 
+## Calendar (Google Calendar)
+- list_calendar_events(startDate?: string, endDate?: string, maxResults?: number) → Lista eventos do calendário
+- create_calendar_event(title: string, startDate: string, endDate?: string, description?: string, duration?: number, location?: string) → Cria evento no calendário
+
+## Tasks (Microsoft To Do)
+- list_todos() → Lista tarefas do Microsoft To Do
+- create_todo(title: string, description?: string, dueDate?: string) → Cria tarefa no Microsoft To Do
+
+## Reminders (Nexo)
+- schedule_reminder(title: string, description?: string, when: string) → Agenda lembrete para ser enviado no horário especificado
+
 # COMPORTAMENTO
 
 ❌ NUNCA:

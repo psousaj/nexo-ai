@@ -15,6 +15,13 @@
       "when": 1771282424029,
       "tag": "0001_volatile_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771333334156,
+      "tag": "0002_breezy_makkari",
+      "breakpoints": true
     }
   ]
 }

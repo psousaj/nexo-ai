@@ -100,6 +100,14 @@ const envSchema = z.object({
 	GOOGLE_CLIENT_ID: z.string().optional(),
 	GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+	// Microsoft OAuth
+	MICROSOFT_CLIENT_ID: z.string().optional(),
+	MICROSOFT_CLIENT_SECRET: z.string().optional(),
+
+	// Baileys (WhatsApp não-oficial)
+	BAILEYS_AUTH_PATH: z.string().default('./baileys-auth'),
+	BAILEYS_RECONNECT_INTERVAL: z.coerce.number().default(5000),
+
 	// Nuxt Dashboard (frontend - public vars)
 	NUXT_PUBLIC_AUTH_BASE_URL: z.string().url().optional(),
 	NUXT_PUBLIC_API_URL: z.string().url().optional(),

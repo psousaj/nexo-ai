@@ -237,6 +237,124 @@ export const updateUserSettingsTool: Tool = {
 	},
 };
 
+// ============================================================================
+// INTEGRATION TOOLS - Calendar, Todo, Reminders
+// ============================================================================
+
+export const listCalendarEventsTool: Tool = {
+	name: 'list_calendar_events',
+	description: 'Lista eventos do Google Calendar do usuário.',
+	parameters: {
+		type: 'object',
+		properties: {
+			startDate: {
+				type: 'string',
+				description: 'Data inicial (ISO string ou linguagem natural como "hoje", "amanhã", "próxima semana")',
+			},
+			endDate: {
+				type: 'string',
+				description: 'Data final (ISO string ou linguagem natural)',
+			},
+			maxResults: {
+				type: 'number',
+				description: 'Máximo de resultados (padrão: 10)',
+			},
+		},
+		required: [],
+	},
+};
+
+export const createCalendarEventTool: Tool = {
+	name: 'create_calendar_event',
+	description: 'Cria um evento no Google Calendar do usuário.',
+	parameters: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Título do evento',
+			},
+			startDate: {
+				type: 'string',
+				description: 'Data/hora de início (ISO string ou linguagem natural como "amanhã às 15h")',
+			},
+			endDate: {
+				type: 'string',
+				description: 'Data/hora de fim (opcional, padrão: 1 hora após início)',
+			},
+			description: {
+				type: 'string',
+				description: 'Descrição do evento',
+			},
+			duration: {
+				type: 'number',
+				description: 'Duração em minutos (usado se endDate não for fornecido)',
+			},
+			location: {
+				type: 'string',
+				description: 'Local do evento',
+			},
+		},
+		required: ['title', 'startDate'],
+	},
+};
+
+export const listTodosTool: Tool = {
+	name: 'list_todos',
+	description: 'Lista tarefas do Microsoft To Do do usuário.',
+	parameters: {
+		type: 'object',
+		properties: {},
+		required: [],
+	},
+};
+
+export const createTodoTool: Tool = {
+	name: 'create_todo',
+	description: 'Cria uma tarefa no Microsoft To Do do usuário.',
+	parameters: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Título da tarefa',
+			},
+			description: {
+				type: 'string',
+				description: 'Descrição da tarefa',
+			},
+			dueDate: {
+				type: 'string',
+				description: 'Data de vencimento (ISO string ou linguagem natural como "amanhã", "sexta-feira")',
+			},
+		},
+		required: ['title'],
+	},
+};
+
+export const scheduleReminderTool: Tool = {
+	name: 'schedule_reminder',
+	description: 'Agenda um lembrete para ser enviado ao usuário em um horário específico.',
+	parameters: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Título do lembrete',
+			},
+			description: {
+				type: 'string',
+				description: 'Descrição do lembrete',
+			},
+			when: {
+				type: 'string',
+				description: 'Quando enviar o lembrete (linguagem natural como "em 5 minutos", "amanhã às 9h")',
+			},
+		},
+		required: ['title', 'when'],
+	},
+};
+
 /**
  * Lista de todas as tools disponíveis (alinhada com tools/index.ts)
  */
@@ -257,6 +375,12 @@ export const availableTools: Tool[] = [
 	deleteItemsTool,
 	// Update
 	updateUserSettingsTool,
+	// Integration tools
+	listCalendarEventsTool,
+	createCalendarEventTool,
+	listTodosTool,
+	createTodoTool,
+	scheduleReminderTool,
 ];
 
 /**

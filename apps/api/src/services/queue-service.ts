@@ -252,7 +252,7 @@ messageQueue.process('message-processing', async (job) => {
 		);
 
 		const { processMessage } = await import('./message-service');
-		const provider = getProvider(providerName);
+		const provider = await getProvider(providerName);
 
 		if (!provider) {
 			throw new Error(`Provider ${providerName} não encontrado para o job`);
@@ -291,7 +291,7 @@ responseQueue.process('send-response', 5, async (job) => {
 			'📤 Enviando resposta (via queue)',
 		);
 
-		const providerInstance = getProvider(providerName);
+		const providerInstance = await getProvider(providerName);
 		if (!providerInstance) {
 			throw new Error(`Provider ${providerName} não encontrado`);
 		}

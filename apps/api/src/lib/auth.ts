@@ -61,6 +61,13 @@ export const authPlugin = betterAuth({
 			clientId: env.GOOGLE_CLIENT_ID || '',
 			clientSecret: env.GOOGLE_CLIENT_SECRET || '',
 			enabled: !!env.GOOGLE_CLIENT_ID,
+			scopes: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar'],
+		},
+		microsoft: {
+			clientId: env.MICROSOFT_CLIENT_ID || '',
+			clientSecret: env.MICROSOFT_CLIENT_SECRET || '',
+			enabled: !!env.MICROSOFT_CLIENT_ID,
+			scopes: ['openid', 'email', 'profile', 'Tasks.ReadWrite'],
 		},
 	},
 } satisfies BetterAuthOptions);
