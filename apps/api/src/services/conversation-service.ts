@@ -133,19 +133,21 @@ export class ConversationService {
 				'🔍 Ambiguidade detectada, solicitando clarificação',
 			);
 
+			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
+			const clarificationOptions = await getClarificationOptions(language);
+
 			// Atualiza estado para awaiting_context
 			await this.updateState(conversationId, 'awaiting_context', {
 				pendingClarification: {
 					originalMessage: message,
 					detectedType: null,
-					clarificationOptions: getClarificationOptions(language),
+					clarificationOptions,
 				},
 			});
 
 			// Envia mensagem de clarificação ao usuário
 			const msg = getRandomMessage(getClarificationMessages(language));
-			const options = getClarificationOptions(language);
-			const optionsText = options.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
+			const optionsText = clarificationOptions.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n');
 
 			// Multi-provider: obtém provider correto e envia mensagem
 			const provider = await getProvider(providerType);

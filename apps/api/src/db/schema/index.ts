@@ -2,7 +2,7 @@
 export * from './users';
 export * from './user-accounts';
 export * from './user-emails';
-export * from './user-tools';
+export * from './global-tools'; // global_tools table (ADR-019)
 export * from './items';
 export * from './conversations';
 export * from './messages';

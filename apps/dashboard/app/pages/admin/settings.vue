@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
 import { useDashboard } from '~/composables/useDashboard';
-import { useToast } from '~/composables/useToast';
 import { ref } from 'vue';
 
 definePageMeta({
@@ -9,7 +8,7 @@ definePageMeta({
 });
 
 const dashboard = useDashboard();
-const toast = useToast();
+const toast = useToast(); // Auto-imported from Nuxt UI
 const queryClient = useQueryClient();
 
 const isChangingApi = ref(false);
