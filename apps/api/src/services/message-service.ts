@@ -106,6 +106,14 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 		if (!onboarding.allowed) {
 			const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
+			const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
+
+			if (isLocalhost && provider.getProviderName() === 'telegram') {
+				loggers.webhook.error(
+					{ dashboardUrl },
+					'⚠️ DASHBOARD_URL é localhost - Telegram não aceita localhost em botões. Configure uma URL pública (ngrok/zrok) no .env',
+				);
+			}
 
 			if (onboarding.reason === 'trial_exceeded') {
 				// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
@@ -129,8 +137,14 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 						if (provider.getProviderName() === 'telegram') {
 							const msg = `🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:`;
-							const buttons = [[{ text: '🔗 Clique aqui para criar conta', url: signupLink }]];
-							await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
+							
+							// Se for localhost, envia texto simples (Telegram não aceita localhost em botões)
+							if (isLocalhost) {
+								await provider.sendMessage(incomingMsg.externalId, `${msg}\n\n${signupLink}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`);
+							} else {
+								const buttons = [[{ text: '🔗 Clique aqui para criar conta', url: signupLink }]];
+								await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
+							}
 						} else {
 							await provider.sendMessage(
 								incomingMsg.externalId,
@@ -152,8 +166,14 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 					if (provider.getProviderName() === 'telegram') {
 						const msg = `Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`;
-						const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
-						await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
+						
+						// Se for localhost, envia texto simples (Telegram não aceita localhost em botões)
+						if (isLocalhost) {
+							await provider.sendMessage(incomingMsg.externalId, `${msg}\n\n${signupLink}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`);
+						} else {
+							const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
+							await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
+						}
 					} else {
 						// Padrão (WhatsApp e outros)
 						await provider.sendMessage(
