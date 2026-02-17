@@ -56,6 +56,12 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		'📥 Mensagem recebida (Worker)',
 	);
 
+	// 0. IGNORA MENSAGENS VAZIAS (callback_data de botões, etc)
+	if (!messageText || messageText.trim().length === 0) {
+		loggers.webhook.info('⚠️ Mensagem vazia ignorada (provavelmente callback_data)');
+		return;
+	}
+
 	// 1. VERIFICA COMANDOS DE SISTEMA (AGNÓSTICO)
 	const handledAsCommand = await commandHandlerService.handleCommand(incomingMsg, provider);
 	if (handledAsCommand) {

@@ -36,7 +36,18 @@ export class ToneAnalyzer extends BaseAnalyzer<ToneAnalysisResult> {
 	};
 
 	analyze(message: string, language: Language = 'pt'): ToneAnalysisResult {
-		this.validateInput(message);
+		// Se a mensagem estiver vazia, retorna resultado padrão neutro
+		if (!message || typeof message !== 'string' || message.trim().length === 0) {
+			return {
+				type: this.analyzerType,
+				timestamp: new Date(),
+				confidence: 1.0,
+				tone: 'neutral',
+				isQuestion: false,
+				isPolite: false,
+				hasPermissionRequest: false,
+			};
+		}
 
 		const normalized = this.normalizeMessage(message).toLowerCase();
 		const trimmed = message.trim();

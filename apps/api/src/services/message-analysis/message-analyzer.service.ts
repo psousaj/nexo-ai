@@ -148,22 +148,52 @@ export class MessageAnalyzerService {
 
 	/**
 	 * Verifica ambiguidade de uma mensagem
+	 * Retorna resultado não ambíguo para mensagens vazias
 	 */
 	checkAmbiguity(message: string, language: Language = 'pt'): AmbiguityAnalysisResult {
+		// Proteção para mensagens vazias
+		if (!message || message.trim().length === 0) {
+			return {
+				type: 'ambiguity',
+				timestamp: new Date(),
+				confidence: 1.0,
+				isAmbiguous: false,
+			};
+		}
 		return this.ambiguityAnalyzer.analyze(message, language);
 	}
 
 	/**
 	 * Verifica palavrões e conteúdo ofensivo
+	 * Retorna resultado limpo para mensagens vazias
 	 */
 	checkProfanity(message: string, language: Language = 'pt'): ProfanityAnalysisResult {
+		// Proteção para mensagens vazias
+		if (!message || message.trim().length === 0) {
+			return {
+				type: 'profanity',
+				timestamp: new Date(),
+				confidence: 1.0,
+				hasProfanity: false,
+			};
+		}
 		return this.profanityAnalyzer.analyze(message, language);
 	}
 
 	/**
 	 * Verifica spam/flood
+	 * Retorna resultado não-spam para mensagens vazias
 	 */
 	checkSpam(message: string, language: Language = 'pt'): SpamAnalysisResult {
+		// Proteção para mensagens vazias
+		if (!message || message.trim().length === 0) {
+			return {
+				type: 'spam',
+				timestamp: new Date(),
+				confidence: 1.0,
+				isSpam: false,
+			};
+		}
 		return this.spamAnalyzer.analyze(message, language);
 	}
 
@@ -228,8 +258,21 @@ export class MessageAnalyzerService {
 
 	/**
 	 * Verifica o tom da mensagem (imperativo vs educado)
+	 * Retorna resultado neutro para mensagens vazias
 	 */
 	checkTone(message: string, language: Language = 'pt'): ToneAnalysisResult {
+		// Proteção adicional para mensagens vazias
+		if (!message || message.trim().length === 0) {
+			return {
+				type: 'tone',
+				timestamp: new Date(),
+				confidence: 1.0,
+				tone: 'neutral',
+				isQuestion: false,
+				isPolite: false,
+				hasPermissionRequest: false,
+			};
+		}
 		return this.toneAnalyzer.analyze(message, language);
 	}
 

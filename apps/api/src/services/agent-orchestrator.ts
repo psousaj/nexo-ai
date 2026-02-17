@@ -76,6 +76,15 @@ export class AgentOrchestrator {
 	async processMessage(context: AgentContext): Promise<AgentResponse> {
 		loggers.ai.info({ message: context.message }, '🎯 Processando mensagem');
 
+		// Validação de mensagem vazia (callback_data, botões, etc)
+		if (!context.message || context.message.trim().length === 0) {
+			loggers.ai.warn('⚠️ Mensagem vazia recebida, ignorando processamento');
+			return {
+				message: '',
+				shouldSave: false,
+			};
+		}
+
 		// 0. BUSCAR ESTADO ATUAL
 		const conversation = await conversationService.findOrCreateConversation(context.userId);
 		loggers.ai.info({ state: conversation.state }, '📊 Estado atual');
