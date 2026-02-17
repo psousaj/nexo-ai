@@ -2,40 +2,37 @@ import { useAuthStore } from '~/stores/auth';
 
 export default defineNuxtRouteMiddleware(async (to) => {
 	const authStore = useAuthStore();
-
-	// Rotas públicas
 	const publicRoutes = ['/login', '/signup'];
 	const isPublicRoute = publicRoutes.includes(to.path);
 
-	console.log('🛡️ Auth Middleware:', {
-		path: to.path,
-		isPublic: isPublicRoute,
-		isAuth: authStore.isAuthenticated,
-		isLoading: authStore.isLoadingSession,
-	});
-
-	// Aguarda o carregamento da sessão se ainda estiver pendente
+	// Aguarda sessão carregar (tipicamente <300ms com cookieCache habilitado na API)
 	if (authStore.isLoadingSession) {
-		console.log('⏳ Aguardando carregamento da sessão...');
-		let attempts = 0;
-		while (authStore.isLoadingSession && attempts < 30) {
-			await new Promise((resolve) => setTimeout(resolve, 100));
-			attempts++;
-		}
-		console.log('✅ Sessão carregada após', attempts * 100, 'ms');
+		await new Promise<void>((resolve) => {
+			const stop = watch(
+				() => authStore.isLoadingSession,
+				(loading) => {
+					if (!loading) {
+						stop();
+						resolve();
+					}
+				},
+			);
+			setTimeout(() => { stop(); resolve(); }, 3000);
+		});
 	}
 
-	// Se a rota não é pública e o usuário não está autenticado
+	// Rota protegida sem sessão → redireciona para login, preservando destino
 	if (!isPublicRoute && !authStore.isAuthenticated) {
-		console.log('❌ Não autenticado, redirecionando para /login');
-		return navigateTo('/login', { replace: true });
+		const callbackUrl = to.fullPath !== '/' ? encodeURIComponent(to.fullPath) : undefined;
+		return navigateTo(
+			callbackUrl ? `/login?callbackUrl=${callbackUrl}` : '/login',
+			{ replace: true },
+		);
 	}
 
-	// Se a rota é pública e o usuário está autenticado, redireciona para o dashboard
+	// Rota pública com sessão ativa → redireciona para callbackUrl ou dashboard
 	if (isPublicRoute && authStore.isAuthenticated) {
-		console.log('✅ Já autenticado, redirecionando para /');
-		return navigateTo('/', { replace: true });
+		const callbackUrl = (to.query.callbackUrl as string) || '/';
+		return navigateTo(callbackUrl, { replace: true });
 	}
-
-	console.log('✅ Middleware passou, permitindo acesso');
 });

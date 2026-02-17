@@ -34,15 +34,17 @@ export const authPlugin = betterAuth({
 		},
 	},
 	advanced: {
-		useSecureCookies: env.NODE_ENV === 'production',
+		// Usa cookies seguros se a API estiver acessível via HTTPS
+		// (produção OU dev com túnel zrok/ngrok)
+		useSecureCookies: env.CORS_ORIGINS.some((o) => o.startsWith('https')),
 		crossSubDomainCookies: {
-			enabled: true,
-			// ⚠️ IMPORTANTE: Deve ser apenas o domínio raiz com ponto, NÃO a URL completa
-			// Produção: '.crudbox.tech' | Dev: undefined (desabilitado)
+			enabled: env.NODE_ENV === 'production',
 			domain: env.NODE_ENV === 'production' ? '.crudbox.tech' : undefined,
 		},
 		cookieOptions: {
-			sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax', // none para cross-origin em prod
+			// 'none' necessário para cross-origin com withCredentials (axios)
+			// Requer Secure=true, que é garantido pela linha acima
+			sameSite: env.CORS_ORIGINS.some((o) => o.startsWith('https')) ? 'none' : 'lax',
 		},
 	},
 	emailAndPassword: {

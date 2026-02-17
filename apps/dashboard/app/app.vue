@@ -1,14 +1,24 @@
 <script setup lang="ts">
+import { useAuthStore } from './stores/auth';
 import { usePreferencesStore } from './stores/preferences';
 
+const authStore = useAuthStore();
 const preferencesStore = usePreferencesStore();
 
 onMounted(() => {
-	// Inicializa o tema do localStorage após hydration
 	preferencesStore.initializeTheme();
-	// Busca preferências do backend
-	preferencesStore.fetchPreferences();
 });
+
+// Busca preferências apenas quando autenticado (evita 401 antes da sessão carregar)
+watch(
+	() => authStore.isAuthenticated,
+	(isAuth) => {
+		if (isAuth) {
+			preferencesStore.fetchPreferences();
+		}
+	},
+	{ immediate: true },
+);
 </script>
 
 <template>

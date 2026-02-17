@@ -14,9 +14,19 @@ export default defineNuxtConfig({
 		enabled: true,
 	},
 
+	// Dashboard é SPA administrativa (sem necessidade de SEO)
+	// Desabilitar SSR elimina hydration mismatches e problemas de auth com cookies
+	ssr: false,
+
 	devServer: {
 		port: env.PORT_DASHBOARD || 5173,
-		host: '0.0.0.0', // Permite conexões de qualquer host (incluindo zrok)
+		host: '0.0.0.0',
+	},
+
+	vite: {
+		server: {
+			allowedHosts: true, // Permite qualquer host (zrok, ngrok, etc.)
+		},
 	},
 
 	css: ['~/assets/css/main.css'],

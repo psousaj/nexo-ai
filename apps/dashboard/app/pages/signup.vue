@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
-import { authClient } from '~/utils/auth-client';
 
 definePageMeta({
 	layout: false,
 });
+
+const authClient = useAuthClient();
 
 const name = ref('');
 const email = ref('');

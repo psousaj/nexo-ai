@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
-import { authClient } from '~/utils/auth-client';
 
 definePageMeta({
 	layout: false,
 });
+
+const authClient = useAuthClient();
+const route = useRoute();
 
 const email = ref('');
 const password = ref('');
@@ -15,33 +17,25 @@ const handleLogin = async () => {
 	isLoading.value = true;
 	error.value = '';
 
-	console.log('🔐 Tentando login com:', { email: email.value });
-
 	try {
 		const { data, error: authError } = await authClient.signIn.email({
 			email: email.value,
 			password: password.value,
 		});
 
-		console.log('📝 Resposta do login:', { data, error: authError });
-
 		if (authError) {
-			console.error('❌ Erro no login:', authError);
 			error.value = authError.message || 'Email ou senha incorretos';
 			return;
 		}
 
 		if (data) {
-			console.log('✅ Login bem-sucedido!', data);
-			// Aguardar um pouco para garantir que a sessão foi atualizada
-			await new Promise((resolve) => setTimeout(resolve, 500));
-			await navigateTo('/', { replace: true });
+			// Redireciona para callbackUrl ou dashboard (sem delay)
+			const callbackUrl = (route.query.callbackUrl as string) || '/';
+			await navigateTo(callbackUrl, { replace: true });
 		} else {
-			console.warn('⚠️ Login sem erro mas sem dados');
 			error.value = 'Resposta inesperada do servidor';
 		}
 	} catch (e) {
-		console.error('💥 Erro não tratado no login:', e);
 		error.value = 'Não foi possível conectar ao servidor';
 	} finally {
 		isLoading.value = false;

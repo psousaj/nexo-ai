@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Link as LinkIcon, Loader2, Mail, MessageSquare, Plus, RefreshCw, Smartphone, User, XCircle } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
-import { authClient } from '~/utils/auth-client';
 
+const authClient = useAuthClient();
 const authStore = useAuthStore();
 const dashboard = useDashboard();
 const queryClient = useQueryClient();
