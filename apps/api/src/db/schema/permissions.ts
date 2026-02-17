@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, jsonb, boolean, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { boolean, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 export const userPermissions = pgTable('user_permissions', {

@@ -1,10 +1,10 @@
-import { Hono } from 'hono';
-import { authPlugin } from '@/lib/auth';
-import { syncOAuthAccount, findUserByEmail } from '@/lib/auth-account-sync-plugin';
 import { db } from '@/db';
-import { accounts, users, sessions } from '@/db/schema';
-import { desc, eq, and } from 'drizzle-orm';
+import { accounts, sessions, users } from '@/db/schema';
+import { authPlugin } from '@/lib/auth';
+import { findUserByEmail, syncOAuthAccount } from '@/lib/auth-account-sync-plugin';
 import { loggers } from '@/utils/logger';
+import { and, desc, eq } from 'drizzle-orm';
+import { Hono } from 'hono';
 
 export const authRouter = new Hono()
 	// Endpoint para dashboard verificar se email já existe antes do OAuth
@@ -56,7 +56,7 @@ export const authRouter = new Hono()
 							'👤 Sessão anterior encontrada - usuário estava logado!',
 						);
 					}
-				} catch (err) {
+				} catch (_err) {
 					loggers.webhook.info('ℹ️ Nenhuma sessão anterior - novo usuário OAuth');
 				}
 
@@ -73,7 +73,10 @@ export const authRouter = new Hono()
 							return;
 						}
 
-						loggers.webhook.info({ accountId: recentAccount.id, userId: recentAccount.userId }, '📋 Account recente encontrado');
+						loggers.webhook.info(
+							{ accountId: recentAccount.id, userId: recentAccount.userId },
+							'📋 Account recente encontrado',
+						);
 
 						// Busca email do usuário novo
 						const [newUser] = await db.select().from(users).where(eq(users.id, recentAccount.userId)).limit(1);
@@ -91,7 +94,9 @@ export const authRouter = new Hono()
 						const allAccountsWithExternalId = await db
 							.select()
 							.from(accounts)
-							.where(and(eq(accounts.providerId, recentAccount.providerId), eq(accounts.accountId, recentAccount.accountId)));
+							.where(
+								and(eq(accounts.providerId, recentAccount.providerId), eq(accounts.accountId, recentAccount.accountId)),
+							);
 
 						loggers.webhook.info(
 							{
@@ -104,7 +109,9 @@ export const authRouter = new Hono()
 
 						if (allAccountsWithExternalId.length > 1) {
 							// Mesmo Discord ID usado em 2+ accounts = usuário reconectou
-							const oldAccount = allAccountsWithExternalId.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+							const oldAccount = allAccountsWithExternalId.sort(
+								(a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+							)[0];
 
 							const [existingUser] = await db.select().from(users).where(eq(users.id, oldAccount.userId)).limit(1);
 
@@ -124,7 +131,10 @@ export const authRouter = new Hono()
 								// Mover account novo para usuário antigo
 								await db.update(accounts).set({ userId: existingUser.id }).where(eq(accounts.id, recentAccount.id));
 
-								loggers.webhook.info({ from: newUser.id, to: existingUser.id }, '✅ Account movido para usuário existente');
+								loggers.webhook.info(
+									{ from: newUser.id, to: existingUser.id },
+									'✅ Account movido para usuário existente',
+								);
 
 								// Deletar usuário duplicado
 								await db.delete(users).where(eq(users.id, newUser.id));
@@ -182,7 +192,11 @@ export const authRouter = new Hono()
 								loggers.webhook.info({ from: newUser.id, to: loggedUser.id }, '✅ Account movido para usuário logado');
 
 								// Buscar metadados do account (nome de usuário, etc)
-								const [fullAccount] = await db.select().from(accounts).where(eq(accounts.id, recentAccount.id)).limit(1);
+								const [fullAccount] = await db
+									.select()
+									.from(accounts)
+									.where(eq(accounts.id, recentAccount.id))
+									.limit(1);
 
 								// Deletar usuário duplicado que Better Auth criou
 								await db.delete(users).where(eq(users.id, newUser.id));
@@ -244,7 +258,9 @@ export const authRouter = new Hono()
 						// Se há 2+ usuários com mesmo email = duplicação detectada
 						if (allWithEmail.length > 1) {
 							// Pega o mais antigo (preserva histórico)
-							const existingUser = allWithEmail.sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+							const existingUser = allWithEmail.sort(
+								(a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime(),
+							)[0];
 
 							loggers.webhook.warn(
 								{
@@ -258,7 +274,10 @@ export const authRouter = new Hono()
 							// Mover account para usuário existente
 							await db.update(accounts).set({ userId: existingUser.id }).where(eq(accounts.id, recentAccount.id));
 
-							loggers.webhook.info({ from: newUser.id, to: existingUser.id }, '✅ Account movido para usuário existente');
+							loggers.webhook.info(
+								{ from: newUser.id, to: existingUser.id },
+								'✅ Account movido para usuário existente',
+							);
 
 							// Deletar usuário duplicado (cascade deleta sessions)
 							await db.delete(users).where(eq(users.id, newUser.id));

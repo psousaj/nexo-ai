@@ -1,13 +1,13 @@
-import { userService } from '@/services/user-service';
-import { conversationService } from '@/services/conversation-service';
-import { agentOrchestrator } from '@/services/agent-orchestrator';
-import { type IncomingMessage, type MessagingProvider } from '@/adapters/messaging';
-import { loggers, logError } from '@/utils/logger';
-import { TIMEOUT_MESSAGE, ERROR_MESSAGES, FALLBACK_MESSAGES, getRandomMessage } from '@/config/prompts';
-import { cancelConversationClose } from '@/services/queue-service';
-import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { ERROR_MESSAGES, FALLBACK_MESSAGES, TIMEOUT_MESSAGE, getRandomMessage } from '@/config/prompts';
+import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { commandHandlerService } from '@/services/command-handler.service';
+import { conversationService } from '@/services/conversation-service';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import { cancelConversationClose } from '@/services/queue-service';
+import { userService } from '@/services/user-service';
+import { loggers } from '@/utils/logger';
 
 export const userTimeouts = new Map<string, number>();
 
@@ -16,7 +16,10 @@ export const userTimeouts = new Map<string, number>();
  */
 async function containsOffensiveContent(message: string): Promise<boolean> {
 	const sentiment = await messageAnalyzer.analyzeSentiment(message);
-	loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
+	loggers.webhook.info(
+		{ score: sentiment.score, sentiment: sentiment.sentiment, message },
+		'🛡️ Sentiment Analysis (nlp.js)',
+	);
 	return sentiment.score < -3;
 }
 
@@ -119,7 +122,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
 				// (Pode ser um erro de cache ou estado, mas evita spam de trial para usuários registrados)
 				if (user.status === 'active') {
-					loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando');
+					loggers.webhook.warn(
+						{ userId: user.id },
+						'⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando',
+					);
 					// Força update se necessário ou segue fluxo
 				} else {
 					// Verifica se o usuário tem conta vinculada no UserService
@@ -128,7 +134,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 					if (hasLinkedAccount) {
 						// Se tem conta vinculada, deveria estar active. Tenta corrigir ou logar erro.
-						loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário vinculado caiu no trial_exceeded - checkOnboardingStatus retornou false');
+						loggers.webhook.warn(
+							{ userId: user.id },
+							'⚠️ Usuário vinculado caiu no trial_exceeded - checkOnboardingStatus retornou false',
+						);
 						// Opcional: Auto-ativar usuário?
 						// Por segurança, não bloqueia o fluxo.
 					} else {
@@ -136,11 +145,15 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						const signupLink = `${dashboardUrl}?token=${signupToken}`;
 
 						if (provider.getProviderName() === 'telegram') {
-							const msg = `🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:`;
-							
+							const msg =
+								'🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:';
+
 							// Se for localhost, envia texto simples (Telegram não aceita localhost em botões)
 							if (isLocalhost) {
-								await provider.sendMessage(incomingMsg.externalId, `${msg}\n\n${signupLink}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`);
+								await provider.sendMessage(
+									incomingMsg.externalId,
+									`${msg}\n\n${signupLink}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`,
+								);
 							} else {
 								const buttons = [[{ text: '🔗 Clique aqui para criar conta', url: signupLink }]];
 								await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
@@ -161,15 +174,23 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				const isNewUser = accounts.length <= 1;
 
 				if (isNewUser) {
-					const signupToken = await accountLinkingService.generateLinkingToken(user.id, provider.getProviderName() as any, 'signup');
+					const signupToken = await accountLinkingService.generateLinkingToken(
+						user.id,
+						provider.getProviderName() as any,
+						'signup',
+					);
 					const signupLink = `${dashboardUrl}?token=${signupToken}`;
 
 					if (provider.getProviderName() === 'telegram') {
-						const msg = `Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`;
-						
+						const msg =
+							'Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!';
+
 						// Se for localhost, envia texto simples (Telegram não aceita localhost em botões)
 						if (isLocalhost) {
-							await provider.sendMessage(incomingMsg.externalId, `${msg}\n\n${signupLink}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`);
+							await provider.sendMessage(
+								incomingMsg.externalId,
+								`${msg}\n\n${signupLink}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`,
+							);
 						} else {
 							const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
 							await (provider as any).sendMessageWithButtons(incomingMsg.externalId, msg, buttons);
@@ -182,11 +203,13 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						);
 					}
 					return;
-				} else {
-					// Se tem mais contas, assume que é usuário existente e permite fluxo (provavelmente status desatualizado)
-					// Loga para debug
-					loggers.webhook.info({ userId: user.id, accounts: accounts.length }, 'ℹ️ Usuário multi-conta pending_signup ignorando bloqueio');
 				}
+				// Se tem mais contas, assume que é usuário existente e permite fluxo (provavelmente status desatualizado)
+				// Loga para debug
+				loggers.webhook.info(
+					{ userId: user.id, accounts: accounts.length },
+					'ℹ️ Usuário multi-conta pending_signup ignorando bloqueio',
+				);
 			}
 		}
 
@@ -214,7 +237,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			} catch (sendError: any) {
 				// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
 				if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-					loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
+					loggers.webhook.error(
+						{ error: sendError.cause?.code },
+						'❌ Erro de rede ao enviar mensagem - não enviando fallback',
+					);
 					throw sendError; // Re-throw para Bull não fazer retry
 				}
 				throw sendError;
@@ -252,7 +278,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			try {
 				const errorMsg = getRandomMessage(ERROR_MESSAGES);
 				await provider.sendMessage(incomingMsg.externalId, errorMsg);
-			} catch (sendError) {
+			} catch (_sendError) {
 				// Ignora erro de envio de falha
 			}
 		}

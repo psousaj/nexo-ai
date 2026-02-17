@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
+import { adminRoutes } from './admin.routes';
 import { analyticsRoutes } from './analytics.routes';
 import { memoriesRoutes } from './memories.routes';
-import { adminRoutes } from './admin.routes';
 import { userRoutes } from './user.routes';
 
 import { authMiddleware } from '@/middlewares/auth.middleware';

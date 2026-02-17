@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { TrendingUp, TrendingDown } from 'lucide-vue-next';
 
 interface Props {
 	title: string;
@@ -13,8 +12,8 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const isPositive = computed(() => props.trend > 0);
-const formattedTrend = computed(() => `${Math.abs(props.trend)}%`);
+const _isPositive = computed(() => props.trend > 0);
+const _formattedTrend = computed(() => `${Math.abs(props.trend)}%`);
 </script>
 
 <template>

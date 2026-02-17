@@ -1,6 +1,5 @@
 import { db } from '@/db';
-import { users, userAccounts } from '@/db/schema';
-import { sql } from 'drizzle-orm';
+import { userAccounts, users } from '@/db/schema';
 
 async function checkDuplicates() {
 	console.log('--- Checking for Duplicate Users ---');

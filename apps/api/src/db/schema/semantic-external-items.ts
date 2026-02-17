@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, vector, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core';
 
 export const semanticExternalItems = pgTable(
 	'semantic_external_items',
@@ -15,6 +15,10 @@ export const semanticExternalItems = pgTable(
 		externalIdIdx: index('semantic_external_items_external_id_idx').on(table.externalId),
 		typeIdx: index('semantic_external_items_type_idx').on(table.type),
 		embeddingIdx: index('semantic_external_items_embedding_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
-        uniqueExternalItem: uniqueIndex('semantic_external_items_unique_idx').on(table.externalId, table.type, table.provider),
+		uniqueExternalItem: uniqueIndex('semantic_external_items_unique_idx').on(
+			table.externalId,
+			table.type,
+			table.provider,
+		),
 	}),
 );

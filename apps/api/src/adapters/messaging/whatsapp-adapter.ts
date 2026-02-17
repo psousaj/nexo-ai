@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { loggers } from '@/utils/logger';
-import type { MessagingProvider, IncomingMessage, ProviderType } from './types';
+import type { IncomingMessage, MessagingProvider, ProviderType } from './types';
 
 /**
  * Adapter para Meta WhatsApp Business API
@@ -36,7 +36,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 			externalId: phoneNumber,
 			senderName,
 			text: message.text.body,
-			timestamp: new Date(parseInt(message.timestamp) * 1000),
+			timestamp: new Date(Number.parseInt(message.timestamp) * 1000),
 			provider: 'whatsapp',
 			phoneNumber, // WhatsApp sempre tem telefone
 		};
@@ -98,7 +98,9 @@ export class WhatsAppAdapter implements MessagingProvider {
 	private async validateSignature(receivedSignature: string, payload: string): Promise<boolean> {
 		try {
 			// Remove prefixo "sha256=" se presente
-			const signatureHash = receivedSignature.startsWith('sha256=') ? receivedSignature.substring(7) : receivedSignature;
+			const signatureHash = receivedSignature.startsWith('sha256=')
+				? receivedSignature.substring(7)
+				: receivedSignature;
 
 			// Converte app secret para ArrayBuffer
 			const encoder = new TextEncoder();
@@ -106,7 +108,9 @@ export class WhatsAppAdapter implements MessagingProvider {
 			const messageData = encoder.encode(payload);
 
 			// Importa key para HMAC
-			const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+			const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, [
+				'sign',
+			]);
 
 			// Calcula HMAC SHA-256
 			const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
@@ -123,7 +127,7 @@ export class WhatsAppAdapter implements MessagingProvider {
 		}
 	}
 
-	async sendMessage(to: string, text: string, options?: any): Promise<void> {
+	async sendMessage(to: string, text: string, _options?: any): Promise<void> {
 		const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
 
 		const payload = {

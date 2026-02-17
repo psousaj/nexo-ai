@@ -1,8 +1,8 @@
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { accounts as betterAuthAccounts } from '@/db/schema/auth';
-import { eq, sql } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { eq, sql } from 'drizzle-orm';
 
 export const TRIAL_LIMIT = 10;
 
@@ -46,10 +46,7 @@ export async function checkOnboardingStatus(
 
 	if (betterAuthAccount) {
 		loggers.app.info({ userId }, '🔓 Auto-ativando usuário com conta Better Auth vinculada');
-		await db
-			.update(users)
-			.set({ status: 'active', updatedAt: new Date() })
-			.where(eq(users.id, userId));
+		await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, userId));
 		return { allowed: true, interactionCount: user.interactionCount };
 	}
 

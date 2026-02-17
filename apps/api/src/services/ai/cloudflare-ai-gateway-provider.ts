@@ -1,6 +1,6 @@
-import OpenAI from 'openai';
-import { encode } from '@toon-format/toon';
 import { loggers } from '@/utils/logger';
+import { encode } from '@toon-format/toon';
+import OpenAI from 'openai';
 import type { AIProvider, AIResponse, Message } from './types';
 
 /**
@@ -18,12 +18,7 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 	private client: OpenAI;
 	private model: string;
 
-	constructor(
-		accountId: string,
-		gatewayId: string,
-		cfApiToken: string,
-		model: string = 'dynamic/cloudflare'
-	) {
+	constructor(accountId: string, gatewayId: string, cfApiToken: string, model = 'dynamic/cloudflare') {
 		const baseURL = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
 
 		this.client = new OpenAI({
@@ -105,7 +100,7 @@ Mensagem atual: ${message}`;
 						usage: response.usage,
 					},
 				},
-				`✨ Resposta do AI Gateway em ${duration}ms`
+				`✨ Resposta do AI Gateway em ${duration}ms`,
 			);
 
 			let text = '';
@@ -131,7 +126,7 @@ Mensagem atual: ${message}`;
 					duration,
 					model: this.model,
 				},
-				'❌ Erro no AI Gateway'
+				'❌ Erro no AI Gateway',
 			);
 			throw error;
 		}

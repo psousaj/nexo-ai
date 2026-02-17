@@ -1,6 +1,6 @@
+import { ability } from '~/plugins/casl';
 // import { defineStore } from 'pinia' // Auto-imported
 import { authClient } from '~/utils/auth-client';
-import { ability } from '~/plugins/casl';
 
 interface BetterAuthUser {
 	id: string;
@@ -57,7 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
 		}
 		return auth;
 	});
-	
+
 	const isLoadingSession = computed(() => {
 		const loading = session.value?.isPending;
 		if (process.client) {

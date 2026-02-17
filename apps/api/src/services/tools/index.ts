@@ -5,11 +5,11 @@
  * Entradas validadas, saídas previsíveis, zero decisão.
  */
 
-import { itemService } from '@/services/item-service';
+import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessages';
 import { enrichmentService } from '@/services/enrichment';
-import { loggers, logError } from '@/utils/logger';
-import type { ItemType, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@/types';
-import { toolLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
+import { itemService } from '@/services/item-service';
+import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
+import { logError, loggers } from '@/utils/logger';
 
 export interface ToolContext {
 	userId: string;
@@ -37,21 +37,19 @@ export async function save_note(
 		content: string;
 	},
 ): Promise<ToolOutput> {
-	loggers.ai.info('🔧 ' + getRandomLogMessage(toolLogs.executing, { tool: 'save_note' }));
+	loggers.ai.info(`🔧 ${getRandomLogMessage(toolLogs.executing, { tool: 'save_note' })}`);
 	loggers.ai.info(
-		'📦 ' +
-			getRandomLogMessage(toolLogs.params, {
-				params: JSON.stringify({ content: params.content?.substring(0, 100) + '...' }),
-			}),
+		`📦 ${getRandomLogMessage(toolLogs.params, {
+			params: JSON.stringify({ content: `${params.content?.substring(0, 100)}...` }),
+		})}`,
 	);
 
 	if (!params.content?.trim()) {
 		loggers.ai.error(
-			'❌ ' +
-				getRandomLogMessage(toolLogs.error, {
-					tool: 'save_note',
-					error: 'Conteúdo vazio',
-				}),
+			`❌ ${getRandomLogMessage(toolLogs.error, {
+				tool: 'save_note',
+				error: 'Conteúdo vazio',
+			})}`,
 		);
 		return { success: false, error: 'Conteúdo vazio' };
 	}
@@ -80,11 +78,10 @@ export async function save_note(
 		// Verificar se item foi criado com sucesso
 		if (!result.item) {
 			loggers.ai.error(
-				'❌ ' +
-					getRandomLogMessage(toolLogs.error, {
-						tool: 'save_note',
-						error: 'itemService.createItem retornou null sem ser duplicata',
-					}),
+				`❌ ${getRandomLogMessage(toolLogs.error, {
+					tool: 'save_note',
+					error: 'itemService.createItem retornou null sem ser duplicata',
+				})}`,
 			);
 			loggers.ai.error({ result }, '❌ Erro ao criar nota no banco de dados');
 			return {
@@ -93,7 +90,7 @@ export async function save_note(
 			};
 		}
 
-		loggers.ai.info('✅ ' + getRandomLogMessage(toolLogs.success, { tool: 'save_note' }));
+		loggers.ai.info(`✅ ${getRandomLogMessage(toolLogs.success, { tool: 'save_note' })}`);
 		loggers.ai.info({ id: result.item.id }, '📝 Nota salva');
 
 		return {
@@ -103,11 +100,10 @@ export async function save_note(
 	} catch (error) {
 		loggers.ai.error(
 			{ err: error },
-			'❌ ' +
-				getRandomLogMessage(toolLogs.error, {
-					tool: 'save_note',
-					error: error instanceof Error ? error.message : 'Erro desconhecido',
-				}),
+			`❌ ${getRandomLogMessage(toolLogs.error, {
+				tool: 'save_note',
+				error: error instanceof Error ? error.message : 'Erro desconhecido',
+			})}`,
 		);
 
 		return {
@@ -380,7 +376,7 @@ export async function search_items(
  * Busca metadata de filme no TMDB
  */
 export async function enrich_movie(
-	context: ToolContext,
+	_context: ToolContext,
 	params: {
 		title: string;
 		year?: number;
@@ -406,7 +402,7 @@ export async function enrich_movie(
 				results: results.map((r) => ({
 					type: 'movie' as const,
 					title: r.title,
-					year: r.release_date ? parseInt(r.release_date.split('-')[0]) : undefined,
+					year: r.release_date ? Number.parseInt(r.release_date.split('-')[0]) : undefined,
 					tmdb_id: r.id,
 					rating: r.vote_average || 0,
 					overview: r.overview || '',
@@ -427,7 +423,7 @@ export async function enrich_movie(
  * Busca metadata de série no TMDB
  */
 export async function enrich_tv_show(
-	context: ToolContext,
+	_context: ToolContext,
 	params: {
 		title: string;
 		year?: number;
@@ -474,7 +470,7 @@ export async function enrich_tv_show(
  * Busca metadata de vídeo no YouTube
  */
 export async function enrich_video(
-	context: ToolContext,
+	_context: ToolContext,
 	params: {
 		url: string;
 	},
@@ -545,7 +541,7 @@ export async function delete_memory(
 	}
 }
 
-export async function delete_all_memories(context: ToolContext, params: {}): Promise<ToolOutput> {
+export async function delete_all_memories(context: ToolContext, _params: {}): Promise<ToolOutput> {
 	try {
 		const deleted_count = await itemService.deleteAllItems(context.userId);
 
@@ -606,7 +602,7 @@ export async function update_user_settings(
  * Tool: get_assistant_name
  * Retorna o nome customizado do assistente (ou null para default)
  */
-export async function get_assistant_name(context: ToolContext, params: {}): Promise<ToolOutput> {
+export async function get_assistant_name(context: ToolContext, _params: {}): Promise<ToolOutput> {
 	try {
 		const { preferencesService } = await import('@/services/preferences-service');
 		const name = await preferencesService.getAssistantName(context.userId);

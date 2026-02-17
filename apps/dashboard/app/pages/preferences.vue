@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Bell, Eye, Moon, Sun, Lock, Smartphone, Loader2, CheckCircle2, Save } from 'lucide-vue-next';
+import { Bell, Eye, Lock } from 'lucide-vue-next';
 import { usePreferencesStore } from '~/stores/preferences';
 
 const preferencesStore = usePreferencesStore();
-const activeTab = ref<'notifications' | 'security' | 'privacy'>('notifications');
+const _activeTab = ref<'notifications' | 'security' | 'privacy'>('notifications');
 const isSaving = ref(false);
 const showSuccess = ref(false);
 
@@ -11,7 +11,7 @@ onMounted(() => {
 	preferencesStore.fetchPreferences();
 });
 
-const handleSave = async () => {
+const _handleSave = async () => {
 	isSaving.value = true;
 	try {
 		await preferencesStore.updatePreferences({ ...preferencesStore.preferences });
@@ -24,7 +24,7 @@ const handleSave = async () => {
 	}
 };
 
-const tabs = [
+const _tabs = [
 	{ id: 'notifications', label: 'Notificações', icon: Bell },
 	{ id: 'security', label: 'Segurança', icon: Lock },
 	{ id: 'privacy', label: 'Privacidade', icon: Eye },

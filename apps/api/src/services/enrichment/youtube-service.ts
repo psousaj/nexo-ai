@@ -1,8 +1,8 @@
 import { env } from '@/config/env';
-import type { VideoMetadata } from '@/types';
 import { cacheGet, cacheSet } from '@/config/redis';
-import { fetchWithRetry } from '@/utils/retry';
+import type { VideoMetadata } from '@/types';
 import { loggers } from '@/utils/logger';
+import { fetchWithRetry } from '@/utils/retry';
 
 interface YouTubeVideoSnippet {
 	title: string;
@@ -40,7 +40,10 @@ export class YouTubeService {
 	 * Extrai video ID de URL do YouTube
 	 */
 	extractVideoId(url: string): string | null {
-		const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/, /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/];
+		const patterns = [
+			/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+			/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+		];
 
 		for (const pattern of patterns) {
 			const match = url.match(pattern);
@@ -57,9 +60,9 @@ export class YouTubeService {
 		const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
 		if (!match) return 0;
 
-		const hours = parseInt(match[1] || '0');
-		const minutes = parseInt(match[2] || '0');
-		const seconds = parseInt(match[3] || '0');
+		const hours = Number.parseInt(match[1] || '0');
+		const minutes = Number.parseInt(match[2] || '0');
+		const seconds = Number.parseInt(match[3] || '0');
 
 		return hours * 3600 + minutes * 60 + seconds;
 	}
@@ -69,7 +72,7 @@ export class YouTubeService {
 	 */
 	async getVideoDetails(videoId: string): Promise<VideoMetadata> {
 		const cacheKey = `youtube:video:${videoId}`;
-		
+
 		// Tenta cache primeiro
 		const cached = await cacheGet<VideoMetadata>(cacheKey);
 		if (cached) {
@@ -107,7 +110,7 @@ export class YouTubeService {
 			platform: 'youtube',
 			channel_name: snippet.channelTitle,
 			duration: this.parseDuration(contentDetails.duration),
-			views: parseInt(statistics.viewCount || '0'),
+			views: Number.parseInt(statistics.viewCount || '0'),
 			thumbnail_url: snippet.thumbnails.high.url,
 		};
 

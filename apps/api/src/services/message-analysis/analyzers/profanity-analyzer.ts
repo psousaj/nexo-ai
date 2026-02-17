@@ -1,5 +1,5 @@
+import type { Language, ProfanityAnalysisResult, SeverityLevel } from '../types/analysis-result.types.js';
 import { BaseAnalyzer } from './base-analyzer.js';
-import { ProfanityAnalysisResult, Language, SeverityLevel } from '../types/analysis-result.types.js';
 
 /**
  * Detector de palavrões e conteúdo ofensivo

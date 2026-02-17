@@ -16,6 +16,8 @@
         "test": "turbo test",
         "typecheck": "turbo typecheck",
         "format": "turbo format",
+        "check": "turbo lint:biome",
+        "check:fix": "turbo lint:biome:fix",
         "clean": "turbo clean && rm -rf node_modules",
         "build:api": "turbo build --filter=@nexo/api",
         "build:dashboard": "turbo build --filter=@nexo/dashboard",
@@ -25,6 +27,7 @@
         "db:studio": "turbo db:studio --filter=@nexo/api"
     },
     "devDependencies": {
+        "@biomejs/biome": "^1.9.4",
         "turbo": "^2.5.4"
     },
     "packageManager": "pnpm@9.15.4"

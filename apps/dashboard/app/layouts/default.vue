@@ -1,31 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import {
-	LayoutDashboard,
-	Database,
-	MessageSquare,
-	Users,
-	Settings,
-	Menu,
-	X,
-	LogOut,
-	Bell,
-	AlertCircle,
-	ShieldCheck,
-	UserCircle,
-} from 'lucide-vue-next';
 import { useAbility } from '@casl/vue';
+import { AlertCircle, Database, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 
 const isOpen = ref(true);
-const toggleSidebar = () => (isOpen.value = !isOpen.value);
+const _toggleSidebar = () => (isOpen.value = !isOpen.value);
 
 const authStore = useAuthStore();
-const route = useRoute();
+const _route = useRoute();
 const { can } = useAbility();
 
-const menuItems = computed(() => {
+const _menuItems = computed(() => {
 	const allItems = [
 		{ name: 'Dashboard', icon: LayoutDashboard, path: '/', subject: 'Analytics', action: 'read' },
 		{ name: 'Minhas Memórias', icon: Database, path: '/memories', subject: 'UserContent', action: 'read' },
@@ -40,7 +27,7 @@ const menuItems = computed(() => {
 	return allItems.filter((item) => can(item.action, item.subject as any));
 });
 
-const handleLogout = async () => {
+const _handleLogout = async () => {
 	await authStore.logout();
 	window.location.href = '/login';
 };

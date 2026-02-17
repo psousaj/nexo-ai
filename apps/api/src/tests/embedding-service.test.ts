@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbeddingService } from '@/services/ai/embedding-service';
 import { env } from '@/config/env';
+import { EmbeddingService } from '@/services/ai/embedding-service';
 import OpenAI from 'openai';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock do OpenAI SDK
 vi.mock('openai', () => {
@@ -48,12 +48,12 @@ describe('EmbeddingService', () => {
 		expect(OpenAI).toHaveBeenCalledWith(
 			expect.objectContaining({
 				baseURL: expect.stringContaining('gateway.ai.cloudflare.com'),
-			})
+			}),
 		);
 		expect(OpenAI).toHaveBeenCalledWith(
 			expect.objectContaining({
 				baseURL: expect.stringContaining('/compat'),
-			})
+			}),
 		);
 	});
 
@@ -75,7 +75,7 @@ describe('EmbeddingService', () => {
 
 		it('deve truncar texto longo antes de enviar para a API', async () => {
 			const longText = 'a'.repeat(3000);
-			const expectedText = 'a'.repeat(2000) + '...';
+			const expectedText = `${'a'.repeat(2000)}...`;
 
 			mockOpenAIInstance.embeddings.create.mockResolvedValueOnce({
 				data: [{ embedding: [0.1, 0.2] }],

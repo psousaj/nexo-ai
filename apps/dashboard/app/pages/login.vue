@@ -1,24 +1,23 @@
 <script setup lang="ts">
 import { authClient } from '~/utils/auth-client';
-import { Mail, Lock, Loader2, LayoutGrid } from 'lucide-vue-next';
 
 definePageMeta({
 	layout: false,
 });
 
-const router = useRouter();
+const _router = useRouter();
 
 const email = ref('');
 const password = ref('');
 const isLoading = ref(false);
 const error = ref('');
 
-const handleLogin = async () => {
+const _handleLogin = async () => {
 	isLoading.value = true;
 	error.value = '';
-	
+
 	console.log('🔐 Tentando login com:', { email: email.value });
-	
+
 	try {
 		const { data, error: authError } = await authClient.signIn.email({
 			email: email.value,
@@ -36,7 +35,7 @@ const handleLogin = async () => {
 		if (data) {
 			console.log('✅ Login bem-sucedido!', data);
 			// Aguardar um pouco para garantir que a sessão foi atualizada
-			await new Promise(resolve => setTimeout(resolve, 500));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 			await navigateTo('/', { replace: true });
 		} else {
 			console.warn('⚠️ Login sem erro mas sem dados');
@@ -50,7 +49,7 @@ const handleLogin = async () => {
 	}
 };
 
-const loginWithSocial = async (provider: 'google' | 'discord') => {
+const _loginWithSocial = async (provider: 'google' | 'discord') => {
 	isLoading.value = true;
 	try {
 		console.log('🔗 Login social com:', provider);

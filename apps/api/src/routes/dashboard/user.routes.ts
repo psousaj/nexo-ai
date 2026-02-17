@@ -1,15 +1,15 @@
-import { Hono } from 'hono';
-import { userService } from '@/services/user-service';
-import { userEmailService } from '@/services/user-email-service';
-import { preferencesService } from '@/services/preferences-service';
-import { accountLinkingService } from '@/services/account-linking-service';
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
 import { env } from '@/config/env';
 import { db } from '@/db';
 import { accounts as betterAuthAccounts, userAccounts } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { accountLinkingService } from '@/services/account-linking-service';
+import { preferencesService } from '@/services/preferences-service';
+import { userEmailService } from '@/services/user-email-service';
+import { userService } from '@/services/user-service';
 import type { AuthContext } from '@/types/hono';
+import { zValidator } from '@hono/zod-validator';
+import { and, eq } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { z } from 'zod';
 
 export const userRoutes = new Hono<AuthContext>()
 	.get('/profile', async (c) => {
@@ -35,7 +35,9 @@ export const userRoutes = new Hono<AuthContext>()
 				.from(betterAuthAccounts)
 				.where(eq(betterAuthAccounts.userId, userId));
 
-			console.log(`🔄 [Sync] Encontrado ${betterAuthAccountsList.length} account(s) no Better Auth para usuário ${userId}`);
+			console.log(
+				`🔄 [Sync] Encontrado ${betterAuthAccountsList.length} account(s) no Better Auth para usuário ${userId}`,
+			);
 
 			let synced = 0;
 			let skipped = 0;
@@ -187,21 +189,17 @@ export const userRoutes = new Hono<AuthContext>()
 			}
 		},
 	)
-	.patch(
-		'/emails/:emailId/primary',
-		zValidator('param', z.object({ emailId: z.string().uuid() })),
-		async (c) => {
-			const userState = c.get('user');
-			const { emailId } = c.req.valid('param');
+	.patch('/emails/:emailId/primary', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
+		const userState = c.get('user');
+		const { emailId } = c.req.valid('param');
 
-			try {
-				await userEmailService.setPrimaryEmail(userState.id, emailId);
-				return c.json({ success: true });
-			} catch (error) {
-				return c.json({ error: error instanceof Error ? error.message : 'Erro ao definir email primário' }, 400);
-			}
-		},
-	)
+		try {
+			await userEmailService.setPrimaryEmail(userState.id, emailId);
+			return c.json({ success: true });
+		} catch (error) {
+			return c.json({ error: error instanceof Error ? error.message : 'Erro ao definir email primário' }, 400);
+		}
+	})
 	.delete('/emails/:emailId', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
 		const userState = c.get('user');
 		const { emailId } = c.req.valid('param');

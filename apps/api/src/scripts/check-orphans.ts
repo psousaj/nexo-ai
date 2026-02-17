@@ -1,7 +1,6 @@
 import { db } from '@/db';
-import { users, userAccounts } from '@/db/schema';
+import { userAccounts, users } from '@/db/schema';
 import { conversations } from '@/db/schema/conversations';
-import { eq, notInArray } from 'drizzle-orm';
 
 async function checkOrphans() {
 	console.log('--- Checking for Orphan Users ---');
@@ -35,7 +34,7 @@ async function checkOrphans() {
 			const user = allUsers.find((u) => u.id === uid);
 			console.log(`User ${user?.name || 'Unknown'} (${uid}): ${count} conversations`);
 		}
-	} catch (e) {
+	} catch (_e) {
 		console.log('Could not fetch conversations (schema path might be wrong)');
 	}
 

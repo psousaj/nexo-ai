@@ -94,14 +94,7 @@ export const NEXO_TRAINING_DATA: TrainingIntent[] = [
 			'firmeza?',
 			'tranquilo?',
 		],
-		answers: [
-			'Oi! 👋',
-			'Olá! 👋',
-			'E aí! 👋',
-			'Opa! 👋',
-			'Salve! 👋',
-			'Firmeza! 👋',
-		],
+		answers: ['Oi! 👋', 'Olá! 👋', 'E aí! 👋', 'Opa! 👋', 'Salve! 👋', 'Firmeza! 👋'],
 	},
 	{
 		intent: 'greetings.bye',
@@ -166,14 +159,7 @@ export const NEXO_TRAINING_DATA: TrainingIntent[] = [
 			'beleza então',
 			'firmeza',
 		],
-		answers: [
-			'Até logo! 👋',
-			'Falou! 👋',
-			'Tmj! 🤝',
-			'Por nada! 😊',
-			'Valeu! 👋',
-			'É nois! 🤝',
-		],
+		answers: ['Até logo! 👋', 'Falou! 👋', 'Tmj! 🤝', 'Por nada! 😊', 'Valeu! 👋', 'É nois! 🤝'],
 	},
 
 	// =========================================================================

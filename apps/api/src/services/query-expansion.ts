@@ -59,7 +59,7 @@ function normalizeText(text: string): string {
  * @param maxExpansions - Máximo de expansões (default: 3 por termo)
  * @returns Query expandida
  */
-export function expandQuery(query: string, maxExpansions: number = 3): string {
+export function expandQuery(query: string, maxExpansions = 3): string {
 	const normalizedQuery = normalizeText(query);
 	const expansions = new Set<string>();
 

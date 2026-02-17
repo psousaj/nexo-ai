@@ -1,9 +1,9 @@
-@import 'tailwindcss';
-@import '@nuxt/ui';
+@import "tailwindcss";
+@import "@nuxt/ui";
 
 @theme {
 	/* Fonte personalizada */
-	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+	--font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
 	/* Cores primárias (blue) */
 	--color-primary-50: #eff6ff;

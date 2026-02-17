@@ -1,27 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useQuery } from '@tanstack/vue-query';
-import { Users, Database, MessageSquare, Activity, Download, Filter } from 'lucide-vue-next';
 import { useAbility } from '@casl/vue';
+import { useQuery } from '@tanstack/vue-query';
 import {
-	Chart as ChartJS,
+	ArcElement,
 	CategoryScale,
+	Chart as ChartJS,
+	Filler,
+	Legend,
+	LineElement,
 	LinearScale,
 	PointElement,
-	LineElement,
 	Title,
 	Tooltip,
-	Legend,
-	ArcElement,
-	Filler,
 } from 'chart.js';
-import { Line, Doughnut } from 'vue-chartjs';
-import { useAuthStore } from '~/stores/auth';
+import { Activity, Database, MessageSquare, Users } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { useDashboard } from '~/composables/useDashboard';
+import { useAuthStore } from '~/stores/auth';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler);
 
-const authStore = useAuthStore();
+const _authStore = useAuthStore();
 const dashboard = useDashboard();
 const { can } = useAbility();
 
@@ -32,7 +31,7 @@ const { data: analytics, isLoading } = useQuery({
 	staleTime: 5 * 60 * 1000,
 });
 
-const iconMap: Record<string, any> = {
+const _iconMap: Record<string, any> = {
 	Users,
 	Database,
 	MessageSquare,
@@ -40,7 +39,7 @@ const iconMap: Record<string, any> = {
 };
 
 // Chart Data
-const lineChartData = computed(() => {
+const _lineChartData = computed(() => {
 	const trends = analytics.value?.trends;
 	if (!trends) return { labels: [], datasets: [] };
 	return {
@@ -58,7 +57,7 @@ const lineChartData = computed(() => {
 	};
 });
 
-const lineChartOptions = {
+const _lineChartOptions = {
 	responsive: true,
 	maintainAspectRatio: false,
 	plugins: {
@@ -92,7 +91,7 @@ const lineChartOptions = {
 	},
 };
 
-const doughnutData = computed(() => {
+const _doughnutData = computed(() => {
 	const breakdown = analytics.value?.breakdown;
 	if (!breakdown) return { labels: [], datasets: [] };
 	return {
@@ -108,7 +107,7 @@ const doughnutData = computed(() => {
 	};
 });
 
-const doughnutOptions = {
+const _doughnutOptions = {
 	responsive: true,
 	maintainAspectRatio: false,
 	cutout: '70%',
@@ -125,7 +124,7 @@ const doughnutOptions = {
 };
 
 // Filtered KPIs based on role/CASL
-const displayKPIs = computed(() => {
+const _displayKPIs = computed(() => {
 	if (!analytics.value?.kpis) return [];
 	return can('manage', 'AdminPanel')
 		? analytics.value.kpis

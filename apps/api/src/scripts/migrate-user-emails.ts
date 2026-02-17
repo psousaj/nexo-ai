@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { users, userEmails } from '@/db/schema';
-import { isNotNull, eq } from 'drizzle-orm';
+import { userEmails, users } from '@/db/schema';
+import { eq, isNotNull } from 'drizzle-orm';
 
 /**
  * Script para migrar emails existentes da tabela users para user_emails
@@ -40,7 +40,7 @@ async function migrateUserEmails() {
 				email: user.email,
 				isPrimary: true, // Email original é sempre primário
 				provider: 'email', // Provider padrão para emails originais
-				verified: user.emailVerified ? true : false,
+				verified: !!user.emailVerified,
 			});
 
 			console.log(`✅ Email ${user.email} migrado para user ${user.id}`);

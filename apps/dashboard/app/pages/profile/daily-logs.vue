@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
-import { useAuthStore } from '~/stores/auth';
-import { Calendar, Search, Plus, Save, BookOpen, FileText, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 definePageMeta({
 	middleware: ['auth'],
@@ -17,7 +15,11 @@ const logContent = ref('');
 const isEditing = ref(false);
 
 // Fetch daily logs
-const { data: logs, isLoading, refetch } = useQuery({
+const {
+	data: logs,
+	isLoading,
+	refetch,
+} = useQuery({
 	queryKey: ['daily-logs', auth.data?.user?.id],
 	queryFn: async () => {
 		const response = await api.get('/api/agent/daily-logs');
@@ -71,7 +73,7 @@ function formatDisplayDate(dateString: string): string {
 }
 
 // Get logs sorted by date (newest first)
-const sortedLogs = computed(() => {
+const _sortedLogs = computed(() => {
 	if (!logs.value) return [];
 	return [...logs.value].sort((a: any, b: any) => b.logDate.localeCompare(a.logDate));
 });

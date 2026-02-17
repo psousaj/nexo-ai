@@ -4,7 +4,7 @@ WORKDIR /app
 
 
 # Instala todas dependências (inclui dev para build)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 RUN npm install -g pnpm && pnpm install
 
 # Copia o restante do projeto

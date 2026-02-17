@@ -10,8 +10,8 @@
 
 import { db } from '@/db';
 import { agentMemoryProfiles, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { eq } from 'drizzle-orm';
 
 /**
  * Agent context built from user profile

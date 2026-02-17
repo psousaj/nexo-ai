@@ -1,5 +1,5 @@
+import type { Language, MessageTone, ToneAnalysisResult } from '../types/analysis-result.types.js';
 import { BaseAnalyzer } from './base-analyzer.js';
-import type { ToneAnalysisResult, Language, MessageTone } from '../types/analysis-result.types.js';
 
 /**
  * Analisador de Tom de Mensagem

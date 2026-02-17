@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CloudflareAIGatewayProvider } from '@/services/ai/cloudflare-ai-gateway-provider';
 import OpenAI from 'openai';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock do OpenAI SDK
 vi.mock('openai', () => {
@@ -19,12 +19,7 @@ describe('CloudflareAIGatewayProvider', () => {
 
 	beforeEach(() => {
 		vi.resetAllMocks();
-		provider = new CloudflareAIGatewayProvider(
-			'test-account',
-			'test-gateway',
-			'test-token',
-			'dynamic/cloudflare'
-		);
+		provider = new CloudflareAIGatewayProvider('test-account', 'test-gateway', 'test-token', 'dynamic/cloudflare');
 		mockOpenAIInstance = (OpenAI as any).mock.instances[0];
 	});
 
@@ -51,7 +46,7 @@ describe('CloudflareAIGatewayProvider', () => {
 				messages: expect.arrayContaining([
 					expect.objectContaining({ role: 'user', content: expect.stringContaining('hello') }),
 				]),
-			})
+			}),
 		);
 	});
 
@@ -76,7 +71,7 @@ describe('CloudflareAIGatewayProvider', () => {
 
 	it('deve permitir alterar o modelo em runtime', async () => {
 		provider.setModel('google-ai-studio/gemini-2.5-flash-lite');
-		
+
 		mockOpenAIInstance.chat.completions.create.mockResolvedValueOnce({
 			id: 'test-id',
 			choices: [{ message: { content: 'ok' } }],
@@ -87,7 +82,7 @@ describe('CloudflareAIGatewayProvider', () => {
 		expect(mockOpenAIInstance.chat.completions.create).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model: 'google-ai-studio/gemini-2.5-flash-lite',
-			})
+			}),
 		);
 	});
 });

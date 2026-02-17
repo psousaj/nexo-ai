@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { errorReports, conversations, users, messages } from '@/db/schema';
-import { desc, eq, sql, count } from 'drizzle-orm';
+import { conversations, errorReports, messages, users } from '@/db/schema';
+import { count, desc, eq } from 'drizzle-orm';
 
 export class AdminService {
 	/**

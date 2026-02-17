@@ -1,9 +1,9 @@
-import { db } from '@/db';
-import { users, userAccounts } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import type { ProviderType } from '@/adapters/messaging';
-import { cacheGet, cacheSet, cacheDelete } from '@/config/redis';
+import { cacheDelete, cacheGet, cacheSet } from '@/config/redis';
+import { db } from '@/db';
+import { userAccounts, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
+import { and, eq, sql } from 'drizzle-orm';
 
 export class UserService {
 	/**

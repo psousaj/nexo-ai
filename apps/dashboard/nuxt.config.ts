@@ -1,6 +1,6 @@
+import { resolve } from 'node:path';
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { config } from 'dotenv';
-import { resolve } from 'node:path';
 
 // Carregar .env da raiz do monorepo
 config({ path: resolve(__dirname, '../../.env') });

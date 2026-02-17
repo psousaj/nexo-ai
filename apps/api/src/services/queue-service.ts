@@ -1,12 +1,12 @@
-import Queue from 'bull';
+import { type IncomingMessage, type ProviderType, getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
-import { eq, and, lte, inArray } from 'drizzle-orm';
 import { embeddingService } from '@/services/ai/embedding-service';
-import { loggers } from '@/utils/logger';
-import { type IncomingMessage, type ProviderType, getProvider, type MessagingProvider } from '@/adapters/messaging';
 import { globalErrorHandler } from '@/services/error/error.service';
+import { loggers } from '@/utils/logger';
+import Queue from 'bull';
+import { and, eq, inArray, lte } from 'drizzle-orm';
 
 /**
  * Response Queue Job Interface
@@ -218,7 +218,13 @@ closeConversationQueue.process('close-conversation', async (job) => {
 				closeJobId: null,
 				updatedAt: new Date(),
 			})
-			.where(and(eq(conversations.id, conversationId), eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, new Date())))
+			.where(
+				and(
+					eq(conversations.id, conversationId),
+					eq(conversations.state, 'waiting_close'),
+					lte(conversations.closeAt, new Date()),
+				),
+			)
 			.returning({ id: conversations.id });
 
 		if (result.length === 0) {
@@ -254,7 +260,10 @@ messageQueue.process('message-processing', async (job) => {
 
 		await processMessage(incomingMsg, provider);
 
-		queueLogger.info({ providerName, externalId: incomingMsg.externalId, jobId: job.id }, '✅ [Worker] Mensagem processada com sucesso');
+		queueLogger.info(
+			{ providerName, externalId: incomingMsg.externalId, jobId: job.id },
+			'✅ [Worker] Mensagem processada com sucesso',
+		);
 	} catch (error) {
 		queueLogger.error(
 			{ providerName, externalId: incomingMsg.externalId, jobId: job.id, err: error },
@@ -310,7 +319,7 @@ responseQueue.process('send-response', 5, async (job) => {
 		if (error.cause?.code === 'ETIMEDOUT' || error.cause?.code === 'ECONNREFUSED') {
 			throw error; // Re-throw para Bull fazer retry
 		}
-		
+
 		throw error;
 	}
 });
@@ -383,14 +392,13 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 			}),
 		);
 
-
 		const validItems = itemsToInsert.filter((i): i is NonNullable<typeof i> => {
 			if (!i || !i.embedding) return false;
 			// Valida embedding: array, 384 dimensões, todos números válidos
 			return (
 				Array.isArray(i.embedding) &&
 				i.embedding.length === 384 &&
-				i.embedding.every((v) => typeof v === 'number' && !isNaN(v))
+				i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
 			);
 		});
 
@@ -409,20 +417,20 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 		const skippedCount = candidates.length - insertedCount;
 
 		queueLogger.info(
-			{ 
-				attempted: validItems.length, 
-				inserted: insertedCount, 
+			{
+				attempted: validItems.length,
+				inserted: insertedCount,
 				skipped: skippedCount,
-				jobId: job.id 
-			}, 
-			'✅ Bulk enrichment concluído'
+				jobId: job.id,
+			},
+			'✅ Bulk enrichment concluído',
 		);
 
-		return { 
-			inserted: insertedCount, 
+		return {
+			inserted: insertedCount,
 			attempted: validItems.length,
 			skipped: skippedCount,
-			total: candidates.length
+			total: candidates.length,
 		};
 	} catch (error) {
 		queueLogger.error({ err: error, jobId: job.id }, '❌ Erro no bulk enrichment');
@@ -452,7 +460,10 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			})
 			.where(eq(conversations.id, conversationId));
 
-		queueLogger.info({ conversationId, closeAt: closeAt.toISOString() }, '📅 Banco atualizado: conversa aguardando fechamento');
+		queueLogger.info(
+			{ conversationId, closeAt: closeAt.toISOString() },
+			'📅 Banco atualizado: conversa aguardando fechamento',
+		);
 
 		await closeConversationQueue.add(
 			'close-conversation',
@@ -593,10 +604,20 @@ export async function queueResponse(data: ResponseJob): Promise<void> {
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
+	await Promise.all([
+		closeConversationQueue.close(),
+		messageQueue.close(),
+		responseQueue.close(),
+		enrichmentQueue.close(),
+	]);
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
+	await Promise.all([
+		closeConversationQueue.close(),
+		messageQueue.close(),
+		responseQueue.close(),
+		enrichmentQueue.close(),
+	]);
 });

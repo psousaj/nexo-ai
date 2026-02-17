@@ -1,9 +1,9 @@
 import 'newrelic';
-import { serve } from '@hono/node-server';
-import app from '@/server';
-import { env } from '@/config/env';
-import { logger } from '@/utils/logger';
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
+import { env } from '@/config/env';
+import app from '@/server';
+import { logger } from '@/utils/logger';
+import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 
 const port = env.PORT;

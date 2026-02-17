@@ -2,7 +2,7 @@ import { env } from '@/config/env';
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
 import { loggers } from '@/utils/logger';
 import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
-import type { AIProvider, AIResponse, Message } from './types';
+import type { AIResponse, Message } from './types';
 
 /**
  * Serviço AI usando Cloudflare AI Gateway
@@ -15,12 +15,7 @@ import type { AIProvider, AIResponse, Message } from './types';
 export class AIService {
 	private provider: CloudflareAIGatewayProvider;
 
-	constructor(
-		accountId: string,
-		gatewayId: string,
-		cfApiToken: string,
-		defaultModel: string = 'dynamic/cloudflare'
-	) {
+	constructor(accountId: string, gatewayId: string, cfApiToken: string, defaultModel = 'dynamic/cloudflare') {
 		this.provider = new CloudflareAIGatewayProvider(accountId, gatewayId, cfApiToken, defaultModel);
 		loggers.ai.info('🤖 AI Service inicializado com AI Gateway');
 	}
@@ -59,9 +54,5 @@ export class AIService {
 }
 
 // Singleton - credenciais são obrigatórias no env
-export const llmService = new AIService(
-	env.CLOUDFLARE_ACCOUNT_ID,
-	env.CLOUDFLARE_GATEWAY_ID,
-	env.CLOUDFLARE_API_TOKEN
-);
+export const llmService = new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN);
 export type { AIProvider, AIResponse, Message } from './types';

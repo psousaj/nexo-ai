@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import * as schema from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { and, eq } from 'drizzle-orm';
 
 /**
  * Busca usuário existente por email (para vincular OAuth ao invés de duplicar)
@@ -9,11 +9,7 @@ import { loggers } from '@/utils/logger';
 export async function findUserByEmail(email: string) {
 	try {
 		// 1. Busca direto na tabela users do Better Auth
-		const [user] = await db
-			.select()
-			.from(schema.users)
-			.where(eq(schema.users.email, email))
-			.limit(1);
+		const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
 
 		if (user) {
 			loggers.webhook.info({ userId: user.id, email }, '🔍 [Pre-check] Usuário existente encontrado');
@@ -21,18 +17,10 @@ export async function findUserByEmail(email: string) {
 		}
 
 		// 2. Fallback: busca em user_emails (caso email secundário)
-		const [userEmail] = await db
-			.select()
-			.from(schema.userEmails)
-			.where(eq(schema.userEmails.email, email))
-			.limit(1);
+		const [userEmail] = await db.select().from(schema.userEmails).where(eq(schema.userEmails.email, email)).limit(1);
 
 		if (userEmail) {
-			const [linkedUser] = await db
-				.select()
-				.from(schema.users)
-				.where(eq(schema.users.id, userEmail.userId))
-				.limit(1);
+			const [linkedUser] = await db.select().from(schema.users).where(eq(schema.users.id, userEmail.userId)).limit(1);
 
 			if (linkedUser) {
 				loggers.webhook.info(
@@ -63,15 +51,12 @@ export async function linkOAuthToExistingUser(params: {
 	const { existingUserId, provider, externalId, email } = params;
 
 	try {
-		loggers.webhook.info(
-			{ existingUserId, provider, email },
-			'🔗 [Link] Vinculando OAuth a usuário existente',
-		);
+		loggers.webhook.info({ existingUserId, provider, email }, '🔗 [Link] Vinculando OAuth a usuário existente');
 
 		// 1. Cria account no Better Auth
 		// Gera ID único para o account (padrão Better Auth)
 		const accountId = `${existingUserId}_${provider}_${Date.now()}`;
-		
+
 		await db.insert(schema.accounts).values({
 			id: accountId,
 			userId: existingUserId,
@@ -88,10 +73,7 @@ export async function linkOAuthToExistingUser(params: {
 			updatedAt: new Date(),
 		});
 
-		loggers.webhook.info(
-			{ existingUserId, provider },
-			'✅ OAuth account vinculado a usuário existente',
-		);
+		loggers.webhook.info({ existingUserId, provider }, '✅ OAuth account vinculado a usuário existente');
 
 		// 2. Sincroniza normalmente
 		await syncOAuthAccount({
@@ -110,7 +92,7 @@ export async function linkOAuthToExistingUser(params: {
 
 /**
  * Serviço para sincronizar Better Auth accounts com user_accounts e user_emails
- * 
+ *
  * Solução alternativa aos hooks bugados do Better Auth 1.4.17
  * Chamado manualmente após OAuth callback
  */
@@ -124,21 +106,13 @@ export async function syncOAuthAccount(params: {
 	const { userId, provider, externalId, email, metadata = {} } = params;
 
 	try {
-		loggers.webhook.info(
-			{ userId, provider, externalId, email },
-			'🔗 [Sync] Sincronizando OAuth account',
-		);
+		loggers.webhook.info({ userId, provider, externalId, email }, '🔗 [Sync] Sincronizando OAuth account');
 
 		// 1. Sincronizar com user_accounts (para mensageria)
 		const [existingAccount] = await db
 			.select()
 			.from(schema.userAccounts)
-			.where(
-				and(
-					eq(schema.userAccounts.provider, provider as any),
-					eq(schema.userAccounts.externalId, externalId),
-				),
-			)
+			.where(and(eq(schema.userAccounts.provider, provider as any), eq(schema.userAccounts.externalId, externalId)))
 			.limit(1);
 
 		if (!existingAccount) {
@@ -155,12 +129,7 @@ export async function syncOAuthAccount(params: {
 			await db
 				.update(schema.userAccounts)
 				.set({ metadata: metadata || {} })
-				.where(
-					and(
-						eq(schema.userAccounts.provider, provider as any),
-						eq(schema.userAccounts.externalId, externalId),
-					),
-				);
+				.where(and(eq(schema.userAccounts.provider, provider as any), eq(schema.userAccounts.externalId, externalId)));
 
 			loggers.webhook.info({ userId, provider, metadata }, '✅ user_account atualizado com metadata');
 		}
@@ -209,4 +178,3 @@ export async function syncOAuthAccount(params: {
 		return { success: false, error };
 	}
 }
-

@@ -6,9 +6,9 @@
  */
 
 import { db } from '@/db';
-import { users, userAccounts, memoryItems } from '@/db/schema';
-import { itemService } from '@/services/item-service';
+import { memoryItems, userAccounts, users } from '@/db/schema';
 import { tmdbService } from '@/services/enrichment/tmdb-service';
+import { itemService } from '@/services/item-service';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
 
@@ -44,7 +44,7 @@ async function testSemanticEnrichment() {
 
 		const inceptionMetadata = await tmdbService.enrichMovie(inceptionTmdbId);
 
-		loggers.ai.info(`🎬 Inception TMDB Data:`);
+		loggers.ai.info('🎬 Inception TMDB Data:');
 		loggers.ai.info(`   Keywords: ${inceptionMetadata.keywords?.join(', ') || 'N/A'}`);
 		loggers.ai.info(`   Overview: ${inceptionMetadata.overview?.substring(0, 80)}...`);
 		loggers.ai.info(`   Tagline: ${inceptionMetadata.tagline || 'N/A'}`);
@@ -60,7 +60,7 @@ async function testSemanticEnrichment() {
 
 		const interstellarMetadata = await tmdbService.enrichMovie(interstellarTmdbId);
 
-		loggers.ai.info(`🚀 Interstellar TMDB Data:`);
+		loggers.ai.info('🚀 Interstellar TMDB Data:');
 		loggers.ai.info(`   Keywords: ${interstellarMetadata.keywords?.join(', ') || 'N/A'}`);
 		loggers.ai.info(`   Overview: ${interstellarMetadata.overview?.substring(0, 80)}...`);
 		loggers.ai.info(`   Genres: ${interstellarMetadata.genres.join(', ')}\n`);

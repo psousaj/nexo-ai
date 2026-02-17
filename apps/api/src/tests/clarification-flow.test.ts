@@ -1,8 +1,6 @@
-
-import { describe, test, expect, beforeEach } from 'vitest';
-import { ConversationService } from '@/services/conversation-service';
 import { AgentOrchestrator } from '@/services/agent-orchestrator';
-import type { ConversationContext } from '@/types';
+import { ConversationService } from '@/services/conversation-service';
+import { describe, expect, test } from 'vitest';
 
 /**
  * Testes para o fluxo de clarificação (Anamnese N1/N2)
@@ -24,7 +22,12 @@ describe('Clarification Flow (N1/N2)', () => {
 		// Simula detecção de ambiguidade
 		const mockExternalId = '123456789';
 		const mockProvider = 'telegram' as const;
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, longMessage, mockExternalId, mockProvider);
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			longMessage,
+			mockExternalId,
+			mockProvider,
+		);
 
 		expect(isAmbiguous).toBe(true);
 	});
@@ -36,7 +39,12 @@ describe('Clarification Flow (N1/N2)', () => {
 
 		const mockExternalId = '123456789';
 		const mockProvider = 'telegram' as const;
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, actionMessage, mockExternalId, mockProvider);
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			actionMessage,
+			mockExternalId,
+			mockProvider,
+		);
 
 		expect(isAmbiguous).toBe(false);
 	});
@@ -48,7 +56,12 @@ describe('Clarification Flow (N1/N2)', () => {
 
 		const mockExternalId = '123456789';
 		const mockProvider = 'telegram' as const;
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, shortMessage, mockExternalId, mockProvider);
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			shortMessage,
+			mockExternalId,
+			mockProvider,
+		);
 
 		expect(isAmbiguous).toBe(true);
 	});
@@ -60,14 +73,19 @@ describe('Clarification Flow (N1/N2)', () => {
 
 		const mockExternalId = '123456789';
 		const mockProvider = 'telegram' as const;
-		const isAmbiguous = await conversationService.handleAmbiguousMessage(mockConversationId, shortMessage, mockExternalId, mockProvider);
+		const isAmbiguous = await conversationService.handleAmbiguousMessage(
+			mockConversationId,
+			shortMessage,
+			mockExternalId,
+			mockProvider,
+		);
 
 		expect(isAmbiguous).toBe(false);
 	});
 
 	test('deve processar escolha "1" (nota) corretamente', async () => {
 		// Mock: conversa em estado awaiting_context
-		const mockConversation = {
+		const _mockConversation = {
 			id: mockConversationId,
 			userId: mockUserId,
 			state: 'awaiting_context' as const,
@@ -97,7 +115,7 @@ describe('Clarification Flow (N1/N2)', () => {
 	});
 
 	test('deve processar escolha "5" (cancelar) corretamente', async () => {
-		const mockConversation = {
+		const _mockConversation = {
 			id: mockConversationId,
 			userId: mockUserId,
 			state: 'awaiting_context' as const,
@@ -126,7 +144,7 @@ describe('Clarification Flow (N1/N2)', () => {
 	});
 
 	test('deve rejeitar escolha inválida (não numérica)', async () => {
-		const mockConversation = {
+		const _mockConversation = {
 			id: mockConversationId,
 			userId: mockUserId,
 			state: 'awaiting_context' as const,

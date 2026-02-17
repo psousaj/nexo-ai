@@ -1,13 +1,13 @@
 {
-  "extends": [
-    "github>nuxt/renovate-config-nuxt"
-  ],
-  "lockFileMaintenance": {
-    "enabled": true
-  },
-  "packageRules": [{
-    "matchDepTypes": ["resolutions"],
-    "enabled": false
-  }],
-  "postUpdateOptions": ["pnpmDedupe"]
+	"extends": ["github>nuxt/renovate-config-nuxt"],
+	"lockFileMaintenance": {
+		"enabled": true
+	},
+	"packageRules": [
+		{
+			"matchDepTypes": ["resolutions"],
+			"enabled": false
+		}
+	],
+	"postUpdateOptions": ["pnpmDedupe"]
 }

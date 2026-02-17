@@ -1,4 +1,4 @@
-import { BaseAnalysisResult, Language } from '../types/analysis-result.types';
+import type { BaseAnalysisResult, Language } from '../types/analysis-result.types';
 
 export abstract class BaseAnalyzer<T extends BaseAnalysisResult> {
 	protected abstract readonly analyzerType: T['type'];

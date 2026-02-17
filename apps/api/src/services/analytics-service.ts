@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { users, memoryItems, messages, conversations } from '@/db/schema';
-import { count, sql, and, gte, eq, desc } from 'drizzle-orm';
+import { conversations, memoryItems, messages, users } from '@/db/schema';
+import { count, desc, eq, sql } from 'drizzle-orm';
 
 export class AnalyticsService {
 	/**
@@ -10,13 +10,21 @@ export class AnalyticsService {
 		const [totalUsers] = await db.select({ value: count() }).from(users);
 		const [totalMemories] = await db.select({ value: count() }).from(memoryItems);
 		const [totalMessages] = await db.select({ value: count() }).from(messages);
-		const [activeConvs] = await db.select({ value: count() }).from(conversations).where(eq(conversations.isActive, true));
+		const [activeConvs] = await db
+			.select({ value: count() })
+			.from(conversations)
+			.where(eq(conversations.isActive, true));
 
 		// Simulação de trends (em um cenário real seria comparado com o período anterior)
 		return [
 			{ title: 'Total Users', value: this.formatValue(Number(totalUsers.value)), trend: 12.5, icon: 'Users' },
 			{ title: 'Memórias Salvas', value: this.formatValue(Number(totalMemories.value)), trend: 8.2, icon: 'Database' },
-			{ title: 'Mensagens Processadas', value: this.formatValue(Number(totalMessages.value)), trend: -2.4, icon: 'MessageSquare' },
+			{
+				title: 'Mensagens Processadas',
+				value: this.formatValue(Number(totalMessages.value)),
+				trend: -2.4,
+				icon: 'MessageSquare',
+			},
 			{ title: 'Conversas Ativas', value: this.formatValue(Number(activeConvs.value)), trend: 5.1, icon: 'Activity' },
 		];
 	}
@@ -42,7 +50,7 @@ export class AnalyticsService {
 	 * Retorna dados de tendências (últimos 6 meses)
 	 */
 	async getTrends() {
-		const months = 6;
+		const _months = 6;
 
 		// Query para buscar contagem agrupadada por mês para memórias
 		const memoryTrends = await db.execute(sql`
@@ -115,7 +123,7 @@ export class AnalyticsService {
 	}
 
 	private formatValue(val: number): string {
-		if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
+		if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
 		return val.toString();
 	}
 }

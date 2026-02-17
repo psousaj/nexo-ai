@@ -9,7 +9,7 @@
  */
 
 import { db } from '@/db';
-import { users, userAccounts, memoryItems } from '@/db/schema';
+import { memoryItems, userAccounts, users } from '@/db/schema';
 import { itemService } from '@/services/item-service';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
@@ -89,7 +89,7 @@ async function testSemanticSearchE2E() {
 			});
 
 			if (results.length === 0) {
-				loggers.ai.info(`   ❌ Nenhum resultado encontrado\n`);
+				loggers.ai.info('   ❌ Nenhum resultado encontrado\n');
 				continue;
 			}
 
@@ -102,7 +102,7 @@ async function testSemanticSearchE2E() {
 
 			const topResult = results[0];
 			if (topResult.title === search.expected) {
-				loggers.ai.info(`   ✅ Resultado esperado encontrado!\n`);
+				loggers.ai.info('   ✅ Resultado esperado encontrado!\n');
 			} else {
 				loggers.ai.info(`   ⚠️ Resultado diferente do esperado (esperado: ${search.expected})\n`);
 			}

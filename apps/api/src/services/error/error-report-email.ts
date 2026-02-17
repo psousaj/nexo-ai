@@ -1,9 +1,9 @@
-import { Resend } from 'resend';
 import { env } from '@/config/env';
 import { db } from '@/db';
 import { errorReports } from '@/db/schema';
-import { gte, desc } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { desc, gte } from 'drizzle-orm';
+import { Resend } from 'resend';
 
 export class ErrorReportService {
 	private resend: Resend | null = null;
@@ -73,7 +73,9 @@ export class ErrorReportService {
                         ${errors
 													.slice(0, 20) // Top 20
 													.map((err) => {
-														const history = Array.isArray(err.conversationHistory) ? (err.conversationHistory as any[]) : [];
+														const history = Array.isArray(err.conversationHistory)
+															? (err.conversationHistory as any[])
+															: [];
 														const lastUserMsg = history
 															.filter((m) => m.role === 'user')
 															.pop()

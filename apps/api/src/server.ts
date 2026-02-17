@@ -1,30 +1,30 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
 import { env } from '@/config/env';
-import { healthRouter } from '@/routes/health';
-import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
-import { itemsRouter } from '@/routes/items';
-import { dashboardRouter } from '@/routes/dashboard';
 import { authRouter } from '@/routes/auth-better.routes';
+import { dashboardRouter } from '@/routes/dashboard';
+import { healthRouter } from '@/routes/health';
+import { itemsRouter } from '@/routes/items';
+import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
+import { globalErrorHandler } from '@/services/error/error.service';
 import {
-	runConversationCloseCron,
-	runAwaitingConfirmationTimeoutCron,
-	messageQueue,
 	closeConversationQueue,
-	responseQueue,
 	enrichmentQueue,
+	messageQueue,
+	responseQueue,
+	runAwaitingConfirmationTimeoutCron,
+	runConversationCloseCron,
 } from '@/services/queue-service';
-import pkg from '../package.json';
-import cron from 'node-cron';
 import { createBullBoard } from '@bull-board/api';
 import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { globalErrorHandler } from '@/services/error/error.service';
-import { loggers } from './utils/logger';
 import { swaggerUI } from '@hono/swagger-ui';
 import { apiReference } from '@scalar/hono-api-reference';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
+import cron from 'node-cron';
+import pkg from '../package.json';
+import { loggers } from './utils/logger';
 
 const app = new Hono();
 

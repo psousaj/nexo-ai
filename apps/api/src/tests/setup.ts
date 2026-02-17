@@ -1,5 +1,5 @@
-import { beforeAll, afterAll } from 'vitest';
 import { loggers } from '@/utils/logger';
+import { afterAll, beforeAll } from 'vitest';
 
 // Configurar variáveis de ambiente para testes
 process.env.NODE_ENV = 'test';

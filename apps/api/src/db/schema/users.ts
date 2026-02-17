@@ -1,20 +1,22 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, varchar, integer, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { items } from './items';
-import { conversations } from './conversations';
-import { userAccounts } from './user-accounts';
-import { userPreferences } from './user-preferences';
-import { userPermissions } from './permissions';
+import { boolean, integer, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { agentDailyLogs } from './agent-daily-logs';
 import { agentMemoryProfiles } from './agent-memory-profiles';
 import { agentSessions } from './agent-sessions';
-import { agentDailyLogs } from './agent-daily-logs';
+import { conversations } from './conversations';
+import { items } from './items';
+import { userPermissions } from './permissions';
+import { userAccounts } from './user-accounts';
+import { userPreferences } from './user-preferences';
 
 /**
  * Usuário único no sistema (entidade de domínio)
  * Pode ter múltiplas contas em diferentes providers via userAccounts
  */
 export const users = pgTable('users', {
-	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
 	name: text('name'),
 	email: varchar('email', { length: 255 }).unique(),
 	emailVerified: boolean('email_verified').default(false).notNull(),

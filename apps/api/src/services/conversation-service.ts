@@ -1,18 +1,17 @@
+import { type ProviderType, getProvider } from '@/adapters/messaging';
 import { db } from '@/db';
 import { conversations, messages } from '@/db/schema';
-import { eq, desc, sql, and } from 'drizzle-orm';
-import type { ConversationState, ConversationContext, MessageRole } from '@/types';
-import { classifierService } from '@/services/classifier-service';
-import { type ProviderType, getProvider } from '@/adapters/messaging';
-import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import { getRandomLogMessage, processingLogs } from '@/services/conversation/logMessages';
 import {
-	getClarificationOptions,
 	getClarificationMessages,
+	getClarificationOptions,
 	getRandomMessage,
 } from '@/services/message-analysis/constants/clarification-messages';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { Language } from '@/services/message-analysis/types/analysis-result.types';
-import { processingLogs, getRandomLogMessage } from '@/services/conversation/logMessages';
+import type { ConversationContext, ConversationState, MessageRole } from '@/types';
 import { loggers } from '@/utils/logger';
+import { and, desc, eq, sql } from 'drizzle-orm';
 
 export class ConversationService {
 	/**
@@ -87,12 +86,11 @@ export class ConversationService {
 
 		// Log: transição de estado
 		loggers.db.info(
-			'🔄 ' +
-				getRandomLogMessage(processingLogs.stateChange, {
-					conversationId: conversationId.substring(0, 8),
-					from: oldState,
-					to: state,
-				}),
+			`🔄 ${getRandomLogMessage(processingLogs.stateChange, {
+				conversationId: conversationId.substring(0, 8),
+				from: oldState,
+				to: state,
+			})}`,
 		);
 
 		const mergedContext = {
@@ -130,7 +128,10 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
+			loggers.db.info(
+				{ reason, confidence: ambiguityResult.confidence },
+				'🔍 Ambiguidade detectada, solicitando clarificação',
+			);
 
 			// Atualiza estado para awaiting_context
 			await this.updateState(conversationId, 'awaiting_context', {

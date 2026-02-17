@@ -1,5 +1,5 @@
-import { abilitiesPlugin } from '@casl/vue';
 import { defineAbility } from '@casl/ability';
+import { abilitiesPlugin } from '@casl/vue';
 
 export type Actions = 'manage' | 'create' | 'read' | 'update' | 'delete';
 export type Subjects = 'AdminPanel' | 'Analytics' | 'UserContent' | 'PersonalData' | 'all';

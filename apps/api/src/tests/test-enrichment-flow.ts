@@ -5,12 +5,12 @@
  */
 
 import { db } from '@/db';
-import { users, userAccounts, memoryItems, semanticExternalItems } from '@/db/schema';
-import { itemService } from '@/services/item-service';
+import { memoryItems, semanticExternalItems, userAccounts, users } from '@/db/schema';
 import { tmdbService } from '@/services/enrichment/tmdb-service';
+import { itemService } from '@/services/item-service';
 import { enrichmentQueue } from '@/services/queue-service';
 import { loggers } from '@/utils/logger';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 async function testEnrichmentFlow() {
 	loggers.ai.info('🧪 Iniciando Teste de Normalização de Métricas\n');
@@ -41,7 +41,7 @@ async function testEnrichmentFlow() {
 
 		if (!targetMovie) throw new Error('Filme não encontrado para o teste');
 
-		loggers.ai.info(`✅ Busca concluída. Aguardando processamento do worker (5s)...`);
+		loggers.ai.info('✅ Busca concluída. Aguardando processamento do worker (5s)...');
 
 		// Aguarda o worker processar
 		await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -59,7 +59,7 @@ async function testEnrichmentFlow() {
 			)
 			.limit(1);
 
-		if (globalItem && globalItem.embedding) {
+		if (globalItem?.embedding) {
 			loggers.ai.info('✅ SUCCESS: Item encontrado no cache global com embedding!');
 		} else {
 			loggers.ai.warn('⚠️ WARNING: Item não encontrado no cache global ou sem embedding após delay.');
@@ -108,9 +108,11 @@ async function testEnrichmentFlow() {
 		// Limpa qualquer cache global dele se existir (garante teste de fallback funcional)
 		await db
 			.delete(semanticExternalItems)
-			.where(and(eq(semanticExternalItems.externalId, String(movieFallback.id)), eq(semanticExternalItems.type, 'movie')));
+			.where(
+				and(eq(semanticExternalItems.externalId, String(movieFallback.id)), eq(semanticExternalItems.type, 'movie')),
+			);
 
-		loggers.ai.info(`💾 Salvando item IMEDIATAMENTE (antes do worker processar)...`);
+		loggers.ai.info('💾 Salvando item IMEDIATAMENTE (antes do worker processar)...');
 
 		const { item } = await itemService.createItem({
 			userId: user.id,
@@ -128,7 +130,7 @@ async function testEnrichmentFlow() {
 				.where(eq(semanticExternalItems.id, item.semanticExternalItemId))
 				.limit(1);
 
-			if (savedGlobal && savedGlobal.embedding) {
+			if (savedGlobal?.embedding) {
 				loggers.ai.info('✅ SUCCESS: Global item tem embedding válido.');
 			}
 		} else {
@@ -144,10 +146,14 @@ async function testEnrichmentFlow() {
 		// mas para este teste específico de fallback removemos os IDs usados.
 		await db
 			.delete(semanticExternalItems)
-			.where(and(eq(semanticExternalItems.externalId, String(targetMovie.id)), eq(semanticExternalItems.type, 'movie')));
+			.where(
+				and(eq(semanticExternalItems.externalId, String(targetMovie.id)), eq(semanticExternalItems.type, 'movie')),
+			);
 		await db
 			.delete(semanticExternalItems)
-			.where(and(eq(semanticExternalItems.externalId, String(movieFallback.id)), eq(semanticExternalItems.type, 'movie')));
+			.where(
+				and(eq(semanticExternalItems.externalId, String(movieFallback.id)), eq(semanticExternalItems.type, 'movie')),
+			);
 
 		loggers.ai.info('✅ Dados limpos.');
 		loggers.ai.info('\n🎉 Todas as verificações concluídas com sucesso!');

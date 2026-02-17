@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { MessageCircle, Send, Gamepad2, BrainCircuit, Clapperboard, Link2, StickyNote, Menu, X, Bot } from 'lucide-vue-next';
-import { ref, onMounted } from 'vue';
+import { BrainCircuit, Clapperboard, Link2, StickyNote } from 'lucide-vue-next';
+import { onMounted, ref } from 'vue';
 
-const isMenuOpen = ref(false);
+const _isMenuOpen = ref(false);
 const usersCount = ref(0);
 
 // Animação do contador
@@ -22,7 +22,7 @@ onMounted(() => {
 	}, 16);
 });
 
-const features = [
+const _features = [
 	{
 		icon: Clapperboard,
 		title: 'Filmes e Séries',
@@ -45,7 +45,7 @@ const features = [
 	},
 ];
 
-const testimonials = [
+const _testimonials = [
 	{
 		name: 'Ana Silva',
 		role: 'Designer',

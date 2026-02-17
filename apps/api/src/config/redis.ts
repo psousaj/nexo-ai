@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis';
-import { env } from './env';
 import { loggers } from '../utils/logger';
+import { env } from './env';
 
 let redis: any = null;
 

@@ -17,10 +17,7 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 /**
  * Retry logic com exponential backoff
  */
-export async function withRetry<T>(
-	fn: () => Promise<T>,
-	options: RetryOptions = {}
-): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
 	const opts = { ...DEFAULT_OPTIONS, ...options };
 	let lastError: Error;
 
@@ -31,20 +28,26 @@ export async function withRetry<T>(
 			lastError = error as Error;
 
 			if (attempt === opts.maxRetries) {
-				logger.error({
-					attempts: attempt,
-					error: lastError.message,
-				}, 'Max retries reached');
+				logger.error(
+					{
+						attempts: attempt,
+						error: lastError.message,
+					},
+					'Max retries reached',
+				);
 				throw lastError;
 			}
 
-			const delay = opts.delayMs * Math.pow(opts.backoffMultiplier, attempt - 1);
+			const delay = opts.delayMs * opts.backoffMultiplier ** (attempt - 1);
 			opts.onRetry(attempt, lastError);
 
-			logger.warn({
-				delay,
-				error: lastError.message,
-			}, `Retry attempt ${attempt}/${opts.maxRetries}`);
+			logger.warn(
+				{
+					delay,
+					error: lastError.message,
+				},
+				`Retry attempt ${attempt}/${opts.maxRetries}`,
+			);
 
 			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
@@ -59,7 +62,7 @@ export async function withRetry<T>(
 export async function fetchWithRetry(
 	url: string,
 	options?: RequestInit,
-	retryOptions?: RetryOptions
+	retryOptions?: RetryOptions,
 ): Promise<Response> {
 	return withRetry(async () => {
 		const response = await fetch(url, options);

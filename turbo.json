@@ -27,6 +27,9 @@
             ]
         },
         "format": {},
+        "format:check": {},
+        "lint:biome": {},
+        "lint:biome:fix": {},
         "test": {
             "dependsOn": [
                 "build"

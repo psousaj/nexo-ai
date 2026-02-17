@@ -4,7 +4,15 @@ import { loggers } from '@/utils/logger';
 
 // Re-export shared types
 // Re-export shared types
-import type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata } from '@nexo/shared';
+import type {
+	ItemMetadata,
+	ItemType,
+	LinkMetadata,
+	MovieMetadata,
+	NoteMetadata,
+	TVShowMetadata,
+	VideoMetadata,
+} from '@nexo/shared';
 export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
 
 export type ConversationState =
@@ -58,7 +66,10 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 
 	// Validar schema_version
 	if (response.schema_version !== CURRENT_SCHEMA_VERSION) {
-		loggers.ai.warn({ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION }, 'Versão de schema incompatível');
+		loggers.ai.warn(
+			{ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION },
+			'Versão de schema incompatível',
+		);
 	}
 
 	if (!['CALL_TOOL', 'RESPOND', 'NOOP'].includes(response.action)) return false;
@@ -71,7 +82,7 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 	if (response.action === 'RESPOND' && response.message) {
 		if (response.message.length > 200) {
 			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo');
-			response.message = response.message.substring(0, 197) + '...';
+			response.message = `${response.message.substring(0, 197)}...`;
 		}
 	}
 

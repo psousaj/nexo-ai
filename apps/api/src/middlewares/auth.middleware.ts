@@ -1,5 +1,5 @@
-import type { Context, Next } from 'hono';
 import { authPlugin } from '@/lib/auth';
+import type { Context, Next } from 'hono';
 
 /**
  * Middleware para proteger rotas e injetar o usuário na Context

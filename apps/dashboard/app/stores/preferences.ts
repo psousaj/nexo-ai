@@ -1,5 +1,5 @@
-import type { UserPreferences } from '~/types/dashboard';
 import { useDashboard } from '~/composables/useDashboard';
+import type { UserPreferences } from '~/types/dashboard';
 
 export const usePreferencesStore = defineStore('preferences', () => {
 	const dashboard = useDashboard();

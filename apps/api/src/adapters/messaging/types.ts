@@ -10,7 +10,15 @@ export type ProviderType = 'whatsapp' | 'telegram' | 'discord' | 'google';
 /**
  * Chat action type for activity indicators
  */
-export type ChatAction = 'typing' | 'upload_photo' | 'upload_video' | 'upload_document' | 'find_location' | 'record_video' | 'record_audio' | 'record_video_note';
+export type ChatAction =
+	| 'typing'
+	| 'upload_photo'
+	| 'upload_video'
+	| 'upload_document'
+	| 'find_location'
+	| 'record_video'
+	| 'record_audio'
+	| 'record_video_note';
 
 /**
  * Session key parameters (OpenClaw pattern)

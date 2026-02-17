@@ -1,7 +1,10 @@
 // Função utilitária para escapar MarkdownV2 conforme documentação oficial Telegram
 // Remove emojis (Unicode ranges)
 function removeEmojis(text: string): string {
-	return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+	return text.replace(
+		/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu,
+		'',
+	);
 }
 
 function escapeMarkdownV2(text: string): string {
@@ -14,19 +17,18 @@ function escapeMarkdownV2(text: string): string {
 	return clean;
 }
 import { env } from '@/config/env';
+import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
 import type {
-	MessagingProvider,
+	ChatAction,
+	ChatCommand,
+	CommandParams,
 	IncomingMessage,
+	MessagingProvider,
 	ProviderType,
-	MessageMetadata,
 	SessionKeyParams,
 	SessionKeyParts,
-	ChatAction,
-	CommandParams,
-	ChatCommand,
 } from './types';
-import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 
 /**
  * Adapter para Telegram Bot API com suporte a grupos e OpenClaw patterns
@@ -59,7 +61,9 @@ export class TelegramAdapter implements MessagingProvider {
 		if (callbackQuery) {
 			const chatId = callbackQuery.message?.chat?.id?.toString() || callbackQuery.from?.id?.toString();
 			const senderName =
-				[callbackQuery.from.first_name, callbackQuery.from.last_name].filter(Boolean).join(' ') || callbackQuery.from.username || 'Usuário';
+				[callbackQuery.from.first_name, callbackQuery.from.last_name].filter(Boolean).join(' ') ||
+				callbackQuery.from.username ||
+				'Usuário';
 
 			return {
 				messageId: callbackQuery.id,
@@ -94,7 +98,8 @@ export class TelegramAdapter implements MessagingProvider {
 		const chatType = message.chat.type; // 'private', 'group', 'supergroup', 'channel'
 
 		// Nome: fallback chain
-		const senderName = [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') || message.from.username || 'Usuário';
+		const senderName =
+			[message.from.first_name, message.from.last_name].filter(Boolean).join(' ') || message.from.username || 'Usuário';
 
 		// Detect group and mention gating
 		const isGroupMessage = chatType !== 'private';
@@ -128,7 +133,7 @@ export class TelegramAdapter implements MessagingProvider {
 
 		// Detecta tokens de vinculação em comandos /start
 		let linkingToken: string | undefined;
-		if (text && text.startsWith('/start ')) {
+		if (text?.startsWith('/start ')) {
 			linkingToken = text.split(' ')[1];
 		}
 
@@ -162,14 +167,17 @@ export class TelegramAdapter implements MessagingProvider {
 	verifyWebhook(request: any): boolean {
 		// Telegram webhook secret (recomendado em produção)
 		if (!this.webhookSecret) {
-			loggers.webhook.warn('Telegram webhook sem secret_token configurado. Configure TELEGRAM_WEBHOOK_SECRET em produção.');
+			loggers.webhook.warn(
+				'Telegram webhook sem secret_token configurado. Configure TELEGRAM_WEBHOOK_SECRET em produção.',
+			);
 			return true; // Modo dev: aceita tudo
 		}
 
 		// Elysia/Fetch API usa Headers object com .get()
 		// Express usa objeto plain com lowercase keys
 		const headers = request.headers;
-		const secretToken = headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token'];
+		const secretToken =
+			headers?.get?.('x-telegram-bot-api-secret-token') || headers?.['x-telegram-bot-api-secret-token'];
 
 		if (secretToken !== this.webhookSecret) {
 			loggers.webhook.error({ secretToken: secretToken || '(nenhum)' }, 'Telegram webhook secret inválido ou ausente');
@@ -303,7 +311,7 @@ export class TelegramAdapter implements MessagingProvider {
 			let safeCaption = escapeMarkdownV2(caption);
 			// Limita a 1024 caracteres
 			if (safeCaption.length > 1024) {
-				safeCaption = safeCaption.slice(0, 1020) + '...';
+				safeCaption = `${safeCaption.slice(0, 1020)}...`;
 			}
 			payload.caption = safeCaption;
 			payload.parse_mode = 'MarkdownV2';
@@ -319,7 +327,10 @@ export class TelegramAdapter implements MessagingProvider {
 			};
 		}
 
-		loggers.webhook.info({ chatId, photoUrl, hasCaption: !!caption, hasButtons: !!buttons }, '📤 Enviando foto via Telegram');
+		loggers.webhook.info(
+			{ chatId, photoUrl, hasCaption: !!caption, hasButtons: !!buttons },
+			'📤 Enviando foto via Telegram',
+		);
 
 		const response = await fetch(url, {
 			method: 'POST',
@@ -369,10 +380,7 @@ export class TelegramAdapter implements MessagingProvider {
 		await this.sendChatAction(chatId, 'typing');
 	}
 
-	async sendChatAction(
-		chatId: string,
-		action: ChatAction,
-	): Promise<void> {
+	async sendChatAction(chatId: string, action: ChatAction): Promise<void> {
 		const url = `${this.baseUrl}/bot${this.token}/sendChatAction`;
 
 		// Map generic action to Telegram-specific action

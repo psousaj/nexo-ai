@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
-import { useAuthStore } from '~/stores/auth';
-import { Download, Calendar, MessageCircle, Bot, Filter, Search, FileText, Clock } from 'lucide-vue-next';
 
 definePageMeta({
 	middleware: ['auth'],
@@ -49,7 +47,7 @@ async function exportSessionJsonl(sessionId: string, sessionKey: string) {
 }
 
 // Filter sessions
-const filteredSessions = computed(() => {
+const _filteredSessions = computed(() => {
 	if (!sessions.value) return [];
 
 	let filtered = sessions.value;
@@ -57,10 +55,11 @@ const filteredSessions = computed(() => {
 	// Search filter
 	if (searchQuery.value) {
 		const query = searchQuery.value.toLowerCase();
-		filtered = filtered.filter((s: any) =>
-			s.sessionKey.toLowerCase().includes(query) ||
-			s.channel.toLowerCase().includes(query) ||
-			s.peerId.toLowerCase().includes(query),
+		filtered = filtered.filter(
+			(s: any) =>
+				s.sessionKey.toLowerCase().includes(query) ||
+				s.channel.toLowerCase().includes(query) ||
+				s.peerId.toLowerCase().includes(query),
 		);
 	}
 
@@ -103,11 +102,16 @@ function parseSessionKey(key: string): { channel?: string; peerKind?: string; pe
 // Get channel icon
 function getChannelIcon(channel: string) {
 	switch (channel) {
-		case 'telegram': return '📱';
-		case 'discord': return '💬';
-		case 'whatsapp': return '💚';
-		case 'web': return '🌐';
-		default: return '❓';
+		case 'telegram':
+			return '📱';
+		case 'discord':
+			return '💬';
+		case 'whatsapp':
+			return '💚';
+		case 'web':
+			return '🌐';
+		default:
+			return '❓';
 	}
 }
 

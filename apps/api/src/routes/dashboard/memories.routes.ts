@@ -1,8 +1,8 @@
-import { Hono } from 'hono';
 import { itemService } from '@/services/item-service';
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
 import type { AuthContext } from '@/types/hono';
+import { zValidator } from '@hono/zod-validator';
+import { Hono } from 'hono';
+import { z } from 'zod';
 
 export const memoriesRoutes = new Hono<AuthContext>()
 	.get(
@@ -29,7 +29,7 @@ export const memoriesRoutes = new Hono<AuthContext>()
 				const items = await itemService.searchItems({
 					userId: userState.id,
 					query: search,
-					limit: limit ? parseInt(limit) : 20,
+					limit: limit ? Number.parseInt(limit) : 20,
 				});
 				return c.json(items);
 			}
@@ -38,7 +38,7 @@ export const memoriesRoutes = new Hono<AuthContext>()
 			const items = await itemService.listItems({
 				userId: userState.id,
 				type: category as any,
-				limit: limit ? parseInt(limit) : 20,
+				limit: limit ? Number.parseInt(limit) : 20,
 			});
 
 			return c.json(items);

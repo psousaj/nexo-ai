@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { AlertTriangle, Loader2 } from 'lucide-vue-next';
-
 const props = defineProps<{
 	isOpen: boolean;
 	title: string;
@@ -18,7 +16,7 @@ const handleClose = () => {
 	emit('close');
 };
 
-const handleConfirm = () => {
+const _handleConfirm = () => {
 	emit('confirm');
 };
 

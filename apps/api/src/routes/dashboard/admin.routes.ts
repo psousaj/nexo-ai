@@ -1,7 +1,5 @@
-import { Hono } from 'hono';
 import { adminService } from '@/services/admin-service';
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
+import { Hono } from 'hono';
 
 export const adminRoutes = new Hono()
 	.get('/errors', async (c) => {

@@ -1,7 +1,7 @@
-import { itemService } from '@/services/item-service';
 import { enrichmentService } from '@/services/enrichment';
-import { loggers } from '@/utils/logger';
+import { itemService } from '@/services/item-service';
 import type { ItemType } from '@/types';
+import { loggers } from '@/utils/logger';
 
 /**
  * Representa uma chamada de tool pelo LLM
@@ -160,7 +160,8 @@ export class ToolExecutor {
 					year: movie.release_date?.split('-')[0],
 				})),
 			};
-		} else if (args.type === 'tv_show') {
+		}
+		if (args.type === 'tv_show') {
 			const results = await enrichmentService.searchTVShows(args.query);
 
 			if (results.length === 0) {
@@ -178,7 +179,8 @@ export class ToolExecutor {
 					year: show.first_air_date?.split('-')[0],
 				})),
 			};
-		} else if (args.type === 'video') {
+		}
+		if (args.type === 'video') {
 			const metadata = await enrichmentService.enrich('video', {
 				url: args.query,
 			});
@@ -225,7 +227,8 @@ export class ToolExecutor {
 				success: true,
 				available_on_streaming: false,
 				needs_download: true,
-				message: 'Este filme não está disponível em nenhum serviço de streaming. Será necessário baixar via torrent/Radarr.',
+				message:
+					'Este filme não está disponível em nenhum serviço de streaming. Será necessário baixar via torrent/Radarr.',
 				providers: [],
 			};
 		}

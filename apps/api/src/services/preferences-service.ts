@@ -45,7 +45,11 @@ export class PreferencesService {
 			appearanceLanguage: string;
 		}>,
 	): Promise<void> {
-		const existing = await db.select({ id: userPreferences.id }).from(userPreferences).where(eq(userPreferences.userId, userId)).limit(1);
+		const existing = await db
+			.select({ id: userPreferences.id })
+			.from(userPreferences)
+			.where(eq(userPreferences.userId, userId))
+			.limit(1);
 
 		if (existing.length > 0) {
 			await db

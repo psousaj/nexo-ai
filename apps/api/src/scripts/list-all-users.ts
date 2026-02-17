@@ -1,7 +1,6 @@
 import { db } from '../db';
-import { users, userAccounts } from '../db/schema';
+import { userAccounts, users } from '../db/schema';
 import { conversations } from '../db/schema/conversations';
-import { eq } from 'drizzle-orm';
 
 async function listUsers() {
 	console.log('--- Listing All Users ---');

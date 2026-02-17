@@ -1,11 +1,11 @@
-import { defineConfig } from 'vite';
+import { URL, fileURLToPath } from 'node:url';
 import vue from '@vitejs/plugin-vue';
-import { fileURLToPath, URL } from 'node:url';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [vue()],
 	server: {
-		port: process.env.PORT_LANDING ? parseInt(process.env.PORT_LANDING) : 3005,
+		port: process.env.PORT_LANDING ? Number.parseInt(process.env.PORT_LANDING) : 3005,
 		strictPort: false, // Permite porta alternativa se 3005 estiver ocupada
 	},
 	resolve: {

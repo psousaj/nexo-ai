@@ -1,6 +1,6 @@
 import type { ItemType } from '@/types';
-import { messageAnalyzer } from './message-analysis/message-analyzer.service';
 import { loggers } from '@/utils/logger';
+import { messageAnalyzer } from './message-analysis/message-analyzer.service';
 
 /**
  * Classifica tipo de conteúdo baseado na mensagem do usuário
@@ -75,7 +75,7 @@ export class ClassifierService {
 	/**
 	 * Extrai título/query da mensagem
 	 */
-	extractQuery(message: string, type: ItemType): string {
+	extractQuery(message: string, _type: ItemType): string {
 		// Remove URLs
 		let query = message.replace(/https?:\/\/[^\s]+/g, '').trim();
 
@@ -151,7 +151,7 @@ export class ClassifierService {
 		// Só considera lista se tiver múltiplos separadores E palavras curtas (não frases longas)
 		if (commaCount >= 2 || semicolonCount >= 1) {
 			const items = message
-				.split(new RegExp(`[,;]|\\s+e\\s+`))
+				.split(/[,;]|\s+e\s+/)
 				.map((item) => item.trim())
 				.filter((item) => item.length > 2 && item.length < 100); // Evita frases longas
 

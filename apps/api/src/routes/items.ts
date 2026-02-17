@@ -1,7 +1,7 @@
-import { Hono } from 'hono';
 import { itemService } from '@/services/item-service';
 import { logger } from '@/utils/logger';
 import { zValidator } from '@hono/zod-validator';
+import { Hono } from 'hono';
 import { z } from 'zod';
 
 export const itemsRouter = new Hono()
@@ -16,7 +16,7 @@ export const itemsRouter = new Hono()
 				userId: z.string(),
 				type: z.string().optional(),
 				limit: z.string().optional(),
-			})
+			}),
 		),
 		async (c) => {
 			const { userId, type, limit } = c.req.valid('query');
@@ -24,11 +24,11 @@ export const itemsRouter = new Hono()
 			const items = await itemService.listItems({
 				userId,
 				type: type as any,
-				limit: limit ? parseInt(limit) : 20,
+				limit: limit ? Number.parseInt(limit) : 20,
 			});
 
 			return c.json({ items });
-		}
+		},
 	)
 
 	/**
@@ -40,7 +40,7 @@ export const itemsRouter = new Hono()
 			'query',
 			z.object({
 				userId: z.string(),
-			})
+			}),
 		),
 		async (c) => {
 			const { userId } = c.req.valid('query');
@@ -53,7 +53,7 @@ export const itemsRouter = new Hono()
 			}
 
 			return c.json({ item });
-		}
+		},
 	)
 
 	/**
@@ -67,7 +67,7 @@ export const itemsRouter = new Hono()
 				userId: z.string(),
 				query: z.string(),
 				limit: z.number().optional().default(20),
-			})
+			}),
 		),
 		async (c) => {
 			const { userId, query, limit } = c.req.valid('json');
@@ -79,7 +79,7 @@ export const itemsRouter = new Hono()
 			});
 
 			return c.json({ items });
-		}
+		},
 	)
 
 	/**
@@ -91,7 +91,7 @@ export const itemsRouter = new Hono()
 			'query',
 			z.object({
 				userId: z.string(),
-			})
+			}),
 		),
 		async (c) => {
 			const { userId } = c.req.valid('query');
@@ -102,5 +102,5 @@ export const itemsRouter = new Hono()
 			const response = { success: true };
 			logger.info(response, '✅ DELETE response');
 			return c.json(response);
-		}
+		},
 	);

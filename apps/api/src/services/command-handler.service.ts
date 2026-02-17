@@ -1,7 +1,7 @@
-import { type IncomingMessage, type MessagingProvider } from '@/adapters/messaging';
-import { userService } from '@/services/user-service';
-import { accountLinkingService } from '@/services/account-linking-service';
+import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { accountLinkingService } from '@/services/account-linking-service';
+import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 
 /**
@@ -37,7 +37,11 @@ export class CommandHandlerService {
 	}
 
 	private async handleLinkCommand(message: IncomingMessage, provider: MessagingProvider): Promise<boolean> {
-		const { user } = await userService.findOrCreateUserByAccount(message.externalId, message.provider, message.senderName);
+		const { user } = await userService.findOrCreateUserByAccount(
+			message.externalId,
+			message.provider,
+			message.senderName,
+		);
 
 		const token = await accountLinkingService.generateLinkingToken(user.id, message.provider, 'link');
 
@@ -58,7 +62,7 @@ export class CommandHandlerService {
 		if (isNewUser) {
 			await provider.sendMessage(
 				message.externalId,
-				`Olá! 😊\n\nBem-vindo ao Nexo AI, sua segunda memória inteligente.\n\nEu ajudo você a organizar links, notas e memórias importantes diretamente por aqui.\n\nPara começar, basta me enviar qualquer mensagem!`,
+				'Olá! 😊\n\nBem-vindo ao Nexo AI, sua segunda memória inteligente.\n\nEu ajudo você a organizar links, notas e memórias importantes diretamente por aqui.\n\nPara começar, basta me enviar qualquer mensagem!',
 			);
 		} else {
 			await provider.sendMessage(
@@ -85,7 +89,10 @@ export class CommandHandlerService {
 				'✅ Sua conta foi vinculada com sucesso ao seu painel Nexo AI!\n\nO que você quer salvar hoje?',
 			);
 		} else {
-			await provider.sendMessage(message.externalId, '❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.');
+			await provider.sendMessage(
+				message.externalId,
+				'❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.',
+			);
 		}
 
 		return true; // Mensagem foi consumida pelo fluxo de vinculação

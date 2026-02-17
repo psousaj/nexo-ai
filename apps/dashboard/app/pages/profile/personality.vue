@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { Brain, FileText, Heart, Sparkles, User, Wrench } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
-import { useAuthStore } from '~/stores/auth';
-import { Save, RotateCcw, Sparkles, FileText, Heart, User, Wrench, BookOpen, Brain } from 'lucide-vue-next';
 
 definePageMeta({
 	middleware: ['auth'],
@@ -13,7 +12,7 @@ const auth = useAuth();
 const queryClient = useQueryClient();
 
 // Tab state
-const activeTab = ref<'personality' | 'identity' | 'instructions' | 'user' | 'memory' | 'tools'>('personality');
+const _activeTab = ref<'personality' | 'identity' | 'instructions' | 'user' | 'memory' | 'tools'>('personality');
 
 // Fetch current profile
 const { data: profile, isLoading } = useQuery({
@@ -50,7 +49,7 @@ watchEffect(() => {
 });
 
 // Save mutation
-const saveMutation = useMutation({
+const _saveMutation = useMutation({
 	mutationFn: async () => {
 		return api.post('/api/agent/profile', formData.value);
 	},
@@ -62,7 +61,7 @@ const saveMutation = useMutation({
 });
 
 // Reset to defaults
-const resetMutation = useMutation({
+const _resetMutation = useMutation({
 	mutationFn: async () => {
 		return api.post('/api/agent/profile/reset');
 	},
@@ -82,20 +81,42 @@ function showResetNotification() {
 	console.log('Profile reset to defaults');
 }
 
-const tabs = [
-	{ id: 'personality', label: 'Personalidade', icon: Heart, description: 'SOUL.md - Tom de voz, vibe, estilo de comunicação' },
+const _tabs = [
+	{
+		id: 'personality',
+		label: 'Personalidade',
+		icon: Heart,
+		description: 'SOUL.md - Tom de voz, vibe, estilo de comunicação',
+	},
 	{ id: 'identity', label: 'Identidade', icon: Sparkles, description: 'IDENTITY.md - Nome, emoji, creature' },
-	{ id: 'instructions', label: 'Instruções', icon: FileText, description: 'AGENTS.md - Comportamento e regras do assistente' },
+	{
+		id: 'instructions',
+		label: 'Instruções',
+		icon: FileText,
+		description: 'AGENTS.md - Comportamento e regras do assistente',
+	},
 	{ id: 'user', label: 'Perfil', icon: User, description: 'USER.md - Informações sobre você' },
 	{ id: 'memory', label: 'Memória', icon: Brain, description: 'MEMORY.md - Contexto de longo prazo' },
 	{ id: 'tools', label: 'Ferramentas', icon: Wrench, description: 'TOOLS.md - Documentação de ferramentas' },
 ];
 
-const examples = {
+const _examples = {
 	personality: [
-		{ title: 'Amigável', content: 'Você é um assistente amigável e caloroso. Usa linguagem simples e emojis moderadamente. Gosta de fazer perguntas sobre o dia do usuário.' },
-		{ title: 'Profissional', content: 'Você é um assistente profissional e direto. Foca em eficiência e clareza. Usa linguagem formal e evita redundâncias.' },
-		{ title: 'Gamer', content: 'Você é um assistente com vibe gamer. Usa gírias de games, referências a gaming, e entusiasta. Parabéns成就 desbloqueados!' },
+		{
+			title: 'Amigável',
+			content:
+				'Você é um assistente amigável e caloroso. Usa linguagem simples e emojis moderadamente. Gosta de fazer perguntas sobre o dia do usuário.',
+		},
+		{
+			title: 'Profissional',
+			content:
+				'Você é um assistente profissional e direto. Foca em eficiência e clareza. Usa linguagem formal e evita redundâncias.',
+		},
+		{
+			title: 'Gamer',
+			content:
+				'Você é um assistente com vibe gamer. Usa gírias de games, referências a gaming, e entusiasta. Parabéns成就 desbloqueados!',
+		},
 	],
 	identity: [
 		{ title: 'Raposa', content: 'Nome: NEXO\nEmoji: 🦊\nCreature: Raposa\nCurioso, esperto e amigável.' },

@@ -5,9 +5,9 @@
  * usando os embeddings reais do Cloudflare Workers AI
  */
 
-import { cosineSimilarity } from 'ai';
 import { embeddingService } from '@/services/ai/embedding-service';
 import { loggers } from '@/utils/logger';
+import { cosineSimilarity } from 'ai';
 
 async function testAISimilarity() {
 	loggers.ai.info('🧪 Testando cosineSimilarity da biblioteca ai...\n');
@@ -38,17 +38,17 @@ async function testAISimilarity() {
 		// Resultados
 		loggers.ai.info('\n📈 Resultados de Similaridade (usando ai SDK):');
 		loggers.ai.info(`   "${text1}"`);
-		loggers.ai.info(`   vs`);
+		loggers.ai.info('   vs');
 		loggers.ai.info(`   "${text2}"`);
 		loggers.ai.info(`   ➜ Similaridade: ${(sim1_2 * 100).toFixed(1)}%\n`);
 
 		loggers.ai.info(`   "${text1}"`);
-		loggers.ai.info(`   vs`);
+		loggers.ai.info('   vs');
 		loggers.ai.info(`   "${text3}"`);
 		loggers.ai.info(`   ➜ Similaridade: ${(sim1_3 * 100).toFixed(1)}%\n`);
 
 		loggers.ai.info(`   "${text2}"`);
-		loggers.ai.info(`   vs`);
+		loggers.ai.info('   vs');
 		loggers.ai.info(`   "${text3}"`);
 		loggers.ai.info(`   ➜ Similaridade: ${(sim2_3 * 100).toFixed(1)}%\n`);
 
@@ -59,7 +59,7 @@ async function testAISimilarity() {
 		if (sim1_3 < 0.3) {
 			loggers.ai.info('✅ Baixa similaridade entre textos não relacionados (esperado)');
 		}
-		if (!isNaN(sim1_2) && !isNaN(sim1_3) && !isNaN(sim2_3)) {
+		if (!Number.isNaN(sim1_2) && !Number.isNaN(sim1_3) && !Number.isNaN(sim2_3)) {
 			loggers.ai.info('✅ Nenhum NaN detectado (bug corrigido!)');
 		}
 

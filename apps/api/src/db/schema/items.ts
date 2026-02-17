@@ -1,8 +1,8 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, uniqueIndex, vector } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
-import { users } from './users';
-import { semanticExternalItems } from './semantic-external-items';
 import type { ItemMetadata, ItemType } from '@/types';
+import { relations } from 'drizzle-orm';
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core';
+import { semanticExternalItems } from './semantic-external-items';
+import { users } from './users';
 
 /**
  * Memory Items - Memórias únicas do usuário

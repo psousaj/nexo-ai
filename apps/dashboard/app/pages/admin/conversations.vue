@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
 import { useDashboard } from '~/composables/useDashboard';
-import { MessageSquare, User, Clock, ChevronRight, EyeOff, MessageCircle, ThumbsUp, ThumbsDown } from 'lucide-vue-next';
 
 definePageMeta({
 	middleware: ['role'],

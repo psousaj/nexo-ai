@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { ItemType } from '@/types';
 
 /**
  * Schema para verificação do webhook do Meta

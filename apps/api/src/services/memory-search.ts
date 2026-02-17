@@ -6,10 +6,10 @@
  */
 
 import { db } from '@/db';
-import { memoryItems, agentDailyLogs } from '@/db/schema';
-import { sql, eq, or, and, desc } from 'drizzle-orm';
-import { loggers } from '@/utils/logger';
+import { agentDailyLogs, memoryItems } from '@/db/schema';
 import type { MemorySearchOptions, MemorySearchResult } from '@/types';
+import { loggers } from '@/utils/logger';
+import { and, desc, eq, sql } from 'drizzle-orm';
 
 /**
  * Hybrid search configuration
@@ -61,7 +61,7 @@ function normalizeScore(score: number, min: number, max: number): number {
  * Calculate Reciprocal Rank Fusion (RRF) score
  * Combines rankings from multiple sources
  */
-function reciprocalRankFusion(rank1: number, rank2: number, k: number = 60): number {
+function reciprocalRankFusion(rank1: number, rank2: number, k = 60): number {
 	const rrf1 = k / (k + rank1);
 	const rrf2 = k / (k + rank2);
 	return rrf1 + rrf2;
@@ -90,11 +90,9 @@ function mergeHybridResults(params: {
 	const keywordMax = Math.max(...keywordScores, 1);
 
 	// Process vector results
-	vector.forEach((item, index) => {
+	vector.forEach((item, _index) => {
 		const normalizedScore = normalizeScore(item.cosine_similarity || 0, vectorMin, vectorMax);
-		const score = mergeStrategy === 'weighted'
-			? normalizedScore * vectorWeight
-			: normalizedScore;
+		const score = mergeStrategy === 'weighted' ? normalizedScore * vectorWeight : normalizedScore;
 
 		merged.set(item.id, {
 			id: item.id,
@@ -111,9 +109,7 @@ function mergeHybridResults(params: {
 	keyword.forEach((item, index) => {
 		const existing = merged.get(item.id);
 		const normalizedScore = normalizeScore(item.rank || 0, keywordMin, keywordMax);
-		const keywordScore = mergeStrategy === 'weighted'
-			? normalizedScore * textWeight
-			: normalizedScore;
+		const keywordScore = mergeStrategy === 'weighted' ? normalizedScore * textWeight : normalizedScore;
 
 		if (existing) {
 			// Merge based on strategy
@@ -123,10 +119,7 @@ function mergeHybridResults(params: {
 				existing.score += keywordScore; // Add weighted scores
 			} else if (mergeStrategy === 'reciprocal_rank_fusion') {
 				// RRF doesn't use normalized scores
-				const rrfScore = reciprocalRankFusion(
-					vector.findIndex((v) => v.id === item.id) + 1,
-					index + 1,
-				);
+				const rrfScore = reciprocalRankFusion(vector.findIndex((v) => v.id === item.id) + 1, index + 1);
 				existing.score = rrfScore;
 			}
 		} else {
@@ -158,7 +151,7 @@ export async function searchMemory(
 		maxResults = 10,
 		minScore = 0.3,
 		types,
-		includeDailyLogs = false,
+		includeDailyLogs: _includeDailyLogs = false,
 		config: userConfig,
 	} = options;
 
@@ -168,10 +161,7 @@ export async function searchMemory(
 		...userConfig,
 	};
 
-	loggers.memory.info(
-		{ query, userId, maxResults, config },
-		'🔍 Searching memory with hybrid config',
-	);
+	loggers.memory.info({ query, userId, maxResults, config }, '🔍 Searching memory with hybrid config');
 
 	// If query is empty, just return recent items
 	if (!query || query.trim().length === 0) {
@@ -305,7 +295,7 @@ export async function searchDailyLogs(options: {
 
 	if (query) {
 		// Use ILIKE for case-insensitive search
-		conditions.push(sql`${agentDailyLogs.content} ILIKE ${'%' + query + '%'}`);
+		conditions.push(sql`${agentDailyLogs.content} ILIKE ${`%${query}%`}`);
 	}
 
 	// Fetch logs
@@ -345,7 +335,7 @@ export async function upsertDailyLog(options: {
 		await db
 			.update(agentDailyLogs)
 			.set({
-				content: existing.content + '\n\n' + content,
+				content: `${existing.content}\n\n${content}`,
 				updatedAt: new Date().toISOString(),
 			})
 			.where(eq(agentDailyLogs.id, existing.id));

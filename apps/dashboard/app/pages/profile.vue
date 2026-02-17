@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare, Loader2, RefreshCw } from 'lucide-vue-next';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { useAuthStore } from '~/stores/auth';
+import { Mail, MessageSquare, Smartphone } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
+import { useAuthStore } from '~/stores/auth';
 import { authClient } from '~/utils/auth-client';
 
 const authStore = useAuthStore();
@@ -30,7 +30,7 @@ onMounted(async () => {
 	}
 });
 
-const connectedAccounts = computed(() => {
+const _connectedAccounts = computed(() => {
 	const accounts = (accountsData.value as any[]) || [];
 	return [
 		{
@@ -65,12 +65,12 @@ const connectedAccounts = computed(() => {
 });
 
 const isEditing = ref(false);
-const profileForm = ref({
+const _profileForm = ref({
 	name: authStore.user?.name || '',
 	email: authStore.user?.email || '',
 });
 
-const handleSave = () => {
+const _handleSave = () => {
 	// In a real app, this would call an API
 	// For now we'll just toggle the UI as per oldDash logic
 	isEditing.value = false;
@@ -97,7 +97,7 @@ const syncAccounts = async () => {
 	}
 };
 
-const handleLink = async (provider: string) => {
+const _handleLink = async (provider: string) => {
 	isLinking.value = true;
 	try {
 		if (provider === 'telegram') {
@@ -125,7 +125,7 @@ const handleLink = async (provider: string) => {
 	}
 };
 
-const handleManualLink = async () => {
+const _handleManualLink = async () => {
 	if (!linkingToken.value) return;
 	isLinking.value = true;
 	try {
@@ -133,7 +133,7 @@ const handleManualLink = async () => {
 		await queryClient.invalidateQueries({ queryKey: ['user-accounts'] });
 		showTokenInput.value = null;
 		linkingToken.value = '';
-	} catch (error) {
+	} catch (_error) {
 		if (process.client) {
 			alert('Código inválido ou expirado');
 		}
@@ -142,7 +142,7 @@ const handleManualLink = async () => {
 	}
 };
 
-const handleUnlink = async (provider: string) => {
+const _handleUnlink = async (provider: string) => {
 	if (process.client) {
 		if (!confirm(`Tem certeza que deseja desvincular a conta do ${provider}?`)) return;
 	}

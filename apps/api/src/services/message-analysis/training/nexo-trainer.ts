@@ -12,12 +12,12 @@
  *   src/services/message-analysis/training/model/nexo-model.nlp
  */
 
-import { NlpManager } from 'node-nlp';
-import { NEXO_TRAINING_DATA, NEXO_ENTITIES, NEXO_RESPONSES } from './training-data.js';
-import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loggers } from '@/utils/logger';
+import { NlpManager } from 'node-nlp';
+import { NEXO_ENTITIES, NEXO_RESPONSES, NEXO_TRAINING_DATA } from './training-data.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

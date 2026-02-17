@@ -1,4 +1,12 @@
-import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType, Account, UserPreferences } from '~/types/dashboard';
+import type {
+	Account,
+	AnalyticsData,
+	ConversationSummary,
+	ErrorReport,
+	ItemType,
+	MemoryItem,
+	UserPreferences,
+} from '~/types/dashboard';
 import api from '~/utils/api';
 
 export const useDashboard = () => {
@@ -42,7 +50,10 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const updateMemory = async (id: string | number, payload: { title?: string; content?: string }): Promise<{ success: boolean }> => {
+	const updateMemory = async (
+		id: string | number,
+		payload: { title?: string; content?: string },
+	): Promise<{ success: boolean }> => {
 		const updates: Record<string, any> = {};
 		if (payload.title) updates.title = payload.title;
 		if (payload.content) updates.metadata = { full_content: payload.content };

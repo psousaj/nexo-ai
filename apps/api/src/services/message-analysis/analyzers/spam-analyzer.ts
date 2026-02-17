@@ -1,5 +1,5 @@
+import type { Language, SpamAnalysisResult } from '../types/analysis-result.types.js';
 import { BaseAnalyzer } from './base-analyzer.js';
-import { SpamAnalysisResult, Language } from '../types/analysis-result.types.js';
 
 /**
  * Detector de spam e flood
@@ -19,7 +19,7 @@ export class SpamAnalyzer extends BaseAnalyzer<SpamAnalysisResult> {
 	private readonly URL_SPAM_THRESHOLD = 3;
 	private readonly MIN_LENGTH_FOR_CAPS_CHECK = 10;
 
-	analyze(message: string, language: Language = 'pt'): SpamAnalysisResult {
+	analyze(message: string, _language: Language = 'pt'): SpamAnalysisResult {
 		this.validateInput(message);
 
 		const normalized = this.normalizeMessage(message);

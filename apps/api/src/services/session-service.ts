@@ -13,8 +13,8 @@
 
 import { db } from '@/db';
 import { agentSessions } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { and, desc, eq } from 'drizzle-orm';
 
 /**
  * Parameters to build a session key
@@ -160,11 +160,7 @@ export async function getOrCreateSession(params: SessionKeyParams): Promise<Agen
 /**
  * Link a session to a user and conversation
  */
-export async function linkSessionToUser(
-	sessionKey: string,
-	userId: string,
-	conversationId: string,
-): Promise<void> {
+export async function linkSessionToUser(sessionKey: string, userId: string, conversationId: string): Promise<void> {
 	await db
 		.update(agentSessions)
 		.set({
@@ -211,7 +207,11 @@ export async function getUserSessions(userId: string): Promise<AgentSession[]> {
 /**
  * Get active session for a specific channel and peer
  */
-export async function getActiveSession(channel: string, peerKind: string, peerId: string): Promise<AgentSession | null> {
+export async function getActiveSession(
+	channel: string,
+	peerKind: string,
+	peerId: string,
+): Promise<AgentSession | null> {
 	const session = await db.query.agentSessions.findFirst({
 		where: and(
 			eq(agentSessions.channel, channel),
@@ -235,7 +235,7 @@ export async function deleteSession(sessionKey: string): Promise<void> {
 /**
  * Clean up old sessions (older than 30 days)
  */
-export async function cleanupOldSessions(daysOld: number = 30): Promise<number> {
+export async function cleanupOldSessions(daysOld = 30): Promise<number> {
 	const cutoffDate = new Date();
 	cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 

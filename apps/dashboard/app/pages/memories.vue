@@ -1,21 +1,8 @@
 <script setup lang="ts">
-import {
-	Plus,
-	Search,
-	Tag,
-	Trash2,
-	Edit3,
-	Calendar,
-	Layers,
-	Link as LinkIcon,
-	Type,
-	Image as ImageIcon,
-	FileText,
-	Loader2,
-} from 'lucide-vue-next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { FileText, Image as ImageIcon, Layers, Link as LinkIcon, Type } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
-import type { MemoryItem, ItemType } from '~/types/dashboard';
+import type { MemoryItem } from '~/types/dashboard';
 
 const dashboard = useDashboard();
 const queryClient = useQueryClient();
@@ -26,7 +13,7 @@ const { data: memories, isLoading } = useQuery({
 	queryFn: () => dashboard.getMemories(searchQuery.value),
 });
 
-const iconMap: Record<string, any> = {
+const _iconMap: Record<string, any> = {
 	movie: Layers,
 	tv_show: Layers,
 	text: Type,
@@ -70,7 +57,7 @@ const deleteMutation = useMutation({
 	},
 });
 
-const handleAdd = async (payload: any) => {
+const _handleAdd = async (payload: any) => {
 	isSubmitting.value = true;
 	try {
 		await createMutation.mutateAsync(payload);
@@ -79,12 +66,12 @@ const handleAdd = async (payload: any) => {
 	}
 };
 
-const handleEdit = (memory: MemoryItem) => {
+const _handleEdit = (memory: MemoryItem) => {
 	selectedMemory.value = memory;
 	isEditModalOpen.value = true;
 };
 
-const handleUpdate = async (payload: any) => {
+const _handleUpdate = async (payload: any) => {
 	if (!selectedMemory.value) return;
 	isSubmitting.value = true;
 	try {
@@ -94,12 +81,12 @@ const handleUpdate = async (payload: any) => {
 	}
 };
 
-const handleDeleteClick = (memory: MemoryItem) => {
+const _handleDeleteClick = (memory: MemoryItem) => {
 	selectedMemory.value = memory;
 	isConfirmModalOpen.value = true;
 };
 
-const handleConfirmDelete = async () => {
+const _handleConfirmDelete = async () => {
 	if (!selectedMemory.value) return;
 	isSubmitting.value = true;
 	try {
@@ -109,7 +96,7 @@ const handleConfirmDelete = async () => {
 	}
 };
 
-const filteredMemories = computed(() => memories.value || []);
+const _filteredMemories = computed(() => memories.value || []);
 </script>
 
 <template>

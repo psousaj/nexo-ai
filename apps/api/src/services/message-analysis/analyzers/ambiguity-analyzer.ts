@@ -1,5 +1,5 @@
+import type { AmbiguityAnalysisResult, Language } from '../types/analysis-result.types';
 import { BaseAnalyzer } from './base-analyzer';
-import { AmbiguityAnalysisResult, Language } from '../types/analysis-result.types';
 
 export class AmbiguityAnalyzer extends BaseAnalyzer<AmbiguityAnalysisResult> {
 	protected readonly analyzerType = 'ambiguity' as const;

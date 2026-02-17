@@ -10,14 +10,14 @@
  * - Commands should NOT be the primary UX
  */
 
+import type { ChatCommand, CommandParams } from '@/adapters/messaging/types';
+import { db } from '@/db';
+import { agentSessions, users } from '@/db/schema';
+import { loggers } from '@/utils/logger';
+import { eq } from 'drizzle-orm';
+import { getAgentProfile } from './context-builder';
 import { conversationService } from './conversation-service';
 import { searchMemory } from './memory-search';
-import { getAgentProfile, formatPersonalityDescription } from './context-builder';
-import { db } from '@/db';
-import { users, agentSessions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { loggers } from '@/utils/logger';
-import type { ChatCommand, CommandParams } from '@/adapters/messaging/types';
 
 /**
  * Format memory search results for display
@@ -78,9 +78,11 @@ const statusCommand: ChatCommand = {
 			return '⚠️ Session not found.';
 		}
 
-		const user = session.userId ? await db.query.users.findFirst({
-			where: eq(users.id, session.userId),
-		}) : null;
+		const user = session.userId
+			? await db.query.users.findFirst({
+					where: eq(users.id, session.userId),
+				})
+			: null;
 
 		return `📊 *Session Status*
 
@@ -140,7 +142,7 @@ const compactCommand: ChatCommand = {
 		// Note: This is a simplified version - production would need proper message deletion
 		loggers.ai.info(
 			{ conversationId: params.conversationId, originalLength: history.length, newLength: toKeep.length },
-			🗜️ Conversation compacted',
+			'🗜️ Conversation compacted',
 		);
 
 		return `🗜️ Conversa compactada! Mantive as últimas ${toKeep.length} mensagens de ${history.length}.`;
@@ -187,18 +189,18 @@ const profileCommand: ChatCommand = {
 							await db.update(users).set({ assistantTone: value }).where(eq(users.id, params.userId));
 							return `✅ Tom atualizado para: ${value}`;
 						}
-						return `❌ Tom inválido. Opções: friendly, professional, playful, sarcastic, formal`;
+						return '❌ Tom inválido. Opções: friendly, professional, playful, sarcastic, formal';
 
 					case 'creature':
 						await db.update(users).set({ assistantCreature: value }).where(eq(users.id, params.userId));
 						return `✅ Creature atualizado para: ${value}`;
 
 					default:
-						return `❌ Campo desconhecido. Campos disponíveis: name, assistant, tone, creature`;
+						return '❌ Campo desconhecido. Campos disponíveis: name, assistant, tone, creature';
 				}
 			}
 
-			return `❌ Formato inválido. Use: /profile key=value (ex: /profile tone=friendly)`;
+			return '❌ Formato inválido. Use: /profile key=value (ex: /profile tone=friendly)';
 		}
 
 		// Show current profile
@@ -301,7 +303,7 @@ const helpCommand: ChatCommand = {
 	description: 'Show available commands',
 	aliases: ['h', '?'],
 	allowedInGroups: true,
-	handler: async (params: CommandParams): Promise<string> => {
+	handler: async (_params: CommandParams): Promise<string> => {
 		return `🤖 *Comandos Disponíveis*
 
 💬 *Conversa Natural* (recomendado):

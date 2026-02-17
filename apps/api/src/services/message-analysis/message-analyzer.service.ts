@@ -1,20 +1,20 @@
+import { loggers } from '@/utils/logger';
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
 import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';
 import { SpamAnalyzer } from './analyzers/spam-analyzer.js';
 import { ToneAnalyzer } from './analyzers/tone-analyzer.js';
 import { NexoTrainer } from './training/nexo-trainer.js';
-import {
-	Language,
+import type {
 	AmbiguityAnalysisResult,
-	SentimentAnalysisResult,
 	IntentAnalysisResult,
+	Language,
 	LanguageAnalysisResult,
+	MessageAnalysisReport,
 	ProfanityAnalysisResult,
+	SentimentAnalysisResult,
 	SpamAnalysisResult,
 	ToneAnalysisResult,
-	MessageAnalysisReport,
 } from './types/analysis-result.types.js';
-import { loggers } from '@/utils/logger';
 
 export class MessageAnalyzerService {
 	private trainer: NexoTrainer;
@@ -133,7 +133,7 @@ export class MessageAnalyzerService {
 			if (entity.entity === 'item_type') {
 				result.itemType = entity.option;
 			} else if (entity.entity === 'ordinal') {
-				result.selection = parseInt(entity.option);
+				result.selection = Number.parseInt(entity.option);
 			} else if (entity.entity === 'genre') {
 				result.genre = entity.option;
 			} else if (entity.entity === 'url') {

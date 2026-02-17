@@ -4,9 +4,8 @@
  * Valida que intenções são detectadas corretamente
  */
 
-
-import { describe, test, expect } from 'vitest';
 import { IntentClassifier } from '@/services/intent-classifier';
+import { describe, expect, test } from 'vitest';
 
 const classifier = new IntentClassifier();
 

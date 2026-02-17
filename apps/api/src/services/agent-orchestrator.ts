@@ -21,37 +21,29 @@
  * - Redige respostas
  */
 
-import { intentClassifier, type IntentResult, type UserIntent } from './intent-classifier';
-import { conversationService } from './conversation-service';
-import { userService } from '@/services/user-service';
-import { llmService } from './ai';
-import { executeTool, type ToolContext, type ToolOutput } from './tools';
-import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
-import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import {
 	AGENT_SYSTEM_PROMPT,
-	CASUAL_GREETINGS,
-	GENERIC_CONFIRMATION,
 	CANCELLATION_PROMPT,
+	CASUAL_GREETINGS,
+	CHOOSE_AGAIN_MESSAGES,
+	ERROR_MESSAGES,
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
-	ERROR_MESSAGES,
-	FALLBACK_MESSAGES,
-	getRandomMessage as getRandomResponse,
 	formatItemsList,
-	CHOOSE_AGAIN_MESSAGES,
+	getRandomMessage as getRandomResponse,
 } from '@/config/prompts';
-import { loggers, logError } from '@/utils/logger';
-import type { ConversationState, AgentLLMResponse, ToolName } from '@/types';
-import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
+import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import { userService } from '@/services/user-service';
+import type { ConversationState, ToolName } from '@/types';
+import { isValidAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
+import { logError, loggers } from '@/utils/logger';
+import { llmService } from './ai';
+import { buildAgentContext } from './context-builder'; // OpenClaw pattern
+import { conversationService } from './conversation-service';
+import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
+import { type IntentResult, intentClassifier } from './intent-classifier';
 import { scheduleConversationClose } from './queue-service';
-import {
-	confirmationMessages,
-	enrichmentMessages,
-	cancellationMessages,
-	clarificationOptions,
-	getRandomMessage,
-} from './conversation/messageTemplates';
+import { type ToolContext, executeTool } from './tools';
 
 export interface AgentContext {
 	userId: string;
@@ -129,7 +121,10 @@ export class AgentOrchestrator {
 			const cb = context.callbackData;
 			const isKnownCallback = cb.startsWith('select_') || cb === 'confirm_final' || cb === 'choose_again';
 
-			if (isKnownCallback && (conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')) {
+			if (
+				isKnownCallback &&
+				(conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')
+			) {
 				loggers.ai.info({ callbackData: cb, state: conversation.state }, '🔘 Callback do Telegram detectado');
 
 				// Cria intent artificial para handleConfirmation
@@ -316,7 +311,7 @@ export class AgentOrchestrator {
 	 * LLM retorna JSON seguindo AgentLLMResponse schema.
 	 * Runtime processa e decide o que fazer.
 	 */
-	private async handleWithLLM(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
+	private async handleWithLLM(context: AgentContext, _intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		const toolContext: ToolContext = {
 			userId: context.userId,
 			conversationId: context.conversationId,
@@ -369,8 +364,8 @@ export class AgentOrchestrator {
 		// ============================================================================
 
 		const toolsUsed: string[] = [];
-		let responseMessage: string = '';
-		let nextState: ConversationState = 'idle';
+		let responseMessage = '';
+		const nextState: ConversationState = 'idle';
 
 		// DETECTA MENSAGEM DE ERRO ANTES DE PARSEAR JSON
 		if (
@@ -403,7 +398,7 @@ export class AgentOrchestrator {
 
 			// 4. Executar baseado na ação
 			switch (agentResponse.action) {
-				case 'CALL_TOOL':
+				case 'CALL_TOOL': {
 					if (!agentResponse.tool) {
 						throw new Error('action=CALL_TOOL requer tool');
 					}
@@ -422,7 +417,8 @@ export class AgentOrchestrator {
 							}
 							// Se são múltiplos: mostra lista com botões
 							return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-						} else if (result.message) {
+						}
+						if (result.message) {
 							// Mensagem específica da tool
 							responseMessage = result.message || '';
 						} else {
@@ -446,6 +442,7 @@ export class AgentOrchestrator {
 						}
 					}
 					break;
+				}
 
 				case 'RESPOND':
 					// LLM quer responder diretamente (sem tool)
@@ -479,7 +476,11 @@ export class AgentOrchestrator {
 	/**
 	 * Trata confirmação do usuário
 	 */
-	private async handleConfirmation(context: AgentContext, conversation: any, intent: IntentResult): Promise<AgentResponse> {
+	private async handleConfirmation(
+		context: AgentContext,
+		conversation: any,
+		intent: IntentResult,
+	): Promise<AgentResponse> {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
 
@@ -492,8 +493,8 @@ export class AgentOrchestrator {
 		// Se usuário clicou em botão de callback (Telegram inline button)
 		// Formato: "select_N" onde N é o índice do candidato
 		if (context.callbackData?.startsWith('select_')) {
-			const index = parseInt(context.callbackData.replace('select_', ''), 10);
-			if (!isNaN(index) && contextData.candidates && contextData.candidates[index]) {
+			const index = Number.parseInt(context.callbackData.replace('select_', ''), 10);
+			if (!Number.isNaN(index) && contextData.candidates && contextData.candidates[index]) {
 				const selected = contextData.candidates[index];
 
 				// STEP EXTRA: Enviar imagem + detalhes + confirmação final
@@ -637,16 +638,18 @@ export class AgentOrchestrator {
 					state: 'idle',
 					toolsUsed: [toolName],
 				};
-			} else {
-				return {
-					message: result.message || '❌ Ops, algo deu errado.',
-					state: 'idle',
-				};
 			}
+			return {
+				message: result.message || '❌ Ops, algo deu errado.',
+				state: 'idle',
+			};
 		}
 
 		// Confirmação genérica (fallback)
-		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
+		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace(
+			'{type}',
+			'item',
+		);
 		return {
 			message: confirmMsg,
 			state: 'idle',
@@ -656,7 +659,7 @@ export class AgentOrchestrator {
 	/**
 	 * Trata negação do usuário
 	 */
-	private async handleDenial(context: AgentContext, conversation: any, intent: IntentResult): Promise<AgentResponse> {
+	private async handleDenial(_context: AgentContext, conversation: any, _intent: IntentResult): Promise<AgentResponse> {
 		// Limpar candidatos do contexto se houver
 		await conversationService.updateState(conversation.id, 'idle', {
 			candidates: null,
@@ -672,7 +675,7 @@ export class AgentOrchestrator {
 	/**
 	 * Salva mensagem anterior quando usuário diz "salva ai", "guarda isso"
 	 */
-	private async handleSavePrevious(context: AgentContext, conversation: any): Promise<AgentResponse> {
+	private async handleSavePrevious(context: AgentContext, _conversation: any): Promise<AgentResponse> {
 		// Busca últimas mensagens (exclui a atual que é o pedido para salvar)
 		const history = await conversationService.getHistory(context.conversationId, 10);
 
@@ -706,18 +709,17 @@ export class AgentOrchestrator {
 				state: 'idle',
 				toolsUsed: ['save_note'],
 			};
-		} else {
-			return {
-				message: getRandomResponse(ERROR_MESSAGES),
-				state: 'idle',
-			};
 		}
+		return {
+			message: getRandomResponse(ERROR_MESSAGES),
+			state: 'idle',
+		};
 	}
 
 	/**
 	 * Trata conversa casual (sem LLM) com respostas contextuais
 	 */
-	private async handleCasual(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
+	private async handleCasual(context: AgentContext, intent: IntentResult, _conversation: any): Promise<AgentResponse> {
 		const msg = context.message.toLowerCase().trim();
 		let response: string;
 
@@ -849,7 +851,9 @@ export class AgentOrchestrator {
 
 		// Se tem selection (número ou array), busca primeiro para pegar IDs
 		if (intent.entities?.selection) {
-			const selections = Array.isArray(intent.entities.selection) ? intent.entities.selection : [intent.entities.selection];
+			const selections = Array.isArray(intent.entities.selection)
+				? intent.entities.selection
+				: [intent.entities.selection];
 
 			// Buscar lista para pegar os itens
 			const searchResult = await executeTool('search_items', toolContext, {
@@ -862,7 +866,9 @@ export class AgentOrchestrator {
 				const notFoundSelections: number[] = [];
 
 				// Filtra por tipo se especificado (ex: "deleta o filme 1" → filtra apenas filmes)
-				const targetItems = intent.entities?.itemType ? items.filter((i: any) => i.type === intent.entities?.itemType) : items;
+				const targetItems = intent.entities?.itemType
+					? items.filter((i: any) => i.type === intent.entities?.itemType)
+					: items;
 
 				// Processar cada seleção
 				for (const selection of selections) {
@@ -969,15 +975,18 @@ export class AgentOrchestrator {
 			return this.processMessage(context);
 		}
 
-		const choice = parseInt(message);
+		const choice = Number.parseInt(message);
 		let detectedType: string | null = null;
 
 		// 🧠 Usa NLP para detectar resposta em linguagem natural
 		// Exemplos: "é um filme", "anota ai", "to falando da série", "quero como link"
-		if (!isNumber || isNaN(choice)) {
+		if (!isNumber || Number.isNaN(choice)) {
 			try {
 				const nlpResult = await messageAnalyzer.classifyIntent(message);
-				loggers.ai.info({ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action }, '🧠 NLP Classification');
+				loggers.ai.info(
+					{ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action },
+					'🧠 NLP Classification',
+				);
 
 				// Mapeamento de intents para tipos
 				const intentToType: Record<string, string> = {
@@ -995,7 +1004,10 @@ export class AgentOrchestrator {
 						series: '📺',
 						link: '🔗',
 					};
-					loggers.ai.info({ message, detectedType, confidence: nlpResult.confidence }, `${typeEmoji[detectedType]} Tipo detectado via NLP`);
+					loggers.ai.info(
+						{ message, detectedType, confidence: nlpResult.confidence },
+						`${typeEmoji[detectedType]} Tipo detectado via NLP`,
+					);
 				}
 			} catch (error) {
 				loggers.ai.warn({ error }, '⚠️ Erro ao classificar via NLP, tentando fallback');
@@ -1113,30 +1125,28 @@ export class AgentOrchestrator {
 
 				// Envia lista com botões
 				return await this.sendCandidatesWithButtons(context, conversation, candidates);
-			} else {
-				// Não encontrou no TMDB - salva apenas com título
-				loggers.ai.warn({ originalMessage }, '⚠️ Nenhum resultado no TMDB, salvando apenas com título');
-
-				const saveToolName = detectedType === 'movie' ? 'save_movie' : 'save_tv_show';
-				const result = await executeTool(saveToolName, toolContext, {
-					title: originalMessage,
-				});
-
-				await conversationService.updateState(conversation.id, 'idle', {});
-
-				if (result.success) {
-					return {
-						message: `✅ Salvei "${originalMessage}" como ${detectedType === 'movie' ? 'filme' : 'série'}! (Não encontrei no TMDB para enriquecer)`,
-						state: 'idle',
-						toolsUsed: [saveToolName],
-					};
-				} else {
-					return {
-						message: result.error || '❌ Ops, algo deu errado ao salvar.',
-						state: 'idle',
-					};
-				}
 			}
+			// Não encontrou no TMDB - salva apenas com título
+			loggers.ai.warn({ originalMessage }, '⚠️ Nenhum resultado no TMDB, salvando apenas com título');
+
+			const saveToolName = detectedType === 'movie' ? 'save_movie' : 'save_tv_show';
+			const result = await executeTool(saveToolName, toolContext, {
+				title: originalMessage,
+			});
+
+			await conversationService.updateState(conversation.id, 'idle', {});
+
+			if (result.success) {
+				return {
+					message: `✅ Salvei "${originalMessage}" como ${detectedType === 'movie' ? 'filme' : 'série'}! (Não encontrei no TMDB para enriquecer)`,
+					state: 'idle',
+					toolsUsed: [saveToolName],
+				};
+			}
+			return {
+				message: result.error || '❌ Ops, algo deu errado ao salvar.',
+				state: 'idle',
+			};
 		}
 
 		// 📝 Para NOTA: Salva direto
@@ -1149,16 +1159,15 @@ export class AgentOrchestrator {
 
 			if (result.success) {
 				return {
-					message: `✅ Nota salva!`,
+					message: '✅ Nota salva!',
 					state: 'idle',
 					toolsUsed: ['save_note'],
 				};
-			} else {
-				return {
-					message: result.error || '❌ Ops, algo deu errado ao salvar.',
-					state: 'idle',
-				};
 			}
+			return {
+				message: result.error || '❌ Ops, algo deu errado ao salvar.',
+				state: 'idle',
+			};
 		}
 
 		// 🔗 Para LINK: Salva direto
@@ -1171,16 +1180,15 @@ export class AgentOrchestrator {
 
 			if (result.success) {
 				return {
-					message: `✅ Link salvo!`,
+					message: '✅ Link salvo!',
 					state: 'idle',
 					toolsUsed: ['save_link'],
 				};
-			} else {
-				return {
-					message: result.error || '❌ Ops, algo deu errado ao salvar.',
-					state: 'idle',
-				};
 			}
+			return {
+				message: result.error || '❌ Ops, algo deu errado ao salvar.',
+				state: 'idle',
+			};
 		}
 
 		// Fallback: tipo desconhecido - CONVERSA LIVRE OU OFF-TOPIC
@@ -1211,7 +1219,11 @@ export class AgentOrchestrator {
 		// Conversa livre com IA
 		loggers.ai.info({ attempts }, '💬 NLP inconclusivo, gerando resposta conversacional via IA');
 
-		const conversationalResponse = await this.getConversationalClarification(context, pendingClarification.originalMessage, attempts);
+		const conversationalResponse = await this.getConversationalClarification(
+			context,
+			pendingClarification.originalMessage,
+			attempts,
+		);
 
 		await conversationService.updateState(conversation.id, 'awaiting_context', {
 			clarificationAttempts: attempts,
@@ -1230,7 +1242,11 @@ export class AgentOrchestrator {
 	/**
 	 * Gera resposta conversacional durante clarificação usando LLM
 	 */
-	private async getConversationalClarification(context: AgentContext, originalMessage: string, attempt: number): Promise<string> {
+	private async getConversationalClarification(
+		context: AgentContext,
+		originalMessage: string,
+		attempt: number,
+	): Promise<string> {
 		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
 
 		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
@@ -1251,7 +1267,11 @@ export class AgentOrchestrator {
 	 * Envia lista de candidatos com botões clicáveis (Telegram Inline Keyboard)
 
 	 */
-	private async sendCandidatesWithButtons(context: AgentContext, conversation: any, candidates: any[]): Promise<AgentResponse> {
+	private async sendCandidatesWithButtons(
+		context: AgentContext,
+		conversation: any,
+		candidates: any[],
+	): Promise<AgentResponse> {
 		const contextData = conversation.context || {};
 		const itemType = contextData.detected_type || 'movie';
 
@@ -1435,24 +1455,26 @@ function getSuccessMessageForTool(tool: string, data?: any): string {
 		case 'save_note':
 			return '✅ Nota salva!';
 		case 'save_movie':
-			return `✅ Filme salvo!`;
+			return '✅ Filme salvo!';
 		case 'save_tv_show':
-			return `✅ Série salva!`;
+			return '✅ Série salva!';
 		case 'save_video':
 			return '✅ Vídeo salvo!';
 		case 'save_link':
 			return '✅ Link salvo!';
-		case 'search_items':
+		case 'search_items': {
 			const count = data?.count || 0;
 			if (count === 0) {
 				return 'Não encontrei nada 😕';
 			}
 			return `Encontrei ${count} item(ns)`;
+		}
 		case 'delete_memory':
 			return '✅ Item deletado!';
-		case 'delete_all_memories':
+		case 'delete_all_memories': {
 			const deleted = data?.deleted_count || 0;
 			return deleted > 0 ? `✅ ${deleted} item(ns) deletado(s)` : 'Nada para deletar';
+		}
 		default:
 			return '✅ Feito!';
 	}

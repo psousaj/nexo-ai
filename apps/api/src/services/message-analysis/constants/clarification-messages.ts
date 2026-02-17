@@ -1,4 +1,4 @@
-import { Language } from '../types/analysis-result.types';
+import type { Language } from '../types/analysis-result.types';
 
 export const clarificationOptions: Record<Language, string[]> = {
 	pt: ['💡 Salvar como nota', '🎬 Salvar como filme', '📺 Salvar como série', '🔗 Salvar como link', '❌ Cancelar'],

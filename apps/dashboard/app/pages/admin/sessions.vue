@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
-import { Key, Search, Filter, Activity, Users, MessageSquare, Eye, ExternalLink } from 'lucide-vue-next';
 
 definePageMeta({
 	middleware: ['role'], // Admin only
@@ -14,7 +13,11 @@ const selectedChannel = ref<'all' | 'telegram' | 'discord' | 'whatsapp' | 'web'>
 const selectedPeerKind = ref<'all' | 'direct' | 'group' | 'channel'>('all');
 
 // Fetch all sessions (admin view)
-const { data: sessions, isLoading, refetch } = useQuery({
+const {
+	data: sessions,
+	isLoading,
+	refetch,
+} = useQuery({
 	queryKey: ['admin-sessions'],
 	queryFn: async () => {
 		const response = await api.get('/api/admin/sessions');
@@ -23,10 +26,10 @@ const { data: sessions, isLoading, refetch } = useQuery({
 });
 
 // Session details modal
-const selectedSession = ref<any>(null);
+const _selectedSession = ref<any>(null);
 
 // Filter sessions
-const filteredSessions = computed(() => {
+const _filteredSessions = computed(() => {
 	if (!sessions.value) return [];
 
 	let filtered = sessions.value;
@@ -34,11 +37,12 @@ const filteredSessions = computed(() => {
 	// Search filter
 	if (searchQuery.value) {
 		const query = searchQuery.value.toLowerCase();
-		filtered = filtered.filter((s: any) =>
-			s.sessionKey.toLowerCase().includes(query) ||
-			s.channel.toLowerCase().includes(query) ||
-			s.peerId.toLowerCase().includes(query) ||
-			(s.userId && s.userId.toLowerCase().includes(query)),
+		filtered = filtered.filter(
+			(s: any) =>
+				s.sessionKey.toLowerCase().includes(query) ||
+				s.channel.toLowerCase().includes(query) ||
+				s.peerId.toLowerCase().includes(query) ||
+				s.userId?.toLowerCase().includes(query),
 		);
 	}
 
@@ -56,7 +60,7 @@ const filteredSessions = computed(() => {
 });
 
 // Statistics
-const stats = computed(() => {
+const _stats = computed(() => {
 	if (!sessions.value) return { total: 0, channels: {}, peerKinds: {}, activeLast24h: 0 };
 
 	const total = sessions.value.length;

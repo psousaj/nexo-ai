@@ -1,8 +1,8 @@
-import { db } from '@/db';
-import { linkingTokens, userAccounts } from '@/db/schema';
-import { eq, and, gte } from 'drizzle-orm';
-import { userService } from './user-service';
 import type { ProviderType } from '@/adapters/messaging';
+import { db } from '@/db';
+import { linkingTokens } from '@/db/schema';
+import { and, eq, gte } from 'drizzle-orm';
+import { userService } from './user-service';
 
 export class AccountLinkingService {
 	/**
@@ -17,7 +17,9 @@ export class AccountLinkingService {
 		externalId?: string,
 	): Promise<string> {
 		// Gera um token aleatório de 12 caracteres (base64url safe)
-		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+		const token =
+			Math.random().toString(36).substring(2, 10).toUpperCase() +
+			Math.random().toString(36).substring(2, 6).toUpperCase();
 
 		const expiresAt = new Date();
 		if (tokenType === 'signup') {
@@ -83,7 +85,10 @@ export class AccountLinkingService {
 	 * Ele digita o token no Dashboard (onde é o targetUserId).
 	 * Vinculamos a conta associada ao token ao targetUserId.
 	 */
-	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: string } | null> {
+	async linkTokenAccountToUser(
+		token: string,
+		targetUserId: string,
+	): Promise<{ userId: string; provider: string } | null> {
 		const [linkToken] = await db
 			.select()
 			.from(linkingTokens)

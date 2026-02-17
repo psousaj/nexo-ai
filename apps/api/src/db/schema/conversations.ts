@@ -1,8 +1,8 @@
-import { pgTable, uuid, text, timestamp, jsonb, boolean } from 'drizzle-orm/pg-core';
+import type { ConversationContext, ConversationState } from '@/types';
 import { relations } from 'drizzle-orm';
-import { users } from './users';
+import { boolean, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { messages } from './messages';
-import type { ConversationState, ConversationContext } from '@/types';
+import { users } from './users';
 
 export const conversations = pgTable('conversations', {
 	id: uuid('id').defaultRandom().primaryKey(),

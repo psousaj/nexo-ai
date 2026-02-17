@@ -1,11 +1,11 @@
+import { createHash } from 'node:crypto';
 import { db } from '@/db';
 import { memoryItems, semanticExternalItems } from '@/db/schema';
-import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
+import type { ItemMetadata, ItemType, MovieMetadata, TVShowMetadata } from '@/types/index';
 import { loggers } from '@/utils/logger';
-import type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata } from '@/types/index';
-import { createHash } from 'crypto';
-import { embeddingService } from './ai/embedding-service';
 import { cosineSimilarity } from 'ai';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { embeddingService } from './ai/embedding-service';
 import { expandMovieQuery } from './query-expansion';
 
 /**
@@ -134,28 +134,32 @@ export class ItemService {
 		if (metadata) {
 			switch (type) {
 				case 'movie':
-				case 'tv_show':
+				case 'tv_show': {
 					const tmdbId = (metadata as any).tmdb_id;
 					if (tmdbId) contentToHash += `:tmdb_${tmdbId}`;
 					break;
-				case 'video':
+				}
+				case 'video': {
 					const videoId = (metadata as any).video_id;
 					if (videoId) contentToHash += `:video_${videoId}`;
 					break;
-				case 'link':
+				}
+				case 'link': {
 					const url = (metadata as any).url;
 					if (url) {
 						const normalizedUrl = url.replace(/^https?:\/\/(www\.)?/, '').toLowerCase();
 						contentToHash += `:url_${normalizedUrl}`;
 					}
 					break;
-				case 'note':
+				}
+				case 'note': {
 					const fullContent = (metadata as any).full_content;
 					if (fullContent) {
 						// Para notas, usa o conteúdo completo
 						contentToHash = `${type}:${fullContent.toLowerCase().trim()}`;
 					}
 					break;
+				}
 			}
 		}
 
@@ -175,10 +179,11 @@ export class ItemService {
 				return (metadata as any).tmdb_id?.toString();
 			case 'video':
 				return (metadata as any).video_id;
-			case 'link':
+			case 'link': {
 				// Normaliza URL removendo protocolo e www
 				const url = (metadata as any).url;
 				return url?.replace(/^https?:\/\/(www\.)?/, '').toLowerCase();
+			}
 			default:
 				return undefined;
 		}
@@ -268,7 +273,10 @@ export class ItemService {
 			}
 		}
 
-		loggers.db.debug({ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords }, '📝 Documento semântico preparado');
+		loggers.db.debug(
+			{ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords },
+			'📝 Documento semântico preparado',
+		);
 
 		return text;
 	}
@@ -512,7 +520,10 @@ export class ItemService {
 				.from(memoryItems)
 				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 				.where(
-					and(eq(memoryItems.userId, userId), sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`),
+					and(
+						eq(memoryItems.userId, userId),
+						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
+					),
 				);
 
 			if (itemsWithEmbedding.length === 0) {
@@ -609,7 +620,7 @@ export class ItemService {
 
 		// Filtro por query (full-text search em título)
 		if (query) {
-			conditions.push(sql`LOWER(${memoryItems.title}) LIKE LOWER(${'%' + query + '%'})`);
+			conditions.push(sql`LOWER(${memoryItems.title}) LIKE LOWER(${`%${query}%`})`);
 		}
 
 		// Lógica complexa de filtro unificado (metadata local vs global)
@@ -659,7 +670,7 @@ export class ItemService {
 		}
 
 		// Ordenação
-		let orderClause;
+		let orderClause: any;
 		switch (orderBy) {
 			case 'rating':
 				orderClause = sql`(${metadataRef}->>'rating')::float DESC NULLS LAST`;
@@ -698,7 +709,7 @@ export class ItemService {
 	/**
 	 * Wrapper para buscar memórias do usuário (compatível com tool calling)
 	 */
-	async getUserItems(userId: string, query?: string, type?: string, limit: number = 10) {
+	async getUserItems(userId: string, query?: string, type?: string, limit = 10) {
 		if (query) {
 			return this.searchItems({ userId, query, limit });
 		}

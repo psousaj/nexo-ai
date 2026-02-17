@@ -1,10 +1,8 @@
-import { Hono } from 'hono';
-import { whatsappAdapter, telegramAdapter } from '@/adapters/messaging';
+import { telegramAdapter, whatsappAdapter } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import { loggers, logError } from '@/utils/logger';
 import { messageQueue } from '@/services/queue-service';
-import { accountLinkingService } from '@/services/account-linking-service';
-import { userService } from '@/services/user-service';
+import { logError, loggers } from '@/utils/logger';
+import { Hono } from 'hono';
 
 export const webhookRoutes = new Hono()
 	// TELEGRAM

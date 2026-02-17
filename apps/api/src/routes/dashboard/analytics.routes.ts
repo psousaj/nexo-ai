@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { analyticsService } from '@/services/analytics-service';
+import { Hono } from 'hono';
 
 export const analyticsRoutes = new Hono().get('/', async (c) => {
 	const kpis = await analyticsService.getKPIs();

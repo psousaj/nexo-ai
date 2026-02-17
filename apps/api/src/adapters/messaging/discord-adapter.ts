@@ -10,44 +10,33 @@
  * - Session key management
  */
 
+import { env } from '@/config/env';
+import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
+import { loggers } from '@/utils/logger';
 import {
+	type ButtonInteraction,
+	type ChatInputCommandInteraction,
 	Client,
+	type Message as DiscordMessage,
 	GatewayIntentBits,
+	type Interaction,
 	Partials,
-	DMChannel,
-	User,
-	Message,
-	Guild,
-	TextChannel,
-	DMChannel as DMChannelType,
-	VoiceChannel,
-	CategoryChannel,
-	NewsChannel,
-	ThreadChannel,
-	SlashCommandBuilder,
 	REST,
 	Routes,
-	Collection,
-	type Interaction,
-	type ChatInputCommandInteraction,
-	type Message as DiscordMessage,
-	type ButtonInteraction,
+	SlashCommandBuilder,
 	type StringSelectMenuInteraction,
+	type ThreadChannel,
 } from 'discord.js';
-import { env } from '@/config/env';
-import { loggers } from '@/utils/logger';
 import type {
-	MessagingProvider,
+	ChatAction,
+	ChatCommand,
+	CommandParams,
 	IncomingMessage,
+	MessagingProvider,
 	ProviderType,
-	MessageMetadata,
 	SessionKeyParams,
 	SessionKeyParts,
-	ChatAction,
-	CommandParams,
-	ChatCommand,
 } from './types';
-import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 
 // Discord bot client with all necessary intents
 const client = new Client({
@@ -62,13 +51,7 @@ const client = new Client({
 		GatewayIntentBits.MessageContent,
 		GatewayIntentBits.GuildMembers,
 	],
-	partials: [
-		Partials.Channel,
-		Partials.Message,
-		Partials.Reaction,
-		Partials.GuildMember,
-		Partials.ThreadMember,
-	],
+	partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.GuildMember, Partials.ThreadMember],
 });
 
 let isReady = false;
@@ -116,7 +99,9 @@ export class DiscordAdapter implements MessagingProvider {
 			isReady = true;
 			botUsername = client.user?.tag || null;
 			loggers.discord.info(`🤖 Discord bot online as ${botUsername}`);
-			loggers.discord.info(`🔗 Invite link: https://discord.com/api/oauth2/authorize?client_id=${client.user?.id}&permissions=8&scope=bot%20applications.commands`);
+			loggers.discord.info(
+				`🔗 Invite link: https://discord.com/api/oauth2/authorize?client_id=${client.user?.id}&permissions=8&scope=bot%20applications.commands`,
+			);
 
 			// Register slash commands
 			await this.registerSlashCommands();
@@ -128,7 +113,9 @@ export class DiscordAdapter implements MessagingProvider {
 
 			try {
 				const owner = await guild.fetchOwner();
-				await owner.send(`🎉 Olá! Obrigado por adicionar o NEXO AI ao servidor **${guild.name}**!\n\nVocê pode me usar em DMs ou me marcar com @${botUsername} em canais.\n\nConfigure as integrações pelo dashboard.`);
+				await owner.send(
+					`🎉 Olá! Obrigado por adicionar o NEXO AI ao servidor **${guild.name}**!\n\nVocê pode me usar em DMs ou me marcar com @${botUsername} em canais.\n\nConfigure as integrações pelo dashboard.`,
+				);
 				loggers.discord.info({ guildName: guild.name }, '✅ DM sent to guild owner');
 			} catch (error) {
 				loggers.discord.error({ error, guildName: guild.name }, '❌ Failed to send DM to guild owner');
@@ -204,7 +191,10 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Handle messageUpdate event
 	 */
-	private async handleMessageUpdate(oldMessage: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>, newMessage: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>): Promise<void> {
+	private async handleMessageUpdate(
+		oldMessage: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>,
+		newMessage: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>,
+	): Promise<void> {
 		if (!newMessage.author || newMessage.author.bot) return;
 
 		loggers.discord.debug(
@@ -223,7 +213,9 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Handle messageDelete event
 	 */
-	private async handleMessageDelete(message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>): Promise<void> {
+	private async handleMessageDelete(
+		message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>,
+	): Promise<void> {
 		loggers.discord.debug({ messageId: message.id }, '🗑️ Message deleted');
 
 		// Handle message deletion if needed
@@ -301,7 +293,7 @@ export class DiscordAdapter implements MessagingProvider {
 		// Format: "action:payload" (e.g., "select_0", "confirm_final")
 
 		if (customId.startsWith('select_')) {
-			const index = parseInt(customId.replace('select_', ''), 10);
+			const index = Number.parseInt(customId.replace('select_', ''), 10);
 			// Handle selection
 			await interaction.reply({ content: `✅ Você selecionou a opção ${index + 1}`, ephemeral: true });
 		} else if (customId === 'confirm_final') {
@@ -334,33 +326,23 @@ export class DiscordAdapter implements MessagingProvider {
 	 */
 	private async registerSlashCommands(): Promise<void> {
 		const commands = [
-			new SlashCommandBuilder()
-				.setName('status')
-				.setDescription('Show session status'),
+			new SlashCommandBuilder().setName('status').setDescription('Show session status'),
 			new SlashCommandBuilder()
 				.setName('new')
 				.setDescription('Reset conversation')
-				.addBooleanOption((option) =>
-					option.setName('confirm').setDescription('Confirm reset').setRequired(false),
-				),
+				.addBooleanOption((option) => option.setName('confirm').setDescription('Confirm reset').setRequired(false)),
 			new SlashCommandBuilder()
 				.setName('memory')
 				.setDescription('Search your memory')
-				.addStringOption((option) =>
-					option.setName('query').setDescription('Search query').setRequired(false),
-				),
+				.addStringOption((option) => option.setName('query').setDescription('Search query').setRequired(false)),
 			new SlashCommandBuilder()
 				.setName('profile')
 				.setDescription('Show or update your profile')
 				.addStringOption((option) =>
 					option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false),
 				)
-				.addStringOption((option) =>
-					option.setName('value').setDescription('New value').setRequired(false),
-				),
-			new SlashCommandBuilder()
-				.setName('help')
-				.setDescription('Show available commands'),
+				.addStringOption((option) => option.setName('value').setDescription('New value').setRequired(false)),
+			new SlashCommandBuilder().setName('help').setDescription('Show available commands'),
 		];
 
 		try {
@@ -397,7 +379,9 @@ export class DiscordAdapter implements MessagingProvider {
 
 		// Handle attachments (images, files, etc)
 		if (message.attachments.size > 0) {
-			const attachmentUrls = Array.from(message.attachments.values()).map((a) => a.url).join('\n');
+			const attachmentUrls = Array.from(message.attachments.values())
+				.map((a) => a.url)
+				.join('\n');
 			text = text ? `${text}\n${attachmentUrls}` : attachmentUrls;
 		}
 
@@ -418,9 +402,9 @@ export class DiscordAdapter implements MessagingProvider {
 		const externalId = message.channelId;
 
 		// Detect linking tokens
-		let linkingToken: string | undefined;
-		if (text && text.startsWith('/start ')) {
-			linkingToken = text.split(' ')[1];
+		let _linkingToken: string | undefined;
+		if (text?.startsWith('/start ')) {
+			_linkingToken = text.split(' ')[1];
 		}
 
 		return {
@@ -464,7 +448,7 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Send message to Discord channel
 	 */
-	async sendMessage(recipient: string, text: string, options?: any): Promise<void> {
+	async sendMessage(recipient: string, text: string, _options?: any): Promise<void> {
 		try {
 			const channel = await client.channels.fetch(recipient);
 			if (!channel) throw new Error('Channel not found');
@@ -485,7 +469,7 @@ export class DiscordAdapter implements MessagingProvider {
 	async sendTypingIndicator(chatId: string): Promise<void> {
 		try {
 			const channel = await client.channels.fetch(chatId);
-			if (channel && channel.isTextBased()) {
+			if (channel?.isTextBased()) {
 				await channel.sendTyping();
 			}
 		} catch (error) {
@@ -608,7 +592,7 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Send message with buttons
 	 */
-	async sendMessageWithButtons(chatId: string, text: string, buttons: any[], options?: any): Promise<void> {
+	async sendMessageWithButtons(chatId: string, text: string, buttons: any[], _options?: any): Promise<void> {
 		try {
 			const channel = await client.channels.fetch(chatId);
 			if (!channel || !channel.isTextBased()) throw new Error('Invalid channel');
@@ -639,7 +623,7 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Send photo with caption and buttons
 	 */
-	async sendPhoto(chatId: string, photoUrl: string, caption?: string, buttons?: any[], options?: any): Promise<void> {
+	async sendPhoto(chatId: string, photoUrl: string, caption?: string, buttons?: any[], _options?: any): Promise<void> {
 		try {
 			const channel = await client.channels.fetch(chatId);
 			if (!channel || !channel.isTextBased()) throw new Error('Invalid channel');
@@ -675,7 +659,7 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Answer callback query (no-op for Discord - interactions are different)
 	 */
-	async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+	async answerCallbackQuery(callbackQueryId: string, _text?: string): Promise<void> {
 		// Discord uses interaction replies, not callback queries
 		loggers.discord.debug({ callbackQueryId }, '📭 Answer callback (no-op for Discord)');
 	}

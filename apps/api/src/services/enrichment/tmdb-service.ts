@@ -1,9 +1,9 @@
 import { env } from '@/config/env';
-import type { MovieMetadata, TVShowMetadata } from '@/types';
 import { cacheGet, cacheSet } from '@/config/redis';
-import { fetchWithRetry } from '@/utils/retry';
-import { loggers } from '@/utils/logger';
 import { enrichmentQueue } from '@/services/queue-service';
+import type { MovieMetadata, TVShowMetadata } from '@/types';
+import { loggers } from '@/utils/logger';
+import { fetchWithRetry } from '@/utils/retry';
 
 export interface TMDBMovie {
 	id: number;
@@ -251,7 +251,7 @@ export class TMDBService {
 
 		return {
 			tmdb_id: details.id,
-			year: parseInt(details.release_date?.split('-')[0] || '0'),
+			year: Number.parseInt(details.release_date?.split('-')[0] || '0'),
 			genres: details.genres.map((g) => g.name),
 			rating: Math.round(details.vote_average * 10) / 10,
 			poster_url: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : undefined,
@@ -280,8 +280,8 @@ export class TMDBService {
 
 		return {
 			tmdb_id: details.id,
-			first_air_date: parseInt(details.first_air_date?.split('-')[0] || '0'),
-			last_air_date: details.last_air_date ? parseInt(details.last_air_date.split('-')[0]) : undefined,
+			first_air_date: Number.parseInt(details.first_air_date?.split('-')[0] || '0'),
+			last_air_date: details.last_air_date ? Number.parseInt(details.last_air_date.split('-')[0]) : undefined,
 			number_of_seasons: details.number_of_seasons,
 			number_of_episodes: details.number_of_episodes,
 			status: details.status,
@@ -304,7 +304,7 @@ export class TMDBService {
 	 */
 	async getStreamingProviders(
 		tmdbId: number,
-		type: 'movie' | 'tv' = 'movie'
+		type: 'movie' | 'tv' = 'movie',
 	): Promise<
 		Array<{
 			provider_id: number;
@@ -316,14 +316,15 @@ export class TMDBService {
 		const cacheKey = `tmdb:streaming:${type}:${tmdbId}`;
 
 		// Tenta cache primeiro
-		const cached = await cacheGet<
-			Array<{
-				provider_id: number;
-				provider_name: string;
-				logo_path: string;
-				type: 'flatrate' | 'rent' | 'buy';
-			}>
-		>(cacheKey);
+		const cached =
+			await cacheGet<
+				Array<{
+					provider_id: number;
+					provider_name: string;
+					logo_path: string;
+					type: 'flatrate' | 'rent' | 'buy';
+				}>
+			>(cacheKey);
 		if (cached) {
 			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
 			return cached;

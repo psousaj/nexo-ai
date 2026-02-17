@@ -1,8 +1,8 @@
+import crypto from 'node:crypto';
 import { db } from '@/db';
 import { errorReports, messages } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { desc, eq } from 'drizzle-orm';
-import crypto from 'crypto';
 
 export interface ErrorContext {
 	userId?: string;
@@ -71,7 +71,11 @@ export class GlobalErrorService {
 	 */
 	private async fetchConversationHistory(conversationId: string) {
 		try {
-			return await db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(desc(messages.createdAt));
+			return await db
+				.select()
+				.from(messages)
+				.where(eq(messages.conversationId, conversationId))
+				.orderBy(desc(messages.createdAt));
 		} catch (err) {
 			loggers.db.error({ err }, 'Failed to fetch conversation history for error reporting');
 			return [];

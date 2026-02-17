@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { userEmails, users } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { and, eq } from 'drizzle-orm';
 
 export class UserEmailService {
 	/**
@@ -27,7 +27,7 @@ export class UserEmailService {
 	/**
 	 * Adiciona um novo email ao usuário
 	 */
-	async addEmail(userId: string, email: string, provider: string, verified: boolean = false) {
+	async addEmail(userId: string, email: string, provider: string, verified = false) {
 		// Verifica se email já existe globalmente
 		const [existing] = await db.select().from(userEmails).where(eq(userEmails.email, email)).limit(1);
 
@@ -67,7 +67,11 @@ export class UserEmailService {
 	 */
 	async setPrimaryEmail(userId: string, emailId: string) {
 		// Verifica se o email pertence ao usuário
-		const [email] = await db.select().from(userEmails).where(and(eq(userEmails.id, emailId), eq(userEmails.userId, userId))).limit(1);
+		const [email] = await db
+			.select()
+			.from(userEmails)
+			.where(and(eq(userEmails.id, emailId), eq(userEmails.userId, userId)))
+			.limit(1);
 
 		if (!email) {
 			throw new Error('Email não encontrado ou não pertence ao usuário');
@@ -92,7 +96,11 @@ export class UserEmailService {
 	 */
 	async removeEmail(userId: string, emailId: string) {
 		// Verifica se o email pertence ao usuário
-		const [email] = await db.select().from(userEmails).where(and(eq(userEmails.id, emailId), eq(userEmails.userId, userId))).limit(1);
+		const [email] = await db
+			.select()
+			.from(userEmails)
+			.where(and(eq(userEmails.id, emailId), eq(userEmails.userId, userId)))
+			.limit(1);
 
 		if (!email) {
 			throw new Error('Email não encontrado ou não pertence ao usuário');
