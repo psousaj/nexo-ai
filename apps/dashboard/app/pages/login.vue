@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
+import api from '@/utils/api';
 
 definePageMeta({
 	layout: false,
@@ -7,11 +8,27 @@ definePageMeta({
 
 const authClient = useAuthClient();
 const route = useRoute();
+const router = useRouter();
+
+// Token de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
+const linkingToken = computed(() => route.query.token as string | undefined);
 
 const email = ref('');
 const password = ref('');
 const isLoading = ref(false);
 const error = ref('');
+
+/**
+ * Consome o token de vinculação após login bem-sucedido.
+ */
+const consumeLinkingToken = async () => {
+	if (!linkingToken.value) return;
+	try {
+		await api.post('/user/link/consume', { token: linkingToken.value });
+	} catch (e) {
+		console.warn('Não foi possível vincular conta do bot (token inválido ou expirado):', e);
+	}
+};
 
 const handleLogin = async () => {
 	isLoading.value = true;
@@ -29,7 +46,9 @@ const handleLogin = async () => {
 		}
 
 		if (data) {
-			// Redireciona para callbackUrl ou dashboard (sem delay)
+			// Consome o token de vinculação (WhatsApp/Telegram) se presente
+			await consumeLinkingToken();
+			// Redireciona para callbackUrl ou dashboard
 			const callbackUrl = (route.query.callbackUrl as string) || '/';
 			await navigateTo(callbackUrl, { replace: true });
 		} else {
@@ -46,10 +65,12 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 	isLoading.value = true;
 	try {
 		console.log('🔗 Login social com:', provider);
-		await authClient.signIn.social({
-			provider,
-			callbackURL: process.client ? `${window.location.origin}/?auth=success` : '/?auth=success',
-		});
+		// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
+		const callbackBase = process.client ? `${window.location.origin}/` : '/';
+		const callbackURL = linkingToken.value
+			? `${callbackBase}?link_token=${linkingToken.value}`
+			: `${callbackBase}?auth=success`;
+		await authClient.signIn.social({ provider, callbackURL });
 	} catch (e) {
 		console.error('Erro no login social:', e);
 		error.value = `Erro ao conectar com ${provider}`;
@@ -57,6 +78,11 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 		isLoading.value = false;
 	}
 };
+
+// Link para signup preservando o token
+const signupLink = computed(() =>
+	linkingToken.value ? `/signup?token=${linkingToken.value}` : '/signup'
+);
 </script>
 
 <template>
@@ -75,6 +101,15 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 				<div class="space-y-2">
 					<h2 class="text-2xl font-bold text-surface-900 dark:text-white">Bem-vindo de volta!</h2>
 					<p class="text-surface-500">Entre com sua conta para acessar seu painel.</p>
+				</div>
+
+				<!-- Banner de vinculação de conta bot -->
+				<div
+					v-if="linkingToken"
+					class="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 p-4 rounded-xl text-sm font-medium flex items-start gap-3"
+				>
+					<span class="text-lg">🔗</span>
+					<span>Após fazer login, sua conta será automaticamente vinculada ao seu chat no bot.</span>
 				</div>
 
 				<div
@@ -148,7 +183,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 				</div>
 
 				<div class="text-center">
-					<NuxtLink to="/signup" class="text-sm font-bold text-primary-600 hover:text-primary-700">
+					<NuxtLink :to="signupLink" class="text-sm font-bold text-primary-600 hover:text-primary-700">
 						Não tem uma conta? Cadastre-se agora
 					</NuxtLink>
 				</div>

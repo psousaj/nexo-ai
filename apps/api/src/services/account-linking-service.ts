@@ -16,6 +16,24 @@ export class AccountLinkingService {
 		tokenType: 'link' | 'signup' = 'link',
 		externalId?: string,
 	): Promise<string> {
+		// Verifica se já existe um token válido (não expirado) para reutilizar
+		const existingToken = await db
+			.select()
+			.from(linkingTokens)
+			.where(
+				and(
+					eq(linkingTokens.userId, userId),
+					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
+					eq(linkingTokens.tokenType, tokenType),
+					gte(linkingTokens.expiresAt, new Date()),
+				),
+			)
+			.limit(1);
+
+		if (existingToken.length > 0) {
+			return existingToken[0].token;
+		}
+
 		// Gera um token aleatório de 12 caracteres (base64url safe)
 		const token =
 			Math.random().toString(36).substring(2, 10).toUpperCase() +
@@ -28,7 +46,7 @@ export class AccountLinkingService {
 			expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 		}
 
-		// Remove tokens antigos/expirados do mesmo user/provider/type para limpar
+		// Remove tokens expirados do mesmo user/provider/type para limpar
 		await db
 			.delete(linkingTokens)
 			.where(

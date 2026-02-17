@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
+import api from '@/utils/api';
 
 definePageMeta({
 	layout: false,
 });
 
 const authClient = useAuthClient();
+const route = useRoute();
+const router = useRouter();
+
+// Token de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
+const linkingToken = computed(() => route.query.token as string | undefined);
 
 const name = ref('');
 const email = ref('');
@@ -13,6 +19,21 @@ const password = ref('');
 const confirmPassword = ref('');
 const isLoading = ref(false);
 const error = ref('');
+const linkingSuccess = ref(false);
+
+/**
+ * Tenta consumir o token de vinculação após o cadastro.
+ * Vincula a conta do bot (WhatsApp/Telegram) ao usuário recém-criado.
+ */
+const consumeLinkingToken = async () => {
+	if (!linkingToken.value) return;
+	try {
+		await api.post('/user/link/consume', { token: linkingToken.value });
+		linkingSuccess.value = true;
+	} catch (e) {
+		console.warn('Não foi possível vincular conta do bot (token inválido ou expirado):', e);
+	}
+};
 
 const handleSignup = async () => {
 	// Validações básicas
@@ -39,7 +60,8 @@ const handleSignup = async () => {
 		if (authError) {
 			error.value = authError.message || 'Erro ao criar conta';
 		} else {
-			// Redirecionar para o dashboard após criar conta
+			// Consome o token de vinculação (WhatsApp/Telegram) se presente
+			await consumeLinkingToken();
 			router.push('/');
 		}
 	} catch (e) {
@@ -51,9 +73,15 @@ const handleSignup = async () => {
 };
 
 const loginWithSocial = async (provider: 'google' | 'discord') => {
+	// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
+	const callbackBase = process.client ? `${window.location.origin}/` : '/';
+	const callbackURL = linkingToken.value
+		? `${callbackBase}?link_token=${linkingToken.value}`
+		: callbackBase;
+
 	await authClient.signIn.social({
 		provider,
-		callbackURL: process.client ? `${window.location.origin}/` : '/',
+		callbackURL,
 	});
 };
 </script>
@@ -74,6 +102,15 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 				<div class="space-y-2">
 					<h2 class="text-2xl font-bold text-surface-900 dark:text-white">Crie sua conta</h2>
 					<p class="text-surface-500">Comece a organizar suas memórias agora.</p>
+				</div>
+
+				<!-- Banner de vinculação de conta bot -->
+				<div
+					v-if="linkingToken"
+					class="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 p-4 rounded-xl text-sm font-medium flex items-start gap-3"
+				>
+					<span class="text-lg">🔗</span>
+					<span>Após criar sua conta, ela será automaticamente vinculada ao seu chat no bot.</span>
 				</div>
 
 				<div
@@ -177,7 +214,9 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 				</div>
 
 				<div class="text-center">
-					<NuxtLink to="/login" class="text-sm font-bold text-primary-600 hover:text-primary-700"> Já tem uma conta? Faça login </NuxtLink>
+					<NuxtLink :to="linkingToken ? `/login?token=${linkingToken}` : '/login'" class="text-sm font-bold text-primary-600 hover:text-primary-700">
+						Já tem uma conta? Faça login
+					</NuxtLink>
 				</div>
 			</div>
 		</div>

@@ -1039,49 +1039,53 @@ export class AgentOrchestrator {
 			}
 		}
 
-		// Se não detectou via NLP, tenta números
-		if (!detectedType && isNumber) {
-			switch (choice) {
-				case 1:
-					detectedType = 'note';
-					loggers.ai.info('📝 Usuário escolheu nota (opção 1)');
-					break;
-				case 2:
-					detectedType = 'movie';
-					loggers.ai.info('🎬 Usuário escolheu filme (opção 2)');
-					break;
-				case 3:
-					detectedType = 'series';
-					loggers.ai.info('📺 Usuário escolheu série (opção 3)');
-					break;
-				case 4:
-					detectedType = 'link';
-					loggers.ai.info('🔗 Usuário escolheu link (opção 4)');
-					break;
-				case 5:
-					// Cancela
-					loggers.ai.info('❌ Usuário cancelou clarificação (opção 5)');
-					await conversationService.updateState(conversation.id, 'idle', {
-						pendingClarification: undefined,
-					});
-					return {
-						message: getRandomMessage(cancellationMessages),
-						state: 'idle',
-					};
-				default:
-					// Se não é número válido (1-5), trata como NOVA MENSAGEM
-					// Isso permite ao usuário ignorar a clarificação e continuar conversando
-					loggers.ai.info({ message }, '↩️ Número inválido - reprocessando como nova mensagem');
+		// Se não detectou via NLP, tenta números — mapeamento dinâmico baseado nas tools habilitadas
+		if (!detectedType && isNumber && !Number.isNaN(choice)) {
+			const { toolService } = await import('@/services/tools/tool.service');
+			const saveTools = await toolService.getSaveTools();
 
-					// Reseta estado e reprocessa
-					await conversationService.updateState(conversation.id, 'idle', {
-						pendingClarification: undefined,
-					});
+			// Mapa tool name → tipo interno
+			const toolToType: Record<string, string> = {
+				save_note: 'note',
+				save_movie: 'movie',
+				save_tv_show: 'series',
+				save_video: 'video',
+				save_link: 'link',
+			};
 
-					conversation.state = 'idle';
-					delete conversation.context?.pendingClarification;
+			const cancelIndex = saveTools.length + 1; // última opção é sempre cancelar
 
-					return this.processMessage(context);
+			if (choice === cancelIndex) {
+				loggers.ai.info({ choice }, '❌ Usuário cancelou clarificação');
+				await conversationService.updateState(conversation.id, 'idle', {
+					pendingClarification: undefined,
+				});
+				return {
+					message: getRandomMessage(cancellationMessages),
+					state: 'idle',
+				};
+			} else if (choice >= 1 && choice <= saveTools.length) {
+				const selectedTool = saveTools[choice - 1];
+				detectedType = toolToType[selectedTool.name] ?? null;
+
+				if (detectedType) {
+					loggers.ai.info(
+						{ choice, tool: selectedTool.name, detectedType },
+						'✅ Tipo detectado via seleção dinâmica',
+					);
+				}
+			} else {
+				// Número fora do range — reprocessa como nova mensagem
+				loggers.ai.info({ message, choice, totalOptions: cancelIndex }, '↩️ Número fora do range - reprocessando como nova mensagem');
+
+				await conversationService.updateState(conversation.id, 'idle', {
+					pendingClarification: undefined,
+				});
+
+				conversation.state = 'idle';
+				delete conversation.context?.pendingClarification;
+
+				return this.processMessage(context);
 			}
 		}
 

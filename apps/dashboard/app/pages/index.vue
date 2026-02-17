@@ -14,16 +14,37 @@ import {
 	Tooltip,
 } from 'chart.js';
 import { Activity, Database, Download, Filter, MessageSquare, Users } from 'lucide-vue-next';
-import { computed, markRaw } from 'vue';
+import { computed, markRaw, onMounted } from 'vue';
 import { Doughnut, Line } from 'vue-chartjs';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
+import api from '@/utils/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler);
 
 const authStore = useAuthStore();
 const dashboard = useDashboard();
 const { can } = useAbility();
+const route = useRoute();
+const router = useRouter();
+
+// Consome token de vinculação pós-OAuth social (enviado via callbackURL ?link_token=TOKEN)
+onMounted(async () => {
+	const linkToken = route.query.token as string | undefined;
+	if (linkToken) {
+		try {
+			await api.post('/user/link/consume', { token: linkToken });
+			console.info('✅ Conta do bot vinculada com sucesso via OAuth social');
+		} catch (e) {
+			console.warn('⚠️ Não foi possível vincular conta do bot (token inválido ou expirado):', e);
+		} finally {
+			// Remove o link_token da URL sem recarregar a página
+			const query = { ...route.query };
+			delete query.token;
+			router.replace({ query });
+		}
+	}
+});
 
 // Fetch Analytics via Service
 const { data: analytics, isLoading } = useQuery({
