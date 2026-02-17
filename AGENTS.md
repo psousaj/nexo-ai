@@ -1218,6 +1218,29 @@ pnpm run dev | pino-pretty
 8. **Run tests after changes**
 9. **Read ADR-011 for architecture principles** ([docs/adr/011-deterministic-runtime-control.md](docs/adr/011-deterministic-runtime-control.md))
 10. **Check existing patterns before creating new ones**
+11. **ALWAYS check if servers are already running before restarting** (see below)
+
+### ⚠️ Server Management (CRITICAL)
+
+**BEFORE killing or restarting any server, ALWAYS check if it's already running first.**
+The dev server is often already up. Killing it just to restart wastes time and breaks tunnels (zrok/ngrok).
+
+```bash
+# ✅ CORRECT: Check first, only start if not running
+lsof -ti:3001 > /dev/null 2>&1 && echo "API already running" || pnpm dev:api
+lsof -ti:5173 > /dev/null 2>&1 && echo "Dashboard already running" || pnpm dev:dash
+
+# ❌ WRONG: Blindly killing and restarting
+pkill -f "turbo.*api" && pnpm dev:api
+```
+
+**When to restart**: Only restart if you changed server startup code (server.ts, index.ts, env config).
+For most code changes, tsx watch mode auto-reloads — no restart needed.
+
+**Ports**:
+- API: `3001`
+- Dashboard: `5173`
+- Landing: `3005`
 
 **Documentation First**: Always check the new [docs/](docs/) folder when unsure about architecture or patterns.
 

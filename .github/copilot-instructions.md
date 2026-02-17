@@ -133,6 +133,24 @@ import { describe, test, expect } from 'vitest';
 3. **Validação**: Zod em `config/env.ts`, JSON parse em `utils/json-parser.ts`
 4. **Path alias**: Use `@/` para imports (ex: `import { env } from '@/config/env'`)
 5. **Services são singletons**: exportados como instância única no final do arquivo
+6. **NUNCA mate o server sem verificar antes** - Veja seção Server Management abaixo
+
+## ⚠️ Server Management (OBRIGATÓRIO)
+
+**SEMPRE verifique se o server já está rodando ANTES de matar ou reiniciar.**
+O dev server geralmente já está up. Matar sem necessidade quebra túneis (zrok/ngrok) e perde tempo.
+
+```bash
+# ✅ CERTO: Verifica primeiro, só inicia se não estiver rodando
+lsof -ti:3001 > /dev/null 2>&1 && echo "API already running" || pnpm dev:api
+lsof -ti:5173 > /dev/null 2>&1 && echo "Dashboard already running" || pnpm dev:dash
+
+# ❌ ERRADO: Mata e reinicia sem verificar
+pkill -f "turbo.*api" && pnpm dev:api
+```
+
+**Quando reiniciar**: Só se mudou código de startup (server.ts, index.ts, config de env).
+Para mudanças normais de código, tsx watch recarrega sozinho.
 
 ## Adicionar Novo Tipo de Item
 
