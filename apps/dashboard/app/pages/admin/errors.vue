@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { AlertCircle, CheckCircle2, Clock, ExternalLink, Search } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 
 definePageMeta({

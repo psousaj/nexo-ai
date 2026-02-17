@@ -164,6 +164,11 @@ export const useDashboard = () => {
 		return data;
 	};
 
+	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null }> => {
+		const { data } = await api.get('/admin/whatsapp-settings/qr-code');
+		return data;
+	};
+
 	// Discord Bot Info
 	const getDiscordBotInfo = async (): Promise<{
 		clientId: string;
@@ -197,6 +202,7 @@ export const useDashboard = () => {
 		getWhatsAppSettings,
 		setWhatsAppApi,
 		clearWhatsAppCache,
+		getWhatsAppQRCode,
 		getDiscordBotInfo,
 	};
 };

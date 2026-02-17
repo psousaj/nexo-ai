@@ -13,6 +13,7 @@
 import { env } from '@/config/env';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
+import { messageQueue } from '@/services/queue-service';
 import {
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
@@ -211,12 +212,23 @@ export class DiscordAdapter implements MessagingProvider {
 			'📩 Message received',
 		);
 
-		// Parse the message and emit to webhook handler
+		// Parse the message and enqueue for processing
 		const incomingMessage = this.parseIncomingMessage(message);
 		if (incomingMessage) {
-			// Emit to a central event bus or call webhook handler
-			// This would typically be handled by the webhook route
-			loggers.discord.debug({ messageId: incomingMessage.messageId }, '✅ Message parsed successfully');
+			// Enqueue message processing (same pattern as Telegram/WhatsApp webhooks)
+			await messageQueue.add(
+				'message-processing',
+				{
+					incomingMsg: incomingMessage,
+					providerName: 'discord',
+				},
+				{
+					removeOnComplete: true,
+					attempts: 1,
+				},
+			);
+
+			loggers.discord.info({ messageId: incomingMessage.messageId }, '✅ Discord message enqueued for processing');
 		}
 	}
 

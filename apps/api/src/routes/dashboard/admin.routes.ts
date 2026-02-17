@@ -46,4 +46,15 @@ export const adminRoutes = new Hono()
 	.post('/whatsapp-settings/cache/clear', async (c) => {
 		invalidateWhatsAppProviderCache();
 		return c.json({ success: true, message: 'Cache cleared' });
+	})
+	// Get Baileys QR Code
+	.get('/whatsapp-settings/qr-code', async (c) => {
+		try {
+			const { getBaileysService } = await import('@/services/baileys-service');
+			const baileys = await getBaileysService();
+			const qrCode = await baileys.getQRCode();
+			return c.json({ qrCode });
+		} catch (error) {
+			return c.json({ qrCode: null, error: 'Baileys service not available' }, 503);
+		}
 	});

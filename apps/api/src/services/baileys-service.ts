@@ -56,6 +56,7 @@ export class BaileysService {
 	private config: Required<BaileysConfig>;
 	private messageHandlers: Array<(message: WAMessage) => void> = [];
 	private isConnecting: boolean = false;
+	private latestQRCode: string | null = null; // Armazena o QR Code mais recente
 
 	constructor(config: BaileysConfig = {}) {
 		this.config = {
@@ -95,6 +96,11 @@ export class BaileysService {
 
 			// Gerenciar eventos de conexão
 			this.sock.ev.on('connection.update', (update) => {
+				// Capturar QR Code
+				if (update.qr) {
+					this.latestQRCode = update.qr;
+					logger.info('📱 QR Code recebido do Baileys');
+				}
 				this.handleConnectionUpdate(update);
 			});
 
@@ -235,12 +241,10 @@ export class BaileysService {
 	}
 
 	/**
-	 * Obter QR Code (string base64 para exibir)
+	 * Obter QR Code (string para exibir)
 	 */
 	async getQRCode(): Promise<string | null> {
-		// Isso requer modificar o fluxo de conexão
-		// Por enquanto, o QR Code é impresso no terminal
-		return null;
+		return this.latestQRCode;
 	}
 
 	/**

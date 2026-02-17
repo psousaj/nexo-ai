@@ -18,9 +18,13 @@ const selectedApi = ref<'meta' | 'baileys'>('meta');
 const { data: settings, isLoading } = useQuery({
 	queryKey: ['whatsapp-settings'],
 	queryFn: () => dashboard.getWhatsAppSettings(),
-	onSuccess: (data) => {
-		selectedApi.value = data.activeApi;
-	},
+});
+
+// Update selectedApi when settings change
+watchEffect(() => {
+	if (settings.value) {
+		selectedApi.value = settings.value.activeApi;
+	}
 });
 
 // Mutation to change API
@@ -71,6 +75,14 @@ const handleApiChange = async (api: 'meta' | 'baileys') => {
 const handleClearCache = () => {
 	clearCacheMutation.mutate();
 };
+
+// Fetch QR Code when Baileys is selected
+const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
+	queryKey: ['whatsapp-qr-code'],
+	queryFn: () => dashboard.getWhatsAppQRCode(),
+	refetchInterval: selectedApi.value === 'baileys' ? 3000 : false, // Atualiza a cada 3s se Baileys
+	enabled: computed(() => selectedApi.value === 'baileys'),
+});
 </script>
 
 <template>
@@ -271,6 +283,39 @@ const handleClearCache = () => {
 					<div v-if="settings?.lastError" class="space-y-2">
 						<p class="text-xs font-black text-rose-500 uppercase">Último Erro</p>
 						<p class="text-sm text-rose-600">{{ settings.lastError }}</p>
+					</div>
+				</div>
+			</div>
+
+			<!-- QR Code Card (Baileys only) -->
+			<div v-if="selectedApi === 'baileys'" class="premium-card !p-8">
+				<h3 class="text-xl font-black text-surface-900 dark:text-white mb-6">QR Code de Conexão</h3>
+
+				<div v-if="!qrCodeData?.qrCode" class="text-center py-8">
+					<p class="text-surface-500 dark:text-surface-400 mb-4">
+						📱 Aguardando QR Code... O servidor está conectando ao WhatsApp.
+					</p>
+					<button
+						@click="() => refetchQRCode()"
+						class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+					>
+						Atualizar
+					</button>
+				</div>
+
+				<div v-else class="flex flex-col items-center gap-4">
+					<div class="bg-white p-4 rounded-xl shadow-lg">
+						<img :src="`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData.qrCode)}`"
+						     alt="WhatsApp QR Code"
+						     class="w-64 h-64" />
+					</div>
+					<div class="text-center max-w-md">
+						<p class="text-sm text-surface-600 dark:text-surface-400">
+							1. Abra o WhatsApp no seu celular<br />
+							2. Toque em <strong>Menu</strong> ou <strong>Configurações</strong> e selecione <strong>Aparelhos conectados</strong><br />
+							3. Toque em <strong>Conectar um aparelho</strong><br />
+							4. Escaneie este QR Code
+						</p>
 					</div>
 				</div>
 			</div>
