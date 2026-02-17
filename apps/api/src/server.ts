@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
 import { env } from '@/config/env';
 import { healthRouter } from '@/routes/health';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
@@ -39,6 +40,9 @@ app.use(
 		maxAge: 600,
 	}),
 );
+
+// Logger HTTP - Log de todas as requisições
+app.use('*', logger());
 
 // ============================================================================
 // BULL BOARD - Dashboard para filas
