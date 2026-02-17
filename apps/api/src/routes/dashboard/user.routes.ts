@@ -9,8 +9,9 @@ import { env } from '@/config/env';
 import { db } from '@/db';
 import { accounts as betterAuthAccounts, userAccounts } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
+import type { AuthContext } from '@/types/hono';
 
-export const userRoutes = new Hono<{ Variables: { user: any; session: any } }>()
+export const userRoutes = new Hono<AuthContext>()
 	.get('/profile', async (c) => {
 		const userState = c.get('user');
 		const user = await userService.getUserById(userState.id);
