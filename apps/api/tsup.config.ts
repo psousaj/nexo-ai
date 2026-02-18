@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
 export default defineConfig({
 	entry: ['src/index.ts'],
@@ -14,4 +15,24 @@ export default defineConfig({
 	external: [/node_modules/],
 	platform: 'node',
 	tsconfig: './tsconfig.json',
+	esbuildPlugins: [
+		// Upload de sourcemaps para o Sentry no build
+		// Requer SENTRY_AUTH_TOKEN no ambiente (CI ou local)
+		...(process.env.SENTRY_AUTH_TOKEN
+			? [
+					sentryEsbuildPlugin({
+						org: process.env.SENTRY_ORG || 'ze-filho',
+						project: process.env.SENTRY_PROJECT || 'node-hono',
+						authToken: process.env.SENTRY_AUTH_TOKEN,
+						release: {
+							name: `nexo-api@${process.env.npm_package_version || '0.0.0'}`,
+						},
+						sourcemaps: {
+							assets: './dist/**',
+						},
+						telemetry: false,
+					}),
+				]
+			: []),
+	],
 });

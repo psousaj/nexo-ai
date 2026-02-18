@@ -193,28 +193,35 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ---
 
-## 🟡 v0.5.0 - Advanced Features (Planejado)
+## ✅ v0.5.0 - Advanced Features (Concluído - 18/02/2026)
 
-**Objetivo:** Features que agregam valor mas não são críticas
+**Objetivo:** Features que agregam valor e observabilidade
 
-### Prioridade Alta
+### ✅ Implementado
 
-- [ ] **Stats & Analytics**
-  - Endpoint `GET /items/stats`
-  - Total items, breakdown por tipo
-  - Items mais recentes
-  - Items mais populares (por rating)
+#### 📊 Stats & Analytics
+
+- Endpoint `/analytics` com KPIs, trends, breakdown
+- Analytics service completo
+- Dashboard com gráficos e métricas
+
+#### 🛡️ Observability Avançada (Sentry v10)
+
+- Sentry v10.39.0 com Logs estruturados (`Sentry.logger`)
+- Node Profiling (`@sentry/profiling-node`)
+- Métricas customizadas (`Sentry.metrics.count/gauge/distribution`)
+- Sourcemaps upload automático no build (`@sentry/esbuild-plugin`)
+- `consoleLoggingIntegration` para captura de console.log
+- Filtros de dados sensíveis (cookies, authorization headers)
+- Helpers: `sentryLogger`, `sentryMetrics`, `incrementCounter`, `recordTiming`
+
+### 🟡 Pendente
 
 - [ ] **Rate Limiting**
   - Limite: 5 mensagens/minuto por usuário via Redis
   - Resposta amigável quando exceder
 
-### Prioridade Média
-
-- [ ] **Observability Avançada**
-  - Metrics de latência por endpoint
-  - Tracking de uso de cache (hit rate)
-  - Alertas automáticos em errors > 5%
+**Estado:** ✅ Parcialmente concluído (Rate Limiting pendente)
 
 ---
 
@@ -345,4 +352,4 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ---
 
-**Última atualização**: 16 de fevereiro de 2026 (v0.4.0 - OpenClaw Patterns)
+**Última atualização**: 18 de fevereiro de 2026 (v0.5.0 - Advanced Features + Observability)

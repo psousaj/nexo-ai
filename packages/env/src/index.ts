@@ -43,9 +43,12 @@ const envSchema = z.object({
 	LANGFUSE_PUBLIC_KEY: z.string().optional(),
 	LANGFUSE_SECRET_KEY: z.string().optional(),
 	LANGFUSE_HOST: z.string().optional(),
-	// Sentry - Error tracking
+	// Sentry - Error tracking & Sourcemaps
 	SENTRY_DSN: z.string().optional(),
 	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.1),
+	SENTRY_AUTH_TOKEN: z.string().optional(),
+	SENTRY_ORG: z.string().default('ze-filho'),
+	SENTRY_PROJECT: z.string().default('node-hono'),
 
 	// Enrichment APIs
 	TMDB_API_KEY: z.string(),
