@@ -7,7 +7,7 @@ O Nexo AI utiliza uma arquitetura híbrida de observabilidade para fornecer visi
 - **OpenTelemetry** - Tracing distribuído padrão aberto (`@nexo/otel`)
 - **Jaeger** - Visualização de traces técnicos (local)
 - **Langfuse** - Observabilidade específica para IA/LLMs (Cloud)
-- **Sentry** - Monitoramento de erros com contexto rico
+- **Sentry** - Monitoramento de erros + **Logs estruturados** (Cloud)
 
 ## Arquitetura de Tracing
 
@@ -40,9 +40,10 @@ Mensagem recebida (trace raiz)
 │  ├─ Latência breakdown
 │  └─ Decisão (rule vs LLM + tool escolhida)
 │
-└─ Sentry (erros)
+└─ Sentry (erros + logs)
    ├─ Exception + stacktrace
    ├─ Breadcrumbs (passos anteriores)
+   ├─ **Logs estruturados** (info, warn, error, performance)
    ├─ User context (id, conversation_id)
    └─ Link para trace OTEL (trace_id)
 ```
@@ -115,7 +116,7 @@ No Langfuse Dashboard, você verá:
 
 Langfuse usa o mesmo `trace_id` do OpenTelemetry. Links entre traces são automáticos.
 
-## Sentry - Error Tracking
+## Sentry - Error Tracking + Logs
 
 ### Configurar
 
@@ -134,13 +135,74 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 3. Crie um novo projeto para "Node.js"
 4. Copie o DSN
 
-### Erros com Contexto
+### Funcionalidades do Sentry
+
+#### 1. Error Tracking
 
 Sentry captura automaticamente:
 - Stack traces completos
 - User context (id, conversation_id)
 - Breadcrumbs (log de ações anteriores)
 - Link para trace OTEL relacionado
+
+#### 2. Logs Estruturados (NOVO)
+
+Envie logs estruturados que aparecem no dashboard do Sentry:
+
+```typescript
+import { sentryLogger, capturePerformanceLog } from '@/sentry';
+
+// Log informativo
+sentryLogger.info('Processing message', {
+	userId: user.id,
+	conversationId: conversation.id,
+	messageLength: message.length,
+});
+
+// Log de performance
+capturePerformanceLog('LLM call completed', 1250, {
+	model: 'llama-3.3-70b',
+	tokens: 450,
+});
+
+// Log de aviso
+sentryLogger.warn('High latency detected', {
+	endpoint: '/webhook/telegram',
+	latency: 5000,
+});
+
+// Log de erro
+try {
+	await riskyOperation();
+} catch (error) {
+	sentryLogger.error('Operation failed', error, {
+		operation: 'save_movie',
+		userId: user.id,
+	});
+}
+```
+
+#### 3. Integrations
+
+O Sentry já está integrado com:
+- **Hono** - Hook `onError` captura exceções HTTP
+- **OpenTelemetry** - Links automáticos entre traces e erros
+- **Contexto HTTP** - Captura método, URL, path, headers
+
+### Debug - Testar Sentry
+
+```bash
+# 1. Configure o DSN no .env
+SENTRY_DSN=https://xxx@sentry.io/xxx
+
+# 2. Inicie a API em desenvolvimento
+pnpm --filter @nexo/api dev
+
+# 3. Acesse a rota de debug
+curl http://localhost:3001/debug-sentry
+
+# 4. Verifique o erro + log no Dashboard Sentry
+```
 
 ## Variáveis de Ambiente
 
@@ -167,6 +229,7 @@ Sentry captura automaticamente:
 | `SENTRY_DSN` | DSN do projeto | (obrigatório) |
 | `SENTRY_ENVIRONMENT` | Ambiente | `${NODE_ENV}` |
 | `SENTRY_TRACES_SAMPLE_RATE` | Taxa de sampling | `0.1` |
+| `SENTRY_LOGS_SAMPLE_RATE` | Taxa de sampling de logs (prod) | `0.1` |
 
 ## Troubleshooting
 
@@ -182,15 +245,17 @@ Sentry captura automaticamente:
 2. Verifique se o ambiente está configurado
 3. Aguarde alguns segundos (flush assíncrono)
 
-### Sentry não captura erros
+### Sentry não captura erros/logs
 
 1. Verifique se `SENTRY_DSN` está configurado
 2. Verifique se há erros sendo lançados
 3. Verifique dashboard do Sentry
+4. Logs aparecem na aba "Logs" do dashboard
 
 ## Próximos Passos
 
 - [ ] Configurar alertas no Sentry
 - [ ] Criar dashboard customizado no Langfuse
-- [ ] Configurar sampling rate baseado em ambiente
 - [ ] Adicionar métricas customizadas (latência P99, etc)
+- [ ] Configurar sampling rates baseado em ambiente
+

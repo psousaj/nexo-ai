@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { sentryLogger } from '@/sentry';
 import { env } from '@/config/env';
 import { authRouter } from '@/routes/auth-better.routes';
 import { dashboardRouter } from '@/routes/dashboard';
@@ -202,6 +203,10 @@ app.route('/api', dashboardRouter);
 // Debug route para testar Sentry (apenas em desenvolvimento)
 if (env.NODE_ENV === 'development') {
 	app.get('/debug-sentry', () => {
+		// Envia um log antes de lançar o erro (conforme documentação)
+		sentryLogger.info('User triggered test error', {
+			action: 'test_error_endpoint',
+		});
 		throw new Error('Sentry debug error - testando captura de exceção');
 	});
 }
