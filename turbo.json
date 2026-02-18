@@ -1,6 +1,10 @@
 {
     "$schema": "https://turbo.build/schema.json",
     "tasks": {
+        "merge-pr": {
+            "cache": false,
+            "persistent": false
+        },
         "build": {
             "dependsOn": [
                 "^build"
