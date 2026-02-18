@@ -3,5 +3,5 @@
 	"buildCommand": "cd ../.. && pnpm build --filter=@nexo/dashboard",
 	"outputDirectory": ".output",
 	"installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-	"framework": "nuxt"
+	"framework": "nuxtjs"
 }
