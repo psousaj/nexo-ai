@@ -1,5 +1,6 @@
 import { type IncomingMessage, type ProviderType, getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { createBullConfig } from '@/config/redis';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
 import { embeddingService } from '@/services/ai/embedding-service';
@@ -51,16 +52,9 @@ if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {
 	throw new Error('Redis não configurado: REDIS_HOST e REDIS_PASSWORD são obrigatórios');
 }
 
-const REDIS_CONFIG = {
-	redis: {
-		host: env.REDIS_HOST,
-		port: env.REDIS_PORT || 6379,
-		password: env.REDIS_PASSWORD,
-		username: env.REDIS_USER,
-		// TLS não é necessário para Redis Cloud via Bull
-		// O ioredis usado pelo Bull funciona melhor sem TLS explícito
-	},
-};
+// Usa conexões compartilhadas para minimizar conexões abertas ao Redis.
+// client + subscriber são singletons; apenas bclient é criado por worker.
+const REDIS_CONFIG = createBullConfig();
 
 queueLogger.info(
 	{
@@ -69,7 +63,7 @@ queueLogger.info(
 		user: env.REDIS_USER,
 		tls: env.REDIS_TLS,
 	},
-	'🔧 Configuração do Redis',
+	'🔧 Configuração do Redis (conexões compartilhadas)',
 );
 
 /**
@@ -300,7 +294,7 @@ messageQueue.process('message-processing', async (job) => {
 /**
  * Worker: Processa envio de respostas
  */
-responseQueue.process('send-response', 5, async (job) => {
+responseQueue.process('send-response', 2, async (job) => {
 	return startSpan('queue.response.send', async (span) => {
 		const { externalId, message, provider: providerName, metadata } = job.data;
 
