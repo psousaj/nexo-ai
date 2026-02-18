@@ -12,7 +12,7 @@ export function initializeLangfuse() {
 	langfuse = new Langfuse({
 		publicKey: env.LANGFUSE_PUBLIC_KEY,
 		secretKey: env.LANGFUSE_SECRET_KEY,
-		host: env.LANGFUSE_HOST || 'https://cloud.langfuse.com',
+		baseUrl: env.LANGFUSE_BASE_URL || env.LANGFUSE_HOST || 'https://cloud.langfuse.com',
 	});
 
 	console.log('[Langfuse] Initialized');

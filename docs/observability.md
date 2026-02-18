@@ -221,6 +221,7 @@ curl http://localhost:3001/debug-sentry
 | `LANGFUSE_PUBLIC_KEY` | Chave pública | (obrigatório) |
 | `LANGFUSE_SECRET_KEY` | Chave secreta | (obrigatório) |
 | `LANGFUSE_HOST` | Host Langfuse | `https://cloud.langfuse.com` |
+| `LANGFUSE_BASE_URL` | URL base da API Langfuse | `https://cloud.langfuse.com` |
 
 ### Sentry
 
