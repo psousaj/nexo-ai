@@ -4,6 +4,64 @@ import { env } from './env';
 
 let redis: any = null;
 
+// ============================================================================
+// SHARED BULL CONNECTIONS
+// Cada fila Bull cria 3 conexões por padrão (client, subscriber, bclient).
+// Compartilhar client + subscriber reduz drásticamente o número de conexões.
+// bclient DEVE ser uma nova conexão por worker (usado para BLPOP bloqueante).
+// ============================================================================
+
+export const REDIS_BASE_OPTIONS = {
+	host: env.REDIS_HOST || '',
+	port: env.REDIS_PORT || 6379,
+	password: env.REDIS_PASSWORD || '',
+	username: env.REDIS_USER || '',
+	maxRetriesPerRequest: null as null,
+	enableReadyCheck: false,
+	...(env.REDIS_TLS ? { tls: {} } : {}),
+};
+
+let _sharedClient: Redis | null = null;
+let _sharedSubscriber: Redis | null = null;
+
+function getSharedClient(): Redis {
+	if (!_sharedClient) {
+		_sharedClient = new Redis(REDIS_BASE_OPTIONS);
+		_sharedClient.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared-client] error'));
+	}
+	return _sharedClient;
+}
+
+function getSharedSubscriber(): Redis {
+	if (!_sharedSubscriber) {
+		_sharedSubscriber = new Redis(REDIS_BASE_OPTIONS);
+		_sharedSubscriber.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared-subscriber] error'));
+	}
+	return _sharedSubscriber;
+}
+
+/**
+ * Configuração Bull com conexões compartilhadas.
+ * Usar em TODAS as filas para minimizar conexões abertas ao Redis.
+ */
+export function createBullConfig() {
+	return {
+		createClient(type: 'client' | 'subscriber' | 'bclient') {
+			switch (type) {
+				case 'client':
+					return getSharedClient();
+				case 'subscriber':
+					return getSharedSubscriber();
+				case 'bclient':
+					// bclient não pode ser compartilhado — é bloqueante (BLPOP)
+					return new Redis(REDIS_BASE_OPTIONS);
+				default:
+					return getSharedClient();
+			}
+		},
+	};
+}
+
 export async function getRedisClient(): Promise<Redis | null> {
 	if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {
 		loggers.cache.warn('Redis não configurado - cache desabilitado');
@@ -12,18 +70,8 @@ export async function getRedisClient(): Promise<Redis | null> {
 
 	if (!redis) {
 		try {
-			// Redis SEM TLS (redis:// não rediss://)
-			// Bull já funciona sem TLS, ioredis também
-			const client = new Redis({
-				host: env.REDIS_HOST,
-				port: env.REDIS_PORT,
-				username: env.REDIS_USER,
-				password: env.REDIS_PASSWORD,
-				// Não precisa de TLS para Redis Cloud via ioredis
-			});
-
-			client.on('error', (err) => loggers.cache.error({ err }, 'Redis Client Error'));
-
+			const client = new Redis(REDIS_BASE_OPTIONS);
+			client.on('error', (err) => loggers.cache.error({ err }, 'Redis [cache] error'));
 			redis = client;
 			loggers.cache.info('Redis conectado para cache');
 		} catch (error) {

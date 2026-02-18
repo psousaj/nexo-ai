@@ -7,6 +7,7 @@
 
 import { type ProviderType, getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { createBullConfig } from '@/config/redis';
 import { db } from '@/db';
 import { scheduledReminders } from '@/db/schema';
 import { loggers } from '@/utils/logger';
@@ -19,14 +20,8 @@ const schedulerLogger = loggers.scheduler;
 // QUEUE SETUP
 // ============================================================================
 
-const REDIS_CONFIG = {
-	redis: {
-		host: env.REDIS_HOST,
-		port: env.REDIS_PORT || 6379,
-		password: env.REDIS_PASSWORD,
-		username: env.REDIS_USER,
-	},
-};
+// Usa conexões compartilhadas para minimizar conexões abertas ao Redis.
+const REDIS_CONFIG = createBullConfig();
 
 /**
  * Reminder Queue Job Interface
