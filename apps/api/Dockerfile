@@ -15,7 +15,6 @@ COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/env/package.json packages/env/
 COPY packages/otel/package.json packages/otel/
-COPY packages/auth/package.json packages/auth/
 COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 COPY packages/prettier-config/package.json packages/prettier-config/
@@ -53,7 +52,6 @@ COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/env/package.json packages/env/
 COPY packages/otel/package.json packages/otel/
-COPY packages/auth/package.json packages/auth/
 COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 COPY packages/prettier-config/package.json packages/prettier-config/
@@ -65,7 +63,6 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/packages/shared/dist/ packages/shared/dist/
 COPY --from=builder /app/packages/env/dist/ packages/env/dist/
 COPY --from=builder /app/packages/otel/dist/ packages/otel/dist/
-COPY --from=builder /app/packages/auth/dist/ packages/auth/dist/
 
 # Copia build da API + modelo treinado
 COPY --from=builder /app/apps/api/dist/ apps/api/dist/
