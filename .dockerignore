@@ -1,12 +1,11 @@
 # Dependencies
-node_modules
+**/node_modules
 npm-debug.log
 pnpm-debug.log
+.pnpm-debug.log*
 yarn-error.log
 
-# Build outputs
-dist
-build
+# Build outputs (keep pnpm-lock.yaml for --frozen-lockfile)
 *.tsbuildinfo
 
 # Environment
@@ -50,3 +49,11 @@ docs
 README.md
 LICENSE
 CHANGELOG.md
+
+# Apps not needed for API build
+apps/dashboard
+apps/landing
+apps/old-dashboard
+
+# Turbo cache
+.turbo

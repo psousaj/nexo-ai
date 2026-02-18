@@ -2,12 +2,21 @@
 .env
 .env.local
 
+# Baileys WhatsApp authentication
+**/baileys-auth/
 # Dependencies
-node_modules
+**/node_modules
+**/dist
+
+# pnpm
+pnpm-lock.yaml
+.pnpm-debug.log*
 
 # Build
-dist
-.next
+*.next
+*.turbo
+
+*.output
 
 # Logs
 *.log

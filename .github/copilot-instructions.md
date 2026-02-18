@@ -1,7 +1,7 @@
 # Copilot Instructions - Nexo AI
 
 Assistente pessoal via Telegram/WhatsApp que organiza conteúdo (filmes, séries, vídeos, links, notas) usando IA.
-**Stack**: Bun + Elysia + Drizzle ORM + PostgreSQL (Supabase) + Gemini/Cloudflare Workers AI
+**Stack**: Node.js + Hono + Drizzle ORM + PostgreSQL (Supabase) + Gemini/Cloudflare Workers AI
 
 ## Arquitetura v0.3.0 - Controle Determinístico
 
@@ -101,7 +101,7 @@ src/
 
 ```bash
 pnpm install && cp .env.example .env
-pnpm run dev              # http://localhost:3000
+pnpm run dev              # http://localhost:3001 (API)
 pnpm run db:generate      # gera migrations Drizzle
 pnpm run db:push          # aplica no Supabase
 pnpm run db:studio        # UI visual do banco
@@ -109,7 +109,7 @@ pnpm test                 # roda testes
 pnpm run lint             # TypeScript type check
 ```
 
-## Testes (Bun Test)
+## Testes (Vitest)
 
 ```bash
 pnpm test                           # todos os testes
@@ -121,9 +121,9 @@ pnpm test src/tests/intent-classifier.test.ts  # arquivo específico
 - `ai-fallback.test.ts` - fallback entre providers AI
 - `api.test.ts` - endpoints HTTP
 
-**Padrão**: `describe/test` com `expect` do `bun:test`
+**Padrão**: `describe/test` com `expect` do `vitest`
 ```typescript
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 ```
 
 ## Convenções Críticas
@@ -133,6 +133,24 @@ import { describe, test, expect } from 'bun:test';
 3. **Validação**: Zod em `config/env.ts`, JSON parse em `utils/json-parser.ts`
 4. **Path alias**: Use `@/` para imports (ex: `import { env } from '@/config/env'`)
 5. **Services são singletons**: exportados como instância única no final do arquivo
+6. **NUNCA mate o server sem verificar antes** - Veja seção Server Management abaixo
+
+## ⚠️ Server Management (OBRIGATÓRIO)
+
+**SEMPRE verifique se o server já está rodando ANTES de matar ou reiniciar.**
+O dev server geralmente já está up. Matar sem necessidade quebra túneis (zrok/ngrok) e perde tempo.
+
+```bash
+# ✅ CERTO: Verifica primeiro, só inicia se não estiver rodando
+lsof -ti:3001 > /dev/null 2>&1 && echo "API already running" || pnpm dev:api
+lsof -ti:5173 > /dev/null 2>&1 && echo "Dashboard already running" || pnpm dev:dash
+
+# ❌ ERRADO: Mata e reinicia sem verificar
+pkill -f "turbo.*api" && pnpm dev:api
+```
+
+**Quando reiniciar**: Só se mudou código de startup (server.ts, index.ts, config de env).
+Para mudanças normais de código, tsx watch recarrega sozinho.
 
 ## Adicionar Novo Tipo de Item
 
@@ -146,7 +164,7 @@ export async function save_podcast(context, params: { url: string }) { ... }
 
 // 3. services/enrichment/ - criar enricher se necessário
 // 4. config/prompts.ts - atualizar INTENT_CLASSIFIER_PROMPT e AGENT_SYSTEM_PROMPT
-// 5. Criar migration: bun run db:generate && bun run db:push
+// 5. Criar migration: pnpm run db:generate && pnpm run db:push
 ```
 
 ## AI Provider Multi-Fallback

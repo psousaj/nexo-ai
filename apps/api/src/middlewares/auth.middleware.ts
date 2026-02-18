@@ -1,0 +1,20 @@
+import { authPlugin } from '@/lib/auth';
+import type { Context, Next } from 'hono';
+
+/**
+ * Middleware para proteger rotas e injetar o usuário na Context
+ */
+export async function authMiddleware(c: Context, next: Next) {
+	const session = await authPlugin.api.getSession({
+		headers: c.req.raw.headers,
+	});
+
+	if (!session) {
+		return c.json({ error: 'Unauthorized' }, 401);
+	}
+
+	c.set('user', session.user);
+	c.set('session', session.session);
+
+	return next();
+}

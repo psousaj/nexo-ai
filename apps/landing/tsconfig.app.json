@@ -1,0 +1,10 @@
+{
+	"extends": "@nexo/typescript-config/base.json",
+	"compilerOptions": {
+		"jsx": "preserve",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+}
