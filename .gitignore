@@ -9,7 +9,7 @@
 **/dist
 
 # pnpm
-pnpm-lock.yaml
+# pnpm-lock.yaml deve ser commitado para builds determinísticos (Railway, Docker)
 .pnpm-debug.log*
 
 # Build
