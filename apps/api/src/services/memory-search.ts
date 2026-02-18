@@ -37,8 +37,8 @@ async function getEmbedding(text: string): Promise<number[]> {
 	// Try to use the embedding service if available
 	try {
 		// Check if embedding service exists
-		const { embeddingService } = await import('@/services/embedding/embedding.service');
-		const embedding = await embeddingService.embed(text);
+		const { embeddingService } = await import('@/services/ai/embedding-service');
+		const embedding = await embeddingService.generateEmbedding(text);
 		return embedding;
 	} catch (error) {
 		loggers.memory.warn({ error }, '⚠️ Embedding service not available, using placeholder');
@@ -203,7 +203,7 @@ export async function searchMemory(
 		LIMIT ${maxResults * 2}
 	`);
 
-	loggers.memory.debug({ vectorCount: vectorResults.rows.length }, '📊 Vector search complete');
+	loggers.memory.debug({ vectorCount: (vectorResults as any[]).length }, '📊 Vector search complete');
 
 	// 2. Keyword search (full-text search) using PostgreSQL FTS
 	const keywordResults = await db.execute(sql`
@@ -221,12 +221,12 @@ export async function searchMemory(
 		LIMIT ${maxResults * 2}
 	`);
 
-	loggers.memory.debug({ keywordCount: keywordResults.rows.length }, '📝 Keyword search complete');
+	loggers.memory.debug({ keywordCount: (keywordResults as any[]).length }, '📝 Keyword search complete');
 
 	// 3. Merge results (hybrid)
 	const merged = mergeHybridResults({
-		vector: vectorResults.rows,
-		keyword: keywordResults.rows,
+		vector: vectorResults as any[],
+		keyword: keywordResults as any[],
 		config,
 	});
 
@@ -241,8 +241,8 @@ export async function searchMemory(
 			query,
 			userId,
 			resultsCount: results.length,
-			vectorCount: vectorResults.rows.length,
-			keywordCount: keywordResults.rows.length,
+			vectorCount: (vectorResults as any[]).length,
+			keywordCount: (keywordResults as any[]).length,
 			config,
 		},
 		'✅ Memory search complete',
@@ -336,7 +336,6 @@ export async function upsertDailyLog(options: {
 			.update(agentDailyLogs)
 			.set({
 				content: `${existing.content}\n\n${content}`,
-				updatedAt: new Date().toISOString(),
 			})
 			.where(eq(agentDailyLogs.id, existing.id));
 

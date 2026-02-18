@@ -91,7 +91,7 @@ export class AgentOrchestrator {
 				loggers.ai.warn('⚠️ Mensagem vazia recebida, ignorando processamento');
 				return {
 					message: '',
-					shouldSave: false,
+					state: 'idle' as const,
 				};
 			}
 
@@ -591,7 +591,7 @@ export class AgentOrchestrator {
 			// Envia mensagem de feedback antes de mostrar a lista
 			if (context.provider === 'telegram') {
 				const { getProvider } = await import('@/adapters/messaging');
-				const provider = getProvider(context.provider as 'telegram');
+				const provider = await getProvider(context.provider as 'telegram');
 				if (provider) {
 					await provider.sendMessage(context.externalId, randomMsg);
 				}

@@ -134,7 +134,7 @@ export const userRoutes = new Hono<AuthContext>()
 				: null,
 			permissions: '268445712',
 			scopes: ['bot', 'applications.commands'],
-			botUsername: env.DISCORD_BOT_USERNAME || 'NexoAssistente_bot',
+			botUsername: 'NexoAssistente_bot',
 		});
 	})
 	.post('/link/consume', zValidator('json', z.object({ token: z.string() })), async (c) => {

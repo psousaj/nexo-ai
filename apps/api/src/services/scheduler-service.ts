@@ -182,7 +182,7 @@ export async function scheduleReminder(params: {
 			description,
 			scheduledFor,
 			status: 'pending',
-			provider,
+			provider: provider as 'telegram' | 'whatsapp' | 'discord',
 			externalId,
 		})
 		.returning({ id: scheduledReminders.id });

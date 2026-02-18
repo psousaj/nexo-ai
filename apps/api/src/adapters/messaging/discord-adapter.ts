@@ -162,12 +162,12 @@ export class DiscordAdapter implements MessagingProvider {
 
 		// Message updated
 		client.on('messageUpdate', async (oldMessage, newMessage) => {
-			await this.handleMessageUpdate(oldMessage, newMessage);
+			await this.handleMessageUpdate(oldMessage as any, newMessage as any);
 		});
 
 		// Message deleted
 		client.on('messageDelete', async (message) => {
-			await this.handleMessageDelete(message);
+			await this.handleMessageDelete(message as any);
 		});
 
 		// Thread created
@@ -463,7 +463,7 @@ export class DiscordAdapter implements MessagingProvider {
 			provider: 'discord',
 			metadata: {
 				isGroupMessage: isGuildMessage,
-				groupId: isGuildMessage ? message.guildId : undefined,
+				groupId: isGuildMessage ? (message.guildId ?? undefined) : undefined,
 				groupTitle: isGuildMessage ? message.guild?.name : undefined,
 				botMentioned,
 				messageType: isCommand ? 'command' : 'text',
@@ -500,7 +500,7 @@ export class DiscordAdapter implements MessagingProvider {
 
 			if (!channel.isTextBased()) throw new Error('Channel is not text-based');
 
-			await channel.send(text);
+			await (channel as any).send(text);
 			loggers.discord.info({ channelId: recipient, textLength: text.length }, '✅ Message sent');
 		} catch (error) {
 			loggers.discord.error({ error, channelId: recipient }, '❌ Failed to send message');
@@ -515,7 +515,7 @@ export class DiscordAdapter implements MessagingProvider {
 		try {
 			const channel = await client.channels.fetch(chatId);
 			if (channel?.isTextBased()) {
-				await channel.sendTyping();
+				await (channel as any).sendTyping();
 			}
 		} catch (error) {
 			loggers.discord.warn({ error, chatId }, '⚠️ Failed to send typing indicator');
@@ -653,7 +653,7 @@ export class DiscordAdapter implements MessagingProvider {
 				})),
 			}));
 
-			await channel.send({
+			await (channel as any).send({
 				content: text,
 				components,
 			});
@@ -693,7 +693,7 @@ export class DiscordAdapter implements MessagingProvider {
 				}));
 			}
 
-			await channel.send(payload);
+			await (channel as any).send(payload);
 			loggers.discord.info({ chatId, hasCaption: !!caption, hasButtons: !!buttons }, '✅ Photo sent');
 		} catch (error) {
 			loggers.discord.error({ error, chatId }, '❌ Failed to send photo');

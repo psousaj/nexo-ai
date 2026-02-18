@@ -100,7 +100,7 @@ export class BaileysAdapter implements MessagingProvider {
 			const isBroadcast = remoteJid?.includes('@broadcast');
 
 			// Extrair número de telefone (remover sufixo)
-			let phoneNumber = remoteJid?.split('@')[0] || '';
+			let phoneNumber: string = remoteJid?.split('@')[0] || '';
 
 			// Para grupos, o userId é o remetente original
 			let userId = phoneNumber;
@@ -112,7 +112,7 @@ export class BaileysAdapter implements MessagingProvider {
 			const senderName = msg.pushName;
 
 			// Timestamp
-			const timestamp = new Date((msg.messageTimestamp || 0) * 1000);
+			const timestamp = new Date(Number(msg.messageTimestamp || 0) * 1000);
 
 			logger.debug(
 				{
@@ -128,16 +128,16 @@ export class BaileysAdapter implements MessagingProvider {
 
 			return {
 				messageId: msg.key.id || '',
-				externalId: remoteJid,
-				userId,
-				senderName,
+				externalId: remoteJid || '',
+				userId: userId || '',
+				senderName: senderName ?? undefined,
 				text,
 				timestamp,
 				provider: 'whatsapp',
 				phoneNumber,
 				metadata: {
 					isGroupMessage: isGroup || false,
-					groupId: isGroup ? remoteJid : undefined,
+					groupId: isGroup ? (remoteJid ?? undefined) : undefined,
 					messageType: 'text',
 				},
 			};

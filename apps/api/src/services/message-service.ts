@@ -6,6 +6,7 @@ import { commandHandlerService } from '@/services/command-handler.service';
 import { conversationService } from '@/services/conversation-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { cancelConversationClose } from '@/services/queue-service';
+import { onboardingService } from '@/services/onboarding-service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { startSpan, setAttributes, recordException } from '@nexo/otel/tracing';
@@ -170,7 +171,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 				setAttributes({
 					'onboarding.allowed': result.allowed,
 					'onboarding.reason': result.reason || 'none',
-					'onboarding.interactions_remaining': result.interactionsRemaining,
+					'onboarding.interactions_remaining': (result as any).interactionsRemaining,
 				});
 				return result;
 			});

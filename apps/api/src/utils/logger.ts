@@ -47,6 +47,8 @@ export const loggers = {
 	// OpenClaw-inspired loggers
 	context: logger.child({ context: 'CONTEXT' }),
 	session: logger.child({ context: 'SESSION' }),
+	memory: logger.child({ context: 'MEMORY' }),
+	api: logger.child({ context: 'API' }),
 };
 
 /**

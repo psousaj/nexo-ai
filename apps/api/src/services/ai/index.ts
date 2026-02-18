@@ -50,8 +50,7 @@ export class AIService {
 					name: 'llm_call',
 					id: traceId,
 				}).generation({
-					model: this.provider.getCurrentModel(),
-					prompt: params.history || [],
+					model: (this.provider as any).model || 'dynamic/cloudflare',
 					metadata: {
 						provider: 'cloudflare',
 						messageLength: params.message.length,
@@ -65,21 +64,22 @@ export class AIService {
 			});
 
 			// OTEL attributes - Token usage
+			const usage = (response as any).usage;
 			setAttributes({
-				'llm.prompt_tokens': response.usage?.promptTokens || 0,
-				'llm.completion_tokens': response.usage?.completionTokens || 0,
-				'llm.total_tokens': response.usage?.totalTokens || 0,
+				'llm.prompt_tokens': usage?.promptTokens || 0,
+				'llm.completion_tokens': usage?.completionTokens || 0,
+				'llm.total_tokens': usage?.totalTokens || 0,
 				'llm.response_length': response.message?.length || 0,
 			});
 
 			// Langfuse - Completion
-			if (generation && response.usage) {
+			if (generation && usage) {
 				generation.end({
 					completion: response.message,
 					usage: {
-						promptTokens: response.usage.promptTokens,
-						completionTokens: response.usage.completionTokens,
-						totalTokens: response.usage.totalTokens,
+						promptTokens: usage.promptTokens,
+						completionTokens: usage.completionTokens,
+						totalTokens: usage.totalTokens,
 					},
 				});
 			}

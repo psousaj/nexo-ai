@@ -37,7 +37,7 @@ export async function parseNaturalDate(dateString: string, referenceDate?: Date)
 			input: dateString,
 			referenceDate: ref,
 			parsedDate,
-			confidence: results[0].start?.certaintyRating(),
+			confidence: (results[0].start as any)?.certaintyRating?.() ?? undefined,
 		},
 		'Date parsed successfully',
 	);
@@ -65,7 +65,7 @@ export async function parseNaturalDateWithMeta(
 
 	const result = results[0];
 	const parsedDate = result.start.date();
-	const confidence = result.start?.certaintyRating() || 0;
+	const confidence = (result.start as any)?.certaintyRating?.() || 0;
 
 	return {
 		date: parsedDate,
