@@ -14,7 +14,7 @@
 import { db } from '@/db';
 import { agentSessions } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt } from 'drizzle-orm';
 
 /**
  * Parameters to build a session key
@@ -127,13 +127,13 @@ export async function getOrCreateSession(params: SessionKeyParams): Promise<Agen
 		await db
 			.update(agentSessions)
 			.set({
-				updatedAt: new Date().toISOString(),
-				lastActivityAt: new Date().toISOString(),
+				updatedAt: new Date(),
+				lastActivityAt: new Date(),
 			})
 			.where(eq(agentSessions.id, existing.id));
 
 		loggers.session.info({ sessionId: existing.id }, '✅ Session found');
-		return existing as AgentSession;
+		return existing as unknown as AgentSession;
 	}
 
 	// Create new session
@@ -154,7 +154,7 @@ export async function getOrCreateSession(params: SessionKeyParams): Promise<Agen
 
 	loggers.session.info({ sessionId: newSession.id, sessionKey }, '✨ New session created');
 
-	return newSession as AgentSession;
+	return newSession as unknown as AgentSession;
 }
 
 /**
@@ -166,7 +166,7 @@ export async function linkSessionToUser(sessionKey: string, userId: string, conv
 		.set({
 			userId,
 			conversationId,
-			updatedAt: new Date().toISOString(),
+			updatedAt: new Date(),
 		})
 		.where(eq(agentSessions.sessionKey, sessionKey));
 
@@ -187,7 +187,7 @@ export async function updateSessionMetadata(
 		.update(agentSessions)
 		.set({
 			...metadata,
-			updatedAt: new Date().toISOString(),
+			updatedAt: new Date(),
 		})
 		.where(eq(agentSessions.sessionKey, sessionKey));
 }
@@ -201,7 +201,7 @@ export async function getUserSessions(userId: string): Promise<AgentSession[]> {
 		orderBy: [desc(agentSessions.lastActivityAt)],
 	});
 
-	return sessions as AgentSession[];
+	return sessions as unknown as AgentSession[];
 }
 
 /**
@@ -221,7 +221,7 @@ export async function getActiveSession(
 		orderBy: [desc(agentSessions.lastActivityAt)],
 	});
 
-	return session as AgentSession | null;
+	return session as unknown as AgentSession | null;
 }
 
 /**
@@ -241,7 +241,7 @@ export async function cleanupOldSessions(daysOld = 30): Promise<number> {
 
 	const result = await db
 		.delete(agentSessions)
-		.where(eq(agentSessions.lastActivityAt, cutoffDate.toISOString()))
+		.where(lt(agentSessions.lastActivityAt, cutoffDate))
 		.returning({ id: agentSessions.id });
 
 	loggers.session.info({ count: result.length, daysOld }, '🧹 Old sessions cleaned up');

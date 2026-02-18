@@ -8,7 +8,7 @@
 import { db } from '@/db';
 import { accounts, microsoftTodoIntegrations } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 const logger = loggers.integrations;
 
@@ -57,7 +57,7 @@ async function getAccessToken(userId: string): Promise<string> {
 	const [account] = await db
 		.select()
 		.from(accounts)
-		.where(eq(accounts.providerId, 'microsoft'), eq(accounts.userId, userId))
+		.where(and(eq(accounts.providerId, 'microsoft'), eq(accounts.userId, userId)))
 		.limit(1);
 
 	if (!account) {
@@ -299,8 +299,7 @@ export async function hasMicrosoftTodoConnected(userId: string): Promise<boolean
 		const [account] = await db
 			.select()
 			.from(accounts)
-			.where(eq(accounts.providerId, 'microsoft'), eq(accounts.userId, userId))
-			.limit(1);
+		.where(and(eq(accounts.providerId, 'microsoft'), eq(accounts.userId, userId)))
 
 		if (!account) return false;
 

@@ -7,7 +7,7 @@
 import { db } from '@/db';
 import { accounts, googleCalendarIntegrations } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -33,7 +33,7 @@ async function getOAuth2Client(userId: string): Promise<OAuth2Client> {
 	const [account] = await db
 		.select()
 		.from(accounts)
-		.where(eq(accounts.providerId, 'google'), eq(accounts.userId, userId))
+		.where(and(eq(accounts.providerId, 'google'), eq(accounts.userId, userId)))
 		.limit(1);
 
 	if (!account) {
@@ -155,10 +155,10 @@ export async function listCalendarEvents(userId: string, startDate?: Date, endDa
 		const events = response.data.items?.map((event) => ({
 			id: event.id || '',
 			title: event.summary || 'Sem título',
-			description: event.description,
+			description: event.description ?? undefined,
 			start: event.start?.dateTime ? new Date(event.start.dateTime) : new Date(event.start?.date || ''),
 			end: event.end?.dateTime ? new Date(event.end.dateTime) : event.end?.date ? new Date(event.end.date) : undefined,
-			location: event.location,
+			location: event.location ?? undefined,
 		})) || [];
 
 		logger.info({ userId, count: events.length }, '✅ Eventos listados com sucesso');
@@ -232,8 +232,7 @@ export async function hasGoogleCalendarConnected(userId: string): Promise<boolea
 		const [account] = await db
 			.select()
 			.from(accounts)
-			.where(eq(accounts.providerId, 'google'), eq(accounts.userId, userId))
-			.limit(1);
+		.where(and(eq(accounts.providerId, 'google'), eq(accounts.userId, userId)))
 
 		if (!account) return false;
 

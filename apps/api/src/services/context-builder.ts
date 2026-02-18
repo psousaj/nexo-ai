@@ -135,12 +135,12 @@ export async function buildAgentContext(userId: string, sessionKey: string): Pro
 
 	return {
 		systemPrompt,
-		agentsContent: profile?.agentsContent,
-		soulContent: profile?.soulContent,
-		identityContent: profile?.identityContent,
-		userContent: profile?.userContent,
-		toolsContent: profile?.toolsContent,
-		memoryContent: profile?.memoryContent,
+		agentsContent: profile?.agentsContent ?? undefined,
+		soulContent: profile?.soulContent ?? undefined,
+		identityContent: profile?.identityContent ?? undefined,
+		userContent: profile?.userContent ?? undefined,
+		toolsContent: profile?.toolsContent ?? undefined,
+		memoryContent: profile?.memoryContent ?? undefined,
 		assistantName: user.assistantName || undefined,
 		assistantEmoji: user.assistantEmoji || undefined,
 		assistantCreature: user.assistantCreature || undefined,
@@ -182,7 +182,7 @@ export async function updateAgentProfile(
 			.update(agentMemoryProfiles)
 			.set({
 				...profile,
-				updatedAt: new Date().toISOString(),
+				updatedAt: new Date(),
 			})
 			.where(eq(agentMemoryProfiles.id, existing.id));
 	} else {

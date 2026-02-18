@@ -107,7 +107,7 @@ const newCommand: ChatCommand = {
 	allowedInGroups: true,
 	handler: async (params: CommandParams): Promise<string> => {
 		await conversationService.updateState(params.conversationId, 'idle', {
-			candidates: null,
+			candidates: undefined,
 			awaiting_selection: false,
 			selectedForConfirmation: null,
 			pendingClarification: undefined,

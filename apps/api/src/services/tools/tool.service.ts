@@ -138,7 +138,7 @@ class ToolService {
 		const allUserTools = getUserTools();
 
 		for (const tool of allUserTools) {
-			await this.updateTool(tool.name, true);
+			await this.updateTool(tool.name as ToolName, true);
 		}
 
 		loggers.ai.info('✅ Todas as tools habilitadas');
@@ -151,7 +151,7 @@ class ToolService {
 		const allUserTools = getUserTools();
 
 		for (const tool of allUserTools) {
-			await this.updateTool(tool.name, false);
+			await this.updateTool(tool.name as ToolName, false);
 		}
 
 		loggers.ai.info('❌ Todas as tools desabilitadas');
