@@ -37,6 +37,15 @@ const envSchema = z.object({
 
 	// Observability
 	UPTRACE_DSN: z.string().optional(),
+	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+	OTEL_SERVICE_NAME: z.string().optional(),
+	// Langfuse - AI Observability
+	LANGFUSE_PUBLIC_KEY: z.string().optional(),
+	LANGFUSE_SECRET_KEY: z.string().optional(),
+	LANGFUSE_HOST: z.string().optional(),
+	// Sentry - Error tracking
+	SENTRY_DSN: z.string().optional(),
+	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.1),
 
 	// Enrichment APIs
 	TMDB_API_KEY: z.string(),
@@ -72,9 +81,9 @@ const envSchema = z.object({
 		.optional()
 		.transform((val) => {
 			return val
-				.trim()
+				?.trim()
 				.split(',')
-				.map((origin) => origin.trim());
+				.map((origin) => origin.trim()) ?? [];
 		}),
 	DASHBOARD_URL: z.string().url().optional(),
 	PORT: z.coerce.number().default(3001), // API na 3001

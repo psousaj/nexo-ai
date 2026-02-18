@@ -6,8 +6,7 @@
 	"scripts": {
 		"dev": "tsx -r dotenv/config --env-file=../../.env src/index.ts",
 		"build": "tsup",
-		"start": "NODE_ENV=production node --experimental-loader=newrelic/esm-loader.mjs dist/index.js",
-		"start:no-newrelic": "NODE_ENV=production node dist/index.js",
+		"start": "NODE_ENV=production node dist/index.js",
 		"start:binary": "./server",
 		"db:generate": "drizzle-kit generate",
 		"db:push": "drizzle-kit push",
@@ -33,8 +32,10 @@
 		"@hono/swagger-ui": "^0.5.3",
 		"@hono/zod-validator": "^0.7.6",
 		"@nexo/env": "workspace:*",
+		"@nexo/otel": "workspace:*",
 		"@nexo/shared": "workspace:*",
 		"@scalar/hono-api-reference": "^0.9.37",
+		"@sentry/node": "^8.55.0",
 		"@toon-format/toon": "^2.1.0",
 		"@whiskeysockets/baileys": "7.0.0-rc.9",
 		"ai": "^6.0.49",
@@ -48,7 +49,7 @@
 		"googleapis": "^171.4.0",
 		"hono": "^4.11.5",
 		"ioredis": "^5.9.2",
-		"newrelic": "^13.10.0",
+		"langfuse": "^3.0.0",
 		"node-cron": "^3.0.3",
 		"node-nlp": "5.0.0-alpha.5",
 		"openai": "^6.16.0",
@@ -63,7 +64,6 @@
 		"@nexo/eslint-config": "workspace:*",
 		"@nexo/prettier-config": "workspace:*",
 		"@nexo/typescript-config": "workspace:*",
-		"@types/newrelic": "^9.14.8",
 		"@types/node": "^20.19.30",
 		"@types/node-cron": "^3.0.11",
 		"@types/pg": "^8.16.0",
@@ -76,8 +76,6 @@
 	},
 	"pnpm": {
 		"neverBuiltDependencies": [
-			"@newrelic/fn-inspect",
-			"@newrelic/native-metrics",
 			"msgpackr-extract"
 		]
 	}

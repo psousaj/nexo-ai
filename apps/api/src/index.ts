@@ -1,4 +1,6 @@
-import 'newrelic';
+import './otel'; // OpenTelemetry must be imported first
+import './sentry'; // Sentry error tracking
+import { initializeLangfuse } from '@/services/langfuse'; // Langfuse AI observability
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
 import { env } from '@/config/env';
 import app from '@/server';
@@ -7,6 +9,9 @@ import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 
 const port = env.PORT;
+
+// Initialize Langfuse for AI observability
+initializeLangfuse();
 
 /**
  * Inicializar Baileys se a API ativa for 'baileys'

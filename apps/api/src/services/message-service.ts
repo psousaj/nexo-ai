@@ -8,6 +8,7 @@ import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.se
 import { cancelConversationClose } from '@/services/queue-service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
+import { startSpan, setAttributes, recordException } from '@nexo/otel/tracing';
 
 export const userTimeouts = new Map<string, number>();
 
@@ -15,12 +16,24 @@ export const userTimeouts = new Map<string, number>();
  * Verifica se a mensagem contém conteúdo ofensivo usando nlp.js
  */
 async function containsOffensiveContent(message: string): Promise<boolean> {
-	const sentiment = await messageAnalyzer.analyzeSentiment(message);
-	loggers.webhook.info(
-		{ score: sentiment.score, sentiment: sentiment.sentiment, message },
-		'🛡️ Sentiment Analysis (nlp.js)',
-	);
-	return sentiment.score < -3;
+	return startSpan('offensive_content.check', async (span) => {
+		setAttributes({ 'message.length': message.length });
+
+		const sentiment = await messageAnalyzer.analyzeSentiment(message);
+
+		setAttributes({
+			'sentiment.score': sentiment.score,
+			'sentiment.label': sentiment.sentiment,
+			'offensive.is_offensive': sentiment.score < -3,
+		});
+
+		loggers.webhook.info(
+			{ score: sentiment.score, sentiment: sentiment.sentiment, message },
+			'🛡️ Sentiment Analysis (nlp.js)',
+		);
+
+		return sentiment.score < -3;
+	});
 }
 
 async function isUserInTimeout(userId: string, externalId: string): Promise<boolean> {
@@ -49,73 +62,125 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 }
 
 export async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider) {
-	const messageText = incomingMsg.text;
+	return startSpan('message.process', async (span) => {
+		const messageText = incomingMsg.text;
 
-	loggers.webhook.info(
-		{ provider: provider.getProviderName(), externalId: incomingMsg.externalId, message: messageText },
-		'📥 Mensagem recebida (Worker)',
-	);
+		setAttributes({
+			'message.provider': provider.getProviderName(),
+			'message.external_id': incomingMsg.externalId,
+			'message.text_length': messageText?.length || 0,
+			'message.has_callback': !!incomingMsg.callbackData,
+		});
 
-	// 0. IGNORA MENSAGENS VAZIAS (callback_data de botões, etc)
-	if (!messageText || messageText.trim().length === 0) {
-		loggers.webhook.info('⚠️ Mensagem vazia ignorada (provavelmente callback_data)');
-		return;
-	}
+		loggers.webhook.info(
+			{ provider: provider.getProviderName(), externalId: incomingMsg.externalId, message: messageText },
+			'📥 Mensagem recebida (Worker)',
+		);
 
-	// 1. VERIFICA COMANDOS DE SISTEMA (AGNÓSTICO)
-	const handledAsCommand = await commandHandlerService.handleCommand(incomingMsg, provider);
-	if (handledAsCommand) {
-		loggers.webhook.info('🤖 Comando de sistema processado, encerrando fluxo normal');
-		return;
-	}
-
-	const startTotal = performance.now();
-	let userId: string | undefined;
-	let conversationId: string | undefined;
-
-	try {
-		if (await containsOffensiveContent(messageText)) {
-			const { user } = await userService.findOrCreateUserByAccount(
-				incomingMsg.externalId,
-				incomingMsg.provider,
-				incomingMsg.senderName,
-				incomingMsg.phoneNumber,
-			);
-			userId = user.id;
-			const timeoutMinutes = await applyTimeout(user.id, incomingMsg.externalId);
-			await provider.sendMessage(incomingMsg.externalId, TIMEOUT_MESSAGE(timeoutMinutes));
+		// 0. IGNORA MENSAGENS VAZIAS (callback_data de botões, etc)
+		if (!messageText || messageText.trim().length === 0) {
+			setAttributes({ 'message.status': 'empty_ignored' });
+			loggers.webhook.info('⚠️ Mensagem vazia ignorada (provavelmente callback_data)');
 			return;
 		}
 
-		const { user } = await userService.findOrCreateUserByAccount(
-			incomingMsg.externalId,
-			incomingMsg.provider,
-			incomingMsg.senderName,
-			incomingMsg.phoneNumber,
-		);
-		userId = user.id;
+		// 1. VERIFICA COMANDOS DE SISTEMA (AGNÓSTICO)
+		const handledAsCommand = await startSpan('command.check', async () => {
+			return await commandHandlerService.handleCommand(incomingMsg, provider);
+		});
 
-		if (incomingMsg.senderName && incomingMsg.senderName !== user.name) {
-			await userService.updateUserName(user.id, incomingMsg.senderName);
+		if (handledAsCommand) {
+			setAttributes({ 'message.type': 'command' });
+			loggers.webhook.info('🤖 Comando de sistema processado, encerrando fluxo normal');
+			return;
 		}
 
-		if (await isUserInTimeout(user.id, incomingMsg.externalId)) return;
+		const startTotal = performance.now();
+		let userId: string | undefined;
+		let conversationId: string | undefined;
 
-		const conversation = await conversationService.findOrCreateConversation(user.id);
-		conversationId = conversation.id;
+		try {
+			// 2. VERIFICA CONTEÚDO OFENSIVO
+			const isOffensive = await containsOffensiveContent(messageText);
 
-		if (conversation.state === 'waiting_close') {
-			await cancelConversationClose(conversation.id);
-		}
+			if (isOffensive) {
+				setAttributes({ 'message.status': 'offensive_blocked' });
 
-		// 4. VERIFICA ONBOARDING (PHASE 2)
-		const { onboardingService } = await import('@/services/onboarding-service');
-		const { accountLinkingService } = await import('@/services/account-linking-service');
-		const onboarding = await onboardingService.checkOnboardingStatus(user.id, provider.getProviderName());
+				const { user } = await startSpan('user.find_or_create', async () => {
+					return await userService.findOrCreateUserByAccount(
+						incomingMsg.externalId,
+						incomingMsg.provider,
+						incomingMsg.senderName,
+						incomingMsg.phoneNumber,
+					);
+				});
 
-		if (!onboarding.allowed) {
-			const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
-			const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
+				userId = user.id;
+				setAttributes({ 'user.id': user.id, 'user.offense_count': user.offenseCount || 0 });
+
+				const timeoutMinutes = await applyTimeout(user.id, incomingMsg.externalId);
+				setAttributes({ 'timeout.minutes': timeoutMinutes });
+
+				await provider.sendMessage(incomingMsg.externalId, TIMEOUT_MESSAGE(timeoutMinutes));
+				return;
+			}
+
+			// 3. FIND OR CREATE USER
+			const { user } = await startSpan('user.find_or_create', async () => {
+				return await userService.findOrCreateUserByAccount(
+					incomingMsg.externalId,
+					incomingMsg.provider,
+					incomingMsg.senderName,
+					incomingMsg.phoneNumber,
+				);
+			});
+
+			userId = user.id;
+			setAttributes({ 'user.id': user.id, 'user.status': user.status });
+
+			if (incomingMsg.senderName && incomingMsg.senderName !== user.name) {
+				await userService.updateUserName(user.id, incomingMsg.senderName);
+			}
+
+			// Check timeout
+			if (await isUserInTimeout(user.id, incomingMsg.externalId)) {
+				setAttributes({ 'message.status': 'user_timeout' });
+				return;
+			}
+
+			// 4. GET OR CREATE CONVERSATION
+			const conversation = await startSpan('conversation.get_or_create', async () => {
+				return await conversationService.findOrCreateConversation(user.id);
+			});
+
+			conversationId = conversation.id;
+			setAttributes({
+				'conversation.id': conversation.id,
+				'conversation.state': conversation.state,
+			});
+
+			if (conversation.state === 'waiting_close') {
+				await cancelConversationClose(conversation.id);
+			}
+
+			// 5. VERIFICA ONBOARDING (PHASE 2)
+			const onboarding = await startSpan('onboarding.check', async () => {
+				const { onboardingService } = await import('@/services/onboarding-service');
+				const result = await onboardingService.checkOnboardingStatus(user.id, provider.getProviderName());
+				setAttributes({
+					'onboarding.allowed': result.allowed,
+					'onboarding.reason': result.reason || 'none',
+					'onboarding.interactions_remaining': result.interactionsRemaining,
+				});
+				return result;
+			});
+
+			if (!onboarding.allowed) {
+				setAttributes({ 'message.status': 'onboarding_blocked' });
+
+				const { accountLinkingService } = await import('@/services/account-linking-service');
+				const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
+				const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
 
 			if (isLocalhost && provider.getProviderName() === 'telegram') {
 				loggers.webhook.error(
@@ -227,33 +292,47 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 			await (provider as any).sendChatAction(incomingMsg.externalId, 'typing');
 		}
 
-		const agentResponse = await agentOrchestrator.processMessage({
-			userId: user.id,
-			conversationId: conversation.id,
-			externalId: incomingMsg.externalId,
-			message: messageText,
-			callbackData: incomingMsg.callbackData,
-			provider: provider.getProviderName(),
+		// 6. PROCESSA COM AGENT ORCHESTRATOR
+		const agentResponse = await startSpan('agent.process_message', async (agentSpan) => {
+			return await agentOrchestrator.processMessage({
+				userId: user.id,
+				conversationId: conversation.id,
+				externalId: incomingMsg.externalId,
+				message: messageText,
+				callbackData: incomingMsg.callbackData,
+				provider: provider.getProviderName(),
+			});
 		});
 
+		// 7. ENVIA RESPOSTA
 		if (agentResponse.message && agentResponse.message.trim().length > 0) {
-			try {
-				await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-				loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
-			} catch (sendError: any) {
-				// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
-				if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-					loggers.webhook.error(
-						{ error: sendError.cause?.code },
-						'❌ Erro de rede ao enviar mensagem - não enviando fallback',
-					);
-					throw sendError; // Re-throw para Bull não fazer retry
+			await startSpan('messaging.send', async () => {
+				setAttributes({
+					'response.length': agentResponse.message.length,
+					'response.tools_used': agentResponse.toolsUsed?.length || 0,
+					'response.state': agentResponse.state,
+				});
+
+				try {
+					await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
+					loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+				} catch (sendError: any) {
+					// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
+					if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
+						loggers.webhook.error(
+							{ error: sendError.cause?.code },
+							'❌ Erro de rede ao enviar mensagem - não enviando fallback',
+						);
+						throw sendError; // Re-throw para Bull não fazer retry
+					}
+					throw sendError;
 				}
-				throw sendError;
-			}
+			});
 		} else if (!agentResponse.skipFallback && agentResponse.state !== 'awaiting_context') {
 			// Fallback apenas se não foi enviado manualmente via adapter
 			// E se não estamos aguardando clarificação (mensagem já foi enviada pelo conversationService)
+			setAttributes({ 'response.type': 'fallback' });
+
 			const fallbackMsg = getRandomMessage(FALLBACK_MESSAGES);
 			try {
 				await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
@@ -269,12 +348,18 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		}
 
 		if (agentResponse.toolsUsed && agentResponse.toolsUsed.length > 0) {
+			setAttributes({ 'tools.count': agentResponse.toolsUsed.length });
 			loggers.webhook.info({ tools: agentResponse.toolsUsed }, '🔧 Tools usadas');
 		}
 
 		const endTotal = performance.now();
 		loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
 	} catch (error: any) {
+		recordException(error as Error, {
+			'user.id': userId,
+			'conversation.id': conversationId,
+		});
+
 		// Anexa contexto capturado para o Global Error Handler
 		error.userId = userId;
 		error.conversationId = conversationId;
@@ -292,4 +377,5 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		// Re-throw OBRIGATÓRIO para o Bull capturar e chamar worker.on('failed') -> GlobalErrorHandler
 		throw error;
 	}
+	});
 }

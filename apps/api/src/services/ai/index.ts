@@ -1,6 +1,8 @@
 import { env } from '@/config/env';
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
 import { loggers } from '@/utils/logger';
+import { startSpan, setAttributes, getCurrentTraceId } from '@nexo/otel/tracing';
+import { getLangfuse } from '@/services/langfuse';
 import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
 import type { AIResponse, Message } from './types';
 
@@ -25,15 +27,64 @@ export class AIService {
 	 * Retry e fallback são gerenciados pelo AI Gateway
 	 */
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
-		const { systemPrompt, ...rest } = params;
-		const prompt = systemPrompt || AGENT_SYSTEM_PROMPT;
+		return startSpan('llm.call', async (span) => {
+			const { systemPrompt, ...rest } = params;
+			const prompt = systemPrompt || AGENT_SYSTEM_PROMPT;
 
-		loggers.ai.info(`📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
-		loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
+			setAttributes({
+				'llm.message_length': params.message.length,
+				'llm.history_count': params.history?.length || 0,
+				'llm.system_prompt_length': prompt.length,
+			});
 
-		return this.provider.callLLM({
-			...rest,
-			systemPrompt: prompt,
+			loggers.ai.info(`📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
+			loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
+
+			// Langfuse integration
+			const langfuse = getLangfuse();
+			const traceId = getCurrentTraceId();
+			let generation: any = null;
+
+			if (langfuse) {
+				generation = langfuse.trace({
+					name: 'llm_call',
+					id: traceId,
+				}).generation({
+					model: this.provider.getCurrentModel(),
+					prompt: params.history || [],
+					metadata: {
+						provider: 'cloudflare',
+						messageLength: params.message.length,
+					},
+				});
+			}
+
+			const response = await this.provider.callLLM({
+				...rest,
+				systemPrompt: prompt,
+			});
+
+			// OTEL attributes - Token usage
+			setAttributes({
+				'llm.prompt_tokens': response.usage?.promptTokens || 0,
+				'llm.completion_tokens': response.usage?.completionTokens || 0,
+				'llm.total_tokens': response.usage?.totalTokens || 0,
+				'llm.response_length': response.message?.length || 0,
+			});
+
+			// Langfuse - Completion
+			if (generation && response.usage) {
+				generation.end({
+					completion: response.message,
+					usage: {
+						promptTokens: response.usage.promptTokens,
+						completionTokens: response.usage.completionTokens,
+						totalTokens: response.usage.totalTokens,
+					},
+				});
+			}
+
+			return response;
 		});
 	}
 

@@ -1,4 +1,5 @@
 import { loggers } from '@/utils/logger';
+import { startSpan, setAttributes } from '@nexo/otel/tracing';
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
 import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';
 import { SpamAnalyzer } from './analyzers/spam-analyzer.js';
@@ -82,45 +83,54 @@ export class MessageAnalyzerService {
 	 * Classifica intenção usando modelo neural treinado
 	 */
 	async classifyIntent(message: string): Promise<IntentAnalysisResult> {
-		await this.ensureInitialized();
+		return startSpan('nlp.neural_classification', async (span) => {
+			setAttributes({ 'nlp.message_length': message.length });
 
-		const result = await this.trainer.process(message);
+			await this.ensureInitialized();
 
-		// Mapear intent para action
-		const intentToAction: Record<string, string> = {
-			'greetings.hello': 'greet',
-			'greetings.bye': 'farewell',
-			'save.movie': 'save_movie',
-			'save.tv_show': 'save_tv_show',
-			'save.video': 'save_video',
-			'save.link': 'save_link',
-			'save.note': 'save_note',
-			'save.previous': 'save_previous',
-			'search.all': 'list_all',
-			'search.movies': 'search',
-			'search.tv_shows': 'search',
-			'search.notes': 'search',
-			'search.query': 'search',
-			'delete.all': 'delete_all',
-			'delete.item': 'delete_item',
-			'delete.selection': 'delete_selected',
-			'confirmation.yes': 'confirm',
-			'confirmation.no': 'deny',
-			'info.assistant_name': 'get_assistant_name',
-			'info.help': 'get_help',
-			'settings.change_name': 'update_settings',
-		};
+			const result = await this.trainer.process(message);
 
-		return {
-			type: 'intent',
-			timestamp: new Date(),
-			confidence: result.score || 0,
-			intent: result.intent || 'unknown',
-			action: intentToAction[result.intent] || 'unknown',
-			score: result.score || 0,
-			entities: this.extractEntities(result.entities || []),
-			classifications: result.classifications || [],
-		};
+			setAttributes({
+				'nlp.neural.intent': result.intent,
+				'nlp.neural.score': result.score,
+			});
+
+			// Mapear intent para action
+			const intentToAction: Record<string, string> = {
+				'greetings.hello': 'greet',
+				'greetings.bye': 'farewell',
+				'save.movie': 'save_movie',
+				'save.tv_show': 'save_tv_show',
+				'save.video': 'save_video',
+				'save.link': 'save_link',
+				'save.note': 'save_note',
+				'save.previous': 'save_previous',
+				'search.all': 'list_all',
+				'search.movies': 'search',
+				'search.tv_shows': 'search',
+				'search.notes': 'search',
+				'search.query': 'search',
+				'delete.all': 'delete_all',
+				'delete.item': 'delete_item',
+				'delete.selection': 'delete_selected',
+				'confirmation.yes': 'confirm',
+				'confirmation.no': 'deny',
+				'info.assistant_name': 'get_assistant_name',
+				'info.help': 'get_help',
+				'settings.change_name': 'update_settings',
+			};
+
+			return {
+				type: 'intent',
+				timestamp: new Date(),
+				confidence: result.score || 0,
+				intent: result.intent || 'unknown',
+				action: intentToAction[result.intent] || 'unknown',
+				score: result.score || 0,
+				entities: this.extractEntities(result.entities || []),
+				classifications: result.classifications || [],
+			};
+		});
 	}
 
 	/**

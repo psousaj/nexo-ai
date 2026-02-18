@@ -3,6 +3,7 @@ import { INTENT_CLASSIFIER_PROMPT } from '@/config/prompts';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { IntentAnalysisResult } from '@/services/message-analysis/types/analysis-result.types';
 import { loggers } from '@/utils/logger';
+import { startSpan, setAttributes } from '@nexo/otel/tracing';
 import OpenAI from 'openai';
 
 /**
@@ -94,40 +95,77 @@ export class IntentClassifier {
 	 * 3. Se confiança < 85% ou caso complexo, usa LLM
 	 */
 	async classify(message: string): Promise<IntentResult> {
-		// Valida que message é uma string válida
-		if (!message || typeof message !== 'string') {
-			loggers.ai.warn('⚠️ Mensagem inválida para classificação, usando fallback');
-			return this.classifyWithRegex(message || '');
-		}
+		return startSpan('intent.classification', async (span) => {
+			setAttributes({
+				'intent.message_length': message?.length || 0,
+			});
 
-		try {
-			// 1. Tenta classificação neural primeiro (rápido)
-			const neuralResult = await messageAnalyzer.classifyIntent(message);
-
-			// 2. Se confiança alta, usa resultado neural direto
-			if (neuralResult.confidence >= this.NEURAL_CONFIDENCE_THRESHOLD) {
-				loggers.ai.info(
-					{ intent: neuralResult.intent, confidence: neuralResult.confidence.toFixed(2), method: 'neural' },
-					'⚡ Fast path: classificação neural',
-				);
-				return this.mapNeuralToIntentResult(neuralResult, message);
+			// Valida que message é uma string válida
+			if (!message || typeof message !== 'string') {
+				setAttributes({ 'intent.status': 'invalid_message' });
+				loggers.ai.warn('⚠️ Mensagem inválida para classificação, usando fallback');
+				return this.classifyWithRegex(message || '');
 			}
 
-			// 3. Confiança baixa - usa LLM se disponível
-			loggers.ai.info({ confidence: neuralResult.confidence.toFixed(2) }, '🤖 Confiança baixa, tentando LLM');
+			try {
+				// 1. Tenta classificação neural primeiro (rápido)
+				const neuralResult = await startSpan('intent.neural', async () => {
+					const result = await messageAnalyzer.classifyIntent(message);
+					setAttributes({
+						'intent.neural.intent': result.intent,
+						'intent.neural.confidence': result.confidence,
+						'intent.neural.action': result.action,
+					});
+					return result;
+				});
 
-			// Se Cloudflare não configurado, usa regex como último fallback
-			if (!this.client) {
-				loggers.ai.warn('⚠️ LLM não disponível, usando fallback regex');
+				// 2. Se confiança alta, usa resultado neural direto
+				if (neuralResult.confidence >= this.NEURAL_CONFIDENCE_THRESHOLD) {
+					setAttributes({
+						'intent.method': 'neural',
+						'intent.final_intent': neuralResult.intent,
+						'intent.final_confidence': neuralResult.confidence,
+					});
+					loggers.ai.info(
+						{ intent: neuralResult.intent, confidence: neuralResult.confidence.toFixed(2), method: 'neural' },
+						'⚡ Fast path: classificação neural',
+					);
+					return this.mapNeuralToIntentResult(neuralResult, message);
+				}
+
+				// 3. Confiança baixa - usa LLM se disponível
+				loggers.ai.info({ confidence: neuralResult.confidence.toFixed(2) }, '🤖 Confiança baixa, tentando LLM');
+
+				// Se Cloudflare não configurado, usa regex como último fallback
+				if (!this.client) {
+					setAttributes({ 'intent.method': 'regex_fallback' });
+					loggers.ai.warn('⚠️ LLM não disponível, usando fallback regex');
+					return this.classifyWithRegex(message);
+				}
+
+				// Chama LLM para casos complexos
+				const llmResult = await startSpan('intent.llm', async () => {
+					const result = await this.classifyWithLLM(message);
+					setAttributes({
+						'intent.llm.intent': result.intent,
+						'intent.llm.action': result.action,
+						'intent.llm.confidence': result.confidence,
+					});
+					return result;
+				});
+
+				setAttributes({
+					'intent.method': 'llm',
+					'intent.final_intent': llmResult.intent,
+					'intent.final_confidence': llmResult.confidence,
+				});
+				return llmResult;
+			} catch (error) {
+				setAttributes({ 'intent.method': 'error_fallback' });
+				loggers.ai.error({ err: error }, '❌ Erro na classificação híbrida');
 				return this.classifyWithRegex(message);
 			}
-
-			// Chama LLM para casos complexos
-			return await this.classifyWithLLM(message);
-		} catch (error) {
-			loggers.ai.error({ err: error }, '❌ Erro na classificação híbrida');
-			return this.classifyWithRegex(message);
-		}
+		});
 	}
 
 	/**

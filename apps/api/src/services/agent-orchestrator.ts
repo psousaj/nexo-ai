@@ -37,6 +37,7 @@ import { userService } from '@/services/user-service';
 import type { ConversationState, ToolName } from '@/types';
 import { isValidAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
 import { logError, loggers } from '@/utils/logger';
+import { startSpan, setAttributes, recordException } from '@nexo/otel/tracing';
 import { llmService } from './ai';
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
@@ -74,20 +75,33 @@ export class AgentOrchestrator {
 	 * Processa mensagem do usuário
 	 */
 	async processMessage(context: AgentContext): Promise<AgentResponse> {
-		loggers.ai.info({ message: context.message }, '🎯 Processando mensagem');
+		return startSpan('agent.orchestrator.process', async (span) => {
+			setAttributes({
+				'agent.user_id': context.userId,
+				'agent.conversation_id': context.conversationId,
+				'agent.has_callback': !!context.callbackData,
+				'agent.message_length': context.message?.length || 0,
+			});
 
-		// Validação de mensagem vazia (callback_data, botões, etc)
-		if (!context.message || context.message.trim().length === 0) {
-			loggers.ai.warn('⚠️ Mensagem vazia recebida, ignorando processamento');
-			return {
-				message: '',
-				shouldSave: false,
-			};
-		}
+			loggers.ai.info({ message: context.message }, '🎯 Processando mensagem');
 
-		// 0. BUSCAR ESTADO ATUAL
-		const conversation = await conversationService.findOrCreateConversation(context.userId);
-		loggers.ai.info({ state: conversation.state }, '📊 Estado atual');
+			// Validação de mensagem vazia (callback_data, botões, etc)
+			if (!context.message || context.message.trim().length === 0) {
+				setAttributes({ 'agent.status': 'empty_message' });
+				loggers.ai.warn('⚠️ Mensagem vazia recebida, ignorando processamento');
+				return {
+					message: '',
+					shouldSave: false,
+				};
+			}
+
+			// 0. BUSCAR ESTADO ATUAL
+			const conversation = await startSpan('conversation.get_state', async () => {
+				return await conversationService.findOrCreateConversation(context.userId);
+			});
+
+			setAttributes({ 'conversation.state': conversation.state });
+			loggers.ai.info({ state: conversation.state }, '📊 Estado atual');
 
 		// A0. TRATAR ESTADO OFF_TOPIC_CHAT
 		if (conversation.state === 'off_topic_chat') {
@@ -279,6 +293,7 @@ export class AgentOrchestrator {
 
 		loggers.ai.info({ charCount: response.message?.length || 0 }, '✅ Resposta gerada');
 		return response;
+		});
 	}
 
 	/**
@@ -321,6 +336,7 @@ export class AgentOrchestrator {
 	 * Runtime processa e decide o que fazer.
 	 */
 	private async handleWithLLM(context: AgentContext, _intent: IntentResult, conversation: any): Promise<AgentResponse> {
+		return startSpan('agent.handle_with_llm', async (span) => {
 		const toolContext: ToolContext = {
 			userId: context.userId,
 			conversationId: context.conversationId,
@@ -482,6 +498,7 @@ export class AgentOrchestrator {
 			state: nextState,
 			toolsUsed,
 		};
+		});
 	}
 
 	/**

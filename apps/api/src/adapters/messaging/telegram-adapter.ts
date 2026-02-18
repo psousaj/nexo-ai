@@ -19,6 +19,7 @@ function escapeMarkdownV2(text: string): string {
 import { env } from '@/config/env';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
+import { startSpan, setAttributes } from '@nexo/otel/tracing';
 import type {
 	ChatAction,
 	ChatCommand,
@@ -195,7 +196,15 @@ export class TelegramAdapter implements MessagingProvider {
 			replyToMessageId?: number;
 		},
 	): Promise<void> {
-		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
+		return startSpan('messaging.telegram.send', async (span) => {
+			setAttributes({
+				'messaging.platform': 'telegram',
+				'messaging.chat_id': chatId,
+				'messaging.message_length': text.length,
+				'messaging.parse_mode': options?.parseMode || 'none',
+			});
+
+			const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
 		const payload: any = {
 			chat_id: chatId,
@@ -237,6 +246,7 @@ export class TelegramAdapter implements MessagingProvider {
 		}
 
 		loggers.webhook.info({ chatId }, 'Mensagem Telegram enviada');
+		});
 	}
 
 	/**
@@ -250,7 +260,15 @@ export class TelegramAdapter implements MessagingProvider {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
 	): Promise<void> {
-		const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
+		return startSpan('messaging.telegram.send_with_buttons', async (span) => {
+			setAttributes({
+				'messaging.platform': 'telegram',
+				'messaging.chat_id': chatId,
+				'messaging.message_length': text.length,
+				'messaging.buttons_count': buttons.flat().length,
+			});
+
+			const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
 		const payload: any = {
 			chat_id: chatId,
@@ -285,6 +303,7 @@ export class TelegramAdapter implements MessagingProvider {
 		}
 
 		loggers.webhook.info({ chatId, buttonsCount: buttons.flat().length }, 'Mensagem com botões enviada');
+		});
 	}
 
 	/**
@@ -299,7 +318,16 @@ export class TelegramAdapter implements MessagingProvider {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
 	): Promise<void> {
-		const url = `${this.baseUrl}/bot${this.token}/sendPhoto`;
+		return startSpan('messaging.telegram.send_photo', async (span) => {
+			setAttributes({
+				'messaging.platform': 'telegram',
+				'messaging.chat_id': chatId,
+				'messaging.has_caption': !!caption,
+				'messaging.has_buttons': !!buttons,
+				'messaging.buttons_count': buttons?.flat().length || 0,
+			});
+
+			const url = `${this.baseUrl}/bot${this.token}/sendPhoto`;
 
 		const payload: any = {
 			chat_id: chatId,
@@ -347,6 +375,7 @@ export class TelegramAdapter implements MessagingProvider {
 		}
 
 		loggers.webhook.info({ chatId }, 'Foto enviada');
+		});
 	}
 
 	/**

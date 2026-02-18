@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { env } from '@/config/env';
 import { authRouter } from '@/routes/auth-better.routes';
 import { dashboardRouter } from '@/routes/dashboard';
@@ -20,6 +21,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { swaggerUI } from '@hono/swagger-ui';
 import { apiReference } from '@scalar/hono-api-reference';
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import cron from 'node-cron';
@@ -51,6 +53,26 @@ app.use(
 
 // Logger HTTP - Log de todas as requisições
 app.use('*', logger());
+
+// ============================================================================
+// SENTRY - Error tracking & contexto HTTP
+// ============================================================================
+// Middleware para capturar contexto da requisição e usuário
+app.use('*', async (c, next) => {
+	// Captura informações da requisição para breadcrumbs
+	Sentry.addBreadcrumb({
+		category: 'http',
+		message: `${c.req.method} ${c.req.url}`,
+		level: 'info',
+		data: {
+		method: c.req.method,
+		url: c.req.url,
+		path: c.req.path,
+	},
+	});
+
+	return next();
+});
 
 // ============================================================================
 // BULL BOARD - Dashboard para filas
@@ -111,9 +133,43 @@ if (env.NODE_ENV !== 'test') {
 // Error Handler
 // Error Handler
 app.onError(async (error, c) => {
+	// Captura erros HTTP (4xx) - apenas loga, não envia para Sentry em produção
+	if (error instanceof HTTPException) {
+		// Em desenvolvimento, pode ser útil ver erros HTTP no Sentry
+		if (env.NODE_ENV === 'development') {
+			Sentry.captureException(error, {
+				tags: { http_status: String(error.status) },
+				extra: {
+					method: c.req.method,
+					url: c.req.url,
+					path: c.req.path,
+				},
+			});
+		}
+		return error.getResponse();
+	}
+
+	// Erros internos (5xx) sempre vão para o Sentry
 	const errorMessage = error instanceof Error ? error.message : String(error);
 
-	// Captura erro globalmente com contexto HTTP
+	// Captura erro no Sentry com contexto HTTP
+	Sentry.captureException(error, {
+		tags: {
+			http_status: '500',
+			route: c.req.routePath || c.req.path,
+		},
+		extra: {
+			method: c.req.method,
+			url: c.req.url,
+			path: c.req.path,
+			query: c.req.query(),
+			headers: {
+				'user-agent': c.req.header('user-agent'),
+			},
+		},
+	});
+
+	// Captura erro globalmente com contexto HTTP (serviço existente)
 	await globalErrorHandler.handle(error, {
 		provider: 'http',
 		state: 'request_processing',
@@ -142,6 +198,13 @@ app.route('/webhook', webhookRouter);
 app.route('/items', itemsRouter);
 app.route('/api/auth', authRouter);
 app.route('/api', dashboardRouter);
+
+// Debug route para testar Sentry (apenas em desenvolvimento)
+if (env.NODE_ENV === 'development') {
+	app.get('/debug-sentry', () => {
+		throw new Error('Sentry debug error - testando captura de exceção');
+	});
+}
 
 app.get('/', (c) =>
 	c.json({

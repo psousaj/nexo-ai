@@ -10,6 +10,7 @@ import { enrichmentService } from '@/services/enrichment';
 import { itemService } from '@/services/item-service';
 import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
 import { logError, loggers } from '@/utils/logger';
+import { startSpan, setAttributes } from '@nexo/otel/tracing';
 
 export interface ToolContext {
 	userId: string;
@@ -1067,27 +1068,45 @@ export type ToolName = keyof typeof AVAILABLE_TOOLS;
  * Executor genérico de tool
  */
 export async function executeTool(toolName: ToolName, context: ToolContext, params: any): Promise<ToolOutput> {
-	const tool = AVAILABLE_TOOLS[toolName];
+	return startSpan(`tool.execute`, async (span) => {
+		setAttributes({
+			'tool.name': toolName,
+			'tool.user_id': context.userId,
+			'tool.conversation_id': context.conversationId,
+			'tool.params_count': Object.keys(params).length,
+		});
 
-	if (!tool) {
-		return {
-			success: false,
-			error: `Tool "${toolName}" não existe`,
-		};
-	}
+		const tool = AVAILABLE_TOOLS[toolName];
 
-	loggers.ai.info({ toolName }, '🔧 Executando tool');
-	loggers.ai.info({ params }, '📦 Params da tool');
+		if (!tool) {
+			setAttributes({ 'tool.status': 'not_found' });
+			return {
+				success: false,
+				error: `Tool "${toolName}" não existe`,
+			};
+		}
 
-	try {
-		const result = await tool(context, params);
-		loggers.ai.info({ toolName, success: result.success }, '✅ Tool executada');
-		return result;
-	} catch (error) {
-		logError(error, { toolName, context: 'AI' });
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro desconhecido',
-		};
-	}
+		loggers.ai.info({ toolName }, '🔧 Executando tool');
+		loggers.ai.info({ params }, '📦 Params da tool');
+
+		try {
+			const result = await startSpan(`tool.${toolName}`, async () => {
+				const toolResult = await tool(context, params);
+				setAttributes({
+					'tool.success': toolResult.success,
+					'tool.has_data': !!toolResult.data,
+				});
+				return toolResult;
+			});
+			loggers.ai.info({ toolName, success: result.success }, '✅ Tool executada');
+			return result;
+		} catch (error) {
+			setAttributes({ 'tool.status': 'error' });
+			logError(error, { toolName, context: 'AI' });
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : 'Erro desconhecido',
+			};
+		}
+	});
 }
