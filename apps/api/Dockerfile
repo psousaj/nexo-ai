@@ -72,5 +72,8 @@ COPY --from=builder /app/apps/api/src/services/message-analysis/training/model/ 
 ENV NODE_ENV=production
 EXPOSE 3001
 
+# Diretório para persistir credenciais do Baileys (montado como volume no Railway)
+RUN mkdir -p /data/baileys-auth
+
 CMD ["node", "apps/api/dist/index.js"]
 

@@ -103,6 +103,29 @@ export const adminRoutes = new Hono()
 		invalidateWhatsAppProviderCache();
 		return c.json({ success: true, message: 'Cache cleared' });
 	})
+	// Disconnect Baileys session
+	.post('/whatsapp-settings/baileys/disconnect', async (c) => {
+		try {
+			const { getBaileysService } = await import('@/services/baileys-service');
+			const baileys = await getBaileysService();
+
+			// Disconnect the session
+			await baileys.disconnect();
+
+			return c.json({
+				success: true,
+				message: 'Sessão Baileys desconectada com sucesso',
+			});
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao desconectar Baileys',
+				},
+				500,
+			);
+		}
+	})
 	// Get Baileys QR Code
 	.get('/whatsapp-settings/qr-code', async (c) => {
 		try {

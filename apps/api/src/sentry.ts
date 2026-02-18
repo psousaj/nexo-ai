@@ -1,10 +1,13 @@
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { env } from '@/config/env';
+import { logger } from '@/utils/logger';
+
+const sentryLog = logger.child({ context: 'SENTRY' });
 
 export function initializeSentry() {
 	if (!env.SENTRY_DSN) {
-		console.log('[Sentry] Not configured - skipping');
+		sentryLog.warn('SENTRY_DSN não configurado - Sentry desativado');
 		return;
 	}
 
@@ -23,21 +26,12 @@ export function initializeSentry() {
 			nodeProfilingIntegration(),
 			Sentry.linkedErrorsIntegration(),
 			Sentry.requestDataIntegration(),
-			Sentry.consoleLoggingIntegration(),
+			// consoleLoggingIntegration removido — criava loop de logs com pino
 		],
 
 		// Profiling - Captura profiling automaticamente durante traces ativos
 		profileSessionSampleRate: env.NODE_ENV === 'development' ? 1.0 : 0.0,
 		profileLifecycle: 'trace',
-
-		// Filtros de dados sensíveis
-		beforeSend(event) {
-			if (event.request) {
-				delete event.request.cookies;
-				delete event.request.headers?.['authorization'];
-			}
-			return event;
-		},
 
 		// Breadcrumbs automáticos
 		beforeBreadcrumb(breadcrumb) {
@@ -56,11 +50,23 @@ export function initializeSentry() {
 			return event;
 		},
 
-		debug: env.NODE_ENV === 'development',
+		beforeSend(event) {
+			if (event.request) {
+				delete event.request.cookies;
+				delete event.request.headers?.['authorization'];
+			}
+			return event;
+		},
+
+		// debug interno do Sentry desativado — muito verbose
+		debug: false,
 	});
 
-	console.log('[Sentry] Initialized (v10) with Logs + Profiling enabled');
+	sentryLog.info('✅ Sentry inicializado');
 }
+
+// Auto-inicializa ao importar (compatível com `import "./sentry"` em index.ts)
+initializeSentry();
 
 export function captureException(error: Error, context?: {
 	user_id?: string;

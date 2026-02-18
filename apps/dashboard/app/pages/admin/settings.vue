@@ -113,6 +113,39 @@ const restartBaileysMutation = useMutation({
 	},
 });
 
+// Mutation to disconnect Baileys
+const disconnectBaileysMutation = useMutation({
+	mutationFn: async () => {
+		const response = await fetch(`${import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/admin/whatsapp-settings/baileys/disconnect`, {
+			method: 'POST',
+			credentials: 'include',
+		});
+		if (!response.ok) {
+			throw new Error('Erro ao desconectar');
+		}
+		return response.json();
+	},
+	onSuccess: async () => {
+		toast.add({
+			title: 'Desconectado',
+			description: 'Sessão Baileys desconectada com sucesso',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
+		// Refetch QR code and settings
+		queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] });
+		await refetchQRCode();
+	},
+	onError: (error: any) => {
+		toast.add({
+			title: 'Erro ao desconectar',
+			description: error.message || 'Erro ao desconectar sessão',
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
+	},
+});
+
 const handleApiChange = async (api: 'meta' | 'baileys') => {
 	if (api === selectedApi.value) return;
 
@@ -129,6 +162,17 @@ const handleApiChange = async (api: 'meta' | 'baileys') => {
 
 const handleClearCache = () => {
 	clearCacheMutation.mutate();
+};
+
+const handleDisconnect = () => {
+	const confirmed = confirm(
+		'Tem certeza que deseja desconectar a conta Baileys?\n\n' +
+		'Isso irá encerrar a sessão do WhatsApp. Você precisará escanear o QR Code novamente para reconectar.',
+	);
+
+	if (confirmed) {
+		disconnectBaileysMutation.mutate();
+	}
 };
 
 // Fetch QR Code when Baileys is selected
@@ -504,6 +548,23 @@ watch(baileysConnectionStatus, (newStatus) => {
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
 						Limpar Cache
+					</button>
+
+					<!-- Botão Desconectar Baileys -->
+					<button
+						v-if="selectedApi === 'baileys'"
+						:disabled="disconnectBaileysMutation.isPending.value"
+						class="px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+						@click="handleDisconnect"
+					>
+						<svg v-if="!disconnectBaileysMutation.isPending.value" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+						</svg>
+						<svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						Desconectar
 					</button>
 
 					<!-- Botão Reiniciar Conexão Baileys -->
