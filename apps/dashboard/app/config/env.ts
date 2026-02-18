@@ -23,7 +23,6 @@ export const env = {
 	NUXT_PUBLIC_AUTH_BASE_URL: process.env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001',
 	NUXT_PUBLIC_API_URL: process.env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api',
 	BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET || 'dev-secret-min-32-chars-long-12345',
-	BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || 'http://localhost:3001',
 	DATABASE_URL: process.env.DATABASE_URL,
 	PORT_DASHBOARD: Number.parseInt(process.env.PORT_DASHBOARD || '5173', 10),
 	CORS_ORIGINS: process.env.CORS_ORIGINS || 'localhost,share.zrok.io',
