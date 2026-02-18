@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/api",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "Assistente pessoal via WhatsApp com IA",
 	"type": "module",
 	"scripts": {
@@ -18,7 +18,6 @@
 		"format:check": "biome format .",
 		"lint:biome": "biome check .",
 		"lint:biome:fix": "biome check --write .",
-		"merge-pr": "bash ./scripts/merge-pr.sh",
 		"train:nexo": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
 		"train:nexo:bert": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
 		"set-admin": "tsx scripts/set-admin.ts"

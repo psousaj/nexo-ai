@@ -24,7 +24,8 @@
         "build:landing": "turbo build --filter=@nexo/landing",
         "db:generate": "turbo db:generate --filter=@nexo/api",
         "db:push": "turbo db:push --filter=@nexo/api",
-        "db:studio": "turbo db:studio --filter=@nexo/api"
+        "db:studio": "turbo db:studio --filter=@nexo/api",
+        "merge-pr": "chmod +x apps/api/scripts/merge-pr.sh && turbo merge-pr --filter=@nexo/api"
     },
     "devDependencies": {
         "@biomejs/biome": "^1.9.4",
