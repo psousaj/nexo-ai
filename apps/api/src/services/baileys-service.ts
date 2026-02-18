@@ -12,6 +12,7 @@
  */
 
 import { loggers } from '@/utils/logger';
+import { env } from '@/config/env';
 import { messageQueue } from '@/services/queue-service';
 import type { IncomingMessage } from '@/adapters/messaging';
 import {
@@ -64,7 +65,7 @@ export class BaileysService {
 
 	constructor(config: BaileysConfig = {}) {
 		this.config = {
-			authPath: config.authPath || './baileys-auth',
+			authPath: config.authPath || env.BAILEYS_AUTH_PATH,
 			printQRInTerminal: config.printQRInTerminal !== false,
 			usePairingCode: config.usePairingCode || false,
 			phoneNumber: config.phoneNumber || '',
