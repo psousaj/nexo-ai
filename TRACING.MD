@@ -7,7 +7,7 @@ O Nexo AI possui uma arquitetura de observabilidade completa com:
 - **OpenTelemetry** - Tracing distribuído padrão aberto (`@nexo/otel`)
 - **Jaeger** - Visualização de traces técnicos (local via Docker)
 - **Langfuse** - Observabilidade específica para IA/LLMs (Cloud)
-- **Sentry** - Error tracking + Logs estruturados (Cloud)
+- **Sentry** - Error tracking + Logs estruturados + Metrics + Profiling (Cloud)
 
 ## Arquitetura de Tracing
 
@@ -200,6 +200,103 @@ docker-compose up -d jaeger
 # - Operation: webhook.receive, message.process, llm.call, etc.
 ```
 
+## Métricas Customizadas
+
+Sentry Metrics permite enviar contadores, gauges e timers customizados:
+
+```typescript
+import { sentryMetrics, incrementCounter, recordTiming } from '@/sentry';
+
+// Contador - quantas vezes uma ação aconteceu
+sentryMetrics.increment('user_action_save_movie', 1, {
+	provider: 'telegram',
+	movie_genre: 'sci-fi',
+});
+
+// Ou helper simplificado
+incrementCounter('llm_calls_total', 1, {
+	model: 'llama-3.3-70b',
+	success: true,
+});
+
+// Gauge - valor absoluto (ex: fila size)
+sentryMetrics.set('queue_size', 42, {
+	queue_name: 'message-processing',
+});
+
+// Timing - duração em segundos
+recordTiming('llm_call_duration', 1250, {
+	model: 'llama-3.3-70b',
+	tokens: 450,
+});
+
+// Ou com duração em ms
+const durationMs = Date.now() - startTime;
+sentryMetrics.timing('database_query', durationMs / 1000, {
+	table: 'users',
+	operation: 'select',
+});
+
+// Distribuição - histograma de valores
+sentryMetrics.distribution('response_time_ms', 150, 'millisecond', {
+	endpoint: '/webhook/telegram',
+});
+```
+
+### Exemplos Práticos
+
+```typescript
+// Contador de mensagens processadas
+async function processMessage(message) {
+	incrementCounter('messages.total', 1, { provider: 'telegram' });
+
+	const start = Date.now();
+	try {
+		await agentOrchestrator.processMessage(message);
+		incrementCounter('messages.success', 1, { provider: 'telegram' });
+	} catch (error) {
+		incrementCounter('messages.error', 1, { provider: 'telegram' });
+		throw error;
+	} finally {
+		recordTiming('message_processing_duration', Date.now() - start, {
+			provider: 'telegram',
+		});
+	}
+}
+
+// Contador de tokens LLM
+sentryMetrics.increment('llm.tokens_total', response.usage.totalTokens, {
+	model: 'llama-3.3-70b',
+});
+
+// Gauge de itens no banco de dados
+const itemCount = await db.countItems();
+sentryMetrics.set('database.item_count', itemCount, {
+	userId: user.id,
+});
+```
+
+## Profiling Automático
+
+Sentry Profiling captura automaticamente performance profiles durante traces ativos:
+
+```typescript
+// Profiling é automático quando traces estão ativos
+// Configure via environment variables:
+SENTRY_TRACES_SAMPLE_RATE=1.0      // 100% dos traces
+SENTRY_PROFILE_SESSION_SAMPLE_RATE=1.0  // 100% com profiling
+
+// O profiling acontece automaticamente durante spans
+await startSpan('heavy_operation', async () => {
+	// Este código será profileado automaticamente
+	await complexCalculation();
+	await databaseQuery();
+	await externalAPICall();
+});
+```
+
+**Nota**: Profiling é ativado automaticamente para spans quando `profileLifecycle: 'trace'` está configurado.
+
 ## Dashboards
 
 ### Jaeger (Local)
@@ -214,5 +311,7 @@ docker-compose up -d jaeger
 
 ### Sentry (Cloud)
 - URL: https://sentry.io
-- Visualização: Erros, logs estruturados, performance
-- Contexto: User, request, breadcrumbs, tags
+- **Issues**: Erros com stack traces e contexto
+- **Logs**: Logs estruturados enviados via `Sentry.logger`
+- **Performance**: Traces com profiling data
+- **Metrics**: Métricas customizadas (contadores, gauges, timers)

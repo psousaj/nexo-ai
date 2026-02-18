@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { env } from '@/config/env';
 
 export function initializeSentry() {
@@ -10,17 +11,24 @@ export function initializeSentry() {
 	Sentry.init({
 		dsn: env.SENTRY_DSN,
 		environment: env.NODE_ENV,
-		tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE || 0.1,
+
+		// Tracing - Captura 100% em dev, 10% em prod
+		tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE || (env.NODE_ENV === 'development' ? 1.0 : 0.1),
 
 		// Sentry Logs (v10+) — envia logs estruturados para o dashboard
 		enableLogs: true,
 
-		// Integrações — Sentry v10 usa funções, não namespace Integrations
+		// Integrações — Sentry v10 + Profiling
 		integrations: [
+			nodeProfilingIntegration(),
 			Sentry.linkedErrorsIntegration(),
 			Sentry.requestDataIntegration(),
 			Sentry.consoleLoggingIntegration(),
 		],
+
+		// Profiling - Captura profiling automaticamente durante traces ativos
+		profileSessionSampleRate: env.NODE_ENV === 'development' ? 1.0 : 0.0,
+		profileLifecycle: 'trace',
 
 		// Filtros de dados sensíveis
 		beforeSend(event) {
@@ -51,7 +59,7 @@ export function initializeSentry() {
 		debug: env.NODE_ENV === 'development',
 	});
 
-	console.log('[Sentry] Initialized (v10) with Logs enabled');
+	console.log('[Sentry] Initialized (v10) with Logs + Profiling enabled');
 }
 
 export function captureException(error: Error, context?: {
@@ -107,4 +115,65 @@ export function capturePerformanceLog(message: string, duration: number, data?: 
 		duration_ms: duration,
 		performance: true,
 	});
+}
+
+/**
+ * Métricas customizadas do Sentry (v10 API)
+ * Use para enviar contadores, gauges e distributions para o dashboard
+ */
+export const sentryMetrics = {
+	/**
+	 * Incrementa um contador
+	 * @param key Nome da métrica (ex: 'user_actions', 'llm_calls')
+	 * @param amount Valor a incrementar (default: 1)
+	 * @param attributes Atributos estruturados da métrica
+	 */
+	increment(key: string, amount = 1, attributes?: Record<string, string | number>) {
+		Sentry.metrics.count(key, amount, { attributes });
+	},
+
+	/**
+	 * Define um valor absoluto (gauge)
+	 * @param key Nome da métrica
+	 * @param value Valor a definir
+	 * @param attributes Atributos estruturados da métrica
+	 */
+	set(key: string, value: number, attributes?: Record<string, string | number>) {
+		Sentry.metrics.gauge(key, value, { attributes });
+	},
+
+	/**
+	 * Registra um timing (distribution com unit 'second')
+	 * @param key Nome da métrica
+	 * @param value Valor em segundos
+	 * @param attributes Atributos estruturados da métrica
+	 */
+	timing(key: string, value: number, attributes?: Record<string, string | number>) {
+		Sentry.metrics.distribution(key, value, { unit: 'second', attributes });
+	},
+
+	/**
+	 * Distribuição de valores (histogram)
+	 * @param key Nome da métrica
+	 * @param value Valor a registrar
+	 * @param unit Unidade da métrica (default: 'none')
+	 * @param attributes Atributos estruturados da métrica
+	 */
+	distribution(key: string, value: number, unit: string = 'none', attributes?: Record<string, string | number>) {
+		Sentry.metrics.distribution(key, value, { unit, attributes });
+	},
+};
+
+/**
+ * Helper simplificado para contador
+ */
+export function incrementCounter(key: string, amount = 1, tags?: Record<string, string>) {
+	Sentry.metrics.count(key, amount, { attributes: tags });
+}
+
+/**
+ * Helper simplificado para timing (em ms, usando distribution)
+ */
+export function recordTiming(key: string, durationMs: number, tags?: Record<string, string>) {
+	Sentry.metrics.distribution(key, durationMs, { unit: 'millisecond', attributes: tags });
 }

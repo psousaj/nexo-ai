@@ -207,6 +207,15 @@ if (env.NODE_ENV === 'development') {
 		sentryLogger.info('User triggered test error', {
 			action: 'test_error_endpoint',
 		});
+
+		// Envia uma métrica de teste (conforme documentação)
+		Sentry.metrics.count('debug_sentry_test_counter', 1, {
+			attributes: {
+				route: '/debug-sentry',
+				environment: env.NODE_ENV,
+			},
+		});
+
 		throw new Error('Sentry debug error - testando captura de exceção');
 	});
 }
