@@ -12,26 +12,18 @@ export function initializeSentry() {
 		environment: env.NODE_ENV,
 		tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE || 0.1,
 
-		// Habilita envio de logs estruturados para Sentry
+		// Sentry Logs (v10+) — envia logs estruturados para o dashboard
 		enableLogs: true,
 
-		// Nível mínimo de logs para enviar (default: 'info')
-		logLevel: 'info',
-
-		// Formato dos breadcrumbs de logs
-		breadcrumbLogMessage: (message, level) => `[${level}] ${message}`,
-
-		// Integração com OpenTelemetry
+		// Integrações — Sentry v10 usa funções, não namespace Integrations
 		integrations: [
-			// Links automaticamente traces OTEL com eventos Sentry
-			new Sentry.Integrations.LinkedErrors(),
-			new Sentry.Integrations.HttpContext(),
-			new Sentry.Integrations.RequestData(),
+			Sentry.linkedErrorsIntegration(),
+			Sentry.requestDataIntegration(),
+			Sentry.consoleLoggingIntegration(),
 		],
 
 		// Filtros de dados sensíveis
-		beforeSend(event, hint) {
-			// Remove dados sensíveis de requests
+		beforeSend(event) {
 			if (event.request) {
 				delete event.request.cookies;
 				delete event.request.headers?.['authorization'];
@@ -40,17 +32,15 @@ export function initializeSentry() {
 		},
 
 		// Breadcrumbs automáticos
-		beforeBreadcrumb(breadcrumb, hint) {
-			// Filtra breadcrumbs sensíveis
+		beforeBreadcrumb(breadcrumb) {
 			if (breadcrumb.category === 'http' && breadcrumb.data?.url) {
 				delete breadcrumb.data.headers;
 			}
 			return breadcrumb;
 		},
 
-		// Filtro para dados sensíveis em logs
+		// Filtro para dados sensíveis em transactions
 		beforeSendTransaction(event) {
-			// Remove dados sensíveis de transactions
 			if (event.request) {
 				delete event.request.cookies;
 				delete event.request.headers?.['authorization'];
@@ -58,15 +48,10 @@ export function initializeSentry() {
 			return event;
 		},
 
-		// Configuração desampling de logs baseada em ambiente
 		debug: env.NODE_ENV === 'development',
-
-		// Taxa de amostragem de logs (1.0 = todos, 0.1 = 10%)
-		// Em produção, pode ser útil reduzir para controlar custos
-		logsSampleRate: env.NODE_ENV === 'production' ? 0.1 : 1.0,
 	});
 
-	console.log('[Sentry] Initialized with Logs enabled');
+	console.log('[Sentry] Initialized (v10) with Logs enabled');
 }
 
 export function captureException(error: Error, context?: {
@@ -91,8 +76,8 @@ export function setSentryUser(user: { id: string; email?: string }) {
 }
 
 /**
- * Logger do Sentry para enviar logs estruturados
- * Use estes métodos para enviar logs que aparecerão no dashboard do Sentry
+ * Logger do Sentry para enviar logs estruturados (v10 Sentry.logger nativo)
+ * Logs aparecem na aba "Logs" do dashboard do Sentry
  */
 export const sentryLogger = {
 	debug: (message: string, data?: Record<string, any>) => {

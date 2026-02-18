@@ -42,7 +42,7 @@ app.use(
 				return origin || '*';
 			}
 			// Em produção, valida contra CORS_ORIGINS
-			return env.CORS_ORIGINS.includes(origin || '') ? origin : false;
+			return env.CORS_ORIGINS.includes(origin || '') ? origin : undefined;
 		},
 		credentials: true,
 		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],

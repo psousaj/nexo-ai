@@ -35,7 +35,7 @@
 		"@nexo/otel": "workspace:*",
 		"@nexo/shared": "workspace:*",
 		"@scalar/hono-api-reference": "^0.9.37",
-		"@sentry/node": "^8.55.0",
+		"@sentry/node": "^10.39.0",
 		"@toon-format/toon": "^2.1.0",
 		"@whiskeysockets/baileys": "7.0.0-rc.9",
 		"ai": "^6.0.49",
