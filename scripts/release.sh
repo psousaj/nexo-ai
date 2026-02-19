@@ -1,78 +1,91 @@
 #!/bin/bash
 
-# Script para bumpar versão do monorepo
-# Uso: ./scripts/release.sh [patch|minor|major]
-#
-# Exemplos:
-#   ./scripts/release.sh patch   → 0.5.4 → 0.5.5
-#   ./scripts/release.sh minor   → 0.5.4 → 0.6.0
-#   ./scripts/release.sh major   → 0.5.4 → 1.0.0
+# Script para criar PR, fazer merge e lançar tag de release
+# Uso: ./scripts/release.sh [--name "Título do PR"]
+# Se --name não for fornecido, usa a mensagem do último commit
 
 set -e
 
-BUMP="${1:-patch}"
+# Push da branch atual antes de qualquer coisa
+echo "🚀 Fazendo push da branch atual..."
+CURRENT_BRANCH=$(git branch --show-current)
+git push origin "$CURRENT_BRANCH" --set-upstream || {
+  echo "⚠️  Erro no push, mas continuando..."
+}
+echo ""
 
-if [[ "$BUMP" != "patch" && "$BUMP" != "minor" && "$BUMP" != "major" ]]; then
-  echo "❌ Tipo inválido: '$BUMP'"
-  echo "Uso: $0 [patch|minor|major]"
+# Parse arguments
+TITLE=""
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --name)
+      TITLE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Opção desconhecida: $1"
+      echo "Uso: $0 --name \"Título do PR\""
+      exit 1
+      ;;
+  esac
+done
+
+# Se não forneceu título, pega do último commit (excluindo bumps)
+if [ -z "$TITLE" ]; then
+  echo "📝 Buscando título do último commit..."
+  
+  # Pega últimos 10 commits e filtra os que não são bump
+  TITLE=$(git log -10 --pretty=format:"%s" | grep -v -i -E "(bump|version|chore\(release\)|release:)" | head -n 1)
+  
+  if [ -z "$TITLE" ]; then
+    echo "❌ Não foi possível encontrar um commit válido"
+    echo "Use: $0 --name \"Título do PR\""
+    exit 1
+  fi
+  
+  echo "✅ Usando: $TITLE"
+fi
+
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+  echo "❌ Você está na branch main/master!"
+  echo "Crie uma feature branch primeiro: git checkout -b feature/sua-feature"
   exit 1
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
-
-# Lê versão atual da raiz
-CURRENT=$(node -p "require('./package.json').version")
-
-# Calcula nova versão
-IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-case $BUMP in
-  major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
-  minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
-  patch) NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
-esac
-
-echo "📦 Bumping ${BUMP}: ${CURRENT} → ${NEW_VERSION}"
+echo ""
+echo "🚀 Criando PR..."
+echo "   Branch: $CURRENT_BRANCH"
+echo "   Título: $TITLE"
 echo ""
 
-# Lista de package.json para atualizar (exclui old-dashboard e node_modules)
-PACKAGES=(
-  "package.json"
-  "apps/api/package.json"
-  "apps/dashboard/package.json"
-  "apps/landing/package.json"
-  "packages/auth/package.json"
-  "packages/env/package.json"
-  "packages/eslint-config/package.json"
-  "packages/otel/package.json"
-  "packages/prettier-config/package.json"
-  "packages/shared/package.json"
-  "packages/typescript-config/package.json"
-)
-
-for pkg in "${PACKAGES[@]}"; do
-  if [[ -f "$ROOT/$pkg" ]]; then
-    # Substitui "version": "X.X.X" ignorando pacotes sem campo version
-    if grep -q '"version"' "$ROOT/$pkg"; then
-      node -e "
-        const fs = require('fs');
-        const p = '$ROOT/$pkg';
-        const json = JSON.parse(fs.readFileSync(p, 'utf8'));
-        if (json.version) {
-          json.version = '$NEW_VERSION';
-          fs.writeFileSync(p, JSON.stringify(json, null, '\t') + '\n');
-          console.log('  ✅ ' + p.replace('$ROOT/', ''));
-        }
-      "
-    fi
-  fi
-done
+# Cria PR (assume que já fez push)
+if ! gh pr create --title "$TITLE" --body "Auto-generated PR" --fill; then
+  echo ""
+  echo "⚠️  PR já existe ou erro ao criar. Tentando fazer merge..."
+fi
 
 echo ""
+echo "🔀 Fazendo merge do PR..."
 
-# Commit
-git add "${PACKAGES[@]}"
-git commit -m "chore: bump version to ${NEW_VERSION}"
+# Faz merge mantendo branch local
+gh pr merge --merge --delete-branch=false
+
 echo ""
-echo "✅ Versão ${NEW_VERSION} commitada!"
+echo "✅ PR mergeado com sucesso!"
+echo "📦 Branch local '$CURRENT_BRANCH' mantida"
 echo ""
+
+# Cria e pusha tag de release baseada na versão do monorepo
+VERSION=$(node -p "require('$(git rev-parse --show-toplevel)/package.json').version" 2>/dev/null || echo "")
+
+if [ -n "$VERSION" ]; then
+  TAG="v${VERSION}"
+  echo "🏷️  Criando tag ${TAG}..."
+  git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+  git pull
+  git tag "$TAG"
+  git push origin "$TAG"
+  echo "✅ Tag ${TAG} criada e publicada!"
+else
+  echo "⚠️  Não foi possível detectar versão para criar tag"
+fi

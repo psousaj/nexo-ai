@@ -26,10 +26,10 @@
 		"db:generate": "turbo db:generate --filter=@nexo/api",
 		"db:push": "turbo db:push --filter=@nexo/api",
 		"db:studio": "turbo db:studio --filter=@nexo/api",
-		"merge-pr": "./scripts/merge-pr.sh",
-		"release:patch": "./scripts/release.sh patch",
-		"release:minor": "./scripts/release.sh minor",
-		"release:major": "./scripts/release.sh major"
+		"release": "./scripts/release.sh",
+		"version:patch": "./scripts/version.sh patch",
+		"version:minor": "./scripts/version.sh minor",
+		"version:major": "./scripts/version.sh major"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
