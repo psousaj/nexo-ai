@@ -1,6 +1,6 @@
 {
-    "name": "@nexo/typescript-config",
-    "version": "0.5.4",
-    "private": true,
-    "license": "MIT"
+	"name": "@nexo/typescript-config",
+	"version": "0.5.5",
+	"private": true,
+	"license": "MIT"
 }

@@ -1,11 +1,11 @@
 {
-    "name": "@nexo/eslint-config",
-    "version": "0.5.4",
-    "private": true,
-    "main": "index.js",
-    "dependencies": {
-        "eslint": "^9.17.0",
-        "eslint-config-prettier": "^9.1.0"
-    },
-    "license": "MIT"
+	"name": "@nexo/eslint-config",
+	"version": "0.5.5",
+	"private": true,
+	"main": "index.js",
+	"dependencies": {
+		"eslint": "^9.17.0",
+		"eslint-config-prettier": "^9.1.0"
+	},
+	"license": "MIT"
 }
