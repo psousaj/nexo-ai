@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script para bumpar versão e abrir PR de release
+# Script para bumpar versão do monorepo
 # Uso: ./scripts/release.sh [patch|minor|major]
 #
 # Exemplos:
@@ -76,6 +76,3 @@ git commit -m "chore: bump version to ${NEW_VERSION}"
 echo ""
 echo "✅ Versão ${NEW_VERSION} commitada!"
 echo ""
-
-# Abre PR de release via merge-pr.sh
-"$ROOT/scripts/merge-pr.sh" --name "chore: release v${NEW_VERSION}"
