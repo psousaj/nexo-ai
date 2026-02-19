@@ -48,7 +48,7 @@ fi
 
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo "❌ Você está na branch main/master!"
-  echo "Crie uma feature branch primeiro: git checkout -b feature/sua-feature"
+  echo "Crie uma feature branch primeiro: git switch -c feature/sua-feature"
   exit 1
 fi
 
@@ -81,11 +81,17 @@ VERSION=$(node -p "require('$(git rev-parse --show-toplevel)/package.json').vers
 if [ -n "$VERSION" ]; then
   TAG="v${VERSION}"
   echo "🏷️  Criando tag ${TAG}..."
-  git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+  # Detecta branch principal (main ou master)
+  DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+  DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+  git switch "$DEFAULT_BRANCH"
   git pull
   git tag "$TAG"
   git push origin "$TAG"
   echo "✅ Tag ${TAG} criada e publicada!"
+  echo ""
+  echo "↩️  Voltando para '$CURRENT_BRANCH'..."
+  git switch "$CURRENT_BRANCH"
 else
   echo "⚠️  Não foi possível detectar versão para criar tag"
 fi
