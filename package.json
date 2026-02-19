@@ -1,35 +1,39 @@
 {
-    "name": "nexo-monorepo",
-    "private": true,
-    "workspaces": [
-        "apps/*",
-        "packages/*"
-    ],
-    "scripts": {
-        "dev:app": "turbo dev --filter=@nexo/api --filter=@nexo/dashboard --filter=@nexo/landing",
-        "dev": "turbo dev",
-        "dev:api": "turbo dev --filter=@nexo/api",
-        "dev:dash": "turbo dev --filter=@nexo/dashboard",
-        "dev:landing": "turbo dev --filter=@nexo/landing",
-        "build": "turbo build",
-        "lint": "turbo lint",
-        "test": "turbo test",
-        "typecheck": "turbo typecheck",
-        "format": "turbo format",
-        "check": "turbo lint:biome",
-        "check:fix": "turbo lint:biome:fix",
-        "clean": "turbo clean && rm -rf node_modules",
-        "build:api": "turbo build --filter=@nexo/api",
-        "build:dashboard": "turbo build --filter=@nexo/dashboard",
-        "build:landing": "turbo build --filter=@nexo/landing",
-        "db:generate": "turbo db:generate --filter=@nexo/api",
-        "db:push": "turbo db:push --filter=@nexo/api",
-        "db:studio": "turbo db:studio --filter=@nexo/api",
-        "merge-pr": "./scripts/merge-pr.sh"
-    },
-    "devDependencies": {
-        "@biomejs/biome": "^1.9.4",
-        "turbo": "^2.5.4"
-    },
-    "packageManager": "pnpm@9.15.4"
+	"name": "nexo-monorepo",
+	"version": "0.5.6",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"scripts": {
+		"dev:app": "turbo dev --filter=@nexo/api --filter=@nexo/dashboard --filter=@nexo/landing",
+		"dev": "turbo dev",
+		"dev:api": "turbo dev --filter=@nexo/api",
+		"dev:dash": "turbo dev --filter=@nexo/dashboard",
+		"dev:landing": "turbo dev --filter=@nexo/landing",
+		"build": "turbo build",
+		"lint": "turbo lint",
+		"test": "turbo test",
+		"typecheck": "turbo typecheck",
+		"format": "turbo format",
+		"check": "turbo lint:biome",
+		"check:fix": "turbo lint:biome:fix",
+		"clean": "turbo clean && rm -rf node_modules",
+		"build:api": "turbo build --filter=@nexo/api",
+		"build:dashboard": "turbo build --filter=@nexo/dashboard",
+		"build:landing": "turbo build --filter=@nexo/landing",
+		"db:generate": "turbo db:generate --filter=@nexo/api",
+		"db:push": "turbo db:push --filter=@nexo/api",
+		"db:studio": "turbo db:studio --filter=@nexo/api",
+		"release": "./scripts/release.sh",
+		"version:patch": "./scripts/version.sh patch",
+		"version:minor": "./scripts/version.sh minor",
+		"version:major": "./scripts/version.sh major"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"turbo": "^2.5.4"
+	},
+	"packageManager": "pnpm@9.15.4"
 }

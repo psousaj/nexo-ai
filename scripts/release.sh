@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Script para criar e fazer merge de PR
-# Uso: ./scripts/merge-pr.sh --name "Título do PR"
-# Se --name não for fornecido, usa a mensagem do último commit (exceto bump de versão)
+# Script para criar PR, fazer merge e lançar tag de release
+# Uso: ./scripts/release.sh [--name "Título do PR"]
+# Se --name não for fornecido, usa a mensagem do último commit
 
 set -e
 
@@ -48,7 +48,7 @@ fi
 
 if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
   echo "❌ Você está na branch main/master!"
-  echo "Crie uma feature branch primeiro: git checkout -b feature/sua-feature"
+  echo "Crie uma feature branch primeiro: git switch -c feature/sua-feature"
   exit 1
 fi
 
@@ -74,7 +74,24 @@ echo ""
 echo "✅ PR mergeado com sucesso!"
 echo "📦 Branch local '$CURRENT_BRANCH' mantida"
 echo ""
-echo "Próximos passos:"
-echo "  git checkout main"
-echo "  git pull"
-echo "  git branch -d $CURRENT_BRANCH  # Se quiser deletar a branch local"
+
+# Cria e pusha tag de release baseada na versão do monorepo
+VERSION=$(node -p "require('$(git rev-parse --show-toplevel)/package.json').version" 2>/dev/null || echo "")
+
+if [ -n "$VERSION" ]; then
+  TAG="v${VERSION}"
+  echo "🏷️  Criando tag ${TAG}..."
+  # Detecta branch principal (main ou master)
+  DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+  DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+  git switch "$DEFAULT_BRANCH"
+  git pull
+  git tag "$TAG"
+  git push origin "$TAG"
+  echo "✅ Tag ${TAG} criada e publicada!"
+  echo ""
+  echo "↩️  Voltando para '$CURRENT_BRANCH'..."
+  git switch "$CURRENT_BRANCH"
+else
+  echo "⚠️  Não foi possível detectar versão para criar tag"
+fi
