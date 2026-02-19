@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { db } from '@/db';
 import { errorReports, messages } from '@/db/schema';
+import { captureException } from '@/sentry';
 import { loggers } from '@/utils/logger';
 import { desc, eq } from 'drizzle-orm';
 
@@ -49,7 +50,17 @@ export class GlobalErrorService {
 				sessionId,
 			});
 
-			// 5. Log oficial (substitui console.error)
+			// 5. Envia para Sentry
+			captureException(error instanceof Error ? error : new Error(errorMessage), {
+				conversation_id: context.conversationId,
+				user_id: sessionId, // já é hash anônimo
+				provider: context.provider,
+				state: context.state,
+				intent: context.intent,
+				...context.extra,
+			});
+
+			// 6. Log oficial (substitui console.error)
 			loggers.app.error(
 				{
 					err: error,
