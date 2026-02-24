@@ -106,11 +106,13 @@ export const adminRoutes = new Hono()
 	// Disconnect Baileys session
 	.post('/whatsapp-settings/baileys/disconnect', async (c) => {
 		try {
-			const { getBaileysService } = await import('@/services/baileys-service');
-			const baileys = await getBaileysService();
+			const { resetBaileysService } = await import('@/services/baileys-service');
+			
+			// Reset the service (clears session and deletes auth files)
+			await resetBaileysService();
 
-			// Disconnect the session
-			await baileys.disconnect();
+			// Aguarda um instante para garantir que a instância foi limpa
+			await new Promise(resolve => setTimeout(resolve, 500));
 
 			return c.json({
 				success: true,

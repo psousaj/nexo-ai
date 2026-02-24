@@ -82,14 +82,11 @@ const clearCacheMutation = useMutation({
 // Mutation to restart Baileys connection
 const restartBaileysMutation = useMutation({
 	mutationFn: async () => {
-		const response = await fetch(`${import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/admin/whatsapp-settings/baileys/restart`, {
-			method: 'POST',
-			credentials: 'include',
-		});
-		if (!response.ok) {
-			throw new Error('Erro ao reiniciar conexão');
-		}
-		return response.json();
+		return await dashboard.restartBaileys();
+	},
+	onMutate: () => {
+		// Oculta imediatamente o QR Code atual para feedback visual
+		queryClient.setQueryData(['whatsapp-qr-code', selectedApi], null);
 	},
 	onSuccess: async () => {
 		toast.add({
@@ -98,10 +95,9 @@ const restartBaileysMutation = useMutation({
 			color: 'success',
 			icon: 'i-heroicons-check-circle',
 		});
-		// Recarregar QR Code múltiplas vezes para garantir que pegamos o novo
+		// Invalida e recarrega
+		queryClient.invalidateQueries({ queryKey: ['whatsapp-qr-code'] });
 		await refetchQRCode();
-		setTimeout(() => refetchQRCode(), 500);
-		setTimeout(() => refetchQRCode(), 1000);
 	},
 	onError: (error: any) => {
 		toast.add({
@@ -116,14 +112,11 @@ const restartBaileysMutation = useMutation({
 // Mutation to disconnect Baileys
 const disconnectBaileysMutation = useMutation({
 	mutationFn: async () => {
-		const response = await fetch(`${import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/admin/whatsapp-settings/baileys/disconnect`, {
-			method: 'POST',
-			credentials: 'include',
-		});
-		if (!response.ok) {
-			throw new Error('Erro ao desconectar');
-		}
-		return response.json();
+		return await dashboard.disconnectBaileys();
+	},
+	onMutate: () => {
+		// Oculta imediatamente o QR Code
+		queryClient.setQueryData(['whatsapp-qr-code', selectedApi], null);
 	},
 	onSuccess: async () => {
 		toast.add({
@@ -134,6 +127,7 @@ const disconnectBaileysMutation = useMutation({
 		});
 		// Refetch QR code and settings
 		queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] });
+		queryClient.invalidateQueries({ queryKey: ['whatsapp-qr-code'] });
 		await refetchQRCode();
 	},
 	onError: (error: any) => {
@@ -496,7 +490,7 @@ watch(baileysConnectionStatus, (newStatus) => {
 
 				<div v-else-if="baileysConnectionStatus?.status !== 'connected'" class="flex flex-col items-center gap-4">
 					<div class="bg-white p-4 rounded-xl shadow-lg">
-						<img :src="`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData.qrCode)}`"
+						<img :src="`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData?.qrCode || '')}`"
 						     alt="WhatsApp QR Code"
 						     class="w-64 h-64" />
 					</div>
@@ -540,7 +534,7 @@ watch(baileysConnectionStatus, (newStatus) => {
 						class="px-6 py-3 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-900 dark:text-white font-bold rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
 						@click="handleClearCache"
 					>
-						<svg v-if="!clearCacheMutation.isPending" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+						<svg v-if="!clearCacheMutation.isPending.value" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
 						</svg>
 						<svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">

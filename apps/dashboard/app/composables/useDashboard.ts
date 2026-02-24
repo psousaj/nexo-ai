@@ -164,8 +164,18 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null }> => {
+	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null; connectionStatus?: any }> => {
 		const { data } = await api.get('/admin/whatsapp-settings/qr-code');
+		return data;
+	};
+
+	const disconnectBaileys = async (): Promise<any> => {
+		const { data } = await api.post('/admin/whatsapp-settings/baileys/disconnect');
+		return data;
+	};
+
+	const restartBaileys = async (): Promise<any> => {
+		const { data } = await api.post('/admin/whatsapp-settings/baileys/restart');
 		return data;
 	};
 
@@ -203,6 +213,8 @@ export const useDashboard = () => {
 		setWhatsAppApi,
 		clearWhatsAppCache,
 		getWhatsAppQRCode,
+		disconnectBaileys,
+		restartBaileys,
 		getDiscordBotInfo,
 	};
 };
