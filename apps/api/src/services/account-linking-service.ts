@@ -15,7 +15,7 @@ export class AccountLinkingService {
 	async generateLinkingToken(
 		userId: string,
 		provider?: ProviderType,
-		tokenType: 'link' | 'signup' = 'link',
+		tokenType: 'link' | 'signup' | 'email_confirm' = 'link',
 		externalId?: string,
 	): Promise<string> {
 		// Verifica se já existe um token válido (não expirado) para reutilizar
@@ -27,6 +27,7 @@ export class AccountLinkingService {
 					eq(linkingTokens.userId, userId),
 					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
 					eq(linkingTokens.tokenType, tokenType),
+					externalId ? eq(linkingTokens.externalId, externalId) : (undefined as any),
 					gte(linkingTokens.expiresAt, new Date()),
 				),
 			)
@@ -44,6 +45,8 @@ export class AccountLinkingService {
 		const expiresAt = new Date();
 		if (tokenType === 'signup') {
 			expiresAt.setHours(expiresAt.getHours() + 24);
+		} else if (tokenType === 'email_confirm') {
+			expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 		} else {
 			expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 		}
@@ -56,6 +59,7 @@ export class AccountLinkingService {
 					eq(linkingTokens.userId, userId),
 					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
 					eq(linkingTokens.tokenType, tokenType),
+					externalId ? eq(linkingTokens.externalId, externalId) : (undefined as any),
 				),
 			);
 
@@ -163,10 +167,7 @@ export class AccountLinkingService {
 		targetUserId: string,
 		provider: ProviderType,
 	): Promise<void> {
-		loggers.webhook.info(
-			{ trialUserId, targetUserId, provider },
-			'🔄 Iniciando migração trial → conta real',
-		);
+		loggers.webhook.info({ trialUserId, targetUserId, provider }, '🔄 Iniciando migração trial → conta real');
 
 		// Busca contas do trial user antes de migrar (para invalidar cache depois)
 		const trialAccounts = await userService.getUserAccounts(trialUserId);
@@ -178,22 +179,13 @@ export class AccountLinkingService {
 			.where(eq(userAccounts.userId, trialUserId));
 
 		// 2. Migra memory_items
-		await db
-			.update(memoryItems)
-			.set({ userId: targetUserId })
-			.where(eq(memoryItems.userId, trialUserId));
+		await db.update(memoryItems).set({ userId: targetUserId }).where(eq(memoryItems.userId, trialUserId));
 
 		// 3. Migra conversations
-		await db
-			.update(conversations)
-			.set({ userId: targetUserId })
-			.where(eq(conversations.userId, trialUserId));
+		await db.update(conversations).set({ userId: targetUserId }).where(eq(conversations.userId, trialUserId));
 
 		// 4. Ativa o novo usuário
-		await db
-			.update(users)
-			.set({ status: 'active', updatedAt: new Date() })
-			.where(eq(users.id, targetUserId));
+		await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, targetUserId));
 
 		// 5. Invalida cache de todas as contas migradas
 		for (const account of trialAccounts) {

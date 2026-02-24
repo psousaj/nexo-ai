@@ -2,7 +2,6 @@ import type {
 	Account,
 	AnalyticsData,
 	ConversationSummary,
-	ErrorReport,
 	ItemType,
 	MemoryItem,
 	UserPreferences,
@@ -64,18 +63,6 @@ export const useDashboard = () => {
 
 	const deleteMemory = async (id: string | number): Promise<void> => {
 		await api.delete(`/memories/${id}`);
-	};
-
-	const getErrors = async (): Promise<ErrorReport[]> => {
-		const { data } = await api.get<any[]>('/admin/errors');
-		return data.map((err: any) => ({
-			id: err.id,
-			service: err.metadata?.provider || 'api',
-			message: err.errorMessage,
-			severity: 'high',
-			status: err.resolved ? 'resolved' : 'pending',
-			timestamp: err.createdAt,
-		}));
 	};
 
 	const getConversations = async (): Promise<ConversationSummary[]> => {
@@ -198,7 +185,6 @@ export const useDashboard = () => {
 		createMemory,
 		updateMemory,
 		deleteMemory,
-		getErrors,
 		getConversations,
 		getPreferences,
 		updatePreferences,

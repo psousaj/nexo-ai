@@ -1144,12 +1144,6 @@ pnpm run dev | pino-pretty
 3. Set environment variables
 4. Deploy from `development` branch
 
-### Cloudflare Workers (Optional)
-
-1. `wrangler login`
-2. `wrangler secret put DATABASE_URL`
-3. Set other secrets
-4. `wrangler deploy`
 
 ---
 

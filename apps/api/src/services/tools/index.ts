@@ -10,7 +10,7 @@ import { enrichmentService } from '@/services/enrichment';
 import { itemService } from '@/services/item-service';
 import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
 import { logError, loggers } from '@/utils/logger';
-import { startSpan, setAttributes } from '@nexo/otel/tracing';
+import { setAttributes, startSpan } from '@nexo/otel/tracing';
 
 export interface ToolContext {
 	userId: string;
@@ -766,7 +766,9 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -832,7 +834,9 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -1068,7 +1072,7 @@ export type ToolName = keyof typeof AVAILABLE_TOOLS;
  * Executor genérico de tool
  */
 export async function executeTool(toolName: ToolName, context: ToolContext, params: any): Promise<ToolOutput> {
-	return startSpan(`tool.execute`, async (span) => {
+	return startSpan('tool.execute', async (_span) => {
 		setAttributes({
 			'tool.name': toolName,
 			'tool.user_id': context.userId,

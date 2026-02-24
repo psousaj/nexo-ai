@@ -2,6 +2,7 @@ import { env } from '@/config/env';
 import { db } from '@/db';
 import { accounts as betterAuthAccounts, userAccounts } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
+import { emailService } from '@/services/email/email.service';
 import { preferencesService } from '@/services/preferences-service';
 import { userEmailService } from '@/services/user-email-service';
 import { userService } from '@/services/user-service';
@@ -196,10 +197,41 @@ export const userRoutes = new Hono<AuthContext>()
 
 			try {
 				const newEmail = await userEmailService.addEmail(userState.id, email, provider, false);
-				return c.json({ email: newEmail }, 201);
+				await emailService.sendConfirmationEmail({
+					userId: userState.id,
+					userName: userState.name || 'usuário',
+					email: newEmail.email,
+				});
+
+				return c.json({ email: newEmail, confirmationSent: true }, 201);
 			} catch (error) {
 				return c.json({ error: error instanceof Error ? error.message : 'Erro ao adicionar email' }, 400);
 			}
+		},
+	)
+	.post(
+		'/emails/:emailId/resend-confirmation',
+		zValidator('param', z.object({ emailId: z.string().uuid() })),
+		async (c) => {
+			const userState = c.get('user');
+			const { emailId } = c.req.valid('param');
+
+			const userEmail = await userEmailService.getEmailById(userState.id, emailId);
+			if (!userEmail) {
+				return c.json({ error: 'Email não encontrado' }, 404);
+			}
+
+			if (userEmail.verified) {
+				return c.json({ success: true, alreadyVerified: true });
+			}
+
+			await emailService.sendConfirmationEmail({
+				userId: userState.id,
+				userName: userState.name || 'usuário',
+				email: userEmail.email,
+			});
+
+			return c.json({ success: true });
 		},
 	)
 	.patch('/emails/:emailId/primary', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {

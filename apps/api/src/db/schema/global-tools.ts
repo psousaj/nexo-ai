@@ -2,9 +2,9 @@ import { boolean, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-c
 
 /**
  * Tools globalmente habilitadas/desabilitadas
- * 
+ *
  * Sistema de feature flags: Admin pode habilitar/desabilitar tools para TODOS os usuários
- * 
+ *
  * ADR-019: Pluggable Tools System with CASL Protection
  */
 export const globalTools = pgTable(

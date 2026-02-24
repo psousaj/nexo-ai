@@ -1,15 +1,8 @@
 import { db } from '@/db';
-import { conversations, errorReports, messages, users, userAccounts } from '@/db/schema';
+import { conversations, messages, userAccounts, users } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
 
 export class AdminService {
-	/**
-	 * Lista relatórios de erro
-	 */
-	async getErrorReports(limit = 20) {
-		return await db.select().from(errorReports).orderBy(desc(errorReports.createdAt)).limit(limit);
-	}
-
 	/**
 	 * Lista sumário de conversas anonimizadas
 	 */

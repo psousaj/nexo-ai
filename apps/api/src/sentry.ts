@@ -1,7 +1,7 @@
-import * as Sentry from '@sentry/node';
-import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { env } from '@/config/env';
 import { logger } from '@/utils/logger';
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 
 const sentryLog = logger.child({ context: 'SENTRY' });
 
@@ -45,7 +45,7 @@ export function initializeSentry() {
 		beforeSendTransaction(event) {
 			if (event.request) {
 				delete event.request.cookies;
-				delete event.request.headers?.['authorization'];
+				delete event.request.headers?.authorization;
 			}
 			return event;
 		},
@@ -53,7 +53,7 @@ export function initializeSentry() {
 		beforeSend(event) {
 			if (event.request) {
 				delete event.request.cookies;
-				delete event.request.headers?.['authorization'];
+				delete event.request.headers?.authorization;
 			}
 			return event;
 		},
@@ -68,12 +68,15 @@ export function initializeSentry() {
 // Auto-inicializa ao importar (compatível com `import "./sentry"` em index.ts)
 initializeSentry();
 
-export function captureException(error: Error, context?: {
-	user_id?: string;
-	conversation_id?: string;
-	trace_id?: string;
-	[key: string]: any;
-}) {
+export function captureException(
+	error: Error,
+	context?: {
+		user_id?: string;
+		conversation_id?: string;
+		trace_id?: string;
+		[key: string]: any;
+	},
+) {
 	Sentry.captureException(error, {
 		tags: context,
 		user: context?.user_id ? { id: context.user_id } : undefined,
@@ -165,7 +168,7 @@ export const sentryMetrics = {
 	 * @param unit Unidade da métrica (default: 'none')
 	 * @param attributes Atributos estruturados da métrica
 	 */
-	distribution(key: string, value: number, unit: string = 'none', attributes?: Record<string, string | number>) {
+	distribution(key: string, value: number, unit = 'none', attributes?: Record<string, string | number>) {
 		Sentry.metrics.distribution(key, value, { unit, attributes });
 	},
 };

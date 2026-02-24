@@ -8,7 +8,6 @@ export * from './conversations';
 export * from './messages';
 export * from './user-preferences';
 export * from './semantic-external-items';
-export * from './error-reports';
 export * from './linking-tokens';
 export * from './auth';
 export * from './permissions';

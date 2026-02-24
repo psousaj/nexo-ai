@@ -11,9 +11,9 @@
  */
 
 import { env } from '@/config/env';
+import { messageQueue } from '@/services/queue-service';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
-import { messageQueue } from '@/services/queue-service';
 import {
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
@@ -82,13 +82,7 @@ export class DiscordAdapter implements MessagingProvider {
 				const dmChannel = await interaction.user.createDM();
 
 				await dmChannel.send({
-					content: `👋 Olá ${interaction.user.username}! Eu sou o **NEXO AI**.\n\n` +
-						`Agora você pode conversar comigo privado! Tente:\n` +
-						`• "Salvar: filme A Origem"\n` +
-						`• "Quais filmes eu salvei?"\n` +
-						`• "Criar tarefa: ligar pro dentista amanhã"\n` +
-						`• "Criar evento: reunião sexta às 15h"\n\n` +
-						`Use /help para ver mais comandos.`,
+					content: `👋 Olá ${interaction.user.username}! Eu sou o **NEXO AI**.\n\nAgora você pode conversar comigo privado! Tente:\n• "Salvar: filme A Origem"\n• "Quais filmes eu salvei?"\n• "Criar tarefa: ligar pro dentista amanhã"\n• "Criar evento: reunião sexta às 15h"\n\nUse /help para ver mais comandos.`,
 				});
 
 				await interaction.editReply({ content: '✅ Enviei um DM para você!' });

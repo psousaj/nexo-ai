@@ -47,6 +47,7 @@
 		"drizzle-orm": "^0.45.1",
 		"google-auth-library": "^10.5.0",
 		"googleapis": "^171.4.0",
+		"handlebars": "^4.7.8",
 		"hono": "^4.11.5",
 		"ioredis": "^5.9.2",
 		"langfuse": "^3.0.0",
@@ -76,8 +77,6 @@
 		"vitest": "^2.1.9"
 	},
 	"pnpm": {
-		"neverBuiltDependencies": [
-			"msgpackr-extract"
-		]
+		"neverBuiltDependencies": ["msgpackr-extract"]
 	}
 }

@@ -1,5 +1,5 @@
-import { Langfuse } from 'langfuse';
 import { env } from '@/config/env';
+import { Langfuse } from 'langfuse';
 
 let langfuse: Langfuse | null = null;
 

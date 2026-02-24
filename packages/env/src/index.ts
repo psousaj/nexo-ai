@@ -84,10 +84,12 @@ const envSchema = z.object({
 		.string()
 		.optional()
 		.transform((val) => {
-			return val
-				?.trim()
-				.split(',')
-				.map((origin) => origin.trim()) ?? [];
+			return (
+				val
+					?.trim()
+					.split(',')
+					.map((origin) => origin.trim()) ?? []
+			);
 		}),
 	DASHBOARD_URL: z.string().url().optional(),
 	PORT: z.coerce.number().default(3001), // API na 3001
@@ -95,9 +97,8 @@ const envSchema = z.object({
 	PORT_LANDING: z.coerce.number().default(3005), // Landing na 3005
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
 
-	// Email Reporting (Resend)
+	// Email (Resend)
 	RESEND_API_KEY: z.string().optional(),
-	ADMIN_EMAIL: z.string().email().optional(),
 
 	// Discord OAuth2 (gerenciado pelo Better Auth)
 	DISCORD_CLIENT_ID: z.string().optional(),

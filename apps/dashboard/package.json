@@ -49,6 +49,7 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@img/sharp-wasm32": "^0.34.5",
 		"@nexo/eslint-config": "workspace:*",
 		"@nexo/prettier-config": "workspace:*",
 		"@nexo/typescript-config": "workspace:*",

@@ -6,7 +6,7 @@ import { conversations, semanticExternalItems } from '@/db/schema';
 import { embeddingService } from '@/services/ai/embedding-service';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { loggers } from '@/utils/logger';
-import { startSpan, setAttributes, recordException } from '@nexo/otel/tracing';
+import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import Queue from 'bull';
 import { and, eq, inArray, lte } from 'drizzle-orm';
 
@@ -199,7 +199,7 @@ responseQueue.on('failed', async (job, error) => {
 // ============================================================================
 
 closeConversationQueue.process('close-conversation', async (job) => {
-	return startSpan('queue.close_conversation.process', async (span) => {
+	return startSpan('queue.close_conversation.process', async (_span) => {
 		const { conversationId } = job.data;
 
 		setAttributes({
@@ -249,7 +249,7 @@ closeConversationQueue.process('close-conversation', async (job) => {
  * Worker: Processa mensagens enfileiradas do webhook
  */
 messageQueue.process('message-processing', async (job) => {
-	return startSpan('queue.message.process', async (span) => {
+	return startSpan('queue.message.process', async (_span) => {
 		const { incomingMsg, providerName } = job.data;
 
 		setAttributes({
@@ -295,7 +295,7 @@ messageQueue.process('message-processing', async (job) => {
  * Worker: Processa envio de respostas
  */
 responseQueue.process('send-response', 2, async (job) => {
-	return startSpan('queue.response.send', async (span) => {
+	return startSpan('queue.response.send', async (_span) => {
 		const { externalId, message, provider: providerName, metadata } = job.data;
 
 		setAttributes({
@@ -360,7 +360,7 @@ responseQueue.process('send-response', 2, async (job) => {
  * Worker: Processa enriquecimento em lote (Bulk Async Enrichment)
  */
 enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
-	return startSpan('queue.enrichment.process', async (span) => {
+	return startSpan('queue.enrichment.process', async (_span) => {
 		const { candidates, provider, type } = job.data;
 
 		setAttributes({

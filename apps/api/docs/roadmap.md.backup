@@ -15,7 +15,6 @@ Planejamento de implementação do projeto em fases.
   - [x] Criar projeto Bun + Elysia
   - [x] Configurar TypeScript + tsconfig
   - [x] Setup Drizzle ORM
-  - [x] Criar `wrangler.toml`
   - [x] Configurar `.env.example`
 
 - [x] **1.2 Database Setup**

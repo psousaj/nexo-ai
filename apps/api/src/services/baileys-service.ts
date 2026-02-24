@@ -11,19 +11,19 @@
  * - Envio e recebimento de mensagens
  */
 
-import { loggers } from '@/utils/logger';
+import { promises as fs } from 'node:fs';
+import type { IncomingMessage } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { messageQueue } from '@/services/queue-service';
-import type { IncomingMessage } from '@/adapters/messaging';
+import { loggers } from '@/utils/logger';
 import {
+	type ConnectionState,
 	DisconnectReason,
+	type WAMessage,
+	type WASocket,
 	makeWASocket,
 	useMultiFileAuthState,
-	WAMessage,
-	type ConnectionState,
-	type WASocket,
 } from '@whiskeysockets/baileys';
-import { promises as fs } from 'fs';
 
 const logger = loggers.ai;
 
@@ -57,9 +57,9 @@ export class BaileysService {
 	private connectionState: ConnectionState = { connection: 'close' };
 	private config: Required<BaileysConfig>;
 	private messageHandlers: Array<(message: WAMessage) => void> = [];
-	private isConnecting: boolean = false;
+	private isConnecting = false;
 	private latestQRCode: string | null = null; // Armazena o QR Code mais recente
-	private qrCodeTimestamp: number = 0; // Timestamp de quando o QR foi gerado
+	private qrCodeTimestamp = 0; // Timestamp de quando o QR foi gerado
 	private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected';
 	private connectionError: string | null = null;
 
@@ -115,11 +115,7 @@ export class BaileysService {
 				generateHighQualityLinkPreview: false, // Desabilitar preview de links pesado
 				patchMessageBeforeSending: (message) => {
 					// Remover extended text message desnecessário
-					const requiresPatch = !!(
-						message.buttonsMessage ||
-						message.listMessage ||
-						message.templateMessage
-					);
+					const requiresPatch = !!(message.buttonsMessage || message.listMessage || message.templateMessage);
 					if (requiresPatch) {
 						message = {
 							viewOnceMessage: {
@@ -197,7 +193,7 @@ export class BaileysService {
 				this.sock.ev.removeAllListeners('connection.update');
 				this.sock.ev.removeAllListeners('creds.update');
 				this.sock.ev.removeAllListeners('messages.upsert');
-				
+
 				await this.sock.logout();
 			} catch (error) {
 				logger.warn({ error }, '⚠️ Erro ao fazer logout');
@@ -272,7 +268,7 @@ export class BaileysService {
 		logger.info({ recipient: phoneNumber, jid, textLength: text.length }, '📤 Enviando mensagem via Baileys');
 
 		await this.sock.sendMessage(jid, { text });
-		
+
 		logger.info({ jid }, '✅ Mensagem enviada com sucesso via Baileys');
 	}
 
@@ -315,12 +311,15 @@ export class BaileysService {
 	private handleConnectionUpdate(update: Partial<ConnectionState>): void {
 		const { connection, lastDisconnect, qr } = update;
 
-		logger.info({ 
-			connection, 
-			hasQr: !!qr,
-			hasLastDisconnect: !!lastDisconnect,
-			statusCode: (lastDisconnect?.error as any)?.output?.statusCode 
-		}, '📡 Connection update received');
+		logger.info(
+			{
+				connection,
+				hasQr: !!qr,
+				hasLastDisconnect: !!lastDisconnect,
+				statusCode: (lastDisconnect?.error as any)?.output?.statusCode,
+			},
+			'📡 Connection update received',
+		);
 
 		if (connection) {
 			this.connectionState.connection = connection;
@@ -343,11 +342,14 @@ export class BaileysService {
 				const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
 				const errorMessage = (lastDisconnect?.error as any)?.message || 'Unknown';
 
-				logger.info({ 
-					statusCode, 
-					errorMessage,
-					lastDisconnect 
-				}, '🔌 Conexão fechada - detalhes');
+				logger.info(
+					{
+						statusCode,
+						errorMessage,
+						lastDisconnect,
+					},
+					'🔌 Conexão fechada - detalhes',
+				);
 
 				// DisconnectReason enum values
 				// loggedOut: 401
@@ -394,12 +396,14 @@ export class BaileysService {
 					this.latestQRCode = null;
 					// Limpar sessão e gerar novo QR
 					setTimeout(() => {
-						this.clearSession().then(() => {
-							logger.info('♻️ Gerando novo QR Code...');
-							this.connect();
-						}).catch((err) => {
-							logger.error({ err }, '❌ Erro ao limpar sessão');
-						});
+						this.clearSession()
+							.then(() => {
+								logger.info('♻️ Gerando novo QR Code...');
+								this.connect();
+							})
+							.catch((err) => {
+								logger.error({ err }, '❌ Erro ao limpar sessão');
+							});
 					}, 2000);
 				} else if (!statusCode || statusCode === 408 || statusCode === 428) {
 					// Timeout ou connection lost - reconectar
@@ -464,10 +468,10 @@ export class BaileysService {
 
 			// Verificar se é mensagem de grupo
 			const isGroup = remoteJid.includes('@g.us');
-			const isBroadcast = remoteJid.includes('@broadcast');
+			const _isBroadcast = remoteJid.includes('@broadcast');
 
 			// Extrair número de telefone
-			let phoneNumber = remoteJid.split('@')[0] || '';
+			const phoneNumber = remoteJid.split('@')[0] || '';
 
 			// Para grupos, o userId é o remetente original
 			let userId = phoneNumber;
@@ -479,9 +483,10 @@ export class BaileysService {
 			const senderName = message.pushName || '';
 
 			// Timestamp
-			const timestampValue = typeof message.messageTimestamp === 'number' 
-				? message.messageTimestamp 
-				: (message.messageTimestamp as any)?.toNumber?.() || 0;
+			const timestampValue =
+				typeof message.messageTimestamp === 'number'
+					? message.messageTimestamp
+					: (message.messageTimestamp as any)?.toNumber?.() || 0;
 			const timestamp = new Date(timestampValue * 1000);
 
 			return {

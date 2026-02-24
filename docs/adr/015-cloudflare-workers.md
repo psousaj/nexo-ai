@@ -23,7 +23,6 @@ Usar **Cloudflare Workers** como plataforma principal de deploy.
 
 - **Edge computing**: execução próxima aos usuários (baixa latência)
 - **Custo**: 100k requests/dia grátis
-- **Deploy**: `wrangler deploy` - extremamente simples
 - **DX**: integração nativa com Supabase via HTTP
 - **Escalabilidade**: automática sem configuração
 

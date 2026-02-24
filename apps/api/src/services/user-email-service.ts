@@ -137,6 +137,41 @@ export class UserEmailService {
 
 		return user;
 	}
+
+	/**
+	 * Busca email do usuário por ID
+	 */
+	async getEmailById(userId: string, emailId: string) {
+		const [email] = await db
+			.select()
+			.from(userEmails)
+			.where(and(eq(userEmails.id, emailId), eq(userEmails.userId, userId)))
+			.limit(1);
+
+		return email || null;
+	}
+
+	/**
+	 * Marca email como verificado para o usuário
+	 */
+	async markEmailAsVerified(userId: string, email: string): Promise<boolean> {
+		const [updated] = await db
+			.update(userEmails)
+			.set({ verified: true, updatedAt: new Date() })
+			.where(and(eq(userEmails.userId, userId), eq(userEmails.email, email)))
+			.returning({ id: userEmails.id });
+
+		if (!updated) {
+			return false;
+		}
+
+		await db
+			.update(users)
+			.set({ emailVerified: true, status: 'active', updatedAt: new Date() })
+			.where(eq(users.id, userId));
+
+		return true;
+	}
 }
 
 export const userEmailService = new UserEmailService();

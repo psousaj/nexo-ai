@@ -28,7 +28,9 @@ export const whatsappSettings = pgTable('whatsapp_settings', {
 	 * baileysConnectionStatus - Current Baileys connection status
 	 * 'connecting', 'connected', 'disconnected', 'error'
 	 */
-	baileysConnectionStatus: text('baileys_connection_status').$type<'connecting' | 'connected' | 'disconnected' | 'error'>(),
+	baileysConnectionStatus: text('baileys_connection_status').$type<
+		'connecting' | 'connected' | 'disconnected' | 'error'
+	>(),
 	/**
 	 * lastError - Last error message (if any)
 	 */

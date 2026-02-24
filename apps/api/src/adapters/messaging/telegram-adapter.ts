@@ -19,7 +19,7 @@ function escapeMarkdownV2(text: string): string {
 import { env } from '@/config/env';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
-import { startSpan, setAttributes } from '@nexo/otel/tracing';
+import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import type {
 	ChatAction,
 	ChatCommand,
@@ -196,7 +196,7 @@ export class TelegramAdapter implements MessagingProvider {
 			replyToMessageId?: number;
 		},
 	): Promise<void> {
-		return startSpan('messaging.telegram.send', async (span) => {
+		return startSpan('messaging.telegram.send', async (_span) => {
 			setAttributes({
 				'messaging.platform': 'telegram',
 				'messaging.chat_id': chatId,
@@ -206,46 +206,46 @@ export class TelegramAdapter implements MessagingProvider {
 
 			const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
-		const payload: any = {
-			chat_id: chatId,
-			text,
-		};
-
-		// Parse mode opcional
-		if (options?.parseMode) {
-			payload.parse_mode = options.parseMode;
-		}
-
-		// Reply to message
-		if (options?.replyToMessageId) {
-			payload.reply_parameters = {
-				message_id: options.replyToMessageId,
+			const payload: any = {
+				chat_id: chatId,
+				text,
 			};
-		}
 
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(payload),
-		});
+			// Parse mode opcional
+			if (options?.parseMode) {
+				payload.parse_mode = options.parseMode;
+			}
 
-		if (!response.ok) {
-			const errorData = (await response.json()) as { error_code?: number; description?: string };
-			loggers.webhook.error(
-				{
-					errorCode: errorData.error_code,
-					description: errorData.description,
-					chatId,
-					textLength: text.length,
+			// Reply to message
+			if (options?.replyToMessageId) {
+				payload.reply_parameters = {
+					message_id: options.replyToMessageId,
+				};
+			}
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
 				},
-				'Erro ao enviar mensagem Telegram',
-			);
-			throw new Error(`Telegram API error [${errorData.error_code}]: ${errorData.description}`);
-		}
+				body: JSON.stringify(payload),
+			});
 
-		loggers.webhook.info({ chatId }, 'Mensagem Telegram enviada');
+			if (!response.ok) {
+				const errorData = (await response.json()) as { error_code?: number; description?: string };
+				loggers.webhook.error(
+					{
+						errorCode: errorData.error_code,
+						description: errorData.description,
+						chatId,
+						textLength: text.length,
+					},
+					'Erro ao enviar mensagem Telegram',
+				);
+				throw new Error(`Telegram API error [${errorData.error_code}]: ${errorData.description}`);
+			}
+
+			loggers.webhook.info({ chatId }, 'Mensagem Telegram enviada');
 		});
 	}
 
@@ -260,7 +260,7 @@ export class TelegramAdapter implements MessagingProvider {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
 	): Promise<void> {
-		return startSpan('messaging.telegram.send_with_buttons', async (span) => {
+		return startSpan('messaging.telegram.send_with_buttons', async (_span) => {
 			setAttributes({
 				'messaging.platform': 'telegram',
 				'messaging.chat_id': chatId,
@@ -270,39 +270,39 @@ export class TelegramAdapter implements MessagingProvider {
 
 			const url = `${this.baseUrl}/bot${this.token}/sendMessage`;
 
-		const payload: any = {
-			chat_id: chatId,
-			text,
-			reply_markup: {
-				inline_keyboard: buttons,
-			},
-		};
-
-		if (options?.parseMode) {
-			payload.parse_mode = options.parseMode;
-		}
-
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(payload),
-		});
-
-		if (!response.ok) {
-			const errorData = (await response.json()) as { error_code?: number; description?: string };
-			loggers.webhook.error(
-				{
-					errorCode: errorData.error_code,
-					description: errorData.description,
+			const payload: any = {
+				chat_id: chatId,
+				text,
+				reply_markup: {
+					inline_keyboard: buttons,
 				},
-				'Erro ao enviar mensagem com botões',
-			);
-			throw new Error(`Telegram API error: ${errorData.description}`);
-		}
+			};
 
-		loggers.webhook.info({ chatId, buttonsCount: buttons.flat().length }, 'Mensagem com botões enviada');
+			if (options?.parseMode) {
+				payload.parse_mode = options.parseMode;
+			}
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(payload),
+			});
+
+			if (!response.ok) {
+				const errorData = (await response.json()) as { error_code?: number; description?: string };
+				loggers.webhook.error(
+					{
+						errorCode: errorData.error_code,
+						description: errorData.description,
+					},
+					'Erro ao enviar mensagem com botões',
+				);
+				throw new Error(`Telegram API error: ${errorData.description}`);
+			}
+
+			loggers.webhook.info({ chatId, buttonsCount: buttons.flat().length }, 'Mensagem com botões enviada');
 		});
 	}
 
@@ -318,7 +318,7 @@ export class TelegramAdapter implements MessagingProvider {
 			parseMode?: 'MarkdownV2' | 'HTML';
 		},
 	): Promise<void> {
-		return startSpan('messaging.telegram.send_photo', async (span) => {
+		return startSpan('messaging.telegram.send_photo', async (_span) => {
 			setAttributes({
 				'messaging.platform': 'telegram',
 				'messaging.chat_id': chatId,
@@ -329,52 +329,52 @@ export class TelegramAdapter implements MessagingProvider {
 
 			const url = `${this.baseUrl}/bot${this.token}/sendPhoto`;
 
-		const payload: any = {
-			chat_id: chatId,
-			photo: photoUrl,
-			parse_mode: 'Markdown', // Habilita formatação no caption
-		};
-
-		if (caption) {
-			let safeCaption = escapeMarkdownV2(caption);
-			// Limita a 1024 caracteres
-			if (safeCaption.length > 1024) {
-				safeCaption = `${safeCaption.slice(0, 1020)}...`;
-			}
-			payload.caption = safeCaption;
-			payload.parse_mode = 'MarkdownV2';
-		}
-
-		if (options?.parseMode) {
-			payload.parse_mode = options.parseMode;
-		}
-
-		if (buttons) {
-			payload.reply_markup = {
-				inline_keyboard: buttons,
+			const payload: any = {
+				chat_id: chatId,
+				photo: photoUrl,
+				parse_mode: 'Markdown', // Habilita formatação no caption
 			};
-		}
 
-		loggers.webhook.info(
-			{ chatId, photoUrl, hasCaption: !!caption, hasButtons: !!buttons },
-			'📤 Enviando foto via Telegram',
-		);
+			if (caption) {
+				let safeCaption = escapeMarkdownV2(caption);
+				// Limita a 1024 caracteres
+				if (safeCaption.length > 1024) {
+					safeCaption = `${safeCaption.slice(0, 1020)}...`;
+				}
+				payload.caption = safeCaption;
+				payload.parse_mode = 'MarkdownV2';
+			}
 
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(payload),
-		});
+			if (options?.parseMode) {
+				payload.parse_mode = options.parseMode;
+			}
 
-		if (!response.ok) {
-			const errorData = (await response.json()) as { error_code?: number; description?: string };
-			loggers.webhook.error({ errorCode: errorData.error_code }, 'Erro ao enviar foto');
-			throw new Error(`Telegram API error: ${errorData.description}`);
-		}
+			if (buttons) {
+				payload.reply_markup = {
+					inline_keyboard: buttons,
+				};
+			}
 
-		loggers.webhook.info({ chatId }, 'Foto enviada');
+			loggers.webhook.info(
+				{ chatId, photoUrl, hasCaption: !!caption, hasButtons: !!buttons },
+				'📤 Enviando foto via Telegram',
+			);
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(payload),
+			});
+
+			if (!response.ok) {
+				const errorData = (await response.json()) as { error_code?: number; description?: string };
+				loggers.webhook.error({ errorCode: errorData.error_code }, 'Erro ao enviar foto');
+				throw new Error(`Telegram API error: ${errorData.description}`);
+			}
+
+			loggers.webhook.info({ chatId }, 'Foto enviada');
 		});
 	}
 

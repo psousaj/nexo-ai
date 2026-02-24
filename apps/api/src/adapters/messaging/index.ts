@@ -3,13 +3,13 @@ export * from './whatsapp-adapter';
 export * from './telegram-adapter';
 export * from './discord-adapter';
 
+import { db } from '@/db';
+import { whatsappSettings } from '@/db/schema';
+import { loggers } from '@/utils/logger';
 import { discordAdapter } from './discord-adapter';
 import { telegramAdapter } from './telegram-adapter';
 import type { MessagingProvider, ProviderType } from './types';
 import { whatsappAdapter } from './whatsapp-adapter';
-import { db } from '@/db';
-import { whatsappSettings } from '@/db/schema';
-import { loggers } from '@/utils/logger';
 
 /**
  * Cache da API ativa do WhatsApp
@@ -38,10 +38,7 @@ async function getActiveWhatsAppApi(): Promise<'meta' | 'baileys'> {
 	}
 
 	try {
-		const [settings] = await db
-			.select()
-			.from(whatsappSettings)
-			.limit(1);
+		const [settings] = await db.select().from(whatsappSettings).limit(1);
 
 		cachedApiType = settings?.activeApi || 'meta';
 
@@ -119,10 +116,7 @@ export async function setActiveWhatsAppApi(api: 'meta' | 'baileys'): Promise<voi
  * Cria registro padrão se não existir
  */
 export async function getWhatsAppSettings() {
-	let [settings] = await db
-		.select()
-		.from(whatsappSettings)
-		.limit(1);
+	let [settings] = await db.select().from(whatsappSettings).limit(1);
 
 	// Se não existe, criar registro padrão
 	if (!settings) {

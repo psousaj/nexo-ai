@@ -51,6 +51,5 @@ export default defineNuxtConfig({
 			apiUrl: env.NUXT_PUBLIC_API_URL || 'http://localhost:3001/api',
 			authBaseUrl: env.NUXT_PUBLIC_AUTH_BASE_URL || 'http://localhost:3001',
 		},
-
-}
-	});
+	},
+});

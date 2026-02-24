@@ -11,19 +11,15 @@
  * - Funcionalidades completas do WhatsApp (reactions, groups, media, etc)
  */
 
-import type { WAMessage } from '@whiskeysockets/baileys';
-import { loggers } from '@/utils/logger';
-import type { IncomingMessage, MessagingProvider, ProviderType } from './types';
 import { getBaileysService } from '@/services/baileys-service';
+import { loggers } from '@/utils/logger';
+import type { WAMessage } from '@whiskeysockets/baileys';
+import type { IncomingMessage, MessagingProvider, ProviderType } from './types';
 
 const logger = loggers.ai;
 
 export class BaileysAdapter implements MessagingProvider {
 	private service: Awaited<ReturnType<typeof getBaileysService>> | null = null;
-
-	constructor() {
-		// O serviço será inicializado de forma lazy
-	}
 
 	/**
 	 * Inicializa o serviço Baileys
@@ -97,10 +93,10 @@ export class BaileysAdapter implements MessagingProvider {
 			// Verificar se é mensagem de grupo
 			// Formato: 5511999999999-1234567890@g.us (grupo)
 			const isGroup = remoteJid?.includes('@g.us');
-			const isBroadcast = remoteJid?.includes('@broadcast');
+			const _isBroadcast = remoteJid?.includes('@broadcast');
 
 			// Extrair número de telefone (remover sufixo)
-			let phoneNumber: string = remoteJid?.split('@')[0] || '';
+			const phoneNumber: string = remoteJid?.split('@')[0] || '';
 
 			// Para grupos, o userId é o remetente original
 			let userId = phoneNumber;
@@ -179,7 +175,7 @@ export class BaileysAdapter implements MessagingProvider {
 	 * Baileys tem suporte a receipts
 	 */
 	async markAsRead(messageId: string): Promise<void> {
-		const service = await this.getService();
+		const _service = await this.getService();
 
 		// Para implementar markAsRead, precisaríamos guardar a referência
 		// da mensagem original. Por ora, é um no-op.
@@ -216,12 +212,7 @@ export class BaileysAdapter implements MessagingProvider {
 	 * Enviar mensagem com botões
 	 * Baileys suporta buttons nativos do WhatsApp
 	 */
-	async sendMessageWithButtons(
-		chatId: string,
-		text: string,
-		buttons: any[],
-		_options?: any,
-	): Promise<void> {
+	async sendMessageWithButtons(chatId: string, text: string, buttons: any[], _options?: any): Promise<void> {
 		const service = await this.getService();
 		const sock = (service as any).sock;
 
