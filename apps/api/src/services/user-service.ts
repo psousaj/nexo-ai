@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { authProviders, users } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 export class UserService {
 	/**
@@ -35,7 +35,7 @@ export class UserService {
 		const [existingProviderAccount] = await db
 			.select()
 			.from(authProviders)
-			.where(and(eq(authProviders.provider, provider), eq(authProviders.providerUserId, externalId)))
+			.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
 			.limit(1);
 
 		if (existingProviderAccount) {
@@ -154,7 +154,7 @@ export class UserService {
 		const [existing] = await db
 			.select()
 			.from(authProviders)
-			.where(and(eq(authProviders.provider, provider), eq(authProviders.providerUserId, externalId)))
+			.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
 			.limit(1);
 
 		if (existing) {
@@ -249,7 +249,7 @@ export class UserService {
 		const [account] = await db
 			.select()
 			.from(authProviders)
-			.where(and(eq(authProviders.provider, provider), eq(authProviders.providerUserId, externalId)))
+			.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
 			.limit(1);
 
 		if (!account) return null;

@@ -2,7 +2,7 @@ import { db } from '@/db';
 import * as schema from '@/db/schema';
 import type { AuthProvider } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 const AUTH_PROVIDER_SET = new Set<AuthProvider>(schema.authProviderEnum.enumValues as AuthProvider[]);
 
@@ -116,7 +116,7 @@ export async function syncOAuthAccount(params: {
 		const [existingAccount] = await db
 			.select()
 			.from(schema.authProviders)
-			.where(and(eq(schema.authProviders.provider, provider), eq(schema.authProviders.providerUserId, externalId)))
+			.where(and(sql`${schema.authProviders.provider}::text = ${provider}`, eq(schema.authProviders.providerUserId, externalId)))
 			.limit(1);
 
 		if (!existingAccount) {
@@ -140,7 +140,7 @@ export async function syncOAuthAccount(params: {
 					providerEmail: email || null,
 					updatedAt: new Date(),
 				})
-				.where(and(eq(schema.authProviders.provider, provider), eq(schema.authProviders.providerUserId, externalId)));
+				.where(and(sql`${schema.authProviders.provider}::text = ${provider}`, eq(schema.authProviders.providerUserId, externalId)));
 
 			loggers.webhook.info({ userId, provider, metadata }, '✅ auth_provider atualizado com metadata');
 		}
