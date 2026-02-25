@@ -43,6 +43,29 @@ export interface EnrichmentJob {
 
 const queueLogger = loggers.queue;
 
+function reportQueueError(
+	error: unknown,
+	params: {
+		queue: string;
+		provider?: string;
+		state?: string;
+		conversationId?: string;
+		userId?: string;
+		extra?: Record<string, any>;
+	},
+) {
+	void globalErrorHandler.handle(error, {
+		provider: params.provider || 'queue',
+		state: params.state || 'queue_error',
+		conversationId: params.conversationId,
+		userId: params.userId,
+		extra: {
+			queue: params.queue,
+			...params.extra,
+		},
+	});
+}
+
 // ============================================================================
 // QUEUE SETUP
 // ============================================================================
@@ -105,6 +128,7 @@ queueLogger.info(`🎯 Bull configurado com sucesso (${env.REDIS_HOST})`);
 
 closeConversationQueue.on('error', (error) => {
 	queueLogger.error({ err: error }, '❌ [close-conversation] Erro na queue');
+	reportQueueError(error, { queue: 'close-conversation' });
 });
 
 closeConversationQueue.on('ready', () => {
@@ -113,6 +137,7 @@ closeConversationQueue.on('ready', () => {
 
 messageQueue.on('error', (error) => {
 	queueLogger.error({ err: error }, '❌ [message-processing] Erro na queue');
+	reportQueueError(error, { queue: 'message-processing' });
 });
 
 messageQueue.on('ready', () => {
@@ -121,6 +146,7 @@ messageQueue.on('ready', () => {
 
 responseQueue.on('error', (error) => {
 	queueLogger.error({ err: error }, '❌ [response-sending] Erro na queue');
+	reportQueueError(error, { queue: 'response-sending' });
 });
 
 responseQueue.on('ready', () => {
@@ -129,6 +155,7 @@ responseQueue.on('ready', () => {
 
 enrichmentQueue.on('error', (error) => {
 	queueLogger.error({ err: error }, '❌ [enrichment-processing] Erro na queue');
+	reportQueueError(error, { queue: 'enrichment-processing' });
 });
 
 enrichmentQueue.on('ready', () => {
@@ -153,11 +180,11 @@ enrichmentQueue.on('active', (job) => {
 
 closeConversationQueue.on('failed', async (job, error) => {
 	queueLogger.error({ jobId: job.id, err: error }, '❌ [close-conversation] Job falhou');
-	await globalErrorHandler.handle(error, {
-		conversationId: job.data.conversationId,
-		provider: 'queue',
+	reportQueueError(error, {
+		queue: 'close-conversation',
 		state: 'background_job',
-		extra: { jobId: job.id, queue: 'close-conversation' },
+		conversationId: job.data.conversationId,
+		extra: { jobId: job.id },
 	});
 });
 
@@ -168,14 +195,15 @@ messageQueue.on('failed', async (job, error: any) => {
 	const conversationId = error.conversationId;
 	const userId = error.userId;
 
-	await globalErrorHandler.handle(error, {
+	reportQueueError(error, {
+		queue: 'message-processing',
 		provider: job.data.providerName,
+		state: 'background_job',
 		conversationId,
 		userId,
 		extra: {
 			jobId: job.id,
 			externalId: job.data.incomingMsg.externalId,
-			queue: 'message-processing',
 		},
 	});
 });
@@ -191,7 +219,36 @@ responseQueue.on('failed', async (job, error) => {
 			},
 			'❌ [response-sending] Job falhou',
 		);
+
+		reportQueueError(error, {
+			queue: 'response-sending',
+			state: 'background_job',
+			conversationId: job.data.metadata?.conversationId,
+			userId: job.data.metadata?.userId,
+			extra: {
+				jobId: job.id,
+				externalId: job.data.externalId,
+				attempts: job.attemptsMade,
+			},
+		});
 	}
+});
+
+enrichmentQueue.on('failed', async (job, error) => {
+	if (!job) return;
+
+	queueLogger.error({ jobId: job.id, err: error }, '❌ [enrichment-processing] Job falhou');
+
+	reportQueueError(error, {
+		queue: 'enrichment-processing',
+		state: 'background_job',
+		extra: {
+			jobId: job.id,
+			type: job.data.type,
+			providerName: job.data.provider,
+			candidatesCount: job.data.candidates?.length || 0,
+		},
+	});
 });
 
 // ============================================================================
@@ -220,13 +277,7 @@ closeConversationQueue.process('close-conversation', async (job) => {
 					closeJobId: null,
 					updatedAt: new Date(),
 				})
-				.where(
-					and(
-						eq(conversations.id, conversationId),
-						eq(conversations.state, 'waiting_close'),
-						lte(conversations.closeAt, new Date()),
-					),
-				)
+				.where(and(eq(conversations.id, conversationId), eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, new Date())))
 				.returning({ id: conversations.id });
 
 			if (result.length === 0) {
@@ -276,10 +327,7 @@ messageQueue.process('message-processing', async (job) => {
 			await processMessage(incomingMsg, provider);
 
 			setAttributes({ 'queue.status': 'success' });
-			queueLogger.info(
-				{ providerName, externalId: incomingMsg.externalId, jobId: job.id },
-				'✅ [Worker] Mensagem processada com sucesso',
-			);
+			queueLogger.info({ providerName, externalId: incomingMsg.externalId, jobId: job.id }, '✅ [Worker] Mensagem processada com sucesso');
 		} catch (error) {
 			recordException(error as Error, { 'queue.status': 'failed' });
 			queueLogger.error(
@@ -378,10 +426,7 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 				return { inserted: 0, skipped: 0, reason: 'no_candidates' };
 			}
 
-			queueLogger.info(
-				{ provider, type, count: candidates.length, jobId: job.id },
-				'🚀 [Worker] Iniciando bulk enrichment',
-			);
+			queueLogger.info({ provider, type, count: candidates.length, jobId: job.id }, '🚀 [Worker] Iniciando bulk enrichment');
 
 			// 1. Extrair IDs
 			const externalIds = candidates.map((c) => String(c.id));
@@ -440,9 +485,7 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 				if (!i || !i.embedding) return false;
 				// Valida embedding: array, 384 dimensões, todos números válidos
 				return (
-					Array.isArray(i.embedding) &&
-					i.embedding.length === 384 &&
-					i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
+					Array.isArray(i.embedding) && i.embedding.length === 384 && i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
 				);
 			});
 
@@ -453,10 +496,7 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 			}
 
 			// 5. Bulk Insert
-			const insertResult = await db
-				.insert(semanticExternalItems)
-				.values(validItems)
-				.returning({ id: semanticExternalItems.id });
+			const insertResult = await db.insert(semanticExternalItems).values(validItems).returning({ id: semanticExternalItems.id });
 
 			const insertedCount = insertResult.length;
 			const skippedCount = candidates.length - insertedCount;
@@ -512,10 +552,7 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			})
 			.where(eq(conversations.id, conversationId));
 
-		queueLogger.info(
-			{ conversationId, closeAt: closeAt.toISOString() },
-			'📅 Banco atualizado: conversa aguardando fechamento',
-		);
+		queueLogger.info({ conversationId, closeAt: closeAt.toISOString() }, '📅 Banco atualizado: conversa aguardando fechamento');
 
 		await closeConversationQueue.add(
 			'close-conversation',
@@ -532,6 +569,7 @@ export async function scheduleConversationClose(conversationId: string): Promise
 		queueLogger.info({ jobId }, '✅ Job agendado');
 	} catch (error) {
 		queueLogger.error({ conversationId, err: error }, '❌ Erro ao agendar fechamento');
+		throw error;
 	}
 }
 
@@ -567,6 +605,7 @@ export async function cancelConversationClose(conversationId: string): Promise<v
 		}
 	} catch (error) {
 		queueLogger.error({ conversationId, err: error }, '❌ Erro ao cancelar fechamento');
+		throw error;
 	}
 }
 
@@ -597,7 +636,7 @@ export async function runConversationCloseCron(): Promise<number> {
 		return count;
 	} catch (error) {
 		queueLogger.error({ err: error }, '❌ Erro no cron de fechamento');
-		return 0;
+		throw error;
 	}
 }
 
@@ -630,7 +669,7 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		return count;
 	} catch (error) {
 		queueLogger.error({ err: error }, '❌ Erro no timeout de awaiting_confirmation');
-		return 0;
+		throw error;
 	}
 }
 
@@ -656,20 +695,10 @@ export async function queueResponse(data: ResponseJob): Promise<void> {
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues...');
-	await Promise.all([
-		closeConversationQueue.close(),
-		messageQueue.close(),
-		responseQueue.close(),
-		enrichmentQueue.close(),
-	]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues...');
-	await Promise.all([
-		closeConversationQueue.close(),
-		messageQueue.close(),
-		responseQueue.close(),
-		enrichmentQueue.close(),
-	]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
 });
