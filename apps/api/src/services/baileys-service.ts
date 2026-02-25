@@ -54,6 +54,7 @@ export interface BaileysConnectionEvent {
  */
 export class BaileysService {
 	private sock: WASocket | null = null;
+	private socketGeneration = 0;
 	private connectionState: ConnectionState = { connection: 'close' };
 	private config: Required<BaileysConfig>;
 	private messageHandlers: Array<(message: WAMessage) => void> = [];
@@ -62,6 +63,9 @@ export class BaileysService {
 	private qrCodeTimestamp = 0; // Timestamp de quando o QR foi gerado
 	private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected';
 	private connectionError: string | null = null;
+	private recoveryInProgress = false;
+	private recoveryAttempts = 0;
+	private readonly MAX_RECOVERY_ATTEMPTS = 3;
 
 	constructor(config: BaileysConfig = {}) {
 		this.config = {
@@ -99,15 +103,20 @@ export class BaileysService {
 
 		try {
 			logger.info({ authPath: this.config.authPath }, '🔄 Conectando Baileys...');
+			const generation = ++this.socketGeneration;
 
 			// Autenticação com arquivos locais
 			const { state, saveCreds } = await useMultiFileAuthState(this.config.authPath);
 
 			// Criar socket com configurações mais robustas
-			this.sock = makeWASocket({
+			const socket = makeWASocket({
 				auth: state,
-				printQRInTerminal: this.config.printQRInTerminal,
+				printQRInTerminal: false,
 				defaultQueryTimeoutMs: undefined,
+				// Fix para erro 405: WhatsApp passou a rejeitar Platform.WEB em 2026-02-24.
+				// A versão 1033893291 é aceita pelo servidor atual enquanto o PR #2365 não é merged.
+				// Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
+				version: [2, 3000, 1033893291],
 				// Configurações para melhorar estabilidade
 				syncFullHistory: false, // Não sincronizar todo histórico (evita timeout)
 				browser: ['Nexo AI', 'Chrome', '120.0.0'], // Identificação do cliente
@@ -132,23 +141,27 @@ export class BaileysService {
 					return message;
 				},
 			});
+			this.sock = socket;
 
 			// Salvar credenciais quando atualizadas
-			this.sock.ev.on('creds.update', saveCreds);
+			socket.ev.on('creds.update', saveCreds);
 
 			// Gerenciar eventos de conexão
-			this.sock.ev.on('connection.update', (update) => {
+			socket.ev.on('connection.update', (update) => {
+				if (generation !== this.socketGeneration || this.sock !== socket) {
+					return;
+				}
 				// Capturar QR Code e atualizar timestamp
 				if (update.qr) {
 					this.latestQRCode = update.qr;
 					this.qrCodeTimestamp = Date.now();
 					logger.info('📱 QR Code recebido do Baileys');
 				}
-				this.handleConnectionUpdate(update);
+				this.handleConnectionUpdate(update, socket, generation);
 			});
 
 			// Receber mensagens
-			this.sock.ev.on('messages.upsert', ({ messages, type }) => {
+			socket.ev.on('messages.upsert', ({ messages, type }) => {
 				if (type === 'notify') {
 					for (const msg of messages) {
 						this.handleMessage(msg);
@@ -308,8 +321,12 @@ export class BaileysService {
 	/**
 	 * Gerenciar eventos de conexão
 	 */
-	private handleConnectionUpdate(update: Partial<ConnectionState>): void {
+	private handleConnectionUpdate(update: Partial<ConnectionState>, socket: WASocket, generation: number): void {
 		const { connection, lastDisconnect, qr } = update;
+
+		if (generation !== this.socketGeneration || this.sock !== socket) {
+			return;
+		}
 
 		logger.info(
 			{
@@ -329,6 +346,8 @@ export class BaileysService {
 				this.connectionStatus = 'connected';
 				this.connectionError = null;
 				this.isConnecting = false;
+				this.recoveryInProgress = false;
+				this.recoveryAttempts = 0;
 				logger.info('✅ Baileys conectado!');
 				// Salvar número de telefone conectado
 				if (this.sock?.user?.id) {
@@ -341,6 +360,10 @@ export class BaileysService {
 				this.connectionStatus = 'disconnected';
 				const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
 				const errorMessage = (lastDisconnect?.error as any)?.message || 'Unknown';
+
+				if (generation !== this.socketGeneration || this.sock !== socket) {
+					return;
+				}
 
 				logger.info(
 					{
@@ -358,13 +381,58 @@ export class BaileysService {
 				// connectionLost: 428
 				// badSession: 440
 
-				if (statusCode === DisconnectReason.loggedOut) {
+				if (statusCode === DisconnectReason.loggedOut || statusCode === 405) {
+					if (this.recoveryInProgress) {
+						logger.warn({ statusCode }, '⚠️ Recovery já em andamento, ignorando close duplicado');
+						return;
+					}
+
+					this.recoveryAttempts++;
+					if (this.recoveryAttempts > this.MAX_RECOVERY_ATTEMPTS) {
+						logger.error(
+							{ statusCode, attempts: this.recoveryAttempts },
+							'❌ Máximo de tentativas de recovery atingido - servidor WA rejeitando cliente. Reinicie o serviço manualmente.',
+						);
+						this.connectionStatus = 'error';
+						this.connectionError =
+							'Falha persistente na conexão WhatsApp (servidor rejeita cliente). Reinicie o serviço.';
+						this.recoveryAttempts = 0;
+						return;
+					}
+
+					this.recoveryInProgress = true;
 					this.connectionStatus = 'error';
-					this.connectionError = 'Desconectado (logout). Escaneie o QR Code novamente.';
-					logger.warn('⚠️ Baileys desconectado por logout (401)');
+					this.connectionError =
+						statusCode === 405
+							? 'Sessão inválida/expirada. Gerando novo QR Code...'
+							: 'Desconectado (logout). Escaneie o QR Code novamente.';
+					logger.warn(
+						{ statusCode, attempt: this.recoveryAttempts, maxAttempts: this.MAX_RECOVERY_ATTEMPTS },
+						'⚠️ Sessão inválida ou logout - limpando para novo pareamento',
+					);
 					// Limpar credenciais para permitir novo QR code
 					this.latestQRCode = null;
 					this.sock = null;
+					setTimeout(() => {
+						if (generation !== this.socketGeneration) {
+							return;
+						}
+
+						this.clearSession()
+							.then(() => {
+								if (generation !== this.socketGeneration) {
+									return;
+								}
+								logger.info('♻️ Gerando novo QR Code...');
+								// recoveryInProgress permanece true até connection === 'open'
+								// para bloquear novos recovery no mesmo ciclo de falha
+								return this.connect();
+							})
+							.catch((err) => {
+								this.recoveryInProgress = false;
+								logger.error({ err }, '❌ Erro ao limpar sessão');
+							});
+					}, 2000);
 				} else if (statusCode === 515) {
 					// Restart required - pode acontecer após pareamento bem-sucedido
 					logger.warn('⚠️ Restart necessário (515)');
@@ -373,15 +441,20 @@ export class BaileysService {
 					this.sock = null;
 					const credsPath = `${this.config.authPath}/creds.json`;
 					setTimeout(async () => {
+						if (generation !== this.socketGeneration) {
+							return;
+						}
 						try {
 							await fs.access(credsPath);
 							logger.info('♻️ Credenciais encontradas, reconectando...');
-							this.connect();
+							await this.connect();
 						} catch {
 							logger.warn('📂 Sem credenciais, limpando...');
 							try {
 								await this.clearSession();
-								this.connect();
+								if (generation === this.socketGeneration) {
+									await this.connect();
+								}
 							} catch (err) {
 								logger.error({ err }, '❌ Erro');
 							}
@@ -396,8 +469,14 @@ export class BaileysService {
 					this.latestQRCode = null;
 					// Limpar sessão e gerar novo QR
 					setTimeout(() => {
+						if (generation !== this.socketGeneration) {
+							return;
+						}
 						this.clearSession()
 							.then(() => {
+								if (generation !== this.socketGeneration) {
+									return;
+								}
 								logger.info('♻️ Gerando novo QR Code...');
 								this.connect();
 							})
@@ -412,6 +491,9 @@ export class BaileysService {
 					this.sock = null;
 					// Reconectar após 3 segundos
 					setTimeout(() => {
+						if (generation !== this.socketGeneration) {
+							return;
+						}
 						logger.info('♻️ Tentando reconectar...');
 						this.connect().catch((err) => {
 							logger.error({ err }, '❌ Erro ao reconectar Baileys');
