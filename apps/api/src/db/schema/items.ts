@@ -1,6 +1,6 @@
 import type { ItemMetadata, ItemType } from '@/types';
 import { relations } from 'drizzle-orm';
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core';
+import { foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core';
 import { semanticExternalItems } from './semantic-external-items';
 import { users } from './users';
 
@@ -25,7 +25,7 @@ export const memoryItems = pgTable(
 		/** Vetor para busca semântica (BGE Small = 384 dims) */
 		embedding: vector('embedding', { dimensions: 384 }),
 		/** Referência para cache semântico externo (reuso de metadata/embedding) */
-		semanticExternalItemId: uuid('semantic_external_item_id').references(() => semanticExternalItems.id),
+		semanticExternalItemId: uuid('semantic_external_item_id'),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 	},
 	(table) => ({
@@ -38,6 +38,11 @@ export const memoryItems = pgTable(
 		uniqueExternalIdx: uniqueIndex('memory_items_unique_external_idx').on(table.userId, table.type, table.externalId),
 		// Índice único: mesmo usuário não pode ter duplicata do mesmo contentHash
 		uniqueContentHashIdx: uniqueIndex('memory_items_unique_content_hash_idx').on(table.userId, table.contentHash),
+		semanticExternalItemFk: foreignKey({
+			columns: [table.semanticExternalItemId],
+			foreignColumns: [semanticExternalItems.id],
+			name: 'memory_items_semantic_ext_item_fk',
+		}),
 	}),
 );
 
