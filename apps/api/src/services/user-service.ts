@@ -7,6 +7,50 @@ import { loggers } from '@/utils/logger';
 import { and, eq, sql } from 'drizzle-orm';
 
 export class UserService {
+	private async findProviderAccount(provider: ProviderType, externalId: string) {
+		try {
+			const [account] = await db
+				.select()
+				.from(authProviders)
+				.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
+				.limit(1);
+
+			return account;
+		} catch (error) {
+			loggers.webhook.warn(
+				{ err: error, provider, externalId },
+				'⚠️ Falha no lookup canônico por provider+externalId. Tentando fallback por provider_user_id.',
+			);
+
+			const fallbackResult = await db.execute(sql`
+				SELECT id, user_id, provider, provider_user_id, provider_email, linked_at, is_active, metadata, created_at, updated_at
+				FROM auth_providers
+				WHERE provider_user_id = ${externalId}
+				LIMIT 1
+			`);
+
+			const row = (fallbackResult as any)?.[0] || (fallbackResult as any)?.rows?.[0];
+			if (!row) return undefined;
+
+			if (String(row.provider) !== provider) {
+				return undefined;
+			}
+
+			return {
+				id: row.id,
+				userId: row.user_id,
+				provider: row.provider,
+				providerUserId: row.provider_user_id,
+				providerEmail: row.provider_email,
+				linkedAt: row.linked_at,
+				isActive: row.is_active,
+				metadata: row.metadata,
+				createdAt: row.created_at,
+				updatedAt: row.updated_at,
+			} as typeof authProviders.$inferSelect;
+		}
+	}
+
 	/**
 	 * Retorna a chave de cache para uma conta de provider
 	 */
@@ -47,11 +91,7 @@ export class UserService {
 		}
 
 		// 1b. Busca provider account canônico (auth_providers)
-		const [existingProviderAccount] = await db
-			.select()
-			.from(authProviders)
-			.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
-			.limit(1);
+		const existingProviderAccount = await this.findProviderAccount(provider, externalId);
 
 		if (existingProviderAccount) {
 			const user = await this.getUserById(existingProviderAccount.userId);
@@ -176,11 +216,7 @@ export class UserService {
 		const cacheKey = this.getAccountCacheKey(provider, externalId);
 
 		// 1. Verifica vínculo canônico em auth_providers
-		const [existing] = await db
-			.select()
-			.from(authProviders)
-			.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
-			.limit(1);
+		const existing = await this.findProviderAccount(provider, externalId);
 
 		if (existing) {
 			if (existing.userId === userId) {
@@ -271,11 +307,7 @@ export class UserService {
 	 * Busca uma conta vinculada por provider e ID externo
 	 */
 	async findAccount(provider: ProviderType, externalId: string) {
-		const [account] = await db
-			.select()
-			.from(authProviders)
-			.where(and(sql`${authProviders.provider}::text = ${provider}`, eq(authProviders.providerUserId, externalId)))
-			.limit(1);
+		const account = await this.findProviderAccount(provider, externalId);
 
 		if (!account) return null;
 
