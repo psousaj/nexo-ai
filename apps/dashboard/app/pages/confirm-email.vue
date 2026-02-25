@@ -31,10 +31,17 @@ const queryStatus = computed(() => {
 
 const isSuccess = computed(() => queryStatus.value === 'success');
 const hasToken = computed(() => typeof token.value === 'string' && token.value.trim().length > 0);
+const isAlreadyVerified = computed(() => !!authStore.user?.emailVerified);
 
 const resendConfirmation = async () => {
 	if (!authStore.isAuthenticated) {
 		resendError.value = 'Faça login para reenviar o email de confirmação.';
+		return;
+	}
+
+	if (isAlreadyVerified.value) {
+		resendError.value = '';
+		resendMessage.value = 'Seu email já está confirmado.';
 		return;
 	}
 
@@ -44,6 +51,11 @@ const resendConfirmation = async () => {
 
 	try {
 		const response = await api.post('/user/emails/resend-confirmation');
+		if (response.data?.alreadyVerified) {
+			await authStore.refreshProfile();
+			resendMessage.value = 'Seu email já está confirmado.';
+			return;
+		}
 		const sentTo = response.data?.sentTo || authStore.user?.email;
 		resendMessage.value = sentTo ? `Email de confirmação enviado para ${sentTo}.` : 'Email de confirmação reenviado com sucesso.';
 	} catch (error: any) {
@@ -56,11 +68,16 @@ const resendConfirmation = async () => {
 const goToDashboard = async () => {
 	try {
 		await authClient.getSession();
+		await authStore.refreshProfile();
 	} catch (error) {
 		console.warn('Não foi possível atualizar sessão após confirmação:', error);
 	}
 
 	await navigateTo('/', { replace: true });
+};
+
+const handleLogout = async () => {
+	await authStore.logout();
 };
 
 onMounted(async () => {
@@ -74,8 +91,17 @@ onMounted(async () => {
 	if (isSuccess.value) {
 		try {
 			await authClient.getSession();
+			await authStore.refreshProfile();
 		} catch (error) {
 			console.warn('Falha ao atualizar sessão:', error);
+		}
+	}
+
+	if (authStore.isAuthenticated) {
+		await authStore.refreshProfile();
+		if (authStore.user?.emailVerified) {
+			await navigateTo('/', { replace: true });
+			return;
 		}
 	}
 
@@ -91,7 +117,7 @@ onMounted(async () => {
 			<div class="text-center space-y-2">
 				<h1 class="text-2xl font-bold text-surface-900 dark:text-white">Confirmação de email</h1>
 				<p class="text-surface-500">
-					<span v-if="isSuccess">Seu email foi confirmado com sucesso.</span>
+					<span v-if="isSuccess || isAlreadyVerified">Seu email foi confirmado com sucesso.</span>
 					<span v-else-if="queryStatus === 'invalid'">O link de confirmação é inválido ou expirou.</span>
 					<span v-else-if="queryStatus === 'not_found'">Não encontramos este email para confirmação.</span>
 					<span v-else>
@@ -119,7 +145,7 @@ onMounted(async () => {
 
 			<div class="space-y-3">
 				<button
-					v-if="isSuccess"
+					v-if="isSuccess || isAlreadyVerified"
 					type="button"
 					class="w-full py-3.5 bg-primary-600 text-white rounded-xl font-black shadow-lg shadow-primary-600/30 hover:bg-primary-700 transition-all"
 					@click="goToDashboard"
@@ -144,6 +170,15 @@ onMounted(async () => {
 					>
 						Fazer login
 					</NuxtLink>
+
+					<button
+						v-else
+						type="button"
+						class="w-full inline-flex items-center justify-center py-3 border border-surface-200 dark:border-surface-800 rounded-xl font-bold hover:bg-surface-50 dark:hover:bg-surface-800 transition-all"
+						@click="handleLogout"
+					>
+						Sair
+					</button>
 				</template>
 			</div>
 		</div>

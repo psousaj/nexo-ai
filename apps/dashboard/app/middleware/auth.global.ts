@@ -30,6 +30,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
 		return navigateTo(callbackUrl ? `/login?callbackUrl=${callbackUrl}` : '/login', { replace: true });
 	}
 
+	if (authStore.isAuthenticated) {
+		await authStore.refreshProfile();
+	}
+
 	const currentUser = authStore.user;
 	const isEmailUnverified = !!(authStore.isAuthenticated && currentUser && !currentUser.emailVerified);
 
