@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bot, BrainCircuit, Clapperboard, Gamepad2, Link2, Menu, MessageCircle, Send, StickyNote, X } from 'lucide-vue-next';
+import { BrainCircuit, Clapperboard, Link2, StickyNote } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
 
 const isMenuOpen = ref(false);

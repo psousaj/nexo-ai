@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { X, Save, Loader2 } from 'lucide-vue-next';
+import { onMounted, onUnmounted, ref } from 'vue';
 import type { ItemType } from '../types';
 
 const props = defineProps<{

@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { authClient } from '../lib/auth-client';
 import { useAuthStore } from '../store/auth';
-import { Mail, Lock, Loader2, LayoutGrid } from 'lucide-vue-next';
 
 const router = useRouter();
 const authStore = useAuthStore();

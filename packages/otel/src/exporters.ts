@@ -1,5 +1,5 @@
-import { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import type { SpanExporter } from '@opentelemetry/sdk-trace-base';
 
 export interface ExporterConfig {
 	endpoint?: string;

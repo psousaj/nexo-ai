@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
-import { Bot, Brain, Calendar, Clock, Download, FileText, MessageCircle, Search } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 
@@ -28,7 +27,7 @@ const { data: sessions, isLoading } = useQuery({
 // Export session as JSONL
 async function exportSessionJsonl(sessionId: string, sessionKey: string) {
 	if (!process.client) return;
-	
+
 	try {
 		const response = await api.get(`/api/agent/sessions/${sessionId}/export`, {
 			responseType: 'blob',

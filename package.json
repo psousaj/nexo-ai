@@ -1,11 +1,8 @@
 {
 	"name": "nexo-monorepo",
-	"version": "0.5.9",
+	"version": "0.5.10",
 	"private": true,
-	"workspaces": [
-		"apps/*",
-		"packages/*"
-	],
+	"workspaces": ["apps/*", "packages/*"],
 	"scripts": {
 		"dev:app": "turbo dev --filter=@nexo/api --filter=@nexo/dashboard --filter=@nexo/landing",
 		"dev": "turbo dev",

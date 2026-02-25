@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Link as LinkIcon, Loader2, Mail, MessageSquare, Plus, RefreshCw, Smartphone, User, XCircle } from 'lucide-vue-next';
+import { Mail, MessageSquare, Smartphone } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 
@@ -12,14 +12,14 @@ const route = useRoute();
 
 // Fetch Real Accounts
 const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
-queryKey: ['user-accounts'],
-queryFn: () => dashboard.getAccounts(),
+	queryKey: ['user-accounts'],
+	queryFn: () => dashboard.getAccounts(),
 });
 
 // Fetch Discord Bot Info
 const { data: discordBotInfo } = useQuery({
-queryKey: ['discord-bot-info'],
-queryFn: () => dashboard.getDiscordBotInfo(),
+	queryKey: ['discord-bot-info'],
+	queryFn: () => dashboard.getDiscordBotInfo(),
 });
 
 // Sincronizar accounts automaticamente no mount e após redirect de OAuth
@@ -27,7 +27,9 @@ onMounted(async () => {
 	const successProvider = route.query.success;
 	if (successProvider) {
 		console.log(`✅ [Profile] OAuth concluído para ${successProvider}, sincronizando...`);
-		setTimeout(async () => { await syncAccounts(); }, 1000);
+		setTimeout(async () => {
+			await syncAccounts();
+		}, 1000);
 	}
 });
 
@@ -36,20 +38,45 @@ const connectedAccounts = computed(() => {
 
 	// Limpa o externalId do WhatsApp (remove sufixo @lid / @s.whatsapp.net)
 	const wa = accounts.find((a) => a.provider === 'whatsapp');
-	const waPhone = wa?.metadata?.phone
-		|| (wa?.externalId ? `+${wa.externalId.replace(/@.+$/, '')}` : null);
+	const waPhone = wa?.metadata?.phone || (wa?.externalId ? `+${wa.externalId.replace(/@.+$/, '')}` : null);
 
 	return [
-		{ id: 'whatsapp', name: 'WhatsApp', icon: Smartphone, status: wa ? 'connected' : 'disconnected', username: waPhone },
-		{ id: 'telegram', name: 'Telegram', icon: MessageSquare, status: accounts.find((a) => a.provider === 'telegram') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'telegram')?.metadata?.username || null },
-		{ id: 'discord', name: 'Discord', icon: MessageSquare, status: accounts.find((a) => a.provider === 'discord') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'discord')?.metadata?.username || null },
-		{ id: 'google', name: 'Google', icon: Mail, status: accounts.find((a) => a.provider === 'google') ? 'connected' : 'disconnected', username: accounts.find((a) => a.provider === 'google')?.metadata?.email || null },
+		{
+			id: 'whatsapp',
+			name: 'WhatsApp',
+			icon: Smartphone,
+			status: wa ? 'connected' : 'disconnected',
+			username: waPhone,
+		},
+		{
+			id: 'telegram',
+			name: 'Telegram',
+			icon: MessageSquare,
+			status: accounts.find((a) => a.provider === 'telegram') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'telegram')?.metadata?.username || null,
+		},
+		{
+			id: 'discord',
+			name: 'Discord',
+			icon: MessageSquare,
+			status: accounts.find((a) => a.provider === 'discord') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'discord')?.metadata?.username || null,
+		},
+		{
+			id: 'google',
+			name: 'Google',
+			icon: Mail,
+			status: accounts.find((a) => a.provider === 'google') ? 'connected' : 'disconnected',
+			username: accounts.find((a) => a.provider === 'google')?.metadata?.email || null,
+		},
 	];
 });
 
 const isEditing = ref(false);
 const profileForm = ref({ name: authStore.user?.name || '', email: authStore.user?.email || '' });
-const handleSave = () => { isEditing.value = false; };
+const handleSave = () => {
+	isEditing.value = false;
+};
 
 // Linking Logic
 const isLinking = ref(false);
@@ -80,12 +107,17 @@ const handleLink = async (provider: string) => {
 			const { link } = await dashboard.linkDiscord();
 			if (process.client) window.open(link, '_blank');
 		} else if (provider === 'google') {
-			await authClient.signIn.social({ provider: 'google', callbackURL: process.client ? `${window.location.origin}/profile?success=google` : '/profile?success=google' });
+			await authClient.signIn.social({
+				provider: 'google',
+				callbackURL: process.client ? `${window.location.origin}/profile?success=google` : '/profile?success=google',
+			});
 		}
 	} catch (error) {
 		console.error(`Failed to link ${provider}:`, error);
 	} finally {
-		setTimeout(() => { isLinking.value = false; }, 2000);
+		setTimeout(() => {
+			isLinking.value = false;
+		}, 2000);
 	}
 };
 

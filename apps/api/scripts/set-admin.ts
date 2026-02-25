@@ -1,10 +1,10 @@
+import { eq } from 'drizzle-orm';
 import { db } from '../src/db';
 import * as schema from '../src/db/schema';
-import { eq } from 'drizzle-orm';
 
 async function setAdmin(email: string) {
 	console.log(`🔍 Procurando usuário com email: ${email}...`);
-	
+
 	const user = await db.query.users.findFirst({
 		where: eq(schema.users.email, email),
 	});
@@ -16,15 +16,12 @@ async function setAdmin(email: string) {
 
 	console.log(`found user: ${user.id}. Atualizando para admin...`);
 
-	await db.update(schema.users)
-		.set({ role: 'admin' })
-		.where(eq(schema.users.id, user.id));
+	await db.update(schema.users).set({ role: 'admin' }).where(eq(schema.users.id, user.id));
 
 	console.log(`✅ Role atualizada. Inserindo permissões CASL...`);
 
 	// Remove permissões antigas para evitar duplicidade se rodar de novo
-	await db.delete(schema.userPermissions)
-		.where(eq(schema.userPermissions.userId, user.id));
+	await db.delete(schema.userPermissions).where(eq(schema.userPermissions.userId, user.id));
 
 	await db.insert(schema.userPermissions).values({
 		userId: user.id,

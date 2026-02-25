@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useDashboard } from '~/composables/useDashboard';
 
 definePageMeta({
@@ -52,7 +52,7 @@ const { data: users, isLoading } = useQuery<UsersResponse>({
 // Computed stats
 const stats = computed(() => {
 	if (!users.value?.data) return { total: 0, active: 0, telegram: 0, whatsapp: 0, discord: 0 };
-	
+
 	const data = users.value.data;
 	return {
 		total: data.length,

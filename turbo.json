@@ -1,59 +1,44 @@
 {
-    "$schema": "https://turbo.build/schema.json",
-    "tasks": {
-        "merge-pr": {
-            "cache": false,
-            "persistent": false
-        },
-        "build": {
-            "dependsOn": [
-                "^build"
-            ],
-            "outputs": [
-                "dist/**",
-                ".output/**",
-                ".nuxt/**",
-                ".docusaurus/**"
-            ]
-        },
-        "dev": {
-            "dependsOn": [
-                "^build"
-            ],
-            "cache": false,
-            "persistent": true
-        },
-        "lint": {
-            "dependsOn": [
-                "^build"
-            ]
-        },
-        "typecheck": {
-            "dependsOn": [
-                "^build"
-            ]
-        },
-        "format": {},
-        "format:check": {},
-        "lint:biome": {},
-        "lint:biome:fix": {},
-        "test": {
-            "dependsOn": [
-                "build"
-            ]
-        },
-        "clean": {
-            "cache": false
-        },
-        "db:generate": {
-            "cache": false
-        },
-        "db:push": {
-            "cache": false
-        },
-        "db:studio": {
-            "cache": false,
-            "persistent": true
-        }
-    }
+	"$schema": "https://turbo.build/schema.json",
+	"tasks": {
+		"merge-pr": {
+			"cache": false,
+			"persistent": false
+		},
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**", ".output/**", ".nuxt/**", ".docusaurus/**"]
+		},
+		"dev": {
+			"dependsOn": ["^build"],
+			"cache": false,
+			"persistent": true
+		},
+		"lint": {
+			"dependsOn": ["^build"]
+		},
+		"typecheck": {
+			"dependsOn": ["^build"]
+		},
+		"format": {},
+		"format:check": {},
+		"lint:biome": {},
+		"lint:biome:fix": {},
+		"test": {
+			"dependsOn": ["build"]
+		},
+		"clean": {
+			"cache": false
+		},
+		"db:generate": {
+			"cache": false
+		},
+		"db:push": {
+			"cache": false
+		},
+		"db:studio": {
+			"cache": false,
+			"persistent": true
+		}
+	}
 }

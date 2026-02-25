@@ -1,9 +1,9 @@
-import { createApp } from 'vue';
-import { createPinia } from 'pinia';
-import { VueQueryPlugin } from '@tanstack/vue-query';
 import { abilitiesPlugin } from '@casl/vue';
-import { ability } from './plugins/casl';
+import { VueQueryPlugin } from '@tanstack/vue-query';
+import { createPinia } from 'pinia';
+import { createApp } from 'vue';
 import App from './App.vue';
+import { ability } from './plugins/casl';
 import router from './router/index';
 import './assets/css/main.css';
 

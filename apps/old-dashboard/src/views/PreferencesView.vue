@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { Bell, Eye, Lock } from 'lucide-vue-next';
+import { onMounted, ref } from 'vue';
 import { usePreferencesStore } from '../store/preferences';
-import { Bell, Eye, Moon, Sun, Lock, Smartphone, Loader2, CheckCircle2, Save } from 'lucide-vue-next';
 
 const preferencesStore = usePreferencesStore();
 const activeTab = ref<'notifications' | 'security' | 'privacy'>('notifications');

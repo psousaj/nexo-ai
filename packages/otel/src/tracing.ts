@@ -1,4 +1,4 @@
-import { trace, Span, SpanStatusCode, SpanKind, Context, Tracer } from '@opentelemetry/api';
+import { type Span, type SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 
 export interface TracingOptions {
 	/**
@@ -162,11 +162,7 @@ export function addEvent(name: string, attributes?: Record<string, any>): void {
 /**
  * Wraps a synchronous function in an OpenTelemetry span
  */
-export function startSpanSync<T>(
-	name: string,
-	fn: (span: Span) => T,
-	options?: TracingOptions,
-): T {
+export function startSpanSync<T>(name: string, fn: (span: Span) => T, options?: TracingOptions): T {
 	const tracer = trace.getTracer('nexo-ai');
 
 	return tracer.startActiveSpan(

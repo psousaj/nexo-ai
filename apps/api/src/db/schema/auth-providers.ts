@@ -26,10 +26,7 @@ export const authProviders = pgTable(
 		updatedAt: timestamp('updated_at').defaultNow().notNull(),
 	},
 	(table) => ({
-		providerIdentityUnique: unique('auth_providers_provider_identity_unique').on(
-			table.provider,
-			table.providerUserId,
-		),
+		providerIdentityUnique: unique('auth_providers_provider_identity_unique').on(table.provider, table.providerUserId),
 		userProviderUnique: unique('auth_providers_user_provider_unique').on(table.userId, table.provider),
 		providerLookupIdx: index('auth_providers_provider_lookup_idx').on(table.provider, table.providerUserId),
 		userLookupIdx: index('auth_providers_user_lookup_idx').on(table.userId),

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { TrendingUp, TrendingDown } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {

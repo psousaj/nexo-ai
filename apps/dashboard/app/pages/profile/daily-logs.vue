@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
-import { BookOpen, Calendar, ChevronLeft, ChevronRight, FileText, Plus, Save } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 

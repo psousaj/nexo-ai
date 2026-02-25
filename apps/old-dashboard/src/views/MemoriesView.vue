@@ -1,25 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { FileText, Image as ImageIcon, Layers, Link as LinkIcon, Type } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { dashboardService } from '../services/dashboard.service';
-import {
-	Plus,
-	Search,
-	Tag,
-	Trash2,
-	Edit3,
-	Calendar,
-	Layers,
-	Link as LinkIcon,
-	Type,
-	Image as ImageIcon,
-	FileText,
-	Loader2 as _L,
-} from 'lucide-vue-next';
-import AddMemoryModal from '../components/AddMemoryModal.vue';
-import EditMemoryModal from '../components/EditMemoryModal.vue';
-import ConfirmModal from '../components/ConfirmModal.vue';
-import type { MemoryItem, ItemType as _IT } from '../types';
+import type { MemoryItem } from '../types';
 
 const queryClient = useQueryClient();
 const searchQuery = ref('');

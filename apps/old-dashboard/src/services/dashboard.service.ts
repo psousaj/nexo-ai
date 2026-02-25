@@ -1,5 +1,5 @@
+import type { AnalyticsData, ConversationSummary, ErrorReport, ItemType, MemoryItem } from '../types';
 import api from './api';
-import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary, ItemType } from '../types';
 
 export const dashboardService = {
 	async getAnalytics(): Promise<AnalyticsData> {

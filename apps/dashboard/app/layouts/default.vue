@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
-import { Bell, Database, LayoutDashboard, LogOut, Menu, MessageSquare, Settings, ShieldCheck, UserCircle, Users, X } from 'lucide-vue-next';
-import { computed, ref, onMounted } from 'vue';
+import { Database, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 

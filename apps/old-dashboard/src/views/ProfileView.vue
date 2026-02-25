@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { User, Mail, Link as LinkIcon, Smartphone, XCircle, Plus, MessageSquare, Loader2, RefreshCw } from 'lucide-vue-next';
-import { useAuthStore } from '../store/auth';
-import { dashboardService } from '../services/dashboard.service';
-import { authClient } from '../lib/auth-client';
+import { Mail, MessageSquare, Smartphone } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { authClient } from '../lib/auth-client';
+import { dashboardService } from '../services/dashboard.service';
+import { useAuthStore } from '../store/auth';
 
 const authStore = useAuthStore();
 const queryClient = useQueryClient();
@@ -21,7 +21,7 @@ const { data: accountsData, isLoading: isLoadingAccounts } = useQuery({
 onMounted(async () => {
 	// Se veio de um redirect de OAuth (success=discord ou success=google)
 	const successProvider = route.query.success;
-	
+
 	if (successProvider) {
 		console.log(`✅ [Profile] OAuth concluído para ${successProvider}, sincronizando...`);
 		// Aguardar 1s para garantir que o Better Auth finalizou tudo

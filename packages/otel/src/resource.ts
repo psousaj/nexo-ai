@@ -1,5 +1,9 @@
 import { Resource } from '@opentelemetry/resources';
-import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } from '@opentelemetry/semantic-conventions';
+import {
+	SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
+	SEMRESATTRS_SERVICE_NAME,
+	SEMRESATTRS_SERVICE_VERSION,
+} from '@opentelemetry/semantic-conventions';
 
 export interface ResourceConfig {
 	serviceName: string;
@@ -35,7 +39,10 @@ export function getResource(config: ResourceConfig): Resource {
  */
 export function getResourceFromEnv(): ResourceConfig {
 	const serviceName = process.env.OTEL_SERVICE_NAME || process.env.npm_package_name || 'nexo-ai-service';
-	const environment = process.env.NODE_ENV || process.env.OTEL_RESOURCE_ATTRIBUTES?.match(/deployment\.environment=([^,]+)/)?.[1] || 'development';
+	const environment =
+		process.env.NODE_ENV ||
+		process.env.OTEL_RESOURCE_ATTRIBUTES?.match(/deployment\.environment=([^,]+)/)?.[1] ||
+		'development';
 
 	return {
 		serviceName,

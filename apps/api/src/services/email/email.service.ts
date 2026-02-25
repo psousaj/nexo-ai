@@ -34,9 +34,15 @@ class EmailService {
 
 	private loadTemplates() {
 		const candidates = [
+			// Local dev (tsx): src/services/email/ -> src/templates/...
 			join(__dirname, '../../templates/emails/confirm-email.hbs'),
+			// Build bundle (tsup): dist/index.js -> dist/templates/...
+			join(__dirname, 'templates/emails/confirm-email.hbs'),
+			// Local executando em apps/api
 			join(process.cwd(), 'src/templates/emails/confirm-email.hbs'),
 			join(process.cwd(), 'dist/templates/emails/confirm-email.hbs'),
+			// Docker executando na raiz /app
+			join(process.cwd(), 'apps/api/dist/templates/emails/confirm-email.hbs'),
 		];
 
 		const templatePath = candidates.find((path) => existsSync(path));

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
 import api from '@/utils/api';
 
 definePageMeta({
@@ -80,9 +79,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 };
 
 // Link para signup preservando o token
-const signupLink = computed(() =>
-	linkingToken.value ? `/signup?vinculate_code=${linkingToken.value}` : '/signup'
-);
+const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=${linkingToken.value}` : '/signup'));
 </script>
 
 <template>

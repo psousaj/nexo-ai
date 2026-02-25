@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import api from '@/utils/api';
 import { useAbility } from '@casl/vue';
 import { useQuery } from '@tanstack/vue-query';
 import {
@@ -13,12 +14,10 @@ import {
 	Title,
 	Tooltip,
 } from 'chart.js';
-import { Activity, Database, Download, Filter, MessageSquare, Users } from 'lucide-vue-next';
+import { Activity, Database, MessageSquare, Users } from 'lucide-vue-next';
 import { computed, markRaw, onMounted } from 'vue';
-import { Doughnut, Line } from 'vue-chartjs';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
-import api from '@/utils/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler);
 
@@ -66,16 +65,18 @@ const lineChartData = computed(() => {
 	if (!trends) return { labels: [], datasets: [] };
 	return {
 		labels: trends.labels,
-		datasets: trends.datasets.map((ds) => markRaw({
-			label: ds.label,
-			data: ds.data,
-			borderColor: ds.color,
-			backgroundColor: `${ds.color}20`,
-			fill: true,
-			tension: 0.4,
-			pointRadius: 4,
-			pointHoverRadius: 6,
-		})),
+		datasets: trends.datasets.map((ds) =>
+			markRaw({
+				label: ds.label,
+				data: ds.data,
+				borderColor: ds.color,
+				backgroundColor: `${ds.color}20`,
+				fill: true,
+				tension: 0.4,
+				pointRadius: 4,
+				pointHoverRadius: 6,
+			}),
+		),
 	};
 });
 
