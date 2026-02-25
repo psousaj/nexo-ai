@@ -53,17 +53,6 @@
         }
     },
     "files": {
-        "ignore": [
-            "node_modules",
-            "dist",
-            ".output",
-            ".nuxt",
-            ".turbo",
-            "drizzle",
-            "coverage",
-            "*.d.ts",
-            "*.cjs",
-            "*.mjs"
-        ]
+        "ignoreUnknown": true
     }
 }

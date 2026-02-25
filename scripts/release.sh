@@ -6,6 +6,12 @@
 
 set -e
 
+# Executa lint com Biome para garantir que tudo está ok antes da release
+echo "🔍 Rodando validações de código (pnpm check)..."
+pnpm check
+echo "✅ Validações de lint OK!"
+echo ""
+
 # Push da branch atual antes de qualquer coisa
 echo "🚀 Fazendo push da branch atual..."
 CURRENT_BRANCH=$(git branch --show-current)
