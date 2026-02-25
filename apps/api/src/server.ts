@@ -113,6 +113,11 @@ if (env.NODE_ENV !== 'test') {
 			await runConversationCloseCron();
 		} catch (error) {
 			loggers.app.error({ error }, '❌ [Cron] Erro no backup de fechamento');
+			await globalErrorHandler.handle(error, {
+				provider: 'cron',
+				state: 'runConversationCloseCron_failed',
+				extra: { cron: '* * * * *' },
+			});
 		}
 	});
 
@@ -122,6 +127,11 @@ if (env.NODE_ENV !== 'test') {
 			await runAwaitingConfirmationTimeoutCron();
 		} catch (error) {
 			loggers.app.error({ error }, '❌ [Cron] Erro no timeout awaiting_confirmation');
+			await globalErrorHandler.handle(error, {
+				provider: 'cron',
+				state: 'runAwaitingConfirmationTimeoutCron_failed',
+				extra: { cron: '*/5 * * * *' },
+			});
 		}
 	});
 }

@@ -3,12 +3,41 @@ import './sentry'; // Sentry error tracking
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
 import { env } from '@/config/env';
 import app from '@/server';
+import { globalErrorHandler } from '@/services/error/error.service';
 import { initializeLangfuse } from '@/services/langfuse'; // Langfuse AI observability
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 
 const port = env.PORT;
+
+process.on('unhandledRejection', async (reason) => {
+	await globalErrorHandler.handle(reason instanceof Error ? reason : new Error(String(reason)), {
+		provider: 'process',
+		state: 'unhandled_rejection',
+		extra: {
+			reason: reason instanceof Error ? reason.message : String(reason),
+		},
+	});
+});
+
+process.on('uncaughtException', async (error) => {
+	await globalErrorHandler.handle(error, {
+		provider: 'process',
+		state: 'uncaught_exception',
+	});
+});
+
+process.on('warning', async (warning) => {
+	await globalErrorHandler.handle(warning, {
+		provider: 'process',
+		state: 'runtime_warning',
+		extra: {
+			name: warning.name,
+			message: warning.message,
+		},
+	});
+});
 
 // Initialize Langfuse for AI observability
 initializeLangfuse();
