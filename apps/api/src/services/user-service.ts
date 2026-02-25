@@ -22,32 +22,40 @@ export class UserService {
 				'⚠️ Falha no lookup canônico por provider+externalId. Tentando fallback por provider_user_id.',
 			);
 
-			const fallbackResult = await db.execute(sql`
-				SELECT id, user_id, provider, provider_user_id, provider_email, linked_at, is_active, metadata, created_at, updated_at
-				FROM auth_providers
-				WHERE provider_user_id = ${externalId}
-				LIMIT 1
-			`);
+			try {
+				const fallbackResult = await db.execute(sql`
+					SELECT id, user_id, provider, provider_user_id, provider_email, linked_at, is_active, metadata, created_at, updated_at
+					FROM auth_providers
+					WHERE provider_user_id = ${externalId}
+					LIMIT 1
+				`);
 
-			const row = (fallbackResult as any)?.[0] || (fallbackResult as any)?.rows?.[0];
-			if (!row) return undefined;
+				const row = (fallbackResult as any)?.[0] || (fallbackResult as any)?.rows?.[0];
+				if (!row) return undefined;
 
-			if (String(row.provider) !== provider) {
+				if (String(row.provider) !== provider) {
+					return undefined;
+				}
+
+				return {
+					id: row.id,
+					userId: row.user_id,
+					provider: row.provider,
+					providerUserId: row.provider_user_id,
+					providerEmail: row.provider_email,
+					linkedAt: row.linked_at,
+					isActive: row.is_active,
+					metadata: row.metadata,
+					createdAt: row.created_at,
+					updatedAt: row.updated_at,
+				} as typeof authProviders.$inferSelect;
+			} catch (fallbackError) {
+				loggers.webhook.error(
+					{ err: fallbackError, provider, externalId },
+					'❌ Falha no fallback de lookup em auth_providers. Seguindo sem vínculo para permitir criação trial.',
+				);
 				return undefined;
 			}
-
-			return {
-				id: row.id,
-				userId: row.user_id,
-				provider: row.provider,
-				providerUserId: row.provider_user_id,
-				providerEmail: row.provider_email,
-				linkedAt: row.linked_at,
-				isActive: row.is_active,
-				metadata: row.metadata,
-				createdAt: row.created_at,
-				updatedAt: row.updated_at,
-			} as typeof authProviders.$inferSelect;
 		}
 	}
 
@@ -122,7 +130,14 @@ export class UserService {
 			}
 		}
 
-		const [newUser] = await db.insert(users).values({ id: crypto.randomUUID(), name }).returning();
+		const [newUser] = await db
+			.insert(users)
+			.values({
+				id: crypto.randomUUID(),
+				name,
+				status: provider === 'whatsapp' ? 'trial' : 'pending_signup',
+			})
+			.returning();
 		const userId = newUser.id;
 
 		// 4. Cria novo account linkado ao usuário
@@ -136,30 +151,43 @@ export class UserService {
 			metadata.phone = phoneNumber;
 		}
 
-		const [newAuthProvider] = await db
-			.insert(authProviders)
-			.values({
-				userId,
-				provider,
-				providerUserId: externalId,
-				providerEmail: undefined,
-				metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : undefined,
-				linkedAt: new Date(),
-				updatedAt: new Date(),
-			})
-			.returning();
+		let newAuthProvider: typeof authProviders.$inferSelect | null = null;
+		try {
+			const [created] = await db
+				.insert(authProviders)
+				.values({
+					userId,
+					provider,
+					providerUserId: externalId,
+					providerEmail: undefined,
+					metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : undefined,
+					linkedAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.returning();
+			newAuthProvider = created;
+		} catch (insertError) {
+			if (provider !== 'whatsapp') {
+				throw insertError;
+			}
+
+			loggers.webhook.error(
+				{ err: insertError, userId, provider, externalId },
+				'⚠️ Falha ao persistir auth_provider de WhatsApp. Continuando em modo degradado para manter trial funcionando.',
+			);
+		}
 
 		const user = await this.getUserById(userId);
 		const result = {
 			user,
 			account: {
-				id: newAuthProvider.id,
-				userId: newAuthProvider.userId,
-				provider: newAuthProvider.provider,
-				externalId: newAuthProvider.providerUserId,
+				id: newAuthProvider?.id || '',
+				userId: newAuthProvider?.userId || userId,
+				provider: newAuthProvider?.provider || provider,
+				externalId: newAuthProvider?.providerUserId || externalId,
 				metadata,
-				providerEmail: newAuthProvider.providerEmail,
-				linkedAt: newAuthProvider.linkedAt,
+				providerEmail: newAuthProvider?.providerEmail,
+				linkedAt: newAuthProvider?.linkedAt,
 			},
 		};
 
