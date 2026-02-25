@@ -334,6 +334,16 @@ messageQueue.process('message-processing', async (job) => {
 				{ providerName, externalId: incomingMsg.externalId, jobId: job.id, err: error },
 				'❌ [Worker] Erro ao processar mensagem na fila',
 			);
+
+			reportQueueError(error, {
+				queue: 'message-processing',
+				provider: providerName,
+				state: 'worker_processing_failed',
+				extra: {
+					jobId: job.id,
+					externalId: incomingMsg.externalId,
+				},
+			});
 			throw error;
 		}
 	});
