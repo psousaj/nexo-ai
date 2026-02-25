@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { computed, ref, watch, watchEffect } from 'vue';
 import { useDashboard } from '~/composables/useDashboard';
-import { ref, computed, watchEffect, watch } from 'vue';
 
 definePageMeta({
 	middleware: ['role'],
@@ -161,7 +161,7 @@ const handleClearCache = () => {
 const handleDisconnect = () => {
 	const confirmed = confirm(
 		'Tem certeza que deseja desconectar a conta Baileys?\n\n' +
-		'Isso irá encerrar a sessão do WhatsApp. Você precisará escanear o QR Code novamente para reconectar.',
+			'Isso irá encerrar a sessão do WhatsApp. Você precisará escanear o QR Code novamente para reconectar.',
 	);
 
 	if (confirmed) {
@@ -174,7 +174,7 @@ const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
 	queryKey: ['whatsapp-qr-code', selectedApi],
 	queryFn: () => dashboard.getWhatsAppQRCode(),
 	enabled: computed(() => selectedApi.value === 'baileys'),
-	refetchInterval: computed(() => selectedApi.value === 'baileys' ? 2000 : false),
+	refetchInterval: computed(() => (selectedApi.value === 'baileys' ? 2000 : false)),
 });
 
 // Connection status computed from QR code data

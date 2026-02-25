@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { db } from '@/db';
-import { accounts as betterAuthAccounts, authProviders } from '@/db/schema';
+import { authProviders, accounts as betterAuthAccounts } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { emailService } from '@/services/email/email.service';
 import { preferencesService } from '@/services/preferences-service';

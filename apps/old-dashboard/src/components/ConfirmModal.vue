@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { AlertTriangle, Loader2 } from 'lucide-vue-next';
 
 const props = defineProps<{
 	isOpen: boolean;

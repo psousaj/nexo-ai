@@ -1,4 +1,4 @@
-import type { AnalyticsData, MemoryItem, ErrorReport, ConversationSummary } from '../types';
+import type { AnalyticsData, ConversationSummary, ErrorReport, MemoryItem } from '../types';
 
 export const mockMemories: MemoryItem[] = [
 	{

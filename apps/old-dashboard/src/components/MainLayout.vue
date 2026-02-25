@@ -1,23 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRouter as _uR, useRoute } from 'vue-router';
-import { useAuthStore } from '../store/auth';
-import {
-	LayoutDashboard,
-	Database,
-	MessageSquare,
-	Users,
-	Settings,
-	Menu,
-	X,
-	LogOut,
-	Bell,
-	AlertCircle,
-	ShieldCheck,
-	UserCircle,
-	Link as _LinkIcon,
-} from 'lucide-vue-next';
 import { useAbility } from '@casl/vue';
+import { AlertCircle, Database, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { useAuthStore } from '../store/auth';
 
 const isOpen = ref(true);
 const toggleSidebar = () => (isOpen.value = !isOpen.value);

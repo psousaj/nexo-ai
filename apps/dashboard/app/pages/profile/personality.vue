@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Brain, FileText, Heart, RotateCcw, Save, Sparkles, User, Wrench } from 'lucide-vue-next';
+import { Brain, FileText, Heart, Sparkles, User, Wrench } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 

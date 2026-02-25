@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { LayoutGrid, Mail, Lock, Loader2 } from 'lucide-vue-next';
 import api from '@/utils/api';
 
 definePageMeta({
@@ -75,9 +74,7 @@ const handleSignup = async () => {
 const loginWithSocial = async (provider: 'google' | 'discord') => {
 	// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
 	const callbackBase = process.client ? `${window.location.origin}/` : '/';
-	const callbackURL = linkingToken.value
-		? `${callbackBase}?vinculate_code=${linkingToken.value}`
-		: callbackBase;
+	const callbackURL = linkingToken.value ? `${callbackBase}?vinculate_code=${linkingToken.value}` : callbackBase;
 
 	await authClient.signIn.social({
 		provider,

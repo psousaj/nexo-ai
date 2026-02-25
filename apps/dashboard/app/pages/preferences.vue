@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bell, CheckCircle2, Eye, Loader2, Lock, Moon, Save, Smartphone, Sun } from 'lucide-vue-next';
+import { Bell, Eye, Lock } from 'lucide-vue-next';
 import { usePreferencesStore } from '~/stores/preferences';
 
 const preferencesStore = usePreferencesStore();

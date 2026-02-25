@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { X, Save, Loader2 } from 'lucide-vue-next';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import type { MemoryItem } from '../types';
 
 const props = defineProps<{

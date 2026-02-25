@@ -1,12 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../store/auth';
-import Dashboard from '../views/DashboardView.vue';
-import Profile from '../views/ProfileView.vue';
-import Preferences from '../views/PreferencesView.vue';
-import Memories from '../views/MemoriesView.vue';
-import AdminErrors from '../views/AdminErrorsView.vue';
 import AdminConversations from '../views/AdminConversationsView.vue';
+import AdminErrors from '../views/AdminErrorsView.vue';
+import Dashboard from '../views/DashboardView.vue';
 import Login from '../views/LoginView.vue';
+import Memories from '../views/MemoriesView.vue';
+import Preferences from '../views/PreferencesView.vue';
+import Profile from '../views/ProfileView.vue';
 import Signup from '../views/SignupView.vue';
 
 const router = createRouter({
@@ -72,7 +72,7 @@ router.beforeEach(async (to, _from, next) => {
 		// Aguarda até 3 segundos para a sessão carregar
 		let attempts = 0;
 		while (authStore.isLoadingSession && attempts < 30) {
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise((resolve) => setTimeout(resolve, 100));
 			attempts++;
 		}
 		console.log('✅ Sessão carregada:', { isAuthenticated: authStore.isAuthenticated, user: authStore.user?.email });

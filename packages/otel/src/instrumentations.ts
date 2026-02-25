@@ -1,5 +1,5 @@
-import { Instrumentation } from '@opentelemetry/instrumentation';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import type { Instrumentation } from '@opentelemetry/instrumentation';
 
 export interface InstrumentationConfig {
 	/**

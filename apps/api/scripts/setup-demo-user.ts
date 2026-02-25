@@ -1,6 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { db } from '../src/db';
 import { users } from '../src/db/schema';
-import { eq } from 'drizzle-orm';
 
 async function setup() {
 	const userId = 'a6051a80-0000-0000-0000-000000000000';

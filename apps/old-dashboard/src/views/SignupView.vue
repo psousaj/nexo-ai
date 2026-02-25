@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { authClient } from '../lib/auth-client';
-import { Mail, Lock, User, Loader2, LayoutGrid } from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();

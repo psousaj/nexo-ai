@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
 import { dashboardService } from '../services/dashboard.service';
-import { MessageSquare, User, Clock, ChevronRight, EyeOff, MessageCircle, ThumbsUp, ThumbsDown } from 'lucide-vue-next';
 
 const { data: conversations, isLoading } = useQuery({
 	queryKey: ['admin-conversations'],

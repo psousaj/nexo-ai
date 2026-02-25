@@ -1,20 +1,20 @@
 import { defineStore } from 'pinia';
-import { computed, watch, ref } from 'vue';
-import { ability } from '../plugins/casl';
+import { computed, ref, watch } from 'vue';
 import { authClient, useSession } from '../lib/auth-client';
-
+import { ability } from '../plugins/casl';
 
 export const useAuthStore = defineStore('auth', () => {
 	const sessionInfo = useSession();
 	const manualSession = ref<any>(null);
 
-
-
 	const user = computed(() => {
 		// Usa manualSession como fallback quando useSession ainda não atualizou
 		const data = sessionInfo.value?.data || manualSession.value;
 		if (!data?.user) {
-			console.log('👤 Auth Store: Sem dados de sessão', { sessionInfo: sessionInfo.value, manualSession: manualSession.value });
+			console.log('👤 Auth Store: Sem dados de sessão', {
+				sessionInfo: sessionInfo.value,
+				manualSession: manualSession.value,
+			});
 			return null;
 		}
 		const u = data.user as any;
@@ -28,7 +28,6 @@ export const useAuthStore = defineStore('auth', () => {
 			permissions: u.permissions || [],
 		};
 	});
-
 
 	const isAuthenticated = computed(() => {
 		const data = sessionInfo.value?.data || manualSession.value;
@@ -47,7 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
 		() => user.value,
 		(newUser) => {
 			console.log('🔐 CASL: Atualizando abilities para usuário:', newUser);
-			
+
 			if (!newUser) {
 				// Sem usuário, sem permissões
 				ability.update([]);

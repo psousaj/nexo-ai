@@ -1,7 +1,7 @@
 import * as otel from '@opentelemetry/sdk-node';
-import { getResource, getResourceFromEnv } from './resource';
-import { getAutoInstrumentations } from './instrumentations';
 import { getTraceExporter } from './exporters';
+import { getAutoInstrumentations } from './instrumentations';
+import { getResource, getResourceFromEnv } from './resource';
 
 let sdk: otel.NodeSDK | null = null;
 
@@ -103,7 +103,9 @@ export function initializeOtel(config?: InitializeOtelConfig): void {
 	sdk.start();
 
 	console.log(`[OTEL] Initialized for ${serviceName} (${environment})`);
-	console.log(`[OTEL] Exporting traces to: ${config?.traceExporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'none (configured for no-op)'}`);
+	console.log(
+		`[OTEL] Exporting traces to: ${config?.traceExporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'none (configured for no-op)'}`,
+	);
 }
 
 /**

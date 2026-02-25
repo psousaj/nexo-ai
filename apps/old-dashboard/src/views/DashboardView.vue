@@ -1,28 +1,24 @@
 <script setup lang="ts">
-import { ref as _r, computed } from 'vue';
-import { useQuery } from '@tanstack/vue-query';
-import { useAuthStore } from '../store/auth';
-import { dashboardService } from '../services/dashboard.service';
-
-import KPICard from '../components/KPICard.vue';
-import ChartCard from '../components/ChartCard.vue';
-import { Users, Database, MessageSquare, Activity, Calendar as _C, Download, Filter } from 'lucide-vue-next';
 import { useAbility } from '@casl/vue';
+import { useQuery } from '@tanstack/vue-query';
+import { Activity, Database, MessageSquare, Users } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { dashboardService } from '../services/dashboard.service';
+import { useAuthStore } from '../store/auth';
 
 // Chart.js imports
 import {
-	Chart as ChartJS,
+	ArcElement,
 	CategoryScale,
+	Chart as ChartJS,
+	Filler,
+	Legend,
+	LineElement,
 	LinearScale,
 	PointElement,
-	LineElement,
 	Title,
 	Tooltip,
-	Legend,
-	ArcElement,
-	Filler,
 } from 'chart.js';
-import { Line, Doughnut } from 'vue-chartjs';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler);
 
