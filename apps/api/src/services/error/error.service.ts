@@ -21,6 +21,8 @@ export class GlobalErrorService {
 
 	private extractErrorExtra(error: unknown): Record<string, any> {
 		const err = error as any;
+		const message = String(err?.message || '');
+		const drizzleMatch = message.match(/Failed query:\s*([\s\S]*?)\nparams:\s*([\s\S]*)$/);
 		return {
 			errorName: err?.name,
 			errorMessage: err?.message,
@@ -30,6 +32,8 @@ export class GlobalErrorService {
 			detail: err?.detail,
 			hint: err?.hint,
 			constraint: err?.constraint,
+			dbQuery: drizzleMatch?.[1]?.trim(),
+			dbParams: drizzleMatch?.[2]?.trim(),
 		};
 	}
 

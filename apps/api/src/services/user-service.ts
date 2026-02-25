@@ -28,7 +28,22 @@ export class UserService {
 		// 1a. Tenta buscar do cache
 		const cached = await cacheGet<{ user: any; account: any }>(cacheKey);
 		if (cached) {
-			return cached;
+			const cachedUserId = cached?.user?.id;
+			if (cachedUserId) {
+				const cachedUser = await this.getUserById(cachedUserId);
+				if (cachedUser) {
+					return {
+						...cached,
+						user: cachedUser,
+					};
+				}
+			}
+
+			await cacheDelete(cacheKey);
+			loggers.webhook.warn(
+				{ provider, externalId, cachedUserId },
+				'⚠️ Cache de conta inválido detectado (usuário ausente). Cache invalidado.',
+			);
 		}
 
 		// 1b. Busca provider account canônico (auth_providers)
@@ -40,21 +55,31 @@ export class UserService {
 
 		if (existingProviderAccount) {
 			const user = await this.getUserById(existingProviderAccount.userId);
-			const result = {
-				user,
-				account: {
-					id: existingProviderAccount.id,
-					userId: existingProviderAccount.userId,
-					provider: existingProviderAccount.provider,
-					externalId: existingProviderAccount.providerUserId,
-					metadata: this.parseMetadata(existingProviderAccount.metadata),
-					providerEmail: existingProviderAccount.providerEmail,
-					linkedAt: existingProviderAccount.linkedAt,
-				},
-			};
 
-			await cacheSet(cacheKey, result, 3600);
-			return result;
+			if (!user) {
+				await db.delete(authProviders).where(eq(authProviders.id, existingProviderAccount.id));
+				await cacheDelete(cacheKey);
+				loggers.webhook.warn(
+					{ provider, externalId, danglingUserId: existingProviderAccount.userId },
+					'⚠️ auth_provider órfão detectado (user inexistente). Vínculo removido para recriação.',
+				);
+			} else {
+				const result = {
+					user,
+					account: {
+						id: existingProviderAccount.id,
+						userId: existingProviderAccount.userId,
+						provider: existingProviderAccount.provider,
+						externalId: existingProviderAccount.providerUserId,
+						metadata: this.parseMetadata(existingProviderAccount.metadata),
+						providerEmail: existingProviderAccount.providerEmail,
+						linkedAt: existingProviderAccount.linkedAt,
+					},
+				};
+
+				await cacheSet(cacheKey, result, 3600);
+				return result;
+			}
 		}
 
 		const [newUser] = await db.insert(users).values({ id: crypto.randomUUID(), name }).returning();
