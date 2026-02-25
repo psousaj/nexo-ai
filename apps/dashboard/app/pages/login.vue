@@ -10,8 +10,8 @@ const authClient = useAuthClient();
 const route = useRoute();
 const router = useRouter();
 
-// Token de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
-const linkingToken = computed(() => route.query.token as string | undefined);
+// Código de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
+const linkingToken = computed(() => route.query.vinculate_code as string | undefined);
 
 const email = ref('');
 const password = ref('');
@@ -24,7 +24,7 @@ const error = ref('');
 const consumeLinkingToken = async () => {
 	if (!linkingToken.value) return;
 	try {
-		await api.post('/user/link/consume', { token: linkingToken.value });
+		await api.post('/user/link/consume', { vinculateCode: linkingToken.value });
 	} catch (e) {
 		console.warn('Não foi possível vincular conta do bot (token inválido ou expirado):', e);
 	}
@@ -68,7 +68,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 		// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
 		const callbackBase = process.client ? `${window.location.origin}/` : '/';
 		const callbackURL = linkingToken.value
-			? `${callbackBase}?link_token=${linkingToken.value}`
+			? `${callbackBase}?vinculate_code=${linkingToken.value}`
 			: `${callbackBase}?auth=success`;
 		await authClient.signIn.social({ provider, callbackURL });
 	} catch (e) {
@@ -81,7 +81,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 
 // Link para signup preservando o token
 const signupLink = computed(() =>
-	linkingToken.value ? `/signup?token=${linkingToken.value}` : '/signup'
+	linkingToken.value ? `/signup?vinculate_code=${linkingToken.value}` : '/signup'
 );
 </script>
 

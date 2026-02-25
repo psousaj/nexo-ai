@@ -101,6 +101,22 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 		let conversationId: string | undefined;
 
 		try {
+			// 2.1 Para Telegram/Discord, exige conta previamente vinculada
+			if (incomingMsg.provider !== 'whatsapp') {
+				const existingAccount = await userService.findAccount(incomingMsg.provider, incomingMsg.externalId);
+
+				if (!existingAccount) {
+					const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
+					const guidanceMessage =
+						'Olá! 😊\n\nPara usar o Nexo por aqui, primeiro faça login/cadastro no painel e conclua a vinculação da sua conta.\n\nAcesse: ' +
+						dashboardUrl;
+
+					await provider.sendMessage(incomingMsg.externalId, guidanceMessage);
+					setAttributes({ 'message.status': 'provider_not_linked' });
+					return;
+				}
+			}
+
 			// 2. VERIFICA CONTEÚDO OFENSIVO
 			const isOffensive = await containsOffensiveContent(messageText);
 
@@ -214,7 +230,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 							// Por segurança, não bloqueia o fluxo.
 						} else {
 							const signupToken = await accountLinkingService.generateLinkingToken(user.id, 'whatsapp', 'signup');
-							const signupLink = `${dashboardUrl}?token=${signupToken}`;
+							const signupLink = `${dashboardUrl}?vinculate_code=${signupToken}`;
 
 							if (provider.getProviderName() === 'telegram') {
 								const msg =
@@ -251,7 +267,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 							provider.getProviderName() as any,
 							'signup',
 						);
-						const signupLink = `${dashboardUrl}?token=${signupToken}`;
+						const signupLink = `${dashboardUrl}?vinculate_code=${signupToken}`;
 
 						if (provider.getProviderName() === 'telegram') {
 							const msg =

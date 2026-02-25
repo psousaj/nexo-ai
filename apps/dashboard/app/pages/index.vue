@@ -28,19 +28,19 @@ const { can } = useAbility();
 const route = useRoute();
 const router = useRouter();
 
-// Consome token de vinculação pós-OAuth social (enviado via callbackURL ?link_token=TOKEN)
+// Consome código de vinculação pós-OAuth social (enviado via callbackURL ?vinculate_code=CODE)
 onMounted(async () => {
-	const linkToken = route.query.token as string | undefined;
-	if (linkToken) {
+	const vinculateCode = route.query.vinculate_code as string | undefined;
+	if (vinculateCode) {
 		try {
-			await api.post('/user/link/consume', { token: linkToken });
+			await api.post('/user/link/consume', { vinculateCode });
 			console.info('✅ Conta do bot vinculada com sucesso via OAuth social');
 		} catch (e) {
 			console.warn('⚠️ Não foi possível vincular conta do bot (token inválido ou expirado):', e);
 		} finally {
-			// Remove o link_token da URL sem recarregar a página
+			// Remove o vinculate_code da URL sem recarregar a página
 			const query = { ...route.query };
-			delete query.token;
+			delete query.vinculate_code;
 			router.replace({ query });
 		}
 	}

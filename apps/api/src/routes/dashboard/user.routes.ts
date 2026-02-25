@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { db } from '@/db';
-import { accounts as betterAuthAccounts, userAccounts } from '@/db/schema';
+import { accounts as betterAuthAccounts, authProviders } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { emailService } from '@/services/email/email.service';
 import { preferencesService } from '@/services/preferences-service';
@@ -25,7 +25,7 @@ export const userRoutes = new Hono<AuthContext>()
 		return c.json({ accounts });
 	})
 	.post('/accounts/sync', async (c) => {
-		// Sincroniza accounts do Better Auth com user_accounts (útil para usuários já existentes)
+		// Sincroniza accounts do Better Auth com auth_providers (útil para usuários já existentes)
 		const userState = c.get('user');
 		const userId = userState.id;
 
@@ -47,21 +47,21 @@ export const userRoutes = new Hono<AuthContext>()
 				const providerId = account.providerId; // 'discord', 'google', etc
 				const accountId = account.accountId; // ID do usuário no provider
 
-				// Verificar se já existe na tabela user_accounts
+				// Verificar se já existe na tabela auth_providers
 				const [existingUserAccount] = await db
 					.select()
-					.from(userAccounts)
+					.from(authProviders)
 					.where(
 						and(
-							eq(userAccounts.userId, userId),
-							eq(userAccounts.provider, providerId as any),
-							eq(userAccounts.externalId, accountId),
+							eq(authProviders.userId, userId),
+							eq(authProviders.provider, providerId),
+							eq(authProviders.providerUserId, accountId),
 						),
 					)
 					.limit(1);
 
 				if (existingUserAccount) {
-					console.log(`✅ [Sync] user_account já existe para ${providerId}, pulando`);
+					console.log(`✅ [Sync] auth_provider já existe para ${providerId}, pulando`);
 					skipped++;
 					continue;
 				}
@@ -79,15 +79,18 @@ export const userRoutes = new Hono<AuthContext>()
 					metadata.email = user?.email || null;
 				}
 
-				// Criar registro em user_accounts
-				await db.insert(userAccounts).values({
+				// Criar registro em auth_providers
+				await db.insert(authProviders).values({
 					userId,
-					provider: providerId as 'discord' | 'google',
-					externalId: accountId,
-					metadata,
+					provider: providerId,
+					providerUserId: accountId,
+					providerEmail: metadata.email || null,
+					metadata: JSON.stringify(metadata),
+					linkedAt: new Date(),
+					updatedAt: new Date(),
 				});
 
-				console.log(`✅ [Sync] user_account criado: ${providerId} -> ${accountId}`);
+				console.log(`✅ [Sync] auth_provider criado: ${providerId} -> ${accountId}`);
 				synced++;
 			}
 
@@ -107,12 +110,12 @@ export const userRoutes = new Hono<AuthContext>()
 		const user = await userService.getUserById(userState.id);
 		if (!user) return c.json({ error: 'User not found' }, 404);
 
-		const token = await accountLinkingService.generateLinkingToken(user.id, 'telegram', 'link');
+		const vinculateCode = await accountLinkingService.generateLinkingToken(user.id, 'telegram', 'link');
 
 		const botUsername = env.TELEGRAM_BOT_USERNAME || 'NexoAIBot';
-		const link = `https://t.me/${botUsername}?start=${token}`;
+		const link = `https://t.me/${botUsername}?start=${vinculateCode}`;
 
-		return c.json({ link, token });
+		return c.json({ link, vinculateCode });
 	})
 	.get('/link/discord', async (c) => {
 		// Better Auth v1.4 usa /sign-in/<provider>
@@ -141,11 +144,11 @@ export const userRoutes = new Hono<AuthContext>()
 			botUsername: 'NexoAssistente_bot',
 		});
 	})
-	.post('/link/consume', zValidator('json', z.object({ token: z.string() })), async (c) => {
+	.post('/link/consume', zValidator('json', z.object({ vinculateCode: z.string() })), async (c) => {
 		const userState = c.get('user');
-		const { token } = c.req.valid('json');
+		const { vinculateCode } = c.req.valid('json');
 
-		const linked = await accountLinkingService.linkTokenAccountToUser(token, userState.id);
+		const linked = await accountLinkingService.linkTokenAccountToUser(vinculateCode, userState.id);
 		if (!linked) return c.json({ error: 'Invalid or expired token' }, 400);
 
 		return c.json({ success: true });
@@ -264,10 +267,10 @@ export const userRoutes = new Hono<AuthContext>()
 		const { provider } = c.req.valid('param');
 
 		try {
-			// Deletar de user_accounts do nosso sistema
+			// Deletar de auth_providers do nosso sistema
 			await db
-				.delete(userAccounts)
-				.where(and(eq(userAccounts.userId, userState.id), eq(userAccounts.provider, provider as any)));
+				.delete(authProviders)
+				.where(and(eq(authProviders.userId, userState.id), eq(authProviders.provider, provider)));
 
 			// Deletar de accounts do Better Auth
 			await db

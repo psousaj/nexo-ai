@@ -10,8 +10,8 @@ const authClient = useAuthClient();
 const route = useRoute();
 const router = useRouter();
 
-// Token de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
-const linkingToken = computed(() => route.query.token as string | undefined);
+// Código de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
+const linkingToken = computed(() => route.query.vinculate_code as string | undefined);
 
 const name = ref('');
 const email = ref('');
@@ -28,7 +28,7 @@ const linkingSuccess = ref(false);
 const consumeLinkingToken = async () => {
 	if (!linkingToken.value) return;
 	try {
-		await api.post('/user/link/consume', { token: linkingToken.value });
+		await api.post('/user/link/consume', { vinculateCode: linkingToken.value });
 		linkingSuccess.value = true;
 	} catch (e) {
 		console.warn('Não foi possível vincular conta do bot (token inválido ou expirado):', e);
@@ -76,7 +76,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 	// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
 	const callbackBase = process.client ? `${window.location.origin}/` : '/';
 	const callbackURL = linkingToken.value
-		? `${callbackBase}?link_token=${linkingToken.value}`
+		? `${callbackBase}?vinculate_code=${linkingToken.value}`
 		: callbackBase;
 
 	await authClient.signIn.social({
@@ -214,7 +214,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 				</div>
 
 				<div class="text-center">
-					<NuxtLink :to="linkingToken ? `/login?token=${linkingToken}` : '/login'" class="text-sm font-bold text-primary-600 hover:text-primary-700">
+					<NuxtLink :to="linkingToken ? `/login?vinculate_code=${linkingToken}` : '/login'" class="text-sm font-bold text-primary-600 hover:text-primary-700">
 						Já tem uma conta? Faça login
 					</NuxtLink>
 				</div>

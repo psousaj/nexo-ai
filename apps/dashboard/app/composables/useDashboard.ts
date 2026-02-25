@@ -103,7 +103,7 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const linkTelegram = async (): Promise<{ link: string; token: string }> => {
+	const linkTelegram = async (): Promise<{ link: string; vinculateCode: string }> => {
 		const { data } = await api.post('/user/link/telegram');
 		return data;
 	};
@@ -118,8 +118,8 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const consumeLinkingToken = async (token: string): Promise<void> => {
-		await api.post('/user/link/consume', { token });
+	const consumeLinkingToken = async (vinculateCode: string): Promise<void> => {
+		await api.post('/user/link/consume', { vinculateCode });
 	};
 
 	const unlinkAccount = async (provider: string): Promise<void> => {

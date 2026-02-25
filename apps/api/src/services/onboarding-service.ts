@@ -58,12 +58,9 @@ export async function checkOnboardingStatus(
 		return { allowed: false, reason: 'trial_exceeded', interactionCount: user.interactionCount };
 	}
 
-	// 4. Telegram: trial de TRIAL_LIMIT mensagens (mesmo que WhatsApp)
+	// 4. Telegram: exige cadastro/vínculo (sem trial)
 	if (provider === 'telegram') {
-		if (user.interactionCount < TRIAL_LIMIT) {
-			return { allowed: true, interactionCount: user.interactionCount };
-		}
-		return { allowed: false, reason: 'trial_exceeded', interactionCount: user.interactionCount };
+		return { allowed: false, reason: 'signup_required', interactionCount: user.interactionCount };
 	}
 
 	// 5. Outros providers exigem cadastro (status active)

@@ -18,6 +18,12 @@ export const authPlugin = betterAuth({
 			verification: schema.verifications,
 		},
 	}),
+	account: {
+		accountLinking: {
+			enabled: true,
+			trustedProviders: ['discord', 'google', 'microsoft'],
+		},
+	},
 	user: {
 		additionalFields: {
 			role: {

@@ -3,6 +3,7 @@ import { boolean, integer, pgTable, text, timestamp, varchar } from 'drizzle-orm
 import { agentDailyLogs } from './agent-daily-logs';
 import { agentMemoryProfiles } from './agent-memory-profiles';
 import { agentSessions } from './agent-sessions';
+import { authProviders } from './auth-providers';
 import { conversations } from './conversations';
 import { items } from './items';
 import { userPermissions } from './permissions';
@@ -43,6 +44,7 @@ export const users = pgTable('users', {
 export const usersRelations = relations(users, ({ one, many }) => ({
 	items: many(items),
 	conversations: many(conversations),
+	authProviders: many(authProviders),
 	accounts: many(userAccounts),
 	preferences: one(userPreferences),
 	permissions: many(userPermissions),

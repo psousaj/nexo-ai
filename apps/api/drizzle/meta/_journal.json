@@ -36,6 +36,13 @@
       "when": 1771976040138,
       "tag": "0004_lame_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771982932813,
+      "tag": "0005_new_jane_foster",
+      "breakpoints": true
     }
   ]
 }
