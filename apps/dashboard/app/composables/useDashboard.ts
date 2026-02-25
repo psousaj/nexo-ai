@@ -2,7 +2,6 @@ import type {
 	Account,
 	AnalyticsData,
 	ConversationSummary,
-	ErrorReport,
 	ItemType,
 	MemoryItem,
 	UserPreferences,
@@ -66,18 +65,6 @@ export const useDashboard = () => {
 		await api.delete(`/memories/${id}`);
 	};
 
-	const getErrors = async (): Promise<ErrorReport[]> => {
-		const { data } = await api.get<any[]>('/admin/errors');
-		return data.map((err: any) => ({
-			id: err.id,
-			service: err.metadata?.provider || 'api',
-			message: err.errorMessage,
-			severity: 'high',
-			status: err.resolved ? 'resolved' : 'pending',
-			timestamp: err.createdAt,
-		}));
-	};
-
 	const getConversations = async (): Promise<ConversationSummary[]> => {
 		const { data } = await api.get<any[]>('/admin/conversations');
 		return data.map((conv: any) => ({
@@ -116,7 +103,7 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const linkTelegram = async (): Promise<{ link: string; token: string }> => {
+	const linkTelegram = async (): Promise<{ link: string; vinculateCode: string }> => {
 		const { data } = await api.post('/user/link/telegram');
 		return data;
 	};
@@ -131,8 +118,8 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const consumeLinkingToken = async (token: string): Promise<void> => {
-		await api.post('/user/link/consume', { token });
+	const consumeLinkingToken = async (vinculateCode: string): Promise<void> => {
+		await api.post('/user/link/consume', { vinculateCode });
 	};
 
 	const unlinkAccount = async (provider: string): Promise<void> => {
@@ -164,8 +151,18 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null }> => {
+	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null; connectionStatus?: any }> => {
 		const { data } = await api.get('/admin/whatsapp-settings/qr-code');
+		return data;
+	};
+
+	const disconnectBaileys = async (): Promise<any> => {
+		const { data } = await api.post('/admin/whatsapp-settings/baileys/disconnect');
+		return data;
+	};
+
+	const restartBaileys = async (): Promise<any> => {
+		const { data } = await api.post('/admin/whatsapp-settings/baileys/restart');
 		return data;
 	};
 
@@ -188,7 +185,6 @@ export const useDashboard = () => {
 		createMemory,
 		updateMemory,
 		deleteMemory,
-		getErrors,
 		getConversations,
 		getPreferences,
 		updatePreferences,
@@ -203,6 +199,8 @@ export const useDashboard = () => {
 		setWhatsAppApi,
 		clearWhatsAppCache,
 		getWhatsAppQRCode,
+		disconnectBaileys,
+		restartBaileys,
 		getDiscordBotInfo,
 	};
 };

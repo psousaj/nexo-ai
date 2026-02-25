@@ -16,7 +16,7 @@ export const clarificationMessages: Record<Language, string[]> = {
 
 /**
  * Gera opções de clarificação dinamicamente baseadas nas tools habilitadas
- * 
+ *
  * ADR-019: Opções são geradas a partir das save tools globalmente habilitadas
  */
 export async function getClarificationOptions(language: Language = 'pt'): Promise<string[]> {
@@ -41,4 +41,3 @@ export function getClarificationMessages(language: Language = 'pt'): string[] {
 export function getRandomMessage(messages: string[]): string {
 	return messages[Math.floor(Math.random() * messages.length)];
 }
-

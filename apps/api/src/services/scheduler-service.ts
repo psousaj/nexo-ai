@@ -6,7 +6,6 @@
  */
 
 import { type ProviderType, getProvider } from '@/adapters/messaging';
-import { env } from '@/config/env';
 import { createBullConfig } from '@/config/redis';
 import { db } from '@/db';
 import { scheduledReminders } from '@/db/schema';
@@ -95,17 +94,10 @@ reminderQueue.process('send-reminder', 5, async (job) => {
 	const { reminderId, userId, title, description, provider: providerName, externalId } = job.data;
 
 	try {
-		schedulerLogger.info(
-			{ reminderId, userId, provider: providerName, externalId },
-			'🔔 [Worker] Enviando lembrete',
-		);
+		schedulerLogger.info({ reminderId, userId, provider: providerName, externalId }, '🔔 [Worker] Enviando lembrete');
 
 		// Check if reminder is still pending
-		const [reminder] = await db
-			.select()
-			.from(scheduledReminders)
-			.where(eq(scheduledReminders.id, reminderId))
-			.limit(1);
+		const [reminder] = await db.select().from(scheduledReminders).where(eq(scheduledReminders.id, reminderId)).limit(1);
 
 		if (!reminder) {
 			schedulerLogger.warn({ reminderId }, '⚠️ Lembrete não encontrado');
@@ -218,10 +210,7 @@ export async function scheduleReminder(params: {
 	);
 
 	// Update database with job ID
-	await db
-		.update(scheduledReminders)
-		.set({ bullJobId: jobId })
-		.where(eq(scheduledReminders.id, reminderId));
+	await db.update(scheduledReminders).set({ bullJobId: jobId }).where(eq(scheduledReminders.id, reminderId));
 
 	schedulerLogger.info({ reminderId, jobId, delayMs: delay }, '✅ Lembrete agendado');
 
@@ -286,7 +275,10 @@ export async function cancelReminder(reminderId: string): Promise<boolean> {
  * @param limit - Maximum number of reminders to return
  * @returns Array of reminders
  */
-export async function listUpcomingReminders(userId: string, limit = 10): Promise<
+export async function listUpcomingReminders(
+	userId: string,
+	limit = 10,
+): Promise<
 	Array<{
 		id: string;
 		title: string;

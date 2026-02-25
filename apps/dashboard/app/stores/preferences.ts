@@ -23,7 +23,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
 	// Função para inicializar o tema do localStorage após hydration
 	function initializeTheme() {
 		if (!process.client || _isInitialized.value) return;
-		
+
 		const savedTheme = localStorage.getItem('nexo.theme') as 'light' | 'dark' | null;
 		if (savedTheme) {
 			preferences.value.appearanceTheme = savedTheme;

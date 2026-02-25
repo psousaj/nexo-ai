@@ -5,7 +5,7 @@
  */
 
 import { db } from '@/db';
-import { memoryItems, semanticExternalItems, userAccounts, users } from '@/db/schema';
+import { authProviders, memoryItems, semanticExternalItems, users } from '@/db/schema';
 import { tmdbService } from '@/services/enrichment/tmdb-service';
 import { itemService } from '@/services/item-service';
 import { enrichmentQueue } from '@/services/queue-service';
@@ -23,10 +23,10 @@ async function testEnrichmentFlow() {
 			.values({ name: 'Test Normalization', email: `test-norm-${Date.now()}@example.com` })
 			.returning();
 
-		await db.insert(userAccounts).values({
+		await db.insert(authProviders).values({
 			userId: user.id,
 			provider: 'telegram',
-			externalId: `test-norm-${Date.now()}`,
+			providerUserId: `test-norm-${Date.now()}`,
 		});
 
 		loggers.ai.info(`✅ Usuário criado: ${user.id}\n`);
@@ -140,7 +140,7 @@ async function testEnrichmentFlow() {
 		// 5. CLEANUP
 		loggers.ai.info('\n🧹 5. Limpando dados de teste...');
 		await db.delete(memoryItems).where(eq(memoryItems.userId, user.id));
-		await db.delete(userAccounts).where(eq(userAccounts.userId, user.id));
+		await db.delete(authProviders).where(eq(authProviders.userId, user.id));
 		await db.delete(users).where(eq(users.id, user.id));
 		// Não removemos do cache global para não interferir com outros testes,
 		// mas para este teste específico de fallback removemos os IDs usados.

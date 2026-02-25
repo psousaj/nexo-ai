@@ -5,7 +5,7 @@
  * para exibição no dashboard admin e gerenciamento via banco de dados.
  */
 
-import { AVAILABLE_TOOLS, type ToolName } from './index';
+import type { ToolName } from './index';
 
 export interface ToolDefinition {
 	name: ToolName;
@@ -219,13 +219,7 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
  * System tools são todas exceto as 5 tools de salvamento (user tools)
  */
 export function getSystemTools(): ToolDefinition[] {
-	const userToolNames: ToolName[] = [
-		'save_note',
-		'save_movie',
-		'save_tv_show',
-		'save_video',
-		'save_link',
-	];
+	const userToolNames: ToolName[] = ['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link'];
 
 	return Object.entries(TOOL_DEFINITIONS)
 		.filter(([name]) => !userToolNames.includes(name as ToolName))
@@ -237,13 +231,7 @@ export function getSystemTools(): ToolDefinition[] {
  * User tools são as 5 ferramentas de salvamento
  */
 export function getUserTools(): ToolDefinition[] {
-	const userToolNames: ToolName[] = [
-		'save_note',
-		'save_movie',
-		'save_tv_show',
-		'save_video',
-		'save_link',
-	];
+	const userToolNames: ToolName[] = ['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link'];
 
 	return userToolNames.map((name) => TOOL_DEFINITIONS[name]);
 }
@@ -259,13 +247,7 @@ export function getToolDefinition(name: ToolName): ToolDefinition | undefined {
  * Verifica se é system tool (sempre habilitada)
  */
 export function isSystemTool(name: ToolName): boolean {
-	const userToolNames: ToolName[] = [
-		'save_note',
-		'save_movie',
-		'save_tv_show',
-		'save_video',
-		'save_link',
-	];
+	const userToolNames: ToolName[] = ['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link'];
 	return !userToolNames.includes(name);
 }
 

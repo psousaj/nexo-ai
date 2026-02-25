@@ -30,10 +30,7 @@ coverage
 
 # Misc
 *.log
-.wrangler
 .dev.vars
-wrangler.toml
-wrangler.jsonc
 
 # Database
 *.db

@@ -91,7 +91,7 @@ export async function linkOAuthToExistingUser(params: {
 }
 
 /**
- * Serviço para sincronizar Better Auth accounts com user_accounts e user_emails
+ * Serviço para sincronizar Better Auth accounts com auth_providers e user_emails
  *
  * Solução alternativa aos hooks bugados do Better Auth 1.4.17
  * Chamado manualmente após OAuth callback
@@ -108,30 +108,37 @@ export async function syncOAuthAccount(params: {
 	try {
 		loggers.webhook.info({ userId, provider, externalId, email }, '🔗 [Sync] Sincronizando OAuth account');
 
-		// 1. Sincronizar com user_accounts (para mensageria)
+		// 1. Sincronizar com auth_providers (canônico para identidade)
 		const [existingAccount] = await db
 			.select()
-			.from(schema.userAccounts)
-			.where(and(eq(schema.userAccounts.provider, provider as any), eq(schema.userAccounts.externalId, externalId)))
+			.from(schema.authProviders)
+			.where(and(eq(schema.authProviders.provider, provider), eq(schema.authProviders.providerUserId, externalId)))
 			.limit(1);
 
 		if (!existingAccount) {
-			await db.insert(schema.userAccounts).values({
+			await db.insert(schema.authProviders).values({
 				userId,
-				provider: provider as any,
-				externalId,
-				metadata: metadata || {},
+				provider,
+				providerUserId: externalId,
+				providerEmail: email || null,
+				metadata: JSON.stringify(metadata || {}),
+				linkedAt: new Date(),
+				updatedAt: new Date(),
 			});
 
-			loggers.webhook.info({ userId, provider, metadata }, '✅ user_account criado via OAuth');
+			loggers.webhook.info({ userId, provider, metadata }, '✅ auth_provider criado via OAuth');
 		} else {
 			// Atualizar metadata se já existe
 			await db
-				.update(schema.userAccounts)
-				.set({ metadata: metadata || {} })
-				.where(and(eq(schema.userAccounts.provider, provider as any), eq(schema.userAccounts.externalId, externalId)));
+				.update(schema.authProviders)
+				.set({
+					metadata: JSON.stringify(metadata || {}),
+					providerEmail: email || null,
+					updatedAt: new Date(),
+				})
+				.where(and(eq(schema.authProviders.provider, provider), eq(schema.authProviders.providerUserId, externalId)));
 
-			loggers.webhook.info({ userId, provider, metadata }, '✅ user_account atualizado com metadata');
+			loggers.webhook.info({ userId, provider, metadata }, '✅ auth_provider atualizado com metadata');
 		}
 
 		// 2. Sincronizar email com user_emails (se fornecido pelo provider)

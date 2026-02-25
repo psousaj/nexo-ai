@@ -18,6 +18,8 @@ Registro de decisões arquiteturais do Nexo AI.
 - [ADR-012](012-bun-test-framework.md) - Bun Test como framework de testes
 - [ADR-013](013-conversational-anamnesis.md) - Anamnese conversacional (clarificação N1/N2)
 - [ADR-014](014-document-enrichment-strategy.md) - Document Enrichment para busca semântica (v0.3.2)
+- [ADR-020](020-baileys-405-platform-fix.md) - ⚠️ Workaround 405 Baileys (Platform.WEB rejeitado em 2026-02-24) — checar ao atualizar
+- [ADR-021](021-canonical-auth-providers.md) - Modelo canônico de identidade com auth_providers
 
 ## Template
 

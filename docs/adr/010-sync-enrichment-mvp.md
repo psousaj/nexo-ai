@@ -148,7 +148,6 @@ export default {
 
 **Setup Workers Queues:**
 ```toml
-# wrangler.toml
 [[queues.producers]]
 queue = "enrichment-queue"
 binding = "ENRICHMENT_QUEUE"

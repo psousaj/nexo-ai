@@ -1,15 +1,11 @@
-import { adminService } from '@/services/admin-service';
-import { toolService } from '@/services/tools/tool.service';
-import { getSystemTools, getAllTools } from '@/services/tools/registry';
-import { getWhatsAppSettings, setActiveWhatsAppApi, invalidateWhatsAppProviderCache } from '@/adapters/messaging';
+import { getWhatsAppSettings, invalidateWhatsAppProviderCache, setActiveWhatsAppApi } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { adminService } from '@/services/admin-service';
+import { getSystemTools } from '@/services/tools/registry';
+import { toolService } from '@/services/tools/tool.service';
 import { Hono } from 'hono';
 
 export const adminRoutes = new Hono()
-	.get('/errors', async (c) => {
-		const errors = await adminService.getErrorReports();
-		return c.json(errors);
-	})
 	.get('/conversations', async (c) => {
 		const conversations = await adminService.getConversationSummaries();
 		return c.json(conversations);
@@ -42,30 +38,30 @@ export const adminRoutes = new Hono()
 			// Se está mudando para Baileys, inicializar
 			if (api === 'baileys') {
 				const { getBaileysService } = await import('@/services/baileys-service');
-				
+
 				// Atualizar configuração no banco
 				await setActiveWhatsAppApi(api);
-				
+
 				// Inicializar Baileys (vai começar a conectar)
 				await getBaileysService();
-				
+
 				// Invalidar cache
 				invalidateWhatsAppProviderCache();
-				
-				return c.json({ 
-					success: true, 
+
+				return c.json({
+					success: true,
 					activeApi: api,
-					message: 'Baileys ativado e conectando. Use /admin/whatsapp-settings/qr-code para obter QR Code.'
+					message: 'Baileys ativado e conectando. Use /admin/whatsapp-settings/qr-code para obter QR Code.',
 				});
 			}
-			
+
 			// Se está mudando para Meta, desconectar Baileys
 			if (api === 'meta') {
 				const { resetBaileysService } = await import('@/services/baileys-service');
-				
+
 				// Atualizar configuração no banco
 				await setActiveWhatsAppApi(api);
-				
+
 				// Desconectar e limpar Baileys
 				try {
 					await resetBaileysService();
@@ -73,21 +69,21 @@ export const adminRoutes = new Hono()
 					// Ignorar erro se Baileys não estava conectado
 					console.warn('Baileys não estava conectado:', error);
 				}
-				
+
 				// Invalidar cache
 				invalidateWhatsAppProviderCache();
-				
-				return c.json({ 
-					success: true, 
+
+				return c.json({
+					success: true,
 					activeApi: api,
-					message: 'Meta API ativada. Baileys desconectado.'
+					message: 'Meta API ativada. Baileys desconectado.',
 				});
 			}
-			
+
 			// Fallback (nunca deveria chegar aqui devido à validação no início)
 			await setActiveWhatsAppApi(api);
 			invalidateWhatsAppProviderCache();
-			
+
 			return c.json({ success: true, activeApi: api });
 		} catch (error) {
 			return c.json(
@@ -95,7 +91,7 @@ export const adminRoutes = new Hono()
 					success: false,
 					error: error instanceof Error ? error.message : 'Erro ao alterar API',
 				},
-				500
+				500,
 			);
 		}
 	})
@@ -106,11 +102,13 @@ export const adminRoutes = new Hono()
 	// Disconnect Baileys session
 	.post('/whatsapp-settings/baileys/disconnect', async (c) => {
 		try {
-			const { getBaileysService } = await import('@/services/baileys-service');
-			const baileys = await getBaileysService();
+			const { resetBaileysService } = await import('@/services/baileys-service');
 
-			// Disconnect the session
-			await baileys.disconnect();
+			// Reset the service (clears session and deletes auth files)
+			await resetBaileysService();
+
+			// Aguarda um instante para garantir que a instância foi limpa
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			return c.json({
 				success: true,
@@ -138,7 +136,7 @@ export const adminRoutes = new Hono()
 				qrCode,
 				connectionStatus,
 			});
-		} catch (error) {
+		} catch (_error) {
 			return c.json(
 				{
 					qrCode: null,
@@ -157,13 +155,13 @@ export const adminRoutes = new Hono()
 			await resetBaileysService();
 
 			// 2. Aguardar um momento para garantir que tudo foi limpo
-			await new Promise(resolve => setTimeout(resolve, 500));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// 3. Criar nova instância e conectar (vai gerar NOVO QR Code)
 			const baileys = await getBaileysService();
 
 			// 4. Aguardar o QR Code ser gerado
-			await new Promise(resolve => setTimeout(resolve, 1000));
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			// 5. Tentar obter o novo QR Code (pode ainda estar null)
 			let attempts = 0;
@@ -171,7 +169,7 @@ export const adminRoutes = new Hono()
 
 			// Tentar até 5 vezes com intervalo de 500ms
 			while (!newQRCode && attempts < 5) {
-				await new Promise(resolve => setTimeout(resolve, 500));
+				await new Promise((resolve) => setTimeout(resolve, 500));
 				newQRCode = await baileys.getQRCode();
 				attempts++;
 			}

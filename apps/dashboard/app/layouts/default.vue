@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
-import { AlertCircle, Bell, Database, LayoutDashboard, LogOut, Menu, MessageSquare, Settings, ShieldCheck, UserCircle, Users, X } from 'lucide-vue-next';
+import { Bell, Database, LayoutDashboard, LogOut, Menu, MessageSquare, Settings, ShieldCheck, UserCircle, Users, X } from 'lucide-vue-next';
 import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
@@ -29,7 +29,6 @@ const menuItems = computed(() => {
 		{ name: 'Perfil', icon: UserCircle, path: '/profile', subject: 'PersonalData', action: 'manage' },
 		{ name: 'Usuários', icon: Users, path: '/admin/users', subject: 'AdminPanel', action: 'manage' },
 		{ name: 'Conversas', icon: MessageSquare, path: '/admin/conversations', subject: 'AdminPanel', action: 'manage' },
-		{ name: 'Erros', icon: AlertCircle, path: '/admin/errors', subject: 'AdminPanel', action: 'manage' },
 		{ name: 'Configurações', icon: Settings, path: '/admin/settings', subject: 'AdminPanel', action: 'manage' },
 	];
 

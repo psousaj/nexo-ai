@@ -1,8 +1,10 @@
 # ADR-007: Suporte Multi-Provider de Mensageria
 
-**Status**: accepted
+**Status**: superseded (parcial)
 
 **Data**: 2026-01-07
+
+> Atualização: a estratégia de identidade desta ADR foi substituída pela [ADR-021](021-canonical-auth-providers.md), que define `auth_providers` como fonte canônica e remove dependência de `user_accounts` no runtime.
 
 ## Contexto
 

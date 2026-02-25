@@ -3,7 +3,7 @@ import { INTENT_CLASSIFIER_PROMPT } from '@/config/prompts';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { IntentAnalysisResult } from '@/services/message-analysis/types/analysis-result.types';
 import { loggers } from '@/utils/logger';
-import { startSpan, setAttributes } from '@nexo/otel/tracing';
+import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import OpenAI from 'openai';
 
 /**
@@ -95,7 +95,7 @@ export class IntentClassifier {
 	 * 3. Se confiança < 85% ou caso complexo, usa LLM
 	 */
 	async classify(message: string): Promise<IntentResult> {
-		return startSpan('intent.classification', async (span) => {
+		return startSpan('intent.classification', async (_span) => {
 			setAttributes({
 				'intent.message_length': message?.length || 0,
 			});

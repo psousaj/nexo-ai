@@ -8,8 +8,8 @@ import { db } from '@/db';
 import { accounts, googleCalendarIntegrations } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { and, eq } from 'drizzle-orm';
-import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
+import { google } from 'googleapis';
 
 const logger = loggers.integrations;
 
@@ -49,10 +49,7 @@ async function getOAuth2Client(userId: string): Promise<OAuth2Client> {
 	const isExpired = account.accessTokenExpiresAt && account.accessTokenExpiresAt <= now;
 
 	// Create OAuth2 client
-	const oauth2Client = new OAuth2Client(
-		process.env.GOOGLE_CLIENT_ID,
-		process.env.GOOGLE_CLIENT_SECRET,
-	);
+	const oauth2Client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
 
 	oauth2Client.setCredentials({
 		access_token: account.accessToken,
@@ -122,7 +119,12 @@ async function getOrCreateIntegration(userId: string): Promise<{ calendarId: str
 /**
  * List calendar events
  */
-export async function listCalendarEvents(userId: string, startDate?: Date, endDate?: Date, maxResults = 10): Promise<
+export async function listCalendarEvents(
+	userId: string,
+	startDate?: Date,
+	endDate?: Date,
+	maxResults = 10,
+): Promise<
 	Array<{
 		id: string;
 		title: string;
@@ -152,14 +154,19 @@ export async function listCalendarEvents(userId: string, startDate?: Date, endDa
 			orderBy: 'startTime',
 		});
 
-		const events = response.data.items?.map((event) => ({
-			id: event.id || '',
-			title: event.summary || 'Sem título',
-			description: event.description ?? undefined,
-			start: event.start?.dateTime ? new Date(event.start.dateTime) : new Date(event.start?.date || ''),
-			end: event.end?.dateTime ? new Date(event.end.dateTime) : event.end?.date ? new Date(event.end.date) : undefined,
-			location: event.location ?? undefined,
-		})) || [];
+		const events =
+			response.data.items?.map((event) => ({
+				id: event.id || '',
+				title: event.summary || 'Sem título',
+				description: event.description ?? undefined,
+				start: event.start?.dateTime ? new Date(event.start.dateTime) : new Date(event.start?.date || ''),
+				end: event.end?.dateTime
+					? new Date(event.end.dateTime)
+					: event.end?.date
+						? new Date(event.end.date)
+						: undefined,
+				location: event.location ?? undefined,
+			})) || [];
 
 		logger.info({ userId, count: events.length }, '✅ Eventos listados com sucesso');
 
@@ -232,7 +239,7 @@ export async function hasGoogleCalendarConnected(userId: string): Promise<boolea
 		const [account] = await db
 			.select()
 			.from(accounts)
-		.where(and(eq(accounts.providerId, 'google'), eq(accounts.userId, userId)))
+			.where(and(eq(accounts.providerId, 'google'), eq(accounts.userId, userId)));
 
 		if (!account) return false;
 
@@ -246,7 +253,10 @@ export async function hasGoogleCalendarConnected(userId: string): Promise<boolea
 /**
  * Get upcoming events (simplified for AI tools)
  */
-export async function getUpcomingEvents(userId: string, maxResults = 5): Promise<
+export async function getUpcomingEvents(
+	userId: string,
+	maxResults = 5,
+): Promise<
 	Array<{
 		id: string;
 		title: string;

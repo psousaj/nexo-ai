@@ -2,13 +2,13 @@ import { telegramAdapter, whatsappAdapter } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { messageQueue } from '@/services/queue-service';
 import { logError, loggers } from '@/utils/logger';
+import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Hono } from 'hono';
-import { startSpan, setAttributes } from '@nexo/otel/tracing';
 
 export const webhookRoutes = new Hono()
 	// TELEGRAM
 	.post('/telegram', async (c) => {
-		return startSpan('webhook.telegram.receive', async (span) => {
+		return startSpan('webhook.telegram.receive', async (_span) => {
 			setAttributes({
 				'webhook.provider': 'telegram',
 				'webhook.route': '/telegram',
@@ -90,7 +90,7 @@ export const webhookRoutes = new Hono()
 		return c.text('Verification failed', 403);
 	})
 	.post('/meta', async (c) => {
-		return startSpan('webhook.whatsapp.receive', async (span) => {
+		return startSpan('webhook.whatsapp.receive', async (_span) => {
 			setAttributes({
 				'webhook.provider': 'whatsapp',
 				'webhook.route': '/meta',

@@ -38,7 +38,6 @@ Configuração completa de todas as variáveis de ambiente.
 Deploy no Cloudflare Workers.
 
 - Criar conta Cloudflare
-- Configurar Wrangler
 - Deploy da API
 - Configurar webhooks
 - Testar em produção

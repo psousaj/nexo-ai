@@ -1,9 +1,9 @@
 import './otel'; // OpenTelemetry must be imported first
 import './sentry'; // Sentry error tracking
-import { initializeLangfuse } from '@/services/langfuse'; // Langfuse AI observability
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
 import { env } from '@/config/env';
 import app from '@/server';
+import { initializeLangfuse } from '@/services/langfuse'; // Langfuse AI observability
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
@@ -24,10 +24,10 @@ async function initializeBaileysIfActive(): Promise<void> {
 
 		if (settings.activeApi === 'baileys') {
 			logger.info('📱 Baileys é a API ativa, inicializando...');
-			
+
 			const { getBaileysService } = await import('@/services/baileys-service');
 			await getBaileysService();
-			
+
 			logger.info('✅ Baileys inicializado e pronto para receber mensagens');
 		} else {
 			logger.info('📱 Meta API é a API ativa (Baileys não será inicializado)');

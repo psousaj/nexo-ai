@@ -1,5 +1,5 @@
 import { loggers } from '@/utils/logger';
-import { startSpan, setAttributes } from '@nexo/otel/tracing';
+import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
 import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';
 import { SpamAnalyzer } from './analyzers/spam-analyzer.js';
@@ -83,7 +83,7 @@ export class MessageAnalyzerService {
 	 * Classifica intenção usando modelo neural treinado
 	 */
 	async classifyIntent(message: string): Promise<IntentAnalysisResult> {
-		return startSpan('nlp.neural_classification', async (span) => {
+		return startSpan('nlp.neural_classification', async (_span) => {
 			setAttributes({ 'nlp.message_length': message.length });
 
 			await this.ensureInitialized();

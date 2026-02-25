@@ -1,9 +1,9 @@
 /**
  * Tool Service
- * 
+ *
  * Gerencia tools globalmente habilitadas/desabilitadas.
  * Feature flags: Admin pode ligar/desligar funcionalidades para TODOS os usuários.
- * 
+ *
  * ADR-019: Pluggable Tools System with CASL Protection
  */
 
@@ -12,13 +12,7 @@ import { globalTools } from '@/db/schema';
 import type { ToolName } from '@/types';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
-import {
-	getSystemTools,
-	getToolDefinition,
-	getUserTools,
-	isSystemTool,
-	type ToolDefinition,
-} from './registry';
+import { type ToolDefinition, getSystemTools, getToolDefinition, getUserTools, isSystemTool } from './registry';
 
 class ToolService {
 	/**
@@ -102,10 +96,7 @@ class ToolService {
 			throw new Error('System tools não podem ser desabilitadas');
 		}
 
-		await db
-			.update(globalTools)
-			.set({ enabled, updatedAt: new Date() })
-			.where(eq(globalTools.toolName, toolName));
+		await db.update(globalTools).set({ enabled, updatedAt: new Date() }).where(eq(globalTools.toolName, toolName));
 
 		loggers.ai.info({ toolName, enabled }, '🔧 Tool global atualizada');
 	}

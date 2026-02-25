@@ -1,5 +1,5 @@
-import { initializeOtel } from '@nexo/otel';
 import { env } from '@/config/env';
+import { initializeOtel } from '@nexo/otel';
 
 // Initialize OpenTelemetry
 // This module is imported as the first thing in index.ts to ensure

@@ -23,14 +23,14 @@ O contexto interno do Better Auth (`context.context`) não é propagado corretam
 ```
 OAuth Callback → Better Auth (salva no DB) → setTimeout(500ms) → Busca última account criada → syncOAuthAccount()
                                                                                                       ↓
-                                                                               Sincroniza user_accounts + user_emails
+                                                                               Sincroniza auth_providers + user_emails
 ```
 
 ### Componentes
 
 #### 1. [auth-account-sync-plugin.ts](../src/lib/auth-account-sync-plugin.ts)
 Serviço de sincronização que:
-- Cria entrada em `user_accounts` (para mensageria Telegram/WhatsApp)
+- Cria entrada em `auth_providers` (canônico para mensageria Telegram/WhatsApp/Discord)
 - Adiciona email em `user_emails` (sistema multi-email)
 - Trata duplicações e conflitos
 
@@ -44,7 +44,7 @@ Router customizado que:
 
 ### 2. Funcionalidades
 
-✅ **Sincronização automática**: Após OAuth, `user_accounts` e `user_emails` são criados  
+✅ **Sincronização automática**: Após OAuth, `auth_providers` e `user_emails` são criados  
 ✅ **Não bloqueia UX**: Sincronização roda em background (setTimeout)  
 ✅ **Autenticação básica**: Email/senha continua funcionando  
 ✅ **OAuth funcional**: Login com Discord/Google vincula corretamente  
@@ -77,7 +77,7 @@ Router customizado que:
    - Chama syncOAuthAccount()
    ↓
 8. syncOAuthAccount():
-   - Cria user_accounts (provider, externalId)
+   - Cria auth_providers (provider, provider_user_id)
    - Adiciona user_emails (se email fornecido)
    ↓
 9. ✅ Usuário logado + accounts sincronizadas
@@ -98,13 +98,13 @@ Router customizado que:
 ```
 6. **Verificar banco**:
 ```sql
-SELECT * FROM user_accounts WHERE provider = 'discord';
+SELECT * FROM auth_providers WHERE provider = 'discord';
 SELECT * FROM user_emails WHERE provider = 'discord';
 ```
 
 **Esperado**: 
 - ✅ Login com sucesso
-- ✅ `user_account` criado automaticamente
+- ✅ vínculo em `auth_providers` criado automaticamente
 - ✅ Email adicionado em `user_emails` automaticamente
 - ✅ Sem erros no console
 

@@ -5,8 +5,8 @@
  * Supports expressions like "amanhã", "próxima terça-feira", "em 5 minutos", etc.
  */
 
-import * as chrono from 'chrono-node';
 import { loggers } from '@/utils/logger';
+import * as chrono from 'chrono-node';
 
 export interface ParsedDateResult {
 	date: Date;
@@ -52,10 +52,7 @@ export async function parseNaturalDate(dateString: string, referenceDate?: Date)
  * @param referenceDate - Optional reference date (defaults to now)
  * @returns Parsed date with metadata
  */
-export async function parseNaturalDateWithMeta(
-	dateString: string,
-	referenceDate?: Date,
-): Promise<ParsedDateResult> {
+export async function parseNaturalDateWithMeta(dateString: string, referenceDate?: Date): Promise<ParsedDateResult> {
 	const ref = referenceDate || new Date();
 	const results = chrono.pt.parse(dateString, ref, { forwardDate: true });
 
@@ -116,7 +113,7 @@ export async function parseDateRange(
 	const result = results[0];
 
 	// If we have both start and end, use them
-	if (result.end && result.end.date()) {
+	if (result.end?.date()) {
 		return {
 			startDate: result.start.date(),
 			endDate: result.end.date(),

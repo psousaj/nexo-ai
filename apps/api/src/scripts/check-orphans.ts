@@ -1,11 +1,11 @@
 import { db } from '@/db';
-import { userAccounts, users } from '@/db/schema';
+import { authProviders, users } from '@/db/schema';
 import { conversations } from '@/db/schema/conversations';
 
 async function checkOrphans() {
 	console.log('--- Checking for Orphan Users ---');
 
-	const allAccounts = await db.select().from(userAccounts);
+	const allAccounts = await db.select().from(authProviders);
 	const userIdsWithAccounts = new Set(allAccounts.map((a) => a.userId));
 
 	const allUsers = await db.select().from(users);

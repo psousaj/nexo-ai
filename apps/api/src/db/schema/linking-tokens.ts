@@ -14,7 +14,7 @@ export const linkingTokens = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		token: text('token').notNull().unique(),
-		tokenType: text('token_type').$type<'link' | 'signup'>().notNull().default('link'),
+		tokenType: text('token_type').$type<'link' | 'signup' | 'email_confirm'>().notNull().default('link'),
 		provider: text('provider').$type<'whatsapp' | 'telegram' | 'discord' | 'google'>(),
 		expiresAt: timestamp('expires_at').notNull(),
 		externalId: text('external_id'),

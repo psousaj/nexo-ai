@@ -1,8 +1,8 @@
 import { env } from '@/config/env';
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
-import { loggers } from '@/utils/logger';
-import { startSpan, setAttributes, getCurrentTraceId } from '@nexo/otel/tracing';
 import { getLangfuse } from '@/services/langfuse';
+import { loggers } from '@/utils/logger';
+import { getCurrentTraceId, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
 import type { AIResponse, Message } from './types';
 
@@ -27,7 +27,7 @@ export class AIService {
 	 * Retry e fallback são gerenciados pelo AI Gateway
 	 */
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
-		return startSpan('llm.call', async (span) => {
+		return startSpan('llm.call', async (_span) => {
 			const { systemPrompt, ...rest } = params;
 			const prompt = systemPrompt || AGENT_SYSTEM_PROMPT;
 
@@ -46,16 +46,18 @@ export class AIService {
 			let generation: any = null;
 
 			if (langfuse) {
-				generation = langfuse.trace({
-					name: 'llm_call',
-					id: traceId,
-				}).generation({
-					model: (this.provider as any).model || 'dynamic/cloudflare',
-					metadata: {
-						provider: 'cloudflare',
-						messageLength: params.message.length,
-					},
-				});
+				generation = langfuse
+					.trace({
+						name: 'llm_call',
+						id: traceId,
+					})
+					.generation({
+						model: (this.provider as any).model || 'dynamic/cloudflare',
+						metadata: {
+							provider: 'cloudflare',
+							messageLength: params.message.length,
+						},
+					});
 			}
 
 			const response = await this.provider.callLLM({

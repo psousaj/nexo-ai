@@ -1,6 +1,6 @@
 /**
  * Tool Management Routes (Admin Only)
- * 
+ *
  * Endpoints para gerenciar tools globalmente (CASL protected)
  * ADR-019: Pluggable Tools System with CASL Protection
  */
@@ -22,7 +22,7 @@ const updateToolSchema = z.object({
 /**
  * GET /api/admin/tools
  * Lista todas as tools (system + user) com status enabled/disabled
- * 
+ *
  * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.get('/', async (c) => {
@@ -57,9 +57,9 @@ toolsRoutes.get('/', async (c) => {
 /**
  * PATCH /api/admin/tools/:toolName
  * Atualiza status de tool global
- * 
+ *
  * Body: { enabled: boolean }
- * 
+ *
  * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.patch('/:toolName', async (c) => {
@@ -104,7 +104,7 @@ toolsRoutes.patch('/:toolName', async (c) => {
 /**
  * POST /api/admin/tools/enable-all
  * Habilita todas as user tools
- * 
+ *
  * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.post('/enable-all', async (c) => {
@@ -132,7 +132,7 @@ toolsRoutes.post('/enable-all', async (c) => {
 /**
  * POST /api/admin/tools/disable-all
  * Desabilita todas as user tools
- * 
+ *
  * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.post('/disable-all', async (c) => {

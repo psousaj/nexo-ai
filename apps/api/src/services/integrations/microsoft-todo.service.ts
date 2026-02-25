@@ -299,7 +299,7 @@ export async function hasMicrosoftTodoConnected(userId: string): Promise<boolean
 		const [account] = await db
 			.select()
 			.from(accounts)
-		.where(and(eq(accounts.providerId, 'microsoft'), eq(accounts.userId, userId)))
+			.where(and(eq(accounts.providerId, 'microsoft'), eq(accounts.userId, userId)));
 
 		if (!account) return false;
 

@@ -1,7 +1,7 @@
 import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
-import { conversations, linkingTokens, memoryItems, userAccounts, users } from '@/db/schema';
+import { authProviders, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { and, eq, gte } from 'drizzle-orm';
 import { userService } from './user-service';
@@ -15,7 +15,7 @@ export class AccountLinkingService {
 	async generateLinkingToken(
 		userId: string,
 		provider?: ProviderType,
-		tokenType: 'link' | 'signup' = 'link',
+		tokenType: 'link' | 'signup' | 'email_confirm' = 'link',
 		externalId?: string,
 	): Promise<string> {
 		// Verifica se já existe um token válido (não expirado) para reutilizar
@@ -27,6 +27,7 @@ export class AccountLinkingService {
 					eq(linkingTokens.userId, userId),
 					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
 					eq(linkingTokens.tokenType, tokenType),
+					externalId ? eq(linkingTokens.externalId, externalId) : (undefined as any),
 					gte(linkingTokens.expiresAt, new Date()),
 				),
 			)
@@ -44,6 +45,8 @@ export class AccountLinkingService {
 		const expiresAt = new Date();
 		if (tokenType === 'signup') {
 			expiresAt.setHours(expiresAt.getHours() + 24);
+		} else if (tokenType === 'email_confirm') {
+			expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 		} else {
 			expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 		}
@@ -56,6 +59,7 @@ export class AccountLinkingService {
 					eq(linkingTokens.userId, userId),
 					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
 					eq(linkingTokens.tokenType, tokenType),
+					externalId ? eq(linkingTokens.externalId, externalId) : (undefined as any),
 				),
 			);
 
@@ -104,7 +108,7 @@ export class AccountLinkingService {
 	 *
 	 * Para tokenType = 'signup' (fluxo WhatsApp/Telegram trial → conta real):
 	 *   - Migra TODOS os dados do usuário trial para o novo usuário Better Auth
-	 *   - userAccounts, memory_items e conversations são reatribuídos
+	 *   - authProviders, memory_items e conversations são reatribuídos
 	 *   - Novo usuário recebe status 'active'
 	 *
 	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
@@ -152,7 +156,7 @@ export class AccountLinkingService {
 	 * Migra TODOS os dados de um usuário trial para um usuário Better Auth recém-criado.
 	 *
 	 * Executa:
-	 * 1. Reatribui userAccounts (provider accounts do bot)
+	 * 1. Reatribui authProviders (provider accounts do bot)
 	 * 2. Migra memory_items (itens salvos durante o trial)
 	 * 3. Migra conversations (histórico)
 	 * 4. Ativa o novo usuário (status → active)
@@ -163,37 +167,25 @@ export class AccountLinkingService {
 		targetUserId: string,
 		provider: ProviderType,
 	): Promise<void> {
-		loggers.webhook.info(
-			{ trialUserId, targetUserId, provider },
-			'🔄 Iniciando migração trial → conta real',
-		);
+		loggers.webhook.info({ trialUserId, targetUserId, provider }, '🔄 Iniciando migração trial → conta real');
 
 		// Busca contas do trial user antes de migrar (para invalidar cache depois)
 		const trialAccounts = await userService.getUserAccounts(trialUserId);
 
-		// 1. Migra userAccounts: reatribui do trial para o target
+		// 1. Migra authProviders: reatribui do trial para o target
 		await db
-			.update(userAccounts)
+			.update(authProviders)
 			.set({ userId: targetUserId, updatedAt: new Date() })
-			.where(eq(userAccounts.userId, trialUserId));
+			.where(eq(authProviders.userId, trialUserId));
 
 		// 2. Migra memory_items
-		await db
-			.update(memoryItems)
-			.set({ userId: targetUserId })
-			.where(eq(memoryItems.userId, trialUserId));
+		await db.update(memoryItems).set({ userId: targetUserId }).where(eq(memoryItems.userId, trialUserId));
 
 		// 3. Migra conversations
-		await db
-			.update(conversations)
-			.set({ userId: targetUserId })
-			.where(eq(conversations.userId, trialUserId));
+		await db.update(conversations).set({ userId: targetUserId }).where(eq(conversations.userId, trialUserId));
 
 		// 4. Ativa o novo usuário
-		await db
-			.update(users)
-			.set({ status: 'active', updatedAt: new Date() })
-			.where(eq(users.id, targetUserId));
+		await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, targetUserId));
 
 		// 5. Invalida cache de todas as contas migradas
 		for (const account of trialAccounts) {

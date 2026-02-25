@@ -3,15 +3,15 @@ import { boolean, integer, pgTable, text, timestamp, varchar } from 'drizzle-orm
 import { agentDailyLogs } from './agent-daily-logs';
 import { agentMemoryProfiles } from './agent-memory-profiles';
 import { agentSessions } from './agent-sessions';
+import { authProviders } from './auth-providers';
 import { conversations } from './conversations';
 import { items } from './items';
 import { userPermissions } from './permissions';
-import { userAccounts } from './user-accounts';
 import { userPreferences } from './user-preferences';
 
 /**
  * Usuário único no sistema (entidade de domínio)
- * Pode ter múltiplas contas em diferentes providers via userAccounts
+ * Pode ter múltiplas contas em diferentes providers via authProviders
  */
 export const users = pgTable('users', {
 	id: text('id')
@@ -43,7 +43,7 @@ export const users = pgTable('users', {
 export const usersRelations = relations(users, ({ one, many }) => ({
 	items: many(items),
 	conversations: many(conversations),
-	accounts: many(userAccounts),
+	authProviders: many(authProviders),
 	preferences: one(userPreferences),
 	permissions: many(userPermissions),
 	// OpenClaw-inspired relations

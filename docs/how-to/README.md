@@ -39,7 +39,6 @@ Sistema de embeddings e cache para busca inteligente.
 Deploy em produção no Cloudflare Workers.
 
 - Criar conta Cloudflare
-- Configurar Wrangler
 - Deploy da API
 - Configurar webhooks
 - Configurar domínio customizado

@@ -159,9 +159,6 @@ pnpm run db:generate
 # Testes
 bun test                 # Roda testes
 pnpm run db:push
-# Deploy
-wrangler deploy          # Deploy Cloudflare Workers
-wrangler tail            # Logs em tempo real
 ```
 
 pnpm run dev
@@ -170,16 +167,12 @@ pnpm run dev
 
 ```bash
 # 1. Login
-wrangler login
 pnpm run dev              # Roda servidor local
 pnpm run build            # Build para produção
 pnpm run start            # Roda build
-wrangler secret put META_WHATSAPP_TOKEN
-wrangler secret put ANTHROPIC_API_KEY
 pnpm run db:generate      # Gera migrations
 pnpm run db:push          # Aplica migrations
 pnpm run db:studio        # Abre Drizzle Studio
-wrangler deploy
 ```
 pnpm test                 # Roda testes
 Ver guia completo em [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

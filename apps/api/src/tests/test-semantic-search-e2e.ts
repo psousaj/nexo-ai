@@ -9,7 +9,7 @@
  */
 
 import { db } from '@/db';
-import { memoryItems, userAccounts, users } from '@/db/schema';
+import { authProviders, memoryItems, users } from '@/db/schema';
 import { itemService } from '@/services/item-service';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
@@ -25,10 +25,10 @@ async function testSemanticSearchE2E() {
 			.values({ name: 'Test User E2E', email: `test-e2e-${Date.now()}@example.com` })
 			.returning();
 
-		await db.insert(userAccounts).values({
+		await db.insert(authProviders).values({
 			userId: user.id,
 			provider: 'telegram',
-			externalId: `test-${Date.now()}`,
+			providerUserId: `test-${Date.now()}`,
 		});
 
 		loggers.ai.info(`✅ Usuário criado: ${user.id}\n`);
@@ -111,7 +111,7 @@ async function testSemanticSearchE2E() {
 		// 4. CLEANUP
 		loggers.ai.info('🧹 4. Limpando dados de teste...');
 		await db.delete(memoryItems).where(eq(memoryItems.userId, user.id));
-		await db.delete(userAccounts).where(eq(userAccounts.userId, user.id));
+		await db.delete(authProviders).where(eq(authProviders.userId, user.id));
 		await db.delete(users).where(eq(users.id, user.id));
 		loggers.ai.info('✅ Dados removidos\n');
 
