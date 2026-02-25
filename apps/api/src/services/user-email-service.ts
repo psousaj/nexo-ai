@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { userEmails, users } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import { and, eq } from 'drizzle-orm';
 
@@ -165,13 +166,10 @@ export class UserEmailService {
 			return false;
 		}
 
-		await db
-			.update(users)
-			.set({ emailVerified: true, status: 'active', updatedAt: new Date() })
-			.where(eq(users.id, userId));
+		await db.update(users).set({ emailVerified: true, status: 'active', updatedAt: new Date() }).where(eq(users.id, userId));
 
 		return true;
 	}
 }
 
-export const userEmailService = new UserEmailService();
+export const userEmailService = instrumentService('userEmail', new UserEmailService());

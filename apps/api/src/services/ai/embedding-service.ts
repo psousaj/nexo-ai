@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import OpenAI from 'openai';
 
@@ -38,10 +39,7 @@ export class EmbeddingService {
 		if (text.length <= maxChars) return text;
 
 		const truncated = text.slice(0, maxChars);
-		loggers.enrichment.warn(
-			{ originalLength: text.length, truncatedLength: maxChars },
-			'⚠️ Texto truncado para embedding',
-		);
+		loggers.enrichment.warn({ originalLength: text.length, truncatedLength: maxChars }, '⚠️ Texto truncado para embedding');
 
 		return `${truncated}...`;
 	}
@@ -77,10 +75,7 @@ export class EmbeddingService {
 			// Validar se o embedding não é um vetor de zeros
 			const isZeroVector = embedding.every((v: number) => v === 0);
 			if (isZeroVector) {
-				loggers.enrichment.error(
-					{ textLength: processedText.length, model: this.model },
-					'❌ API retornou vetor de zeros!',
-				);
+				loggers.enrichment.error({ textLength: processedText.length, model: this.model }, '❌ API retornou vetor de zeros!');
 				throw new Error('Embedding inválido: vetor de zeros retornado');
 			}
 
@@ -111,4 +106,4 @@ export class EmbeddingService {
 	}
 }
 
-export const embeddingService = new EmbeddingService();
+export const embeddingService = instrumentService('embedding', new EmbeddingService());

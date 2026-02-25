@@ -1,5 +1,6 @@
 import type { ItemType } from '@/types';
 import { loggers } from '@/utils/logger';
+import { instrumentService } from '@/services/service-instrumentation';
 import { messageAnalyzer } from './message-analysis/message-analyzer.service';
 
 /**
@@ -167,4 +168,4 @@ export class ClassifierService {
 	}
 }
 
-export const classifierService = new ClassifierService();
+export const classifierService = instrumentService('classifier', new ClassifierService());

@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { instrumentService } from '@/services/service-instrumentation';
 
 interface _WhatsAppMessage {
 	to: string;
@@ -74,4 +75,4 @@ export class WhatsAppService {
 	}
 }
 
-export const whatsappService = new WhatsAppService();
+export const whatsappService = instrumentService('whatsapp', new WhatsAppService());

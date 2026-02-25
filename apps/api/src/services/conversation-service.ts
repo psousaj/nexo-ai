@@ -1,6 +1,7 @@
 import { type ProviderType, getProvider } from '@/adapters/messaging';
 import { db } from '@/db';
 import { conversations, messages } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { getRandomLogMessage, processingLogs } from '@/services/conversation/logMessages';
 import {
 	getClarificationMessages,
@@ -128,10 +129,7 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info(
-				{ reason, confidence: ambiguityResult.confidence },
-				'🔍 Ambiguidade detectada, solicitando clarificação',
-			);
+			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
 
 			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
 			const clarificationOptions = await getClarificationOptions(language);
@@ -232,4 +230,4 @@ export class ConversationService {
 	}
 }
 
-export const conversationService = new ConversationService();
+export const conversationService = instrumentService('conversation', new ConversationService());

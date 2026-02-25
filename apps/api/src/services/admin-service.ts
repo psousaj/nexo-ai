@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { authProviders, conversations, messages, users } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { count, desc, eq } from 'drizzle-orm';
 
 export class AdminService {
@@ -81,4 +82,4 @@ export class AdminService {
 	}
 }
 
-export const adminService = new AdminService();
+export const adminService = instrumentService('admin', new AdminService());

@@ -2,6 +2,7 @@ import { env } from '@/config/env';
 import { cacheGet, cacheSet } from '@/config/redis';
 import type { VideoMetadata } from '@/types';
 import { loggers } from '@/utils/logger';
+import { instrumentService } from '@/services/service-instrumentation';
 import { fetchWithRetry } from '@/utils/retry';
 
 interface YouTubeVideoSnippet {
@@ -40,10 +41,7 @@ export class YouTubeService {
 	 * Extrai video ID de URL do YouTube
 	 */
 	extractVideoId(url: string): string | null {
-		const patterns = [
-			/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-			/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-		];
+		const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/, /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/];
 
 		for (const pattern of patterns) {
 			const match = url.match(pattern);
@@ -134,4 +132,4 @@ export class YouTubeService {
 	}
 }
 
-export const youtubeService = new YouTubeService();
+export const youtubeService = instrumentService('youtube', new YouTubeService());

@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
 import { getLangfuse } from '@/services/langfuse';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import { getCurrentTraceId, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
@@ -107,5 +108,8 @@ export class AIService {
 }
 
 // Singleton - credenciais são obrigatórias no env
-export const llmService = new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN);
+export const llmService = instrumentService(
+	'llm',
+	new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN),
+);
 export type { AIProvider, AIResponse, Message } from './types';

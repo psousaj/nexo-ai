@@ -1,6 +1,7 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { accountLinkingService } from '@/services/account-linking-service';
+import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 
@@ -37,11 +38,7 @@ export class CommandHandlerService {
 	}
 
 	private async handleLinkCommand(message: IncomingMessage, provider: MessagingProvider): Promise<boolean> {
-		const { user } = await userService.findOrCreateUserByAccount(
-			message.externalId,
-			message.provider,
-			message.senderName,
-		);
+		const { user } = await userService.findOrCreateUserByAccount(message.externalId, message.provider, message.senderName);
 
 		const token = await accountLinkingService.generateLinkingToken(user.id, message.provider, 'link');
 
@@ -89,10 +86,7 @@ export class CommandHandlerService {
 				'✅ Sua conta foi vinculada com sucesso ao seu painel Nexo AI!\n\nO que você quer salvar hoje?',
 			);
 		} else {
-			await provider.sendMessage(
-				message.externalId,
-				'❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.',
-			);
+			await provider.sendMessage(message.externalId, '❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.');
 		}
 
 		return true; // Mensagem foi consumida pelo fluxo de vinculação
@@ -104,4 +98,4 @@ export class CommandHandlerService {
 	}
 }
 
-export const commandHandlerService = new CommandHandlerService();
+export const commandHandlerService = instrumentService('commandHandler', new CommandHandlerService());

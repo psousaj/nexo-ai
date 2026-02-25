@@ -1,6 +1,7 @@
 import { cacheGet, cacheSet } from '@/config/redis';
 import type { LinkMetadata } from '@/types';
 import { loggers } from '@/utils/logger';
+import { instrumentService } from '@/services/service-instrumentation';
 import { fetchWithRetry } from '@/utils/retry';
 
 interface OpenGraphData {
@@ -114,4 +115,4 @@ export class OpenGraphService {
 	}
 }
 
-export const openGraphService = new OpenGraphService();
+export const openGraphService = instrumentService('opengraph', new OpenGraphService());

@@ -2,6 +2,7 @@ import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete, cacheGet, cacheSet } from '@/config/redis';
 import { db } from '@/db';
 import { authProviders, users } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import { and, eq } from 'drizzle-orm';
 
@@ -274,4 +275,4 @@ export class UserService {
 	}
 }
 
-export const userService = new UserService();
+export const userService = instrumentService('user', new UserService());
