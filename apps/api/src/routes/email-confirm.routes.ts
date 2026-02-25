@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 export const emailConfirmRoutes = new Hono().get('/confirm', async (c) => {
 	const dashboardBaseUrl = env.DASHBOARD_URL || 'http://localhost:5173';
 	const buildRedirect = (status: 'success' | 'invalid' | 'not_found') => {
-		const url = new URL(dashboardBaseUrl);
+		const url = new URL('/confirm-email', dashboardBaseUrl);
 		url.searchParams.set('email_confirm', status);
 		return c.redirect(url.toString(), 302);
 	};
@@ -22,13 +22,7 @@ export const emailConfirmRoutes = new Hono().get('/confirm', async (c) => {
 	const [record] = await db
 		.select()
 		.from(linkingTokens)
-		.where(
-			and(
-				eq(linkingTokens.token, token),
-				eq(linkingTokens.tokenType, 'email_confirm'),
-				gte(linkingTokens.expiresAt, new Date()),
-			),
-		)
+		.where(and(eq(linkingTokens.token, token), eq(linkingTokens.tokenType, 'email_confirm'), gte(linkingTokens.expiresAt, new Date())))
 		.limit(1);
 
 	if (!record || !record.externalId) {

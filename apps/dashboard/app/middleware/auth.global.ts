@@ -30,6 +30,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
 		return navigateTo(callbackUrl ? `/login?callbackUrl=${callbackUrl}` : '/login', { replace: true });
 	}
 
+	const currentUser = authStore.user;
+	const isEmailUnverified = !!(authStore.isAuthenticated && currentUser && !currentUser.emailVerified);
+
+	if (isEmailUnverified && to.path !== '/confirm-email') {
+		return navigateTo('/confirm-email', { replace: true });
+	}
+
 	// Rota pública com sessão ativa → redireciona para callbackUrl ou dashboard
 	if (isPublicRoute && authStore.isAuthenticated && to.path !== '/confirm-email') {
 		const callbackUrl = (to.query.callbackUrl as string) || '/';

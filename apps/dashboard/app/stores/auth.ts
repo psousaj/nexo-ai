@@ -5,6 +5,7 @@ interface BetterAuthUser {
 	email: string;
 	name: string;
 	image?: string;
+	emailVerified?: boolean;
 	role?: string;
 	permissions?: any[];
 }
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
 			name: u.name,
 			email: u.email,
 			image: u.image || '',
+			emailVerified: !!u.emailVerified,
 			role: u.role || 'user',
 			permissions: u.permissions || [],
 		};

@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { boolean, index, pgTable, text, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, index, pgEnum, pgTable, text, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 /**
@@ -9,6 +9,8 @@ import { users } from './users';
  * - (provider, providerUserId) é único globalmente
  * - (userId, provider) é único por usuário (1 vínculo por provider)
  */
+export const authProviderEnum = pgEnum('auth_provider', ['whatsapp', 'telegram', 'discord', 'google', 'microsoft', 'credential', 'email']);
+
 export const authProviders = pgTable(
 	'auth_providers',
 	{
@@ -16,7 +18,7 @@ export const authProviders = pgTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
-		provider: varchar('provider', { length: 50 }).notNull(),
+		provider: authProviderEnum('provider').notNull(),
 		providerUserId: varchar('provider_user_id', { length: 255 }).notNull(),
 		providerEmail: varchar('provider_email', { length: 255 }),
 		linkedAt: timestamp('linked_at').defaultNow().notNull(),

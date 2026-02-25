@@ -61,7 +61,14 @@ const handleSignup = async () => {
 		} else {
 			// Consome o token de vinculação (WhatsApp/Telegram) se presente
 			await consumeLinkingToken();
-			router.push('/');
+
+			try {
+				await api.post('/user/emails/resend-confirmation');
+			} catch (emailError) {
+				console.warn('Não foi possível enviar email de confirmação automaticamente:', emailError);
+			}
+
+			router.push('/confirm-email');
 		}
 	} catch (e) {
 		console.error('Signup error:', e);
@@ -211,7 +218,10 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 				</div>
 
 				<div class="text-center">
-					<NuxtLink :to="linkingToken ? `/login?vinculate_code=${linkingToken}` : '/login'" class="text-sm font-bold text-primary-600 hover:text-primary-700">
+					<NuxtLink
+						:to="linkingToken ? `/login?vinculate_code=${linkingToken}` : '/login'"
+						class="text-sm font-bold text-primary-600 hover:text-primary-700"
+					>
 						Já tem uma conta? Faça login
 					</NuxtLink>
 				</div>

@@ -1,11 +1,14 @@
 import { relations } from 'drizzle-orm';
-import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 /**
  * Tokens temporários para vinculação de contas (Deep Linking Telegram/Discord)
  * Expira em 10 minutos por padrão.
  */
+export const linkingTokenTypeEnum = pgEnum('linking_token_type', ['link', 'signup', 'email_confirm']);
+export const linkingTokenProviderEnum = pgEnum('linking_token_provider', ['whatsapp', 'telegram', 'discord', 'google']);
+
 export const linkingTokens = pgTable(
 	'linking_tokens',
 	{
@@ -14,8 +17,8 @@ export const linkingTokens = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		token: text('token').notNull().unique(),
-		tokenType: text('token_type').$type<'link' | 'signup' | 'email_confirm'>().notNull().default('link'),
-		provider: text('provider').$type<'whatsapp' | 'telegram' | 'discord' | 'google'>(),
+		tokenType: linkingTokenTypeEnum('token_type').notNull().default('link'),
+		provider: linkingTokenProviderEnum('provider'),
 		expiresAt: timestamp('expires_at').notNull(),
 		externalId: text('external_id'),
 		createdAt: timestamp('created_at').defaultNow(),
