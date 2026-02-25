@@ -3,7 +3,10 @@ import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
 
 // Carrega .env da raiz do monorepo
-config({ path: resolve(__dirname, '../../.env') });
+config({
+	path: resolve(__dirname, '../../.env'),
+	override: true,
+});
 
 export default defineConfig({
 	schema: './src/db/schema/index.ts',
