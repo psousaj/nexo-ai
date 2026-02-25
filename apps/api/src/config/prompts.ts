@@ -334,6 +334,67 @@ export const ALREADY_SAVED_PROMPT = (title: string, type: string) => `📝 "${ti
 export const TIMEOUT_MESSAGE = (minutes: number) =>
 	`🚫 Por favor, mantenha uma comunicação respeitosa. Vou dar um tempo de ${minutes} minutos antes de continuar te ajudando.`;
 
+export const getChannelLinkSuccessMessage = (provider: string): string => {
+	switch (provider) {
+		case 'telegram':
+			return '✅ Conta vinculada com sucesso ao seu painel Nexo AI!\n\nFechado 🤝 A partir de agora, tudo que você mandar por aqui já vai direto para sua memória.';
+		case 'whatsapp':
+			return '✅ Conta vinculada com sucesso ao seu painel Nexo AI!\n\nPerfeito! Agora você pode me mandar links, vídeos, filmes e notas por aqui que eu organizo tudo pra você.';
+		case 'discord':
+			return '✅ Conta vinculada com sucesso ao seu painel Nexo AI!\n\nGG! Seu Discord já está conectado — pode enviar conteúdos neste canal que eu salvo na sua memória.';
+		default:
+			return '✅ Conta vinculada com sucesso ao seu painel Nexo AI!\n\nAgora você pode continuar usando normalmente por aqui.';
+	}
+};
+
+export const getChannelStartNewUserMessage = (provider: string): string => {
+	switch (provider) {
+		case 'telegram':
+			return 'Olá! 👋\n\nBem-vindo ao Nexo AI no Telegram.\n\nMe manda qualquer link, nota, filme ou série que eu organizo tudo na sua memória.';
+		case 'whatsapp':
+			return 'Oi! 👋\n\nBem-vindo ao Nexo AI no WhatsApp.\n\nPode mandar links, vídeos, notas, filmes e séries que eu guardo tudo pra você.';
+		case 'discord':
+			return 'Fala! 👋\n\nBem-vindo ao Nexo AI no Discord.\n\nManda conteúdo aqui no canal e eu salvo na sua memória pessoal.';
+		default:
+			return 'Olá! 😊\n\nBem-vindo ao Nexo AI, sua segunda memória inteligente.\n\nPara começar, basta me enviar qualquer mensagem!';
+	}
+};
+
+export const getChannelStartReturningMessage = (provider: string, dashboardUrl: string): string => {
+	switch (provider) {
+		case 'telegram':
+			return `Bem-vindo de volta! 👋\n\nQuer vincular sua conta a outros dispositivos?\n\n1. Digite /vincular para gerar um código\n2. Ou abra seu painel: ${dashboardUrl}/profile`;
+		case 'whatsapp':
+			return `Que bom te ver de novo! 👋\n\nSe quiser unificar suas contas:\n\n1. Envie /vincular para gerar um código\n2. Ou acesse seu painel: ${dashboardUrl}/profile`;
+		case 'discord':
+			return `De volta ao jogo! 🎮\n\nPra vincular sua conta em outros dispositivos:\n\n1. Digite /vincular\n2. Ou use o painel: ${dashboardUrl}/profile`;
+		default:
+			return `Olá de volta! 😊\n\nSe você quer vincular sua conta para usar em outros dispositivos, você tem duas opções:\n\n1. Digite /vincular aqui agora para receber um código.\n2. Ou acesse seu painel: 🔗 ${dashboardUrl}/profile`;
+	}
+};
+
+export const getChannelSignupRequiredMessage = (provider: string, signupLink: string): string => {
+	switch (provider) {
+		case 'whatsapp':
+			return `Oi! 😊\n\nPara liberar tudo por aqui no WhatsApp, conclua seu cadastro rapidinho:\n\n🔗 ${signupLink}\n\nAssim que terminar, já pode me mandar conteúdo normalmente.`;
+		case 'discord':
+			return `Falta só um passo pra liberar tudo no Discord 🚀\n\nConclua seu cadastro aqui:\n\n🔗 ${signupLink}\n\nDepois é só voltar e mandar o que quiser salvar.`;
+		default:
+			return `Olá! 😊\n\nPara começar a usar o Nexo AI por aqui, você precisa concluir seu cadastro rápido no nosso painel:\n\n🔗 ${signupLink}\n\nÉ rapidinho e você já poderá salvar tudo o que quiser!`;
+	}
+};
+
+export const getChannelTrialExceededMessage = (provider: string, signupLink: string): string => {
+	switch (provider) {
+		case 'whatsapp':
+			return `🚀 Você chegou ao limite do trial gratuito no WhatsApp.\n\nPra continuar sem limite, finalize sua conta:\n\n🔗 ${signupLink}`;
+		case 'discord':
+			return `🚀 Seu trial no Discord chegou ao limite.\n\nPra continuar usando sem limite, conclua sua conta:\n\n🔗 ${signupLink}`;
+		default:
+			return `🚀 Você atingiu o limite de 10 mensagens do seu trial gratuito!\n\nPara continuar usando o Nexo AI e desbloquear recursos ilimitados, crie sua conta agora mesmo:\n\n🔗 ${signupLink}`;
+	}
+};
+
 // Respostas casuais por categoria
 export const CASUAL_RESPONSES = {
 	greetings: ['Oi! 👋', 'Olá! 👋', 'E aí! 👋', 'Opa! 👋'],

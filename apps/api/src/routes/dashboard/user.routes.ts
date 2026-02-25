@@ -1,4 +1,6 @@
 import { env } from '@/config/env';
+import { getProvider } from '@/adapters/messaging';
+import { getChannelLinkSuccessMessage } from '@/config/prompts';
 import { db } from '@/db';
 import { authProviderEnum, type AuthProvider, authProviders, accounts as betterAuthAccounts } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
@@ -7,6 +9,7 @@ import { preferencesService } from '@/services/preferences-service';
 import { userEmailService } from '@/services/user-email-service';
 import { userService } from '@/services/user-service';
 import type { AuthContext } from '@/types/hono';
+import { loggers } from '@/utils/logger';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -150,6 +153,22 @@ export const userRoutes = new Hono<AuthContext>()
 
 		const linked = await accountLinkingService.linkTokenAccountToUser(vinculateCode, userState.id);
 		if (!linked) return c.json({ error: 'Invalid or expired token' }, 400);
+
+		try {
+			const provider = await getProvider(linked.provider);
+			const accounts = await userService.getUserAccounts(userState.id);
+			const linkedAccount = [...accounts].reverse().find((account: any) => account.provider === linked.provider);
+			const confirmationMessage = getChannelLinkSuccessMessage(linked.provider);
+
+			if (provider && linkedAccount?.externalId) {
+				await provider.sendMessage(linkedAccount.externalId, confirmationMessage);
+			}
+		} catch (error) {
+			loggers.webhook.warn(
+				{ error, userId: userState.id, provider: linked.provider },
+				'Falha ao enviar confirmação de vinculação para o provider',
+			);
+		}
 
 		return c.json({ success: true });
 	})

@@ -1,4 +1,5 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
+import { getChannelLinkSuccessMessage, getChannelStartNewUserMessage, getChannelStartReturningMessage } from '@/config/prompts';
 import { env } from '@/config/env';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { instrumentService } from '@/services/service-instrumentation';
@@ -55,17 +56,12 @@ export class CommandHandlerService {
 		// Mas aqui tratamos o /start genérico sem parâmetros.
 
 		const isNewUser = await this.isNewUser(message);
+		const providerName = provider.getProviderName();
 
 		if (isNewUser) {
-			await provider.sendMessage(
-				message.externalId,
-				'Olá! 😊\n\nBem-vindo ao Nexo AI, sua segunda memória inteligente.\n\nEu ajudo você a organizar links, notas e memórias importantes diretamente por aqui.\n\nPara começar, basta me enviar qualquer mensagem!',
-			);
+			await provider.sendMessage(message.externalId, getChannelStartNewUserMessage(providerName));
 		} else {
-			await provider.sendMessage(
-				message.externalId,
-				`Olá de volta! 😊\n\nSe você quer vincular sua conta para usar em outros dispositivos, você tem duas opções:\n\n1. Digite \`/vincular\` aqui agora para receber um código.\n2. Ou acesse seu painel: 🔗 ${env.DASHBOARD_URL}/profile`,
-			);
+			await provider.sendMessage(message.externalId, getChannelStartReturningMessage(providerName, env.DASHBOARD_URL));
 		}
 
 		return true;
@@ -81,10 +77,7 @@ export class CommandHandlerService {
 		});
 
 		if (linked) {
-			await provider.sendMessage(
-				message.externalId,
-				'✅ Sua conta foi vinculada com sucesso ao seu painel Nexo AI!\n\nO que você quer salvar hoje?',
-			);
+			await provider.sendMessage(message.externalId, getChannelLinkSuccessMessage(provider.getProviderName()));
 		} else {
 			await provider.sendMessage(message.externalId, '❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.');
 		}
