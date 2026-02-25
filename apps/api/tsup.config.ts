@@ -35,4 +35,18 @@ export default defineConfig({
 				]
 			: []),
 	],
+	onSuccess: async () => {
+		const { cpSync, existsSync } = await import('node:fs');
+		const { join } = await import('node:path');
+
+		const templatesSource = join('src', 'templates');
+		const templatesDest = join('dist', 'templates');
+
+		if (existsSync(templatesSource)) {
+			cpSync(templatesSource, templatesDest, { recursive: true });
+			console.log('✓ Templates copiados para dist/templates');
+		} else {
+			console.warn('⚠ Pasta templates não encontrada em', templatesSource);
+		}
+	},
 });
