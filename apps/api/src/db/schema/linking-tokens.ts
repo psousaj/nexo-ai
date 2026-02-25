@@ -8,6 +8,8 @@ import { users } from './users';
  */
 export const linkingTokenTypeEnum = pgEnum('linking_token_type', ['link', 'signup', 'email_confirm']);
 export const linkingTokenProviderEnum = pgEnum('linking_token_provider', ['whatsapp', 'telegram', 'discord', 'google']);
+export type LinkingTokenType = (typeof linkingTokenTypeEnum.enumValues)[number];
+export type LinkingTokenProvider = (typeof linkingTokenProviderEnum.enumValues)[number];
 
 export const linkingTokens = pgTable(
 	'linking_tokens',

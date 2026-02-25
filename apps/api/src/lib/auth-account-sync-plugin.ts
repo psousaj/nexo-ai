@@ -1,7 +1,14 @@
 import { db } from '@/db';
 import * as schema from '@/db/schema';
+import type { AuthProvider } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { and, eq } from 'drizzle-orm';
+
+const AUTH_PROVIDER_SET = new Set<AuthProvider>(schema.authProviderEnum.enumValues as AuthProvider[]);
+
+export function toAuthProvider(provider: string): AuthProvider | null {
+	return AUTH_PROVIDER_SET.has(provider as AuthProvider) ? (provider as AuthProvider) : null;
+}
 
 /**
  * Busca usuário existente por email (para vincular OAuth ao invés de duplicar)
@@ -23,10 +30,7 @@ export async function findUserByEmail(email: string) {
 			const [linkedUser] = await db.select().from(schema.users).where(eq(schema.users.id, userEmail.userId)).limit(1);
 
 			if (linkedUser) {
-				loggers.webhook.info(
-					{ userId: linkedUser.id, email },
-					'🔍 [Pre-check] Usuário existente encontrado via email secundário',
-				);
+				loggers.webhook.info({ userId: linkedUser.id, email }, '🔍 [Pre-check] Usuário existente encontrado via email secundário');
 				return linkedUser;
 			}
 		}
@@ -44,7 +48,7 @@ export async function findUserByEmail(email: string) {
  */
 export async function linkOAuthToExistingUser(params: {
 	existingUserId: string;
-	provider: string;
+	provider: AuthProvider;
 	externalId: string;
 	email: string;
 }) {
@@ -98,7 +102,7 @@ export async function linkOAuthToExistingUser(params: {
  */
 export async function syncOAuthAccount(params: {
 	userId: string;
-	provider: string;
+	provider: AuthProvider;
 	externalId: string;
 	email?: string;
 	metadata?: Record<string, any>;
@@ -143,11 +147,7 @@ export async function syncOAuthAccount(params: {
 
 		// 2. Sincronizar email com user_emails (se fornecido pelo provider)
 		if (email) {
-			const [existingEmail] = await db
-				.select()
-				.from(schema.userEmails)
-				.where(eq(schema.userEmails.email, email))
-				.limit(1);
+			const [existingEmail] = await db.select().from(schema.userEmails).where(eq(schema.userEmails.email, email)).limit(1);
 
 			if (!existingEmail) {
 				// Verifica se usuário já tem email primário
@@ -161,7 +161,7 @@ export async function syncOAuthAccount(params: {
 					userId,
 					email,
 					isPrimary: !primaryEmail, // Se não tem primário, esse será
-					provider: provider as any,
+					provider,
 					verified: true, // OAuth emails são pré-verificados
 				});
 

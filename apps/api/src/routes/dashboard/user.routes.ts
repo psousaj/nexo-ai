@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { db } from '@/db';
-import { authProviders, accounts as betterAuthAccounts } from '@/db/schema';
+import { authProviderEnum, type AuthProvider, authProviders, accounts as betterAuthAccounts } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { emailService } from '@/services/email/email.service';
 import { preferencesService } from '@/services/preferences-service';
@@ -11,6 +11,11 @@ import { zValidator } from '@hono/zod-validator';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
+
+const AUTH_PROVIDER_SET = new Set<AuthProvider>(authProviderEnum.enumValues as AuthProvider[]);
+const toAuthProvider = (provider: string): AuthProvider | null => {
+	return AUTH_PROVIDER_SET.has(provider as AuthProvider) ? (provider as AuthProvider) : null;
+};
 
 export const userRoutes = new Hono<AuthContext>()
 	.get('/profile', async (c) => {
@@ -39,8 +44,14 @@ export const userRoutes = new Hono<AuthContext>()
 			let skipped = 0;
 
 			for (const account of betterAuthAccountsList) {
-				const providerId = account.providerId; // 'discord', 'google', etc
+				const providerId = toAuthProvider(account.providerId); // 'discord', 'google', etc
 				const accountId = account.accountId; // ID do usuário no provider
+
+				if (!providerId) {
+					console.warn(`⚠️ [Sync] provider não suportado para auth_providers: ${account.providerId}`);
+					skipped++;
+					continue;
+				}
 
 				// Verificar se já existe na tabela auth_providers
 				const [existingUserAccount] = await db
@@ -277,15 +288,20 @@ export const userRoutes = new Hono<AuthContext>()
 	.delete('/accounts/:provider', zValidator('param', z.object({ provider: z.string() })), async (c) => {
 		const userState = c.get('user');
 		const { provider } = c.req.valid('param');
+		const authProvider = toAuthProvider(provider);
+
+		if (!authProvider) {
+			return c.json({ error: 'Provider inválido para desvinculação' }, 400);
+		}
 
 		try {
 			// Deletar de auth_providers do nosso sistema
-			await db.delete(authProviders).where(and(eq(authProviders.userId, userState.id), eq(authProviders.provider, provider)));
+			await db.delete(authProviders).where(and(eq(authProviders.userId, userState.id), eq(authProviders.provider, authProvider)));
 
 			// Deletar de accounts do Better Auth
 			await db
 				.delete(betterAuthAccounts)
-				.where(and(eq(betterAuthAccounts.userId, userState.id), eq(betterAuthAccounts.providerId, provider)));
+				.where(and(eq(betterAuthAccounts.userId, userState.id), eq(betterAuthAccounts.providerId, authProvider)));
 
 			console.log(`🗑️ [Auth] Conta ${provider} desvinculada para usuário ${userState.id}`);
 

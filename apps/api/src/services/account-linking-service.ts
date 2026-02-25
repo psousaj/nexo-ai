@@ -2,6 +2,7 @@ import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
 import { accounts as betterAuthAccounts, authProviders, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
+import type { LinkingTokenProvider, LinkingTokenType } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { and, eq, gte } from 'drizzle-orm';
 import { userService } from './user-service';
@@ -15,22 +16,28 @@ export class AccountLinkingService {
 	async generateLinkingToken(
 		userId: string,
 		provider?: ProviderType,
-		tokenType: 'link' | 'signup' | 'email_confirm' = 'link',
+		tokenType: LinkingTokenType = 'link',
 		externalId?: string,
 	): Promise<string> {
+		const tokenFilters = [
+			eq(linkingTokens.userId, userId),
+			eq(linkingTokens.tokenType, tokenType),
+			gte(linkingTokens.expiresAt, new Date()),
+		];
+
+		if (provider) {
+			tokenFilters.push(eq(linkingTokens.provider, provider));
+		}
+
+		if (externalId) {
+			tokenFilters.push(eq(linkingTokens.externalId, externalId));
+		}
+
 		// Verifica se já existe um token válido (não expirado) para reutilizar
 		const existingToken = await db
 			.select()
 			.from(linkingTokens)
-			.where(
-				and(
-					eq(linkingTokens.userId, userId),
-					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
-					eq(linkingTokens.tokenType, tokenType),
-					externalId ? eq(linkingTokens.externalId, externalId) : (undefined as any),
-					gte(linkingTokens.expiresAt, new Date()),
-				),
-			)
+			.where(and(...tokenFilters))
 			.limit(1);
 
 		if (existingToken.length > 0) {
@@ -49,17 +56,18 @@ export class AccountLinkingService {
 			expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 		}
 
+		const cleanupFilters = [eq(linkingTokens.userId, userId), eq(linkingTokens.tokenType, tokenType)];
+
+		if (provider) {
+			cleanupFilters.push(eq(linkingTokens.provider, provider));
+		}
+
+		if (externalId) {
+			cleanupFilters.push(eq(linkingTokens.externalId, externalId));
+		}
+
 		// Remove tokens expirados do mesmo user/provider/type para limpar
-		await db
-			.delete(linkingTokens)
-			.where(
-				and(
-					eq(linkingTokens.userId, userId),
-					provider ? eq(linkingTokens.provider, provider) : (undefined as any),
-					eq(linkingTokens.tokenType, tokenType),
-					externalId ? eq(linkingTokens.externalId, externalId) : (undefined as any),
-				),
-			);
+		await db.delete(linkingTokens).where(and(...cleanupFilters));
 
 		await db.insert(linkingTokens).values({
 			userId,
@@ -83,7 +91,7 @@ export class AccountLinkingService {
 		token: string,
 		externalId: string,
 		metadata?: any,
-	): Promise<{ userId: string; provider: string } | null> {
+	): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
 		const [linkToken] = await db
 			.select()
 			.from(linkingTokens)
@@ -93,7 +101,7 @@ export class AccountLinkingService {
 		if (!linkToken || !linkToken.provider) return null;
 
 		// Vincula a conta no UserService
-		await userService.linkAccountToUser(linkToken.userId, linkToken.provider as ProviderType, externalId, metadata);
+		await userService.linkAccountToUser(linkToken.userId, linkToken.provider, externalId, metadata);
 
 		// Remove o token após uso
 		await db.delete(linkingTokens).where(eq(linkingTokens.id, linkToken.id));
@@ -112,7 +120,7 @@ export class AccountLinkingService {
 	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
 	 *   - Apenas vincula a conta do bot ao usuário do Dashboard
 	 */
-	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: string } | null> {
+	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
 		const [linkToken] = await db
 			.select()
 			.from(linkingTokens)
@@ -122,7 +130,7 @@ export class AccountLinkingService {
 		if (!linkToken || !linkToken.provider) return null;
 
 		const trialUserId = linkToken.userId;
-		const provider = linkToken.provider as ProviderType;
+		const provider = linkToken.provider;
 
 		if (linkToken.tokenType === 'signup') {
 			// Migração completa: trial user → conta real
@@ -133,12 +141,7 @@ export class AccountLinkingService {
 			const accountToLink = accounts.find((a: any) => a.provider === provider);
 			if (!accountToLink) return null;
 
-			await userService.linkAccountToUser(
-				targetUserId,
-				accountToLink.provider as ProviderType,
-				accountToLink.externalId,
-				accountToLink.metadata,
-			);
+			await userService.linkAccountToUser(targetUserId, provider, accountToLink.externalId, accountToLink.metadata);
 		}
 
 		// Remove o token após uso
