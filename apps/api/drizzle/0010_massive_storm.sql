@@ -1,0 +1,2 @@
+CREATE TYPE "public"."auth_provider" AS ENUM('whatsapp', 'telegram', 'discord', 'google', 'microsoft', 'credential', 'email');--> statement-breakpoint
+ALTER TABLE "auth_providers" ALTER COLUMN "provider" SET DATA TYPE "public"."auth_provider" USING "provider"::"public"."auth_provider";

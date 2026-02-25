@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { boolean, integer, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgEnum, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { agentDailyLogs } from './agent-daily-logs';
 import { agentMemoryProfiles } from './agent-memory-profiles';
 import { agentSessions } from './agent-sessions';
@@ -13,6 +13,9 @@ import { userPreferences } from './user-preferences';
  * Usuário único no sistema (entidade de domínio)
  * Pode ter múltiplas contas em diferentes providers via authProviders
  */
+export const userStatusEnum = pgEnum('user_status', ['trial', 'pending_signup', 'active']);
+export const userRoleEnum = pgEnum('user_role', ['admin', 'user']);
+
 export const users = pgTable('users', {
 	id: text('id')
 		.primaryKey()
@@ -21,11 +24,10 @@ export const users = pgTable('users', {
 	email: varchar('email', { length: 255 }).unique(),
 	emailVerified: boolean('email_verified').default(false).notNull(),
 	image: text('image'),
-	password: varchar('password', { length: 256 }),
 	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 	updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 	// Controle de onboarding e trial
-	status: text('status').$type<'trial' | 'pending_signup' | 'active'>().default('trial').notNull(),
+	status: userStatusEnum('status').default('trial').notNull(),
 	interactionCount: integer('interaction_count').default(0).notNull(),
 	// Controle de timeout por comportamento ofensivo
 	timeoutUntil: timestamp('timeout_until', { mode: 'date' }),
@@ -37,7 +39,7 @@ export const users = pgTable('users', {
 	assistantCreature: text('assistant_creature'), // "creature" (ex: "fox", "owl")
 	assistantTone: varchar('assistant_tone', { length: 50 }), // friendly, professional, playful, etc
 	assistantVibe: text('assistant_vibe'), // Descrição livre de vibe
-	role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
+	role: userRoleEnum('role').default('user').notNull(),
 });
 
 export const usersRelations = relations(users, ({ one, many }) => ({

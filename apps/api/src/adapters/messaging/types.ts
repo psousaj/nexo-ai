@@ -1,3 +1,5 @@
+import type { LinkingTokenProvider } from '@/db/schema';
+
 /**
  * Messaging Provider Adapter Interface
  *
@@ -5,7 +7,7 @@
  * Permite integrar múltiplos providers sem acoplar a lógica de negócio
  */
 
-export type ProviderType = 'whatsapp' | 'telegram' | 'discord' | 'google';
+export type ProviderType = LinkingTokenProvider;
 
 /**
  * Chat action type for activity indicators
