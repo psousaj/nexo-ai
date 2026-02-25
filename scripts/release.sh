@@ -16,7 +16,8 @@ echo ""
 echo "🚀 Fazendo push da branch atual..."
 CURRENT_BRANCH=$(git branch --show-current)
 git push origin "$CURRENT_BRANCH" --set-upstream || {
-  echo "⚠️  Erro no push, mas continuando..."
+  echo "⚠️  Erro no push..."
+  exit 1
 }
 echo ""
 
