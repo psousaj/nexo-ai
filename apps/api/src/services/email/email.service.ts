@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '@/config/env';
 import { accountLinkingService } from '@/services/account-linking-service';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import Handlebars from 'handlebars';
 import { Resend } from 'resend';
@@ -72,7 +73,7 @@ class EmailService {
 		const html = this.renderTemplate(templateName, data);
 
 		await this.resend.emails.send({
-			from: 'Nexo AI <onboarding@resend.dev>',
+			from: 'Nexo AI <nexo.onboarding@crudbox.tech>',
 			to,
 			subject,
 			html,
@@ -84,7 +85,7 @@ class EmailService {
 		const dashboardUrl = env.DASHBOARD_URL || 'http://localhost:5173';
 		const confirmUrl = `${dashboardUrl}/confirm-email?token=${encodeURIComponent(token)}`;
 
-		await this.sendEmail(email, 'Confirme seu email — Nexo AI', 'confirm-email', {
+		await this.sendEmail(email, 'Confirme seu email — Nexo Assistente pessoal de memória', 'confirm-email', {
 			appName: this.appName,
 			userName,
 			email,
@@ -93,4 +94,4 @@ class EmailService {
 	}
 }
 
-export const emailService = new EmailService();
+export const emailService = instrumentService('email', new EmailService());

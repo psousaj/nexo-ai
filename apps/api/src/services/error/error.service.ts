@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { captureException } from '@/sentry';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 
 export interface ErrorContext {
@@ -63,4 +64,4 @@ export class GlobalErrorService {
 	}
 }
 
-export const globalErrorHandler = new GlobalErrorService();
+export const globalErrorHandler = instrumentService('globalErrorHandler', new GlobalErrorService());

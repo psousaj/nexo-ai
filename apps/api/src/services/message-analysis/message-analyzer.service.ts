@@ -1,4 +1,5 @@
 import { loggers } from '@/utils/logger';
+import { instrumentService } from '@/services/service-instrumentation';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
 import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';
@@ -329,4 +330,4 @@ export class MessageAnalyzerService {
 }
 
 // Singleton
-export const messageAnalyzer = new MessageAnalyzerService();
+export const messageAnalyzer = instrumentService('messageAnalyzer', new MessageAnalyzerService());

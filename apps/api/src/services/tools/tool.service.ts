@@ -9,6 +9,7 @@
 
 import { db } from '@/db';
 import { globalTools } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import type { ToolName } from '@/types';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
@@ -150,4 +151,4 @@ class ToolService {
 }
 
 // Export singleton
-export const toolService = new ToolService();
+export const toolService = instrumentService('tool', new ToolService());

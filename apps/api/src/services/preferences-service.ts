@@ -6,6 +6,7 @@
 
 import { db } from '@/db';
 import { userPreferences } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { eq } from 'drizzle-orm';
 
 export class PreferencesService {
@@ -45,11 +46,7 @@ export class PreferencesService {
 			appearanceLanguage: string;
 		}>,
 	): Promise<void> {
-		const existing = await db
-			.select({ id: userPreferences.id })
-			.from(userPreferences)
-			.where(eq(userPreferences.userId, userId))
-			.limit(1);
+		const existing = await db.select({ id: userPreferences.id }).from(userPreferences).where(eq(userPreferences.userId, userId)).limit(1);
 
 		if (existing.length > 0) {
 			await db
@@ -83,4 +80,4 @@ export class PreferencesService {
 	}
 }
 
-export const preferencesService = new PreferencesService();
+export const preferencesService = instrumentService('preferences', new PreferencesService());

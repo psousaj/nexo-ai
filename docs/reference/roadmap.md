@@ -221,6 +221,24 @@ Planejamento simplificado de implementação em fases evolutivas.
   - Limite: 5 mensagens/minuto por usuário via Redis
   - Resposta amigável quando exceder
 
+#### 🟡 Próximo Passo Imediato: Feature Flags & Runtime Controls
+
+- [ ] **Service Instrumentation Feature Flag**
+  - `SERVICE_INSTRUMENTATION_ENABLED` para ligar/desligar tracing/log por serviço sem deploy
+  - Allowlist/blocklist por env para reduzir ruído operacional
+
+- [ ] **Tools Runtime Flags**
+  - Habilitar/desabilitar categorias e tools críticas em tempo de execução
+  - Endpoint admin para visualizar estado efetivo das flags
+
+- [ ] **Onboarding/Trial Flags**
+  - `ONBOARDING_TRIAL_LIMIT` e controles por provider (WhatsApp/Telegram)
+  - Evitar constante fixa para ajuste operacional rápido
+
+- [ ] **Email Confirmation Flags**
+  - `EMAIL_CONFIRMATION_REQUIRED` e kill-switch de envio (`EMAIL_SEND_ENABLED`)
+  - Rate limit de reenvio configurável
+
 **Estado:** ✅ Parcialmente concluído (Rate Limiting pendente)
 
 ---
@@ -332,12 +350,12 @@ Planejamento simplificado de implementação em fases evolutivas.
 
 ### Paid Tier (100-1000 usuários)
 
-| Serviço               | Plano     | Custo       |
-| --------------------- | --------- | ----------- |
-| Cloudflare Workers    | Paid      | $5          |
-| Supabase              | Pro       | $25         |
-| Gemini API            | Pay-as-go | ~$10-20     |
-| **Total**             |           | **~$50-65** |
+| Serviço            | Plano     | Custo       |
+| ------------------ | --------- | ----------- |
+| Cloudflare Workers | Paid      | $5          |
+| Supabase           | Pro       | $25         |
+| Gemini API         | Pay-as-go | ~$10-20     |
+| **Total**          |           | **~$50-65** |
 
 ---
 

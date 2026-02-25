@@ -3,6 +3,7 @@ import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
 import { accounts as betterAuthAccounts, authProviders, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
 import type { LinkingTokenProvider, LinkingTokenType } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import { and, eq, gte } from 'drizzle-orm';
 import { userService } from './user-service';
@@ -227,4 +228,4 @@ export class AccountLinkingService {
 	}
 }
 
-export const accountLinkingService = new AccountLinkingService();
+export const accountLinkingService = instrumentService('accountLinking', new AccountLinkingService());

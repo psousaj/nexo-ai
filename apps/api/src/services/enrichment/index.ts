@@ -3,6 +3,7 @@ import { loggers } from '@/utils/logger';
 import { openGraphService } from './opengraph-service';
 import { tmdbService } from './tmdb-service';
 import { youtubeService } from './youtube-service';
+import { instrumentService } from '@/services/service-instrumentation';
 
 /**
  * Serviço unificado de enriquecimento
@@ -73,4 +74,4 @@ export class EnrichmentService {
 	}
 }
 
-export const enrichmentService = new EnrichmentService();
+export const enrichmentService = instrumentService('enrichment', new EnrichmentService());
