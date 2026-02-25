@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { userAccounts, users } from '@/db/schema';
+import { authProviders, users } from '@/db/schema';
 
 async function checkDuplicates() {
 	console.log('--- Checking for Duplicate Users ---');
@@ -7,17 +7,15 @@ async function checkDuplicates() {
 	const allUsers = await db.select().from(users);
 	console.log(`Total Users: ${allUsers.length}`);
 
-	// Group users by email or phone if possible to find duplicates
-	// Since we don't have email in users table directly (it's in userAccounts or Better Auth tables), let's inspect userAccounts
-
-	const allAccounts = await db.select().from(userAccounts);
+	// Group users by phone em metadata para identificar possíveis duplicados
+	const allAccounts = await db.select().from(authProviders);
 	console.log(`Total Accounts: ${allAccounts.length}`);
 
 	console.log('\n--- Accounts ---');
 	for (const acc of allAccounts) {
 		const user = allUsers.find((u) => u.id === acc.userId);
 		console.log(
-			`User: ${user?.name} (${user?.id}) | Account: ${acc.provider} / ${acc.externalId} | Metadata: ${JSON.stringify(acc.metadata)}`,
+			`User: ${user?.name} (${user?.id}) | Account: ${acc.provider} / ${acc.providerUserId} | Metadata: ${JSON.stringify(acc.metadata)}`,
 		);
 	}
 

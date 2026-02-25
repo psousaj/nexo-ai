@@ -113,7 +113,7 @@ await linkOAuthToExistingUser({
 
 **O que faz:**
 1. Cria entrada em `accounts` (Better Auth) para o usuário existente
-2. Cria entrada em `user_accounts` (nosso sistema)
+2. Cria entrada em `auth_providers` (nosso runtime canônico)
 3. Adiciona email em `user_emails` se não existir
 
 ## Integração no Dashboard

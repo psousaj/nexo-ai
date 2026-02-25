@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { conversations, messages, userAccounts, users } from '@/db/schema';
+import { authProviders, conversations, messages, users } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
 
 export class AdminService {
@@ -61,13 +61,13 @@ export class AdminService {
 			allUsers.map(async (user) => {
 				const accounts = await db
 					.select({
-						id: userAccounts.id,
-						provider: userAccounts.provider,
-						externalId: userAccounts.externalId,
-						createdAt: userAccounts.createdAt,
+						id: authProviders.id,
+						provider: authProviders.provider,
+						externalId: authProviders.providerUserId,
+						createdAt: authProviders.linkedAt,
 					})
-					.from(userAccounts)
-					.where(eq(userAccounts.userId, user.id));
+					.from(authProviders)
+					.where(eq(authProviders.userId, user.id));
 
 				return {
 					...user,

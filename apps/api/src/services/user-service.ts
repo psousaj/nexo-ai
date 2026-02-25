@@ -1,9 +1,9 @@
 import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete, cacheGet, cacheSet } from '@/config/redis';
 import { db } from '@/db';
-import { authProviders, userAccounts, users } from '@/db/schema';
+import { authProviders, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 export class UserService {
 	/**
@@ -16,12 +16,10 @@ export class UserService {
 	/**
 	 * Busca ou cria usuário baseado em conta de provider
 	 *
-	 * Estratégia de unificação cross-provider:
+	 * Estratégia canônica de identidade:
 	 * 1. Busca cache por (provider, externalId)
-	 * 2. Busca account existente por (provider, externalId)
-	 * 3. Se não existe E phoneNumber fornecido, busca account de outro provider com mesmo telefone
-	 * 4. Se encontrou usuário existente, cria novo account linkado ao mesmo userId
-	 * 5. Caso contrário, cria novo usuário + account
+	 * 2. Busca account existente por (provider, externalId) em auth_providers
+	 * 3. Se não existe, cria novo usuário + vínculo canônico
 	 */
 	async findOrCreateUserByAccount(externalId: string, provider: ProviderType, name?: string, phoneNumber?: string) {
 		const cacheKey = this.getAccountCacheKey(provider, externalId);
@@ -58,43 +56,8 @@ export class UserService {
 			return result;
 		}
 
-		// Fallback legado: user_accounts (deprecar)
-		const [existingAccount] = await db
-			.select()
-			.from(userAccounts)
-			.where(and(eq(userAccounts.provider, provider), eq(userAccounts.externalId, externalId)))
-			.limit(1);
-
-		if (existingAccount) {
-			// Account já existe, retorna usuário associado
-			const user = await this.getUserById(existingAccount.userId);
-			const result = { user, account: existingAccount };
-
-			// Salva no cache por 1 hora
-			await cacheSet(cacheKey, result, 3600);
-			return result;
-		}
-
-		// 2. Se phoneNumber fornecido, tenta buscar usuário existente por telefone cross-provider
-		let userId: string | null = null;
-
-		if (phoneNumber) {
-			const [existingAccountByPhone] = await db
-				.select()
-				.from(userAccounts)
-				.where(sql`${userAccounts.metadata}->>'phone' = ${phoneNumber}`)
-				.limit(1);
-
-			if (existingAccountByPhone) {
-				userId = existingAccountByPhone.userId;
-			}
-		}
-
-		// 3. Se não encontrou usuário existente, cria novo
-		if (!userId) {
-			const [newUser] = await db.insert(users).values({ id: crypto.randomUUID(), name }).returning();
-			userId = newUser.id;
-		}
+		const [newUser] = await db.insert(users).values({ id: crypto.randomUUID(), name }).returning();
+		const userId = newUser.id;
 
 		// 4. Cria novo account linkado ao usuário
 		const metadata: Record<string, any> = {};
@@ -119,17 +82,6 @@ export class UserService {
 				updatedAt: new Date(),
 			})
 			.returning();
-
-		// Compatibilidade temporária com fluxo legado do dashboard
-		await db
-			.insert(userAccounts)
-			.values({
-				userId,
-				provider,
-				externalId,
-				metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-			})
-			.onConflictDoNothing();
 
 		const user = await this.getUserById(userId);
 		const result = {
@@ -257,17 +209,6 @@ export class UserService {
 				updatedAt: new Date(),
 			})
 			.returning();
-
-		// Compatibilidade temporária com fluxo legado do dashboard
-		await db
-			.insert(userAccounts)
-			.values({
-				userId,
-				provider,
-				externalId,
-				metadata,
-			})
-			.onConflictDoNothing();
 
 		loggers.webhook.info({ userId, provider, externalId }, '✅ Nova conta vinculada');
 

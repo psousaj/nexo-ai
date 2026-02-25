@@ -91,7 +91,7 @@ export async function linkOAuthToExistingUser(params: {
 }
 
 /**
- * Serviço para sincronizar Better Auth accounts com user_accounts e user_emails
+ * Serviço para sincronizar Better Auth accounts com auth_providers e user_emails
  *
  * Solução alternativa aos hooks bugados do Better Auth 1.4.17
  * Chamado manualmente após OAuth callback

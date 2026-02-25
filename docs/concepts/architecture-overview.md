@@ -345,7 +345,7 @@ OpenGraph:   24h cache (ou 1h se erro)
 ```typescript
 // Tabelas principais
 users                  // Usuários do bot (com perfil OpenClaw)
-user_accounts          // Contas cross-provider
+auth_providers         // Contas vinculadas por provider (canônico)
 user_emails            // Endereços de email
 user_preferences       // Preferências do usuário
 memory_items           // Itens salvos (filmes, notas, etc)

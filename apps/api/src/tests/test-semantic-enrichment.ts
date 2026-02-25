@@ -6,7 +6,7 @@
  */
 
 import { db } from '@/db';
-import { memoryItems, userAccounts, users } from '@/db/schema';
+import { authProviders, memoryItems, users } from '@/db/schema';
 import { tmdbService } from '@/services/enrichment/tmdb-service';
 import { itemService } from '@/services/item-service';
 import { loggers } from '@/utils/logger';
@@ -23,10 +23,10 @@ async function testSemanticEnrichment() {
 			.values({ name: 'Test Enrichment', email: `test-enrich-${Date.now()}@example.com` })
 			.returning();
 
-		await db.insert(userAccounts).values({
+		await db.insert(authProviders).values({
 			userId: user.id,
 			provider: 'telegram',
-			externalId: `test-enrich-${Date.now()}`,
+			providerUserId: `test-enrich-${Date.now()}`,
 		});
 
 		loggers.ai.info(`✅ Usuário criado: ${user.id}\n`);
@@ -125,7 +125,7 @@ async function testSemanticEnrichment() {
 		// 5. CLEANUP
 		loggers.ai.info('🧹 5. Limpando dados de teste...');
 		await db.delete(memoryItems).where(eq(memoryItems.userId, user.id));
-		await db.delete(userAccounts).where(eq(userAccounts.userId, user.id));
+		await db.delete(authProviders).where(eq(authProviders.userId, user.id));
 		await db.delete(users).where(eq(users.id, user.id));
 		loggers.ai.info('✅ Dados removidos\n');
 

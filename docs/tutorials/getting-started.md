@@ -106,7 +106,7 @@ bun run db:push
 **O que isso cria:**
 
 - ✅ Tabela `users` - Usuários do bot
-- ✅ Tabela `user_accounts` - Contas cross-provider (Telegram/WhatsApp)
+- ✅ Tabela `auth_providers` - Contas vinculadas por provider (Telegram/WhatsApp/Discord)
 - ✅ Tabela `memory_items` - Itens salvos (filmes, notas, etc)
 - ✅ Tabela `conversations` - Estado de conversas
 - ✅ Tabela `messages` - Histórico de mensagens

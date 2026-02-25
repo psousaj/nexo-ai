@@ -43,6 +43,13 @@
       "when": 1771982932813,
       "tag": "0005_new_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1771985765095,
+      "tag": "0006_silent_tiger_shark",
+      "breakpoints": true
     }
   ]
 }
