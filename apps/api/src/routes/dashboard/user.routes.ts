@@ -104,7 +104,10 @@ export const userRoutes = new Hono<AuthContext>()
 	})
 	.post('/link/telegram', async (c) => {
 		const userState = c.get('user');
-		const token = await accountLinkingService.generateLinkingToken(userState.id, 'telegram', 'link');
+		const user = await userService.getUserById(userState.id);
+		if (!user) return c.json({ error: 'User not found' }, 404);
+
+		const token = await accountLinkingService.generateLinkingToken(user.id, 'telegram', 'link');
 
 		const botUsername = env.TELEGRAM_BOT_USERNAME || 'NexoAIBot';
 		const link = `https://t.me/${botUsername}?start=${token}`;
