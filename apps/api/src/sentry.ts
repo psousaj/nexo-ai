@@ -82,6 +82,10 @@ export function captureException(
 		user: context?.user_id ? { id: context.user_id } : undefined,
 		extra: context,
 	});
+
+	void Sentry.flush(2000).catch(() => {
+		// noop: não deve quebrar fluxo de aplicação por falha de flush
+	});
 }
 
 export function setSentryContext(key: string, context: Record<string, any>) {
