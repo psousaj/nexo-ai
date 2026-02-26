@@ -593,12 +593,10 @@ export class AgentOrchestrator {
 			const randomMsg = getRandomResponse(CHOOSE_AGAIN_MESSAGES);
 
 			// Envia mensagem de feedback antes de mostrar a lista
-			if (context.provider === 'telegram') {
-				const { getProvider } = await import('@/adapters/messaging');
-				const provider = await getProvider(context.provider as 'telegram');
-				if (provider) {
-					await provider.sendMessage(context.externalId, randomMsg);
-				}
+			const { getProvider } = await import('@/adapters/messaging');
+			const feedbackProvider = await getProvider(context.provider as any);
+			if (feedbackProvider) {
+				await feedbackProvider.sendMessage(context.externalId, randomMsg);
 			}
 
 			// Volta para lista de candidatos
@@ -1328,34 +1326,29 @@ export class AgentOrchestrator {
 			detected_type: itemType,
 		});
 
-		// Se for Telegram, envia com botões
-		if (context.provider === 'telegram') {
-			// Agrupa botões em linhas de 3 (apenas números, títulos estão na mensagem)
-			const candidateButtons = limitedCandidates.map((_: any, index: number) => ({
-				text: `${index + 1}`,
-				callback_data: `select_${index}`,
-			}));
+		// Se provider suporta botões, envia com botões inline/numerados
+		const candidateButtons = limitedCandidates.map((_: any, index: number) => ({
+			text: `${index + 1}`,
+			callback_data: `select_${index}`,
+		}));
 
-			// Agrupa em linhas de 3 botões cada
-			const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
-			for (let i = 0; i < candidateButtons.length; i += 3) {
-				buttons.push(candidateButtons.slice(i, i + 3));
-			}
+		// Agrupa em linhas de 3 botões cada
+		const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
+		for (let i = 0; i < candidateButtons.length; i += 3) {
+			buttons.push(candidateButtons.slice(i, i + 3));
+		}
 
-			// Obtém provider dinamicamente do contexto
-			const { getProvider } = await import('@/adapters/messaging');
-			const provider = await getProvider(context.provider as 'telegram');
+		const { getProvider } = await import('@/adapters/messaging');
+		const provider = await getProvider(context.provider as any);
 
-			if (provider && 'sendMessageWithButtons' in provider) {
-				await (provider as any).sendMessageWithButtons(context.externalId, message, buttons);
-			}
+		if (provider && 'sendMessageWithButtons' in provider) {
+			await (provider as any).sendMessageWithButtons(context.externalId, message, buttons);
 
-			// Retorna resposta vazia (já enviou manualmente)
 			return {
 				message: '',
 				state: 'awaiting_confirmation',
 				toolsUsed: [],
-				skipFallback: true, // Não enviar fallback
+				skipFallback: true,
 			};
 		}
 
@@ -1408,62 +1401,46 @@ export class AgentOrchestrator {
 			selectedForConfirmation: selected,
 		});
 
-		// Se for Telegram e tiver poster, envia foto com botões
-		if (context.provider === 'telegram' && posterUrl) {
-			const buttons = [
-				[
-					{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
-					{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
-				],
-			];
+		const confirmButtons = [
+			[
+				{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
+				{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
+			],
+		];
 
-			// Obtém provider dinamicamente do contexto
-			const { getProvider } = await import('@/adapters/messaging');
-			const provider = await getProvider(context.provider as 'telegram');
+		// Obtém provider dinamicamente do contexto
+		const { getProvider } = await import('@/adapters/messaging');
+		const provider = await getProvider(context.provider as any);
 
-			if (provider && 'sendPhoto' in provider) {
-				loggers.ai.info({ posterUrl, title: selected.title }, '🖼️ Enviando foto do TMDB');
-				// Envia indicador "enviando foto..." antes de enviar a imagem
-				if ('sendChatAction' in provider) {
-					await (provider as any).sendChatAction(context.externalId, 'upload_photo');
-				}
-				await (provider as any).sendPhoto(context.externalId, posterUrl, caption, buttons);
+		// Se tiver poster E provider suporta sendPhoto → envia foto com botões
+		if (posterUrl && provider && 'sendPhoto' in provider) {
+			loggers.ai.info({ posterUrl, title: selected.title, provider: context.provider }, '🖼️ Enviando foto do TMDB');
+			if ('sendChatAction' in provider) {
+				await (provider as any).sendChatAction(context.externalId, 'upload_photo');
 			}
+			await (provider as any).sendPhoto(context.externalId, posterUrl, caption, confirmButtons);
 
 			return {
 				message: '',
 				state: 'awaiting_final_confirmation',
 				toolsUsed: [],
-				skipFallback: true, // Não enviar fallback
+				skipFallback: true,
 			};
 		}
 
-		// Fallback: se provider não é Telegram, envia sem imagem mas COM botões
-		if (context.provider === 'telegram') {
-			const buttons = [
-				[
-					{ text: '✅ É esse mesmo!', callback_data: 'confirm_final' },
-					{ text: '🔄 Escolher novamente', callback_data: 'choose_again' },
-				],
-			];
-
-			// Obtém provider dinamicamente do contexto
-			const { getProvider } = await import('@/adapters/messaging');
-			const provider = await getProvider(context.provider as 'telegram');
-
-			if (provider && 'sendMessageWithButtons' in provider) {
-				await (provider as any).sendMessageWithButtons(context.externalId, caption, buttons);
-			}
+		// Sem poster mas provider suporta botões → envia texto com botões
+		if (provider && 'sendMessageWithButtons' in provider) {
+			await (provider as any).sendMessageWithButtons(context.externalId, caption, confirmButtons);
 
 			return {
 				message: '',
 				state: 'awaiting_final_confirmation',
 				toolsUsed: [],
-				skipFallback: true, // Não enviar fallback
+				skipFallback: true,
 			};
 		}
 
-		// Provider não suporta botões, envia mensagem de texto
+		// Provider não suporta botões → envia mensagem de texto simples
 		return {
 			message: caption,
 			state: 'awaiting_final_confirmation',

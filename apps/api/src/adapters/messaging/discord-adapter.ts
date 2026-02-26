@@ -19,6 +19,7 @@ import {
 	type ChatInputCommandInteraction,
 	Client,
 	type Message as DiscordMessage,
+	EmbedBuilder,
 	GatewayIntentBits,
 	type Interaction,
 	Partials,
@@ -317,33 +318,47 @@ export class DiscordAdapter implements MessagingProvider {
 	}
 
 	/**
-	 * Handle button interaction
+	 * Handle button interaction - routes to orchestrator via message queue
+	 * Same pattern as Telegram callback_query
 	 */
 	private async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
 		const { customId } = interaction;
 
 		loggers.discord.info({ customId, user: interaction.user.tag }, '🔘 Button clicked');
 
-		// Handle button based on customId
-		// This is similar to Telegram's callback_data
-		// Format: "action:payload" (e.g., "select_0", "confirm_final")
-
-		if (customId.startsWith('select_')) {
-			const index = Number.parseInt(customId.replace('select_', ''), 10);
-			// Handle selection
-			await interaction.reply({ content: `✅ Você selecionou a opção ${index + 1}`, ephemeral: true });
-		} else if (customId === 'confirm_final') {
-			await interaction.reply({ content: '✅ Confirmado!', ephemeral: true });
-		} else if (customId === 'choose_again') {
-			await interaction.update({ content: 'Escolha novamente...' });
-		}
-
-		// Acknowledge the interaction
-		if (interaction.replied || interaction.deferred) {
-			// Already handled
-		} else {
+		// Acknowledge immediately to remove loading state from buttons
+		try {
 			await interaction.deferUpdate();
+		} catch (err) {
+			loggers.discord.warn({ err, customId }, '⚠️ Falha ao acknowledger interação (já respondida?)');
 		}
+
+		// Route to orchestrator via message queue (same as Telegram callback_query)
+		const incomingMessage: IncomingMessage = {
+			messageId: interaction.id,
+			externalId: interaction.channelId,
+			userId: interaction.user.id,
+			senderName: interaction.user.username,
+			username: interaction.user.username,
+			text: customId,
+			timestamp: new Date(),
+			provider: 'discord',
+			callbackQueryId: interaction.id,
+			callbackData: customId,
+			metadata: {
+				isGroupMessage: interaction.inGuild(),
+				groupId: interaction.inGuild() ? (interaction.guildId ?? undefined) : undefined,
+				messageType: 'callback',
+			},
+		};
+
+		await messageQueue.add(
+			'message-processing',
+			{ incomingMsg: incomingMessage, providerName: 'discord' },
+			{ removeOnComplete: true, attempts: 1 },
+		);
+
+		loggers.discord.info({ customId, messageId: interaction.id }, '✅ Button interaction enqueued for processing');
 	}
 
 	/**
@@ -637,9 +652,9 @@ export class DiscordAdapter implements MessagingProvider {
 				type: 1, // Action Row
 				components: row.map((button: any) => ({
 					type: 2, // Button
-					label: button.text,
+					label: String(button.text).substring(0, 80),
 					style: button.style || 1, // Primary = 1, Secondary = 2, Success = 3, Danger = 4
-					customId: button.callback_data,
+					custom_id: button.callback_data,
 				})),
 			}));
 
@@ -656,35 +671,37 @@ export class DiscordAdapter implements MessagingProvider {
 	}
 
 	/**
-	 * Send photo with caption and buttons
+	 * Send photo with caption and buttons — usa Discord Embed para display rico
+	 * (igual Telegram: poster do filme + título + botões)
 	 */
 	async sendPhoto(chatId: string, photoUrl: string, caption?: string, buttons?: any[], _options?: any): Promise<void> {
 		try {
 			const channel = await client.channels.fetch(chatId);
 			if (!channel || !channel.isTextBased()) throw new Error('Invalid channel');
 
-			const payload: any = {
-				files: [{ attachment: photoUrl, name: 'image.png' }],
-			};
+			const embed = new EmbedBuilder().setImage(photoUrl).setColor(0x5865f2);
 
 			if (caption) {
-				payload.content = caption.substring(0, 2000); // Discord limit is 2000 chars
+				// Primeiras 4096 chars (limite do description do embed)
+				embed.setDescription(caption.substring(0, 4096));
 			}
+
+			const payload: any = { embeds: [embed] };
 
 			if (buttons && buttons.length > 0) {
 				payload.components = buttons.map((row: any[]) => ({
 					type: 1,
 					components: row.map((button: any) => ({
 						type: 2,
-						label: button.text,
+						label: String(button.text).substring(0, 80),
 						style: button.style || 1,
-						customId: button.callback_data,
+						custom_id: button.callback_data,
 					})),
 				}));
 			}
 
 			await (channel as any).send(payload);
-			loggers.discord.info({ chatId, hasCaption: !!caption, hasButtons: !!buttons }, '✅ Photo sent');
+			loggers.discord.info({ chatId, hasCaption: !!caption, hasButtons: !!buttons }, '✅ Photo (embed) enviada');
 		} catch (error) {
 			loggers.discord.error({ error, chatId }, '❌ Failed to send photo');
 			throw error;
