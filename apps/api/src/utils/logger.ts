@@ -32,34 +32,48 @@ function normalizeError(value: unknown): Error | null {
 	return null;
 }
 
+function sanitizeForSentry(value: unknown): unknown {
+	if (value === null || value === undefined) return String(value);
+	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+	try {
+		return JSON.parse(JSON.stringify(value));
+	} catch {
+		return String(value);
+	}
+}
+
 function extractErrorForSentry(args: unknown[]): { error: Error; extra: Record<string, unknown> } | null {
-	const firstArg = args[0] as any;
-	const secondArg = args[1] as any;
+	try {
+		const firstArg = args[0] as any;
+		const secondArg = args[1] as any;
 
-	const candidateError =
-		normalizeError(firstArg?.err) ||
-		normalizeError(firstArg?.error) ||
-		normalizeError(secondArg) ||
-		normalizeError(firstArg?.message) ||
-		normalizeError(typeof secondArg === 'string' ? secondArg : undefined);
+		const candidateError =
+			normalizeError(firstArg?.err) ||
+			normalizeError(firstArg?.error) ||
+			normalizeError(secondArg) ||
+			normalizeError(firstArg?.message) ||
+			normalizeError(typeof secondArg === 'string' ? secondArg : undefined);
 
-	if (!candidateError) return null;
+		if (!candidateError) return null;
 
-	const extra: Record<string, unknown> = {};
+		const extra: Record<string, unknown> = {};
 
-	if (firstArg && typeof firstArg === 'object') {
-		for (const [key, value] of Object.entries(firstArg)) {
-			if (key !== 'err' && key !== 'error') {
-				extra[key] = value;
+		if (firstArg && typeof firstArg === 'object') {
+			for (const [key, value] of Object.entries(firstArg)) {
+				if (key !== 'err' && key !== 'error') {
+					extra[key] = sanitizeForSentry(value);
+				}
 			}
 		}
-	}
 
-	if (typeof secondArg === 'string') {
-		extra.logMessage = secondArg;
-	}
+		if (typeof secondArg === 'string') {
+			extra.logMessage = secondArg;
+		}
 
-	return { error: candidateError, extra };
+		return { error: candidateError, extra };
+	} catch {
+		return null;
+	}
 }
 
 function createContextLogger(context: string) {
@@ -67,19 +81,21 @@ function createContextLogger(context: string) {
 	const originalError = child.error.bind(child);
 
 	child.error = (...args: unknown[]) => {
-		try {
-			const parsed = extractErrorForSentry(args);
-			if (parsed && Sentry.getClient()) {
-				Sentry.captureException(parsed.error, {
-					tags: {
-						context,
-						source: 'pino.error',
-					},
-					extra: parsed.extra,
-				});
+		const parsed = extractErrorForSentry(args); // já tem try/catch interno
+		if (parsed) {
+			try {
+				if (Sentry.getClient()) {
+					Sentry.captureException(parsed.error, {
+						tags: {
+							context,
+							source: 'pino.error',
+						},
+						extra: parsed.extra,
+					});
+				}
+			} catch {
+				// noop: Sentry nunca deve quebrar fluxo da aplicação
 			}
-		} catch {
-			// noop: logging nunca deve quebrar fluxo da aplicação
 		}
 
 		return originalError(...args);
@@ -103,6 +119,8 @@ export const loggers = {
 	cache: createContextLogger('CACHE'),
 	retry: createContextLogger('RETRY'),
 	queue: createContextLogger('QUEUE'),
+	baileys: createContextLogger('BAILEYS'),
+	tools: createContextLogger('TOOLS'),
 	discord: createContextLogger('DISCORD'),
 	dateParser: createContextLogger('DATE_PARSER'),
 	scheduler: createContextLogger('SCHEDULER'),
@@ -118,10 +136,12 @@ export const loggers = {
  * Helper para logar erros com contexto estruturado
  */
 export function logError(error: unknown, context: Record<string, any> = {}) {
-	const err = error as Error;
-	logger.error({
-		message: err.message,
-		stack: err.stack,
-		...context,
-	});
+	if (error instanceof Error) {
+		logger.error({ err: error, ...context }, error.message);
+	} else if (typeof error === 'string') {
+		logger.error({ ...context }, error);
+	} else {
+		// objeto não-Error (ex: ToolOutput { success: false, error: '...' })
+		logger.error({ payload: sanitizeForSentry(error), ...context }, 'logError: valor não-Error recebido');
+	}
 }
