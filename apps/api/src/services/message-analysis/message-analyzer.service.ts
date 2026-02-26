@@ -41,11 +41,23 @@ export class MessageAnalyzerService {
 		if (this.initialized) return;
 
 		loggers.ai.info('🔧 Inicializando MessageAnalyzerService...');
+		loggers.nlp.info(
+			{
+				modelPath: this.trainer.getModelPath(),
+				modelExists: this.trainer.hasModelFile(),
+				environment: process.env.NODE_ENV,
+			},
+			'🧠 Runtime check do modelo NLP',
+		);
 
 		// Tentar carregar modelo existente
 		const loaded = await this.trainer.load();
 
 		if (!loaded) {
+			if (process.env.NODE_ENV === 'production') {
+				throw new Error('Modelo NLP não encontrado em produção. Configure NEXO_MODEL_PATH ou inclua o arquivo nexo-model.nlp na imagem.');
+			}
+
 			loggers.ai.info('⚠️ Modelo não encontrado, treinando...');
 			await this.trainer.train();
 		}
