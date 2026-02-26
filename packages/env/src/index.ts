@@ -34,6 +34,12 @@ const envSchema = z.object({
 	CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
 	CLOUDFLARE_API_TOKEN: z.string().min(1),
 	CLOUDFLARE_GATEWAY_ID: z.string().default('nexo-ai-gateway'),
+	EMBEDDING_MODEL: z.string().default('dynamic/embeddings'),
+	EMBEDDING_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(4),
+	EMBEDDING_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(25000),
+	EMBEDDING_MAX_RETRIES: z.coerce.number().int().min(0).max(8).default(4),
+	EMBEDDING_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(100).max(10000).default(600),
+	EMBEDDING_RETRY_MAX_DELAY_MS: z.coerce.number().int().min(500).max(60000).default(8000),
 
 	// Observability
 	UPTRACE_DSN: z.string().optional(),

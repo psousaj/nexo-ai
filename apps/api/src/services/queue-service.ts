@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
 import { embeddingService } from '@/services/ai/embedding-service';
 import { globalErrorHandler } from '@/services/error/error.service';
+import { mapWithConcurrency } from '@/utils/concurrency';
 import { loggers } from '@/utils/logger';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import Queue from 'bull';
@@ -42,6 +43,7 @@ export interface EnrichmentJob {
 }
 
 const queueLogger = loggers.queue;
+const EMBEDDING_MAX_CONCURRENCY = env.EMBEDDING_MAX_CONCURRENCY ?? 4;
 
 function reportQueueError(
 	error: unknown,
@@ -277,13 +279,7 @@ closeConversationQueue.process('close-conversation', async (job) => {
 					closeJobId: null,
 					updatedAt: new Date(),
 				})
-				.where(
-					and(
-						eq(conversations.id, conversationId),
-						eq(conversations.state, 'waiting_close'),
-						lte(conversations.closeAt, new Date()),
-					),
-				)
+				.where(and(eq(conversations.id, conversationId), eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, new Date())))
 				.returning({ id: conversations.id });
 
 			if (result.length === 0) {
@@ -333,10 +329,7 @@ messageQueue.process('message-processing', async (job) => {
 			await processMessage(incomingMsg, provider);
 
 			setAttributes({ 'queue.status': 'success' });
-			queueLogger.info(
-				{ providerName, externalId: incomingMsg.externalId, jobId: job.id },
-				'✅ [Worker] Mensagem processada com sucesso',
-			);
+			queueLogger.info({ providerName, externalId: incomingMsg.externalId, jobId: job.id }, '✅ [Worker] Mensagem processada com sucesso');
 		} catch (error) {
 			recordException(error as Error, { 'queue.status': 'failed' });
 			queueLogger.error(
@@ -445,10 +438,7 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 				return { inserted: 0, skipped: 0, reason: 'no_candidates' };
 			}
 
-			queueLogger.info(
-				{ provider, type, count: candidates.length, jobId: job.id },
-				'🚀 [Worker] Iniciando bulk enrichment',
-			);
+			queueLogger.info({ provider, type, count: candidates.length, jobId: job.id }, '🚀 [Worker] Iniciando bulk enrichment');
 
 			// 1. Extrair IDs
 			const externalIds = candidates.map((c) => String(c.id));
@@ -477,39 +467,36 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 			}
 
 			setAttributes({ 'enrichment.new_candidates': newCandidates.length });
+			setAttributes({ 'enrichment.embedding_concurrency': EMBEDDING_MAX_CONCURRENCY });
 			queueLogger.info({ count: newCandidates.length }, '🔍 Novos itens para processar');
 
-			// 4. Batch Vectorize (Promises paralelas)
+			// 4. Batch Vectorize (concorrência controlada)
 			// Prepara texto para embedding: "Title: <title>. Overview: <overview>"
-			const itemsToInsert = await Promise.all(
-				newCandidates.map(async (candidate) => {
-					const text = `Title: ${candidate.title || candidate.name}\nOverview: ${candidate.overview || ''}`.trim();
+			const itemsToInsert = await mapWithConcurrency(newCandidates, EMBEDDING_MAX_CONCURRENCY, async (candidate) => {
+				const text = `Title: ${candidate.title || candidate.name}\nOverview: ${candidate.overview || ''}`.trim();
 
-					let embedding: number[] | null = null;
-					try {
-						embedding = await embeddingService.generateEmbedding(text);
-					} catch (err) {
-						queueLogger.error({ err, candidateId: candidate.id }, '⚠️ Falha ao gerar embedding (ignorando item)');
-						return null;
-					}
+				let embedding: number[] | null = null;
+				try {
+					embedding = await embeddingService.generateEmbedding(text);
+				} catch (err) {
+					queueLogger.error({ err, candidateId: candidate.id }, '⚠️ Falha ao gerar embedding (ignorando item)');
+					return null;
+				}
 
-					return {
-						externalId: String(candidate.id),
-						type,
-						provider,
-						rawData: candidate,
-						embedding,
-					};
-				}),
-			);
+				return {
+					externalId: String(candidate.id),
+					type,
+					provider,
+					rawData: candidate,
+					embedding,
+				};
+			});
 
 			const validItems = itemsToInsert.filter((i): i is NonNullable<typeof i> => {
 				if (!i || !i.embedding) return false;
 				// Valida embedding: array, 384 dimensões, todos números válidos
 				return (
-					Array.isArray(i.embedding) &&
-					i.embedding.length === 384 &&
-					i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
+					Array.isArray(i.embedding) && i.embedding.length === 384 && i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
 				);
 			});
 
@@ -520,10 +507,7 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 			}
 
 			// 5. Bulk Insert
-			const insertResult = await db
-				.insert(semanticExternalItems)
-				.values(validItems)
-				.returning({ id: semanticExternalItems.id });
+			const insertResult = await db.insert(semanticExternalItems).values(validItems).returning({ id: semanticExternalItems.id });
 
 			const insertedCount = insertResult.length;
 			const skippedCount = candidates.length - insertedCount;
@@ -579,10 +563,7 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			})
 			.where(eq(conversations.id, conversationId));
 
-		queueLogger.info(
-			{ conversationId, closeAt: closeAt.toISOString() },
-			'📅 Banco atualizado: conversa aguardando fechamento',
-		);
+		queueLogger.info({ conversationId, closeAt: closeAt.toISOString() }, '📅 Banco atualizado: conversa aguardando fechamento');
 
 		await closeConversationQueue.add(
 			'close-conversation',
@@ -725,20 +706,10 @@ export async function queueResponse(data: ResponseJob): Promise<void> {
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues...');
-	await Promise.all([
-		closeConversationQueue.close(),
-		messageQueue.close(),
-		responseQueue.close(),
-		enrichmentQueue.close(),
-	]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues...');
-	await Promise.all([
-		closeConversationQueue.close(),
-		messageQueue.close(),
-		responseQueue.close(),
-		enrichmentQueue.close(),
-	]);
+	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
 });

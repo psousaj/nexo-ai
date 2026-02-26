@@ -15,7 +15,11 @@ import OpenAI from 'openai';
  */
 export class EmbeddingService {
 	private client: OpenAI;
-	private model = 'dynamic/embeddings';
+	private model = env.EMBEDDING_MODEL ?? 'dynamic/embeddings';
+	private readonly timeoutMs = env.EMBEDDING_TIMEOUT_MS ?? 25000;
+	private readonly maxRetries = env.EMBEDDING_MAX_RETRIES ?? 4;
+	private readonly retryBaseDelayMs = env.EMBEDDING_RETRY_BASE_DELAY_MS ?? 600;
+	private readonly retryMaxDelayMs = env.EMBEDDING_RETRY_MAX_DELAY_MS ?? 8000;
 
 	constructor() {
 		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN || !env.CLOUDFLARE_GATEWAY_ID) {
@@ -27,9 +31,60 @@ export class EmbeddingService {
 		this.client = new OpenAI({
 			apiKey: env.CLOUDFLARE_API_TOKEN,
 			baseURL,
+			maxRetries: 0,
+			timeout: this.timeoutMs,
 		});
 
-		loggers.enrichment.info('✅ EmbeddingService configurado via AI Gateway');
+		loggers.enrichment.info(
+			{
+				model: this.model,
+				timeoutMs: this.timeoutMs,
+				maxRetries: this.maxRetries,
+			},
+			'✅ EmbeddingService configurado via AI Gateway',
+		);
+	}
+
+	private sleep(ms: number): Promise<void> {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	private backoffDelay(attempt: number): number {
+		const exponential = Math.min(this.retryMaxDelayMs, this.retryBaseDelayMs * 2 ** (attempt - 1));
+		const jitter = Math.floor(Math.random() * 250);
+		return exponential + jitter;
+	}
+
+	private extractStatus(error: any): number | undefined {
+		if (typeof error?.status === 'number') return error.status;
+		if (typeof error?.response?.status === 'number') return error.response.status;
+		return undefined;
+	}
+
+	private isRetryableError(error: any): boolean {
+		const status = this.extractStatus(error);
+		if (status === 429) return true;
+		if (typeof status === 'number' && status >= 500) return true;
+
+		const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+		const retryableCodes = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'ENOTFOUND']);
+
+		return retryableCodes.has(code);
+	}
+
+	private async requestEmbedding(input: string): Promise<number[]> {
+		const response = await this.client.embeddings.create({
+			model: this.model,
+			input,
+		});
+
+		const embedding = response.data[0]?.embedding;
+
+		if (!embedding || !Array.isArray(embedding)) {
+			throw new Error('Formato de resposta inválido da API');
+		}
+
+		return embedding;
 	}
 
 	/**
@@ -61,16 +116,38 @@ export class EmbeddingService {
 
 			loggers.enrichment.debug({ textLength: processedText.length, model: this.model }, '📤 Gerando embedding');
 
-			// Chamar API via OpenAI SDK
-			const response = await this.client.embeddings.create({
-				model: this.model,
-				input: processedText,
-			});
+			let embedding: number[] | null = null;
 
-			const embedding = response.data[0]?.embedding;
+			for (let attempt = 1; attempt <= this.maxRetries + 1; attempt++) {
+				try {
+					embedding = await this.requestEmbedding(processedText);
+					break;
+				} catch (error: any) {
+					const retryable = this.isRetryableError(error);
+					const isLastAttempt = attempt >= this.maxRetries + 1;
 
-			if (!embedding || !Array.isArray(embedding)) {
-				throw new Error('Formato de resposta inválido da API');
+					if (!retryable || isLastAttempt) {
+						throw error;
+					}
+
+					const delayMs = this.backoffDelay(attempt);
+					loggers.enrichment.warn(
+						{
+							attempt,
+							delayMs,
+							status: this.extractStatus(error),
+							model: this.model,
+							errCode: error?.code,
+						},
+						'🔁 Erro transitório ao gerar embedding, retry agendado',
+					);
+
+					await this.sleep(delayMs);
+				}
+			}
+
+			if (!embedding) {
+				throw new Error('Falha ao gerar embedding após retries');
 			}
 
 			// Validar se o embedding não é um vetor de zeros
