@@ -27,7 +27,7 @@ import {
 	useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 
-const logger = loggers.ai;
+const logger = loggers.baileys;
 
 /**
  * Configurações do Baileys
@@ -217,10 +217,15 @@ export class BaileysService {
 
 			logger.info('✅ Socket Baileys criado, aguardando conexão...');
 		} catch (error) {
-			logger.error({ error }, '❌ Erro ao conectar Baileys');
+			const connectErr = error instanceof Error ? error : new Error(String(error));
+			captureException(connectErr, {
+				tags: { service: 'baileys', operation: 'connect', critical: 'true' },
+				extra: { connectionStatus: this.connectionStatus },
+			});
+			logger.error({ err: connectErr }, '❌ BaileysConnectError: falha ao iniciar socket');
 			this.isConnecting = false;
 			this.connectionStatus = 'error';
-			this.connectionError = error instanceof Error ? error.message : 'Erro desconhecido';
+			this.connectionError = connectErr.message;
 			throw error;
 		}
 	}
@@ -474,9 +479,16 @@ export class BaileysService {
 
 					this.recoveryAttempts++;
 					if (this.recoveryAttempts > this.MAX_RECOVERY_ATTEMPTS) {
+						const maxRecoveryErr = new Error(
+							`BaileysMaxRecoveryError: WA rejeitando cliente após ${this.recoveryAttempts} tentativas (statusCode=${statusCode})`,
+						);
+						captureException(maxRecoveryErr, {
+							tags: { service: 'baileys', operation: 'recovery', critical: 'true' },
+							extra: { statusCode, attempts: this.recoveryAttempts, maxAttempts: this.MAX_RECOVERY_ATTEMPTS },
+						});
 						logger.error(
-							{ statusCode, attempts: this.recoveryAttempts },
-							'❌ Máximo de tentativas de recovery atingido - servidor WA rejeitando cliente. Reinicie o serviço manualmente.',
+							{ err: maxRecoveryErr, statusCode, attempts: this.recoveryAttempts },
+							'❌ BaileysMaxRecoveryError: máximo de tentativas atingido - reinicie o serviço',
 						);
 						this.connectionStatus = 'error';
 						this.connectionError = 'Falha persistente na conexão WhatsApp (servidor rejeita cliente). Reinicie o serviço.';
@@ -540,7 +552,7 @@ export class BaileysService {
 									await this.connect();
 								}
 							} catch (err) {
-								logger.error({ err }, '❌ Erro');
+								logger.error({ err }, '❌ BaileysReconnectError: falha ao limpar sessão e reconectar após restart (515)');
 							}
 						}
 					}, 2000);
@@ -669,7 +681,12 @@ export class BaileysService {
 				},
 			};
 		} catch (error) {
-			logger.error({ error, messageId: message.key.id }, '❌ Erro ao parsear mensagem Baileys');
+			const parseErr = error instanceof Error ? error : new Error(String(error));
+			captureException(parseErr, {
+				tags: { service: 'baileys', operation: 'parseMessage' },
+				extra: { messageId: message.key.id },
+			});
+			logger.error({ err: parseErr, messageId: message.key.id }, '❌ BaileysParseError: falha ao parsear mensagem recebida');
 			return null;
 		}
 	}
@@ -709,7 +726,15 @@ export class BaileysService {
 					logger.info({ externalId: incomingMessage.externalId }, '📥 Mensagem Baileys enfileirada para processamento');
 				}
 			} catch (error) {
-				logger.error({ error, messageId: message.key.id }, '❌ Erro ao processar mensagem Baileys');
+				const handleErr = error instanceof Error ? error : new Error(String(error));
+				captureException(handleErr, {
+					tags: { service: 'baileys', operation: 'handleMessage' },
+					extra: { messageId: message.key.id },
+				});
+				logger.error(
+					{ err: handleErr, messageId: message.key.id },
+					'❌ BaileysHandleError: falha ao enfileirar mensagem para processamento',
+				);
 			}
 
 			// Notificar handlers registrados (para backward compatibility)

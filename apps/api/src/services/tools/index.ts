@@ -9,7 +9,7 @@ import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessag
 import { enrichmentService } from '@/services/enrichment';
 import { itemService } from '@/services/item-service';
 import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
-import { logError, loggers } from '@/utils/logger';
+import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 
 export interface ToolContext {
@@ -40,15 +40,15 @@ export async function save_note(
 		content: string;
 	},
 ): Promise<ToolOutput> {
-	loggers.ai.info(`🔧 ${getRandomLogMessage(toolLogs.executing, { tool: 'save_note' })}`);
-	loggers.ai.info(
+	loggers.tools.info(`🔧 ${getRandomLogMessage(toolLogs.executing, { tool: 'save_note' })}`);
+	loggers.tools.info(
 		`📦 ${getRandomLogMessage(toolLogs.params, {
 			params: JSON.stringify({ content: `${params.content?.substring(0, 100)}...` }),
 		})}`,
 	);
 
 	if (!params.content?.trim()) {
-		loggers.ai.error(
+		loggers.tools.error(
 			`❌ ${getRandomLogMessage(toolLogs.error, {
 				tool: 'save_note',
 				error: 'Conteúdo vazio',
@@ -70,7 +70,7 @@ export async function save_note(
 
 		// Verificar se é duplicata
 		if (result.isDuplicate && result.existingItem) {
-			loggers.ai.warn('⚠️ Nota duplicada detectada');
+			loggers.tools.warn('⚠️ Nota duplicada detectada');
 			return {
 				success: false,
 				error: 'duplicate',
@@ -80,28 +80,28 @@ export async function save_note(
 
 		// Verificar se item foi criado com sucesso
 		if (!result.item) {
-			loggers.ai.error(
+			loggers.tools.error(
 				`❌ ${getRandomLogMessage(toolLogs.error, {
 					tool: 'save_note',
 					error: 'itemService.createItem retornou null sem ser duplicata',
 				})}`,
 			);
-			loggers.ai.error({ result }, '❌ Erro ao criar nota no banco de dados');
+			loggers.tools.error({ result }, '❌ Erro ao criar nota no banco de dados');
 			return {
 				success: false,
 				error: 'Erro ao criar nota no banco de dados',
 			};
 		}
 
-		loggers.ai.info(`✅ ${getRandomLogMessage(toolLogs.success, { tool: 'save_note' })}`);
-		loggers.ai.info({ id: result.item.id }, '📝 Nota salva');
+		loggers.tools.info(`✅ ${getRandomLogMessage(toolLogs.success, { tool: 'save_note' })}`);
+		loggers.tools.info({ id: result.item.id }, '📝 Nota salva');
 
 		return {
 			success: true,
 			data: { id: result.item.id, title: result.item.title },
 		};
 	} catch (error) {
-		loggers.ai.error(
+		loggers.tools.error(
 			{ err: error },
 			`❌ ${getRandomLogMessage(toolLogs.error, {
 				tool: 'save_note',
@@ -150,7 +150,7 @@ export async function save_movie(
 					metadata = { ...metadata, ...enriched } as MovieMetadata;
 				}
 			} catch (enrichError) {
-				loggers.ai.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer filme');
+				loggers.tools.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer filme');
 			}
 		}
 
@@ -210,7 +210,7 @@ export async function save_tv_show(
 					metadata = { ...metadata, ...enriched } as TVShowMetadata;
 				}
 			} catch (enrichError) {
-				loggers.ai.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer série');
+				loggers.tools.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer série');
 			}
 		}
 
@@ -589,7 +589,7 @@ export async function update_user_settings(
 
 		return { success: false, error: 'Nenhuma configuração fornecida' };
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao atualizar configurações');
+		loggers.tools.error({ err: error }, '❌ Erro ao atualizar configurações');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao atualizar',
@@ -615,7 +615,7 @@ export async function get_assistant_name(context: ToolContext, _params: {}): Pro
 			data: { name: name || 'Nexo' },
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao buscar nome do assistente');
+		loggers.tools.error({ err: error }, '❌ Erro ao buscar nome do assistente');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao buscar preferências',
@@ -649,7 +649,7 @@ export async function memory_search(
 			types: params.types,
 		});
 
-		loggers.ai.info({ query: params.query, resultsCount: results.length }, '✅ Memory search tool executed');
+		loggers.tools.info({ query: params.query, resultsCount: results.length }, '✅ Memory search tool executed');
 
 		return {
 			success: true,
@@ -665,7 +665,7 @@ export async function memory_search(
 			},
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Memory search tool failed');
+		loggers.tools.error({ err: error }, '❌ Memory search tool failed');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao buscar memória',
@@ -705,7 +705,7 @@ export async function memory_get(
 			},
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Memory get tool failed');
+		loggers.tools.error({ err: error }, '❌ Memory get tool failed');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao buscar item',
@@ -741,7 +741,7 @@ export async function daily_log_search(
 			},
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Daily log search tool failed');
+		loggers.tools.error({ err: error }, '❌ Daily log search tool failed');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao buscar diário',
@@ -766,9 +766,7 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -810,7 +808,7 @@ export async function list_calendar_events(
 			},
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao listar eventos do calendário');
+		loggers.tools.error({ err: error }, '❌ Erro ao listar eventos do calendário');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao listar eventos',
@@ -834,9 +832,8 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
+			await import('@/services/integrations/google-calendar.service');
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -876,7 +873,7 @@ export async function create_calendar_event(
 			data: { eventId },
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao criar evento no calendário');
+		loggers.tools.error({ err: error }, '❌ Erro ao criar evento no calendário');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao criar evento',
@@ -917,7 +914,7 @@ export async function list_todos(context: ToolContext, _params: {}): Promise<Too
 			},
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao listar tarefas');
+		loggers.tools.error({ err: error }, '❌ Erro ao listar tarefas');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao listar tarefas',
@@ -968,7 +965,7 @@ export async function create_todo(
 			data: { taskId },
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao criar tarefa');
+		loggers.tools.error({ err: error }, '❌ Erro ao criar tarefa');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao criar tarefa',
@@ -1017,7 +1014,7 @@ export async function schedule_reminder(
 			data: { reminderId, scheduledFor: scheduledFor.toISOString() },
 		};
 	} catch (error) {
-		loggers.ai.error({ err: error }, '❌ Erro ao agendar lembrete');
+		loggers.tools.error({ err: error }, '❌ Erro ao agendar lembrete');
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : 'Erro ao agendar lembrete',
@@ -1090,8 +1087,8 @@ export async function executeTool(toolName: ToolName, context: ToolContext, para
 			};
 		}
 
-		loggers.ai.info({ toolName }, '🔧 Executando tool');
-		loggers.ai.info({ params }, '📦 Params da tool');
+		loggers.tools.info({ toolName }, '🔧 Executando tool');
+		loggers.tools.info({ params }, '📦 Params da tool');
 
 		try {
 			const result = await startSpan(`tool.${toolName}`, async () => {
@@ -1102,11 +1099,14 @@ export async function executeTool(toolName: ToolName, context: ToolContext, para
 				});
 				return toolResult;
 			});
-			loggers.ai.info({ toolName, success: result.success }, '✅ Tool executada');
+			loggers.tools.info({ toolName, success: result.success }, '✅ Tool executada');
 			return result;
 		} catch (error) {
 			setAttributes({ 'tool.status': 'error' });
-			logError(error, { toolName, context: 'AI' });
+			loggers.tools.error(
+				{ err: error instanceof Error ? error : new Error(String(error)), toolName },
+				`❌ ToolExecutionError: falha na execução da tool '${toolName}'`,
+			);
 			return {
 				success: false,
 				error: error instanceof Error ? error.message : 'Erro desconhecido',

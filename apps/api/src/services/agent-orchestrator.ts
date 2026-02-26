@@ -37,7 +37,7 @@ import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
 import type { ConversationState, ToolName } from '@/types';
 import { isValidAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
-import { logError, loggers } from '@/utils/logger';
+import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { llmService } from './ai';
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
@@ -145,10 +145,7 @@ export class AgentOrchestrator {
 				const cb = context.callbackData;
 				const isKnownCallback = cb.startsWith('select_') || cb === 'confirm_final' || cb === 'choose_again';
 
-				if (
-					isKnownCallback &&
-					(conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')
-				) {
+				if (isKnownCallback && (conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')) {
 					loggers.ai.info({ callbackData: cb, state: conversation.state }, '🔘 Callback do Telegram detectado');
 
 					// Cria intent artificial para handleConfirmation
@@ -199,10 +196,7 @@ export class AgentOrchestrator {
 				const endAmbiguous = performance.now();
 
 				if (isAmbiguous) {
-					loggers.ai.info(
-						{ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` },
-						'🔍 Ambiguidade detectada',
-					);
+					loggers.ai.info({ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` }, '🔍 Ambiguidade detectada');
 					return {
 						message: null as any, // Mensagem já enviada pelo conversationService
 						state: 'awaiting_context', // Estado atualizado pelo service
@@ -496,7 +490,13 @@ export class AgentOrchestrator {
 				}
 			} catch (parseError) {
 				// Fallback: NUNCA enviar JSON cru ao usuário
-				logError(parseError, { context: 'AI', originalMessage: llmResponse.message.substring(0, 500) });
+				loggers.ai.error(
+					{
+						err: parseError instanceof Error ? parseError : new Error(String(parseError)),
+						originalMessage: llmResponse.message.substring(0, 200),
+					},
+					'❌ LLMParseError: falha ao parsear resposta do LLM como AgentLLMResponse',
+				);
 
 				responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
 			}
@@ -512,11 +512,7 @@ export class AgentOrchestrator {
 	/**
 	 * Trata confirmação do usuário
 	 */
-	private async handleConfirmation(
-		context: AgentContext,
-		conversation: any,
-		intent: IntentResult,
-	): Promise<AgentResponse> {
+	private async handleConfirmation(context: AgentContext, conversation: any, intent: IntentResult): Promise<AgentResponse> {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
 
@@ -686,10 +682,7 @@ export class AgentOrchestrator {
 		}
 
 		// Confirmação genérica (fallback)
-		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace(
-			'{type}',
-			'item',
-		);
+		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
 		return {
 			message: confirmMsg,
 			state: 'idle',
@@ -901,9 +894,7 @@ export class AgentOrchestrator {
 
 		// Se tem selection (número ou array), busca primeiro para pegar IDs
 		if (intent.entities?.selection) {
-			const selections = Array.isArray(intent.entities.selection)
-				? intent.entities.selection
-				: [intent.entities.selection];
+			const selections = Array.isArray(intent.entities.selection) ? intent.entities.selection : [intent.entities.selection];
 
 			// Buscar lista para pegar os itens
 			const searchResult = await executeTool('search_items', toolContext, {
@@ -916,9 +907,7 @@ export class AgentOrchestrator {
 				const notFoundSelections: number[] = [];
 
 				// Filtra por tipo se especificado (ex: "deleta o filme 1" → filtra apenas filmes)
-				const targetItems = intent.entities?.itemType
-					? items.filter((i: any) => i.type === intent.entities?.itemType)
-					: items;
+				const targetItems = intent.entities?.itemType ? items.filter((i: any) => i.type === intent.entities?.itemType) : items;
 
 				// Processar cada seleção
 				for (const selection of selections) {
@@ -1033,10 +1022,7 @@ export class AgentOrchestrator {
 		if (!isNumber || Number.isNaN(choice)) {
 			try {
 				const nlpResult = await messageAnalyzer.classifyIntent(message);
-				loggers.ai.info(
-					{ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action },
-					'🧠 NLP Classification',
-				);
+				loggers.ai.info({ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action }, '🧠 NLP Classification');
 
 				// Mapeamento de intents para tipos
 				const intentToType: Record<string, string> = {
@@ -1054,10 +1040,7 @@ export class AgentOrchestrator {
 						series: '📺',
 						link: '🔗',
 					};
-					loggers.ai.info(
-						{ message, detectedType, confidence: nlpResult.confidence },
-						`${typeEmoji[detectedType]} Tipo detectado via NLP`,
-					);
+					loggers.ai.info({ message, detectedType, confidence: nlpResult.confidence }, `${typeEmoji[detectedType]} Tipo detectado via NLP`);
 				}
 			} catch (error) {
 				loggers.ai.warn({ error }, '⚠️ Erro ao classificar via NLP, tentando fallback');
@@ -1099,10 +1082,7 @@ export class AgentOrchestrator {
 				}
 			} else {
 				// Número fora do range — reprocessa como nova mensagem
-				loggers.ai.info(
-					{ message, choice, totalOptions: cancelIndex },
-					'↩️ Número fora do range - reprocessando como nova mensagem',
-				);
+				loggers.ai.info({ message, choice, totalOptions: cancelIndex }, '↩️ Número fora do range - reprocessando como nova mensagem');
 
 				await conversationService.updateState(conversation.id, 'idle', {
 					pendingClarification: undefined,
@@ -1276,11 +1256,7 @@ export class AgentOrchestrator {
 		// Conversa livre com IA
 		loggers.ai.info({ attempts }, '💬 NLP inconclusivo, gerando resposta conversacional via IA');
 
-		const conversationalResponse = await this.getConversationalClarification(
-			context,
-			pendingClarification.originalMessage,
-			attempts,
-		);
+		const conversationalResponse = await this.getConversationalClarification(context, pendingClarification.originalMessage, attempts);
 
 		await conversationService.updateState(conversation.id, 'awaiting_context', {
 			clarificationAttempts: attempts,
@@ -1299,11 +1275,7 @@ export class AgentOrchestrator {
 	/**
 	 * Gera resposta conversacional durante clarificação usando LLM
 	 */
-	private async getConversationalClarification(
-		context: AgentContext,
-		originalMessage: string,
-		attempt: number,
-	): Promise<string> {
+	private async getConversationalClarification(context: AgentContext, originalMessage: string, attempt: number): Promise<string> {
 		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
 
 		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
@@ -1324,11 +1296,7 @@ export class AgentOrchestrator {
 	 * Envia lista de candidatos com botões clicáveis (Telegram Inline Keyboard)
 
 	 */
-	private async sendCandidatesWithButtons(
-		context: AgentContext,
-		conversation: any,
-		candidates: any[],
-	): Promise<AgentResponse> {
+	private async sendCandidatesWithButtons(context: AgentContext, conversation: any, candidates: any[]): Promise<AgentResponse> {
 		const contextData = conversation.context || {};
 		const itemType = contextData.detected_type || 'movie';
 

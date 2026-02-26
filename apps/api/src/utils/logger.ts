@@ -119,6 +119,8 @@ export const loggers = {
 	cache: createContextLogger('CACHE'),
 	retry: createContextLogger('RETRY'),
 	queue: createContextLogger('QUEUE'),
+	baileys: createContextLogger('BAILEYS'),
+	tools: createContextLogger('TOOLS'),
 	discord: createContextLogger('DISCORD'),
 	dateParser: createContextLogger('DATE_PARSER'),
 	scheduler: createContextLogger('SCHEDULER'),
