@@ -190,3 +190,13 @@ export function incrementCounter(key: string, amount = 1, tags?: Record<string, 
 export function recordTiming(key: string, durationMs: number, tags?: Record<string, string>) {
 	Sentry.metrics.distribution(key, durationMs, { unit: 'millisecond', attributes: tags });
 }
+
+export async function shutdownSentry(timeoutMs = 3000): Promise<void> {
+	try {
+		await Sentry.flush(timeoutMs);
+		await Sentry.close(timeoutMs);
+		sentryLog.info('✅ Sentry shutdown concluído');
+	} catch (error) {
+		sentryLog.error({ error }, '❌ Erro ao finalizar Sentry');
+	}
+}

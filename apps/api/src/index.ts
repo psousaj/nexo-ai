@@ -4,7 +4,8 @@ import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
 import { env } from '@/config/env';
 import app from '@/server';
 import { globalErrorHandler } from '@/services/error/error.service';
-import { initializeLangfuse } from '@/services/langfuse'; // Langfuse AI observability
+import { initializeLangfuse, shutdownLangfuse } from '@/services/langfuse'; // Langfuse AI observability
+import { shutdownSentry } from '@/sentry';
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
@@ -41,6 +42,45 @@ process.on('warning', async (warning) => {
 
 // Initialize Langfuse for AI observability
 initializeLangfuse();
+
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal: string): Promise<void> {
+	if (isShuttingDown) return;
+	isShuttingDown = true;
+
+	logger.info({ signal }, '🛑 Encerrando aplicação (graceful shutdown)');
+
+	try {
+		await shutdownLangfuse();
+		await shutdownSentry();
+		logger.info('✅ Shutdown de observabilidade concluído');
+	} catch (error) {
+		logger.error({ error }, '❌ Erro durante graceful shutdown');
+	} finally {
+		process.exit(0);
+	}
+}
+
+process.on('SIGINT', () => {
+	void gracefulShutdown('SIGINT');
+});
+
+process.on('SIGTERM', () => {
+	void gracefulShutdown('SIGTERM');
+});
+
+process.on('beforeExit', async () => {
+	if (isShuttingDown) return;
+	isShuttingDown = true;
+
+	try {
+		await shutdownLangfuse();
+		await shutdownSentry();
+	} catch (error) {
+		logger.error({ error }, '❌ Erro no shutdown via beforeExit');
+	}
+});
 
 /**
  * Inicializar Baileys se a API ativa for 'baileys'

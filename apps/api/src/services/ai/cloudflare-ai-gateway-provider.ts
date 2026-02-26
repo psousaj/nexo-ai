@@ -2,6 +2,7 @@ import { loggers } from '@/utils/logger';
 import { encode } from '@toon-format/toon';
 import OpenAI from 'openai';
 import type { AIProvider, AIResponse, Message } from './types';
+import { observe, updateActiveObservation } from '@langfuse/tracing';
 
 /**
  * Provider unificado usando Cloudflare AI Gateway
@@ -81,8 +82,38 @@ Mensagem atual: ${message}`;
 				content: contextContent,
 			});
 
+			const tracedGatewayCompletion = observe(
+				async (payload: { model: string; messages: OpenAI.Chat.ChatCompletionMessageParam[] }) => {
+					updateActiveObservation({
+						metadata: {
+							provider: 'cloudflare-ai-gateway',
+							model: payload.model,
+							historyCount: history.length,
+							hasSystemPrompt: Boolean(systemPrompt),
+						},
+					});
+
+					const completion = await this.client.chat.completions.create(payload);
+
+					updateActiveObservation({
+						metadata: {
+							responseId: completion.id,
+							responseModel: completion.model,
+							finishReason: completion.choices[0]?.finish_reason || null,
+							usage: completion.usage || null,
+						},
+					});
+
+					return completion;
+				},
+				{
+					name: 'cloudflare-ai-gateway.chat.completions',
+					asType: 'generation',
+				},
+			);
+
 			// Chamada ao AI Gateway - retry e fallback são automáticos
-			const response = await this.client.chat.completions.create({
+			const response = await tracedGatewayCompletion({
 				model: this.model,
 				messages,
 			});
