@@ -1,3 +1,4 @@
+import { captureException } from '@/sentry';
 import { logger } from '@/utils/logger';
 import { startSpan } from '@nexo/otel/tracing';
 
@@ -52,6 +53,14 @@ export function instrumentService<T extends object>(serviceName: string, instanc
 
 						return result;
 					} catch (error) {
+						captureException(error instanceof Error ? error : new Error(String(error)), {
+							provider: 'service',
+							state: 'instrumented_call',
+							service: serviceName,
+							method: methodName,
+							durationMs: Date.now() - startedAt,
+						});
+
 						serviceLogger.error(
 							{
 								service: serviceName,

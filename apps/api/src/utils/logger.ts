@@ -1,4 +1,5 @@
 import pino from 'pino';
+import * as Sentry from '@sentry/node';
 
 /**
  * Pino logger com transports para New Relic e pretty print em dev
@@ -25,30 +26,92 @@ export const logger = pino({
 	},
 });
 
+function normalizeError(value: unknown): Error | null {
+	if (value instanceof Error) return value;
+	if (typeof value === 'string' && value.trim().length > 0) return new Error(value);
+	return null;
+}
+
+function extractErrorForSentry(args: unknown[]): { error: Error; extra: Record<string, unknown> } | null {
+	const firstArg = args[0] as any;
+	const secondArg = args[1] as any;
+
+	const candidateError =
+		normalizeError(firstArg?.err) ||
+		normalizeError(firstArg?.error) ||
+		normalizeError(secondArg) ||
+		normalizeError(firstArg?.message) ||
+		normalizeError(typeof secondArg === 'string' ? secondArg : undefined);
+
+	if (!candidateError) return null;
+
+	const extra: Record<string, unknown> = {};
+
+	if (firstArg && typeof firstArg === 'object') {
+		for (const [key, value] of Object.entries(firstArg)) {
+			if (key !== 'err' && key !== 'error') {
+				extra[key] = value;
+			}
+		}
+	}
+
+	if (typeof secondArg === 'string') {
+		extra.logMessage = secondArg;
+	}
+
+	return { error: candidateError, extra };
+}
+
+function createContextLogger(context: string) {
+	const child = logger.child({ context }) as any;
+	const originalError = child.error.bind(child);
+
+	child.error = (...args: unknown[]) => {
+		try {
+			const parsed = extractErrorForSentry(args);
+			if (parsed && Sentry.getClient()) {
+				Sentry.captureException(parsed.error, {
+					tags: {
+						context,
+						source: 'pino.error',
+					},
+					extra: parsed.extra,
+				});
+			}
+		} catch {
+			// noop: logging nunca deve quebrar fluxo da aplicação
+		}
+
+		return originalError(...args);
+	};
+
+	return child;
+}
+
 /**
  * Loggers específicos por contexto
  */
 export const loggers = {
-	app: logger.child({ context: 'APP' }),
-	webhook: logger.child({ context: 'WEBHOOK' }),
-	ai: logger.child({ context: 'AI' }),
-	nlp: logger.child({ context: 'NLP' }),
-	cloudflare: logger.child({ context: 'CLOUDFLARE' }),
-	gemini: logger.child({ context: 'GEMINI' }),
-	db: logger.child({ context: 'DB' }),
-	enrichment: logger.child({ context: 'ENRICHMENT' }),
-	cache: logger.child({ context: 'CACHE' }),
-	retry: logger.child({ context: 'RETRY' }),
-	queue: logger.child({ context: 'QUEUE' }),
-	discord: logger.child({ context: 'DISCORD' }),
-	dateParser: logger.child({ context: 'DATE_PARSER' }),
-	scheduler: logger.child({ context: 'SCHEDULER' }),
-	integrations: logger.child({ context: 'INTEGRATIONS' }),
+	app: createContextLogger('APP'),
+	webhook: createContextLogger('WEBHOOK'),
+	ai: createContextLogger('AI'),
+	nlp: createContextLogger('NLP'),
+	cloudflare: createContextLogger('CLOUDFLARE'),
+	gemini: createContextLogger('GEMINI'),
+	db: createContextLogger('DB'),
+	enrichment: createContextLogger('ENRICHMENT'),
+	cache: createContextLogger('CACHE'),
+	retry: createContextLogger('RETRY'),
+	queue: createContextLogger('QUEUE'),
+	discord: createContextLogger('DISCORD'),
+	dateParser: createContextLogger('DATE_PARSER'),
+	scheduler: createContextLogger('SCHEDULER'),
+	integrations: createContextLogger('INTEGRATIONS'),
 	// OpenClaw-inspired loggers
-	context: logger.child({ context: 'CONTEXT' }),
-	session: logger.child({ context: 'SESSION' }),
-	memory: logger.child({ context: 'MEMORY' }),
-	api: logger.child({ context: 'API' }),
+	context: createContextLogger('CONTEXT'),
+	session: createContextLogger('SESSION'),
+	memory: createContextLogger('MEMORY'),
+	api: createContextLogger('API'),
 };
 
 /**

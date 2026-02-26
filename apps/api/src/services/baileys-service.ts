@@ -14,6 +14,7 @@
 import { promises as fs } from 'node:fs';
 import type { IncomingMessage } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { captureException } from '@/sentry';
 import { messageQueue } from '@/services/queue-service';
 import { loggers } from '@/utils/logger';
 import {
@@ -272,7 +273,34 @@ export class BaileysService {
 	 */
 	async sendMessage(phoneNumber: string, text: string): Promise<void> {
 		if (!this.sock || this.connectionState.connection !== 'open') {
-			throw new Error('Baileys não está conectado');
+			logger.warn(
+				{
+					connection: this.connectionState.connection || 'close',
+					isConnecting: this.isConnecting,
+					recipient: phoneNumber,
+				},
+				'⚠️ Baileys não conectado no envio, tentando reconectar automaticamente',
+			);
+
+			if (!this.isConnecting) {
+				await this.connect().catch((err) => {
+					logger.warn({ err }, '⚠️ connect() falhou durante auto-reconnect de envio');
+				});
+			}
+
+			await this.waitForOpenConnection(12000);
+
+			if (!this.sock || this.connectionState.connection !== 'open') {
+				const error = new Error('Baileys não está conectado');
+				captureException(error, {
+					provider: 'whatsapp',
+					state: 'baileys_send_message',
+					connection: this.connectionState.connection || 'close',
+					recipient: phoneNumber,
+					text_length: text?.length || 0,
+				});
+				throw error;
+			}
 		}
 
 		// Formatar JID (Jaber ID) - preserva @lid, @g.us, etc
@@ -283,6 +311,18 @@ export class BaileysService {
 		await this.sock.sendMessage(jid, { text });
 
 		logger.info({ jid }, '✅ Mensagem enviada com sucesso via Baileys');
+	}
+
+	private async waitForOpenConnection(timeoutMs: number): Promise<void> {
+		const startedAt = Date.now();
+
+		while (Date.now() - startedAt < timeoutMs) {
+			if (this.connectionState.connection === 'open' && this.sock) {
+				return;
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		}
 	}
 
 	/**
@@ -394,8 +434,7 @@ export class BaileysService {
 							'❌ Máximo de tentativas de recovery atingido - servidor WA rejeitando cliente. Reinicie o serviço manualmente.',
 						);
 						this.connectionStatus = 'error';
-						this.connectionError =
-							'Falha persistente na conexão WhatsApp (servidor rejeita cliente). Reinicie o serviço.';
+						this.connectionError = 'Falha persistente na conexão WhatsApp (servidor rejeita cliente). Reinicie o serviço.';
 						this.recoveryAttempts = 0;
 						return;
 					}
@@ -566,9 +605,7 @@ export class BaileysService {
 
 			// Timestamp
 			const timestampValue =
-				typeof message.messageTimestamp === 'number'
-					? message.messageTimestamp
-					: (message.messageTimestamp as any)?.toNumber?.() || 0;
+				typeof message.messageTimestamp === 'number' ? message.messageTimestamp : (message.messageTimestamp as any)?.toNumber?.() || 0;
 			const timestamp = new Date(timestampValue * 1000);
 
 			return {
