@@ -43,7 +43,7 @@ FROM node:22-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # Create a group and user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
 
 WORKDIR /app
 
