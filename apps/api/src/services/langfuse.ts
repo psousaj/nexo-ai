@@ -26,9 +26,24 @@ export async function flushLangfuse() {
 	await langfuse?.flushAsync();
 }
 
+export async function shutdownLangfuse() {
+	if (!langfuse) return;
+
+	await langfuse.flushAsync();
+
+	if (typeof (langfuse as any).shutdown === 'function') {
+		await Promise.resolve((langfuse as any).shutdown());
+		return;
+	}
+
+	if (typeof (langfuse as any).shutdownAsync === 'function') {
+		await (langfuse as any).shutdownAsync();
+	}
+}
+
 // Shutdown hook
 if (typeof process !== 'undefined') {
 	process.on('beforeExit', async () => {
-		await flushLangfuse();
+		await shutdownLangfuse();
 	});
 }
