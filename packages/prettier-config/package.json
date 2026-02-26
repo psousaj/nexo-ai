@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/prettier-config",
-	"version": "0.5.30",
+	"version": "0.5.31",
 	"private": true,
 	"main": "index.json",
 	"license": "MIT"

@@ -71,6 +71,12 @@ COPY patches/ patches/
 # Instala apenas dependências de produção
 RUN pnpm install --frozen-lockfile --prod
 
+# Verifica se o patch Platform.MACOS foi aplicado corretamente
+RUN grep -q "Platform.MACOS" node_modules/.pnpm/$(ls node_modules/.pnpm | grep "whiskeysockets+baileys" | head -1)/node_modules/@whiskeysockets/baileys/lib/Utils/validate-connection.js \
+    && echo "[patch] ✅ Platform.MACOS aplicado com sucesso" \
+    || (echo "[patch] ❌ ERRO: patch Platform.MACOS NÃO foi aplicado!" && exit 1)
+
+
 # Copia builds dos packages (dist/ de cada um)
 COPY --from=builder /app/packages/shared/dist/ packages/shared/dist/
 COPY --from=builder /app/packages/env/dist/ packages/env/dist/
