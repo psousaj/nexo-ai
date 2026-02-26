@@ -1,5 +1,5 @@
-import { loggers } from '@/utils/logger';
 import { instrumentService } from '@/services/service-instrumentation';
+import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { AmbiguityAnalyzer } from './analyzers/ambiguity-analyzer.js';
 import { ProfanityAnalyzer } from './analyzers/profanity-analyzer.js';

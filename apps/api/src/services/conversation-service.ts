@@ -1,7 +1,6 @@
 import { type ProviderType, getProvider } from '@/adapters/messaging';
 import { db } from '@/db';
 import { conversations, messages } from '@/db/schema';
-import { instrumentService } from '@/services/service-instrumentation';
 import { getRandomLogMessage, processingLogs } from '@/services/conversation/logMessages';
 import {
 	getClarificationMessages,
@@ -10,6 +9,7 @@ import {
 } from '@/services/message-analysis/constants/clarification-messages';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { Language } from '@/services/message-analysis/types/analysis-result.types';
+import { instrumentService } from '@/services/service-instrumentation';
 import type { ConversationContext, ConversationState, MessageRole } from '@/types';
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
@@ -129,7 +129,10 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
+			loggers.db.info(
+				{ reason, confidence: ambiguityResult.confidence },
+				'🔍 Ambiguidade detectada, solicitando clarificação',
+			);
 
 			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
 			const clarificationOptions = await getClarificationOptions(language);

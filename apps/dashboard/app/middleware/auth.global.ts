@@ -48,9 +48,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
 		const callbackUrl = (to.query.callbackUrl as string) || '/';
 		const { callbackUrl: _removed, ...forwardQuery } = to.query;
 		const hasForwardQuery = Object.keys(forwardQuery).length > 0;
-		return navigateTo(
-			hasForwardQuery ? { path: callbackUrl, query: forwardQuery } : callbackUrl,
-			{ replace: true },
-		);
+		return navigateTo(hasForwardQuery ? { path: callbackUrl, query: forwardQuery } : callbackUrl, { replace: true });
 	}
 });

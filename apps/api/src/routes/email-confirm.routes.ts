@@ -22,7 +22,13 @@ export const emailConfirmRoutes = new Hono().get('/confirm', async (c) => {
 	const [record] = await db
 		.select()
 		.from(linkingTokens)
-		.where(and(eq(linkingTokens.token, token), eq(linkingTokens.tokenType, 'email_confirm'), gte(linkingTokens.expiresAt, new Date())))
+		.where(
+			and(
+				eq(linkingTokens.token, token),
+				eq(linkingTokens.tokenType, 'email_confirm'),
+				gte(linkingTokens.expiresAt, new Date()),
+			),
+		)
 		.limit(1);
 
 	if (!record || !record.externalId) {

@@ -5,9 +5,9 @@ import type { ItemMetadata, ItemType, MovieMetadata, TVShowMetadata } from '@/ty
 import { loggers } from '@/utils/logger';
 import { cosineSimilarity } from 'ai';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { instrumentService } from './service-instrumentation';
 import { embeddingService } from './ai/embedding-service';
 import { expandMovieQuery } from './query-expansion';
+import { instrumentService } from './service-instrumentation';
 
 /**
  * Resultado da verificação de duplicata
@@ -274,7 +274,10 @@ export class ItemService {
 			}
 		}
 
-		loggers.db.debug({ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords }, '📝 Documento semântico preparado');
+		loggers.db.debug(
+			{ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords },
+			'📝 Documento semântico preparado',
+		);
 
 		return text;
 	}
@@ -518,7 +521,10 @@ export class ItemService {
 				.from(memoryItems)
 				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 				.where(
-					and(eq(memoryItems.userId, userId), sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`),
+					and(
+						eq(memoryItems.userId, userId),
+						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
+					),
 				);
 
 			if (itemsWithEmbedding.length === 0) {
