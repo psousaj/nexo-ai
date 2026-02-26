@@ -1,7 +1,7 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
@@ -38,9 +38,12 @@ RUN cd apps/api && pnpm train:nexo
 # ============================================
 # Stage 2: Runner
 # ============================================
-FROM crg.dev/chainguard/node:latest AS runner
+FROM node:22-alpine AS runner
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+# Create a group and user
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 WORKDIR /app
 
@@ -74,6 +77,9 @@ EXPOSE 3001
 
 # Diretório para persistir credenciais do Baileys (montado como volume no Railway)
 RUN mkdir -p /data/baileys-auth
+
+# Switch to the non-root user
+USER appuser
 
 CMD ["node", "apps/api/dist/index.js"]
 
