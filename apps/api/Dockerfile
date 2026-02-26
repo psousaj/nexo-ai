@@ -43,9 +43,11 @@ FROM node:22-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # Create a group and user
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
+
+RUN chown -R appuser:appgroup /app
 
 # Copia configs do monorepo
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
@@ -77,6 +79,15 @@ EXPOSE 3001
 
 # Diretório para persistir credenciais do Baileys (montado como volume no Railway)
 RUN mkdir -p /data/baileys-auth
+
+# Hardening: remove shell e loga resultado
+RUN set -eux; \
+	echo "[hardening] tentando remover /bin/sh"; \
+	id; \
+	ls -l /bin/sh; \
+	rm -v /bin/sh; \
+	echo "[hardening] /bin/sh removido com sucesso"; \
+	if [ -e /bin/sh ]; then echo "[hardening] ERRO: /bin/sh ainda existe"; exit 1; else echo "[hardening] verificação final OK: /bin/sh ausente"; fi
 
 # Switch to the non-root user
 USER appuser
