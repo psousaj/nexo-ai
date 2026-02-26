@@ -14,14 +14,18 @@
 import { promises as fs } from 'node:fs';
 import type { IncomingMessage } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { db } from '@/db';
+import { messages } from '@/db/schema';
 import { captureException } from '@/sentry';
 import { messageQueue } from '@/services/queue-service';
 import { loggers } from '@/utils/logger';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
 	fetchLatestBaileysVersion,
 	type ConnectionState,
 	DisconnectReason,
 	type WAMessage,
+	type WAMessageKey,
 	type WASocket,
 	makeWASocket,
 	useMultiFileAuthState,
@@ -71,6 +75,65 @@ export class BaileysService {
 	private recoveryAttempts = 0;
 	private readonly MAX_RECOVERY_ATTEMPTS = 3;
 	private readonly VERSION_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+	private parseJid(jid?: string): {
+		raw: string;
+		identifier: string;
+		server: string;
+		isGroup: boolean;
+		isBroadcast: boolean;
+		isLid: boolean;
+		isPn: boolean;
+	} {
+		const raw = jid || '';
+		const [identifier = '', server = ''] = raw.split('@');
+		const normalizedServer = server.toLowerCase();
+
+		return {
+			raw,
+			identifier,
+			server: normalizedServer,
+			isGroup: normalizedServer === 'g.us',
+			isBroadcast: normalizedServer === 'broadcast',
+			isLid: normalizedServer === 'lid',
+			isPn: normalizedServer === 's.whatsapp.net',
+		};
+	}
+
+	private normalizeRecipientJid(recipient: string): string {
+		if (recipient.includes('@')) {
+			return recipient;
+		}
+
+		const cleaned = recipient.replace(/\D/g, '');
+		if (cleaned.length > 0) {
+			return `${cleaned}@s.whatsapp.net`;
+		}
+
+		return recipient;
+	}
+
+	private async getMessageFromDatabase(key: WAMessageKey) {
+		if (!key?.id) return undefined;
+
+		const candidateJids = [key.remoteJid, key.remoteJidAlt].filter((value): value is string => !!value);
+
+		const baseWhere = and(eq(messages.provider, 'whatsapp'), eq(messages.providerMessageId, key.id));
+
+		const query = db.select({ providerPayload: messages.providerPayload }).from(messages).orderBy(desc(messages.createdAt)).limit(1);
+
+		const [row] =
+			candidateJids.length > 0
+				? await query.where(and(baseWhere, inArray(messages.externalId, candidateJids)))
+				: await query.where(baseWhere);
+
+		const payload = row?.providerPayload as { message?: unknown } | undefined;
+		if (payload?.message) {
+			return payload.message as any;
+		}
+
+		return undefined;
+	}
 
 	constructor(config: BaileysConfig = {}) {
 		this.config = {
@@ -166,10 +229,18 @@ export class BaileysService {
 				printQRInTerminal: false,
 				defaultQueryTimeoutMs: undefined,
 				version: socketVersion,
+				getMessage: async (key) => {
+					try {
+						return await this.getMessageFromDatabase(key);
+					} catch (error) {
+						logger.warn({ err: error, key }, '⚠️ Falha ao resolver getMessage no banco');
+						return undefined;
+					}
+				},
 				// Configurações para melhorar estabilidade
 				syncFullHistory: false, // Não sincronizar todo histórico (evita timeout)
 				browser: ['Nexo AI', 'Chrome', '120.0.0'], // Identificação do cliente
-				markOnlineOnConnect: true, // Marcar online ao conectar
+				markOnlineOnConnect: false, // Mantém notificações no app WhatsApp
 				generateHighQualityLinkPreview: false, // Desabilitar preview de links pesado
 				patchMessageBeforeSending: (message) => {
 					// Remover extended text message desnecessário
@@ -336,7 +407,15 @@ export class BaileysService {
 
 		const jid = this.formatJid(phoneNumber);
 		logger.info({ recipient: phoneNumber, jid, textLength: text.length }, '📤 Enviando mensagem via Baileys');
-		await this.sock!.sendMessage(jid, { text });
+		const sent = await this.sock!.sendMessage(jid, { text });
+
+		logger.debug(
+			{
+				messageId: sent?.key?.id,
+				remoteJid: sent?.key?.remoteJid,
+			},
+			'🧾 Mensagem enviada registrada no socket Baileys',
+		);
 		logger.info({ jid }, '✅ Mensagem enviada com sucesso via Baileys');
 	}
 
@@ -679,18 +758,16 @@ export class BaileysService {
 				return null;
 			}
 
-			// Verificar se é mensagem de grupo
-			const isGroup = remoteJid.includes('@g.us');
-			const _isBroadcast = remoteJid.includes('@broadcast');
-
-			// Extrair número de telefone
-			const phoneNumber = remoteJid.split('@')[0] || '';
+			const remote = this.parseJid(remoteJid);
+			const participant = this.parseJid(message.key.participant ?? undefined);
 
 			// Para grupos, o userId é o remetente original
-			let userId = phoneNumber;
-			if (isGroup && message.key.participant) {
-				userId = message.key.participant.split('@')[0];
+			let userId = remote.identifier;
+			if (remote.isGroup && participant.raw) {
+				userId = participant.identifier;
 			}
+
+			const phoneNumber = remote.isPn ? remote.identifier : participant.isPn ? participant.identifier : undefined;
 
 			// Nome do remetente
 			const senderName = message.pushName || '';
@@ -699,6 +776,21 @@ export class BaileysService {
 			const timestampValue =
 				typeof message.messageTimestamp === 'number' ? message.messageTimestamp : (message.messageTimestamp as any)?.toNumber?.() || 0;
 			const timestamp = new Date(timestampValue * 1000);
+
+			const trimmedText = text.trim();
+			let callbackData: string | undefined;
+			if (/^[1-9]$/.test(trimmedText)) {
+				callbackData = `select_${Number.parseInt(trimmedText, 10) - 1}`;
+			}
+
+			const providerPayload = JSON.parse(
+				JSON.stringify({
+					key: message.key,
+					message: message.message,
+					messageTimestamp: message.messageTimestamp,
+					pushName: message.pushName,
+				}),
+			) as Record<string, unknown>;
 
 			return {
 				messageId: message.key.id || '',
@@ -709,10 +801,15 @@ export class BaileysService {
 				timestamp,
 				provider: 'whatsapp',
 				phoneNumber,
+				callbackData,
 				metadata: {
-					isGroupMessage: isGroup || false,
-					groupId: isGroup ? remoteJid : undefined,
-					messageType: 'text',
+					isGroupMessage: remote.isGroup || false,
+					groupId: remote.isGroup ? remoteJid : undefined,
+					messageType: callbackData ? 'callback' : 'text',
+					sourceApi: 'baileys',
+					remoteJid,
+					participantJid: message.key.participant ?? undefined,
+					providerPayload,
 				},
 			};
 		} catch (error) {
@@ -751,6 +848,7 @@ export class BaileysService {
 						{
 							incomingMsg: incomingMessage,
 							providerName: 'whatsapp',
+							providerApi: 'baileys',
 						},
 						{
 							removeOnComplete: true,
@@ -784,16 +882,7 @@ export class BaileysService {
 	 * Preserva JIDs já formatados (@lid, @g.us, @s.whatsapp.net, etc)
 	 */
 	private formatJid(phoneNumber: string): string {
-		// Se já está formatado com @, retorna como está
-		if (phoneNumber.includes('@')) {
-			return phoneNumber;
-		}
-
-		// Remover caracteres não numéricos
-		const cleaned = phoneNumber.replace(/\D/g, '');
-
-		// Adicionar sufixo @s.whatsapp.net para números puros
-		return `${cleaned}@s.whatsapp.net`;
+		return this.normalizeRecipientJid(phoneNumber);
 	}
 
 	/**

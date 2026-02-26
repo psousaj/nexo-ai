@@ -14,7 +14,57 @@ import type { ConversationContext, ConversationState, MessageRole } from '@/type
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
+type MessagePersistOptions = {
+	provider?: string;
+	externalId?: string;
+	providerMessageId?: string;
+	providerPayload?: Record<string, unknown>;
+};
+
 export class ConversationService {
+	private normalizeProviderPayload(payload?: Record<string, unknown>) {
+		if (!payload) return undefined;
+		return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+	}
+
+	private buildMessagePersistData(conversationId: string, role: MessageRole, content: string, options?: MessagePersistOptions) {
+		return {
+			conversationId,
+			role,
+			content,
+			provider: options?.provider,
+			externalId: options?.externalId,
+			providerMessageId: options?.providerMessageId,
+			providerPayload: this.normalizeProviderPayload(options?.providerPayload),
+		};
+	}
+
+	private async resolvePersistOptions(conversationId: string, role: MessageRole, options?: MessagePersistOptions) {
+		if (role !== 'assistant') {
+			return options;
+		}
+
+		if (options?.provider && options?.externalId) {
+			return options;
+		}
+
+		const [lastMessage] = await db
+			.select({
+				provider: messages.provider,
+				externalId: messages.externalId,
+			})
+			.from(messages)
+			.where(eq(messages.conversationId, conversationId))
+			.orderBy(desc(messages.createdAt))
+			.limit(1);
+
+		return {
+			...options,
+			provider: options?.provider ?? lastMessage?.provider ?? undefined,
+			externalId: options?.externalId ?? lastMessage?.externalId ?? undefined,
+		};
+	}
+
 	/**
 	 * Busca ou cria conversação ativa para o usuário
 	 * Conversas 'closed' são consideradas inativas e uma nova é criada
@@ -129,10 +179,7 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info(
-				{ reason, confidence: ambiguityResult.confidence },
-				'🔍 Ambiguidade detectada, solicitando clarificação',
-			);
+			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
 
 			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
 			const clarificationOptions = await getClarificationOptions(language);
@@ -168,14 +215,12 @@ export class ConversationService {
 	/**
 	 * Adiciona mensagem ao histórico
 	 */
-	async addMessage(conversationId: string, role: MessageRole, content: string) {
+	async addMessage(conversationId: string, role: MessageRole, content: string, options?: MessagePersistOptions) {
+		const resolvedOptions = await this.resolvePersistOptions(conversationId, role, options);
+
 		const [message] = await db
 			.insert(messages)
-			.values({
-				conversationId,
-				role,
-				content,
-			})
+			.values(this.buildMessagePersistData(conversationId, role, content, resolvedOptions))
 			.returning();
 
 		return message;

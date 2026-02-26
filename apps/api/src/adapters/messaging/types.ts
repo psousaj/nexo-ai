@@ -66,6 +66,14 @@ export interface MessageMetadata {
 	botMentioned?: boolean;
 	/** Message type (text, command, etc) */
 	messageType: 'text' | 'command' | 'callback' | 'unknown';
+	/** Origem específica da API quando provider=whatsapp */
+	sourceApi?: 'meta' | 'baileys';
+	/** JID remoto original (quando aplicável) */
+	remoteJid?: string;
+	/** Participante original em grupos (quando aplicável) */
+	participantJid?: string;
+	/** Payload bruto do provider para casos avançados (ex: getMessage no Baileys) */
+	providerPayload?: Record<string, unknown>;
 }
 
 /**

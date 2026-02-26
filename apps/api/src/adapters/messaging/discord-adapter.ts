@@ -323,6 +323,18 @@ export class DiscordAdapter implements MessagingProvider {
 	 */
 	private async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
 		const { customId } = interaction;
+		const providerPayload = JSON.parse(
+			JSON.stringify({
+				id: interaction.id,
+				customId,
+				channelId: interaction.channelId,
+				guildId: interaction.guildId,
+				user: {
+					id: interaction.user.id,
+					username: interaction.user.username,
+				},
+			}),
+		) as Record<string, unknown>;
 
 		loggers.discord.info({ customId, user: interaction.user.tag }, '🔘 Button clicked');
 
@@ -349,6 +361,7 @@ export class DiscordAdapter implements MessagingProvider {
 				isGroupMessage: interaction.inGuild(),
 				groupId: interaction.inGuild() ? (interaction.guildId ?? undefined) : undefined,
 				messageType: 'callback',
+				providerPayload,
 			},
 		};
 
@@ -413,6 +426,7 @@ export class DiscordAdapter implements MessagingProvider {
 	 */
 	parseIncomingMessage(payload: any): IncomingMessage | null {
 		const message = payload as DiscordMessage<boolean>;
+		const providerPayload = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
 
 		if (!message || !message.author) {
 			return null;
@@ -472,6 +486,7 @@ export class DiscordAdapter implements MessagingProvider {
 				groupTitle: isGuildMessage ? message.guild?.name : undefined,
 				botMentioned,
 				messageType: isCommand ? 'command' : 'text',
+				providerPayload,
 			},
 		};
 	}

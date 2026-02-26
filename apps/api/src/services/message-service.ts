@@ -322,6 +322,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								message: messageText,
 								callbackData: incomingMsg.callbackData,
 								provider: provider.getProviderName(),
+								providerMessageId: incomingMsg.messageId,
+								providerPayload: incomingMsg.metadata?.providerPayload,
 							});
 						});
 

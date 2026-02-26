@@ -104,6 +104,7 @@ queueLogger.info('✅ Queue "close-conversation" criada');
 export const messageQueue = new Queue<{
 	incomingMsg: IncomingMessage;
 	providerName: ProviderType;
+	providerApi?: 'meta' | 'baileys';
 }>('message-processing', REDIS_CONFIG);
 
 queueLogger.info('✅ Queue "message-processing" criada');
@@ -303,7 +304,7 @@ closeConversationQueue.process('close-conversation', async (job) => {
  */
 messageQueue.process('message-processing', async (job) => {
 	return startSpan('queue.message.process', async (_span) => {
-		const { incomingMsg, providerName } = job.data;
+		const { incomingMsg, providerName, providerApi } = job.data;
 
 		setAttributes({
 			'queue.name': 'message-processing',
@@ -320,7 +321,17 @@ messageQueue.process('message-processing', async (job) => {
 			);
 
 			const { processMessage } = await import('./message-service');
-			const provider = await getProvider(providerName);
+			let provider = await getProvider(providerName);
+
+			if (providerName === 'whatsapp' && providerApi === 'baileys') {
+				const { createBaileysAdapter } = await import('@/adapters/messaging/baileys-adapter');
+				provider = createBaileysAdapter();
+			}
+
+			if (providerName === 'whatsapp' && providerApi === 'meta') {
+				const { whatsappAdapter } = await import('@/adapters/messaging/whatsapp-adapter');
+				provider = whatsappAdapter;
+			}
 
 			if (!provider) {
 				throw new Error(`Provider ${providerName} não encontrado para o job`);

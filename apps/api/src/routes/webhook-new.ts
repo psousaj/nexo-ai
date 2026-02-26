@@ -117,6 +117,7 @@ export const webhookRoutes = new Hono()
 						{
 							incomingMsg: message,
 							providerName: 'whatsapp',
+							providerApi: 'meta',
 						},
 						{
 							removeOnComplete: true,
