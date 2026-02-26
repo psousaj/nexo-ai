@@ -125,8 +125,16 @@ export class AgentOrchestrator {
 					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
 					const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
-					await conversationService.addMessage(conversation.id, 'user', context.message);
-					await conversationService.addMessage(conversation.id, 'assistant', responseMessage);
+					await conversationService.addMessage(conversation.id, 'user', context.message, {
+						provider: context.provider,
+						externalId: context.externalId,
+						providerMessageId: context.providerMessageId,
+						providerPayload: context.providerPayload,
+					});
+					await conversationService.addMessage(conversation.id, 'assistant', responseMessage, {
+						provider: context.provider,
+						externalId: context.externalId,
+					});
 
 					return {
 						message: responseMessage,
@@ -290,7 +298,10 @@ export class AgentOrchestrator {
 				providerPayload: context.providerPayload,
 			});
 			if (response.message) {
-				await conversationService.addMessage(conversation.id, 'assistant', response.message);
+				await conversationService.addMessage(conversation.id, 'assistant', response.message, {
+					provider: context.provider,
+					externalId: context.externalId,
+				});
 			}
 
 			// 7. AGENDAR FECHAMENTO SE A AÇÃO FINALIZOU
@@ -1248,8 +1259,16 @@ export class AgentOrchestrator {
 				pendingClarification: undefined, // Limpa para não entrar em loop
 			});
 
-			await conversationService.addMessage(conversation.id, 'user', context.message);
-			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage);
+			await conversationService.addMessage(conversation.id, 'user', context.message, {
+				provider: context.provider,
+				externalId: context.externalId,
+				providerMessageId: context.providerMessageId,
+				providerPayload: context.providerPayload,
+			});
+			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage, {
+				provider: context.provider,
+				externalId: context.externalId,
+			});
 
 			return {
 				message: offTopicMessage,
@@ -1267,8 +1286,16 @@ export class AgentOrchestrator {
 			clarificationAttempts: attempts,
 		});
 
-		await conversationService.addMessage(conversation.id, 'user', context.message);
-		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse);
+		await conversationService.addMessage(conversation.id, 'user', context.message, {
+			provider: context.provider,
+			externalId: context.externalId,
+			providerMessageId: context.providerMessageId,
+			providerPayload: context.providerPayload,
+		});
+		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse, {
+			provider: context.provider,
+			externalId: context.externalId,
+		});
 
 		return {
 			message: conversationalResponse,
