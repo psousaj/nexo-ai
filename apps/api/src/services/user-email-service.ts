@@ -166,7 +166,10 @@ export class UserEmailService {
 			return false;
 		}
 
-		await db.update(users).set({ emailVerified: true, status: 'active', updatedAt: new Date() }).where(eq(users.id, userId));
+		await db
+			.update(users)
+			.set({ emailVerified: true, status: 'active', updatedAt: new Date() })
+			.where(eq(users.id, userId));
 
 		return true;
 	}

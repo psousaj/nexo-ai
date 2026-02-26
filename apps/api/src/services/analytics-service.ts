@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { instrumentService } from '@/services/service-instrumentation';
 import { conversations, memoryItems, messages, users } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
 import { count, desc, eq, sql } from 'drizzle-orm';
 
 export class AnalyticsService {
@@ -11,7 +11,10 @@ export class AnalyticsService {
 		const [totalUsers] = await db.select({ value: count() }).from(users);
 		const [totalMemories] = await db.select({ value: count() }).from(memoryItems);
 		const [totalMessages] = await db.select({ value: count() }).from(messages);
-		const [activeConvs] = await db.select({ value: count() }).from(conversations).where(eq(conversations.isActive, true));
+		const [activeConvs] = await db
+			.select({ value: count() })
+			.from(conversations)
+			.where(eq(conversations.isActive, true));
 
 		// Simulação de trends (em um cenário real seria comparado com o período anterior)
 		return [

@@ -1,7 +1,7 @@
 import { cacheGet, cacheSet } from '@/config/redis';
+import { instrumentService } from '@/services/service-instrumentation';
 import type { LinkMetadata } from '@/types';
 import { loggers } from '@/utils/logger';
-import { instrumentService } from '@/services/service-instrumentation';
 import { fetchWithRetry } from '@/utils/retry';
 
 interface OpenGraphData {

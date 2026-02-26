@@ -42,8 +42,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
 	}
 
 	// Rota pública com sessão ativa → redireciona para callbackUrl ou dashboard
+	// Remove callbackUrl dos query params e repassa o restante para a rota destino,
+	// permitindo que features como vinculate_code (e quaisquer futuras) atravessem o redirect
 	if (isPublicRoute && authStore.isAuthenticated && to.path !== '/confirm-email') {
 		const callbackUrl = (to.query.callbackUrl as string) || '/';
-		return navigateTo(callbackUrl, { replace: true });
+		const { callbackUrl: _removed, ...forwardQuery } = to.query;
+		const hasForwardQuery = Object.keys(forwardQuery).length > 0;
+		return navigateTo(hasForwardQuery ? { path: callbackUrl, query: forwardQuery } : callbackUrl, { replace: true });
 	}
 });

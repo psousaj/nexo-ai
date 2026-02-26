@@ -1,7 +1,14 @@
 import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
-import { accounts as betterAuthAccounts, authProviders, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
+import {
+	authProviders,
+	accounts as betterAuthAccounts,
+	conversations,
+	linkingTokens,
+	memoryItems,
+	users,
+} from '@/db/schema';
 import type { LinkingTokenProvider, LinkingTokenType } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
@@ -46,7 +53,9 @@ export class AccountLinkingService {
 		}
 
 		// Gera um token aleatório de 12 caracteres (base64url safe)
-		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+		const token =
+			Math.random().toString(36).substring(2, 10).toUpperCase() +
+			Math.random().toString(36).substring(2, 6).toUpperCase();
 
 		const expiresAt = new Date();
 		if (tokenType === 'signup') {
@@ -121,7 +130,10 @@ export class AccountLinkingService {
 	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
 	 *   - Apenas vincula a conta do bot ao usuário do Dashboard
 	 */
-	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
+	async linkTokenAccountToUser(
+		token: string,
+		targetUserId: string,
+	): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
 		const [linkToken] = await db
 			.select()
 			.from(linkingTokens)
@@ -161,9 +173,16 @@ export class AccountLinkingService {
 	 * 4. Ativa o novo usuário (status → active)
 	 * 5. Invalida cache das contas migradas
 	 */
-	private async migrateTrialUserToAccount(trialUserId: string, targetUserId: string, provider: ProviderType): Promise<void> {
+	private async migrateTrialUserToAccount(
+		trialUserId: string,
+		targetUserId: string,
+		provider: ProviderType,
+	): Promise<void> {
 		if (trialUserId === targetUserId) {
-			loggers.webhook.warn({ trialUserId, targetUserId, provider }, '⚠️ Migração ignorada: trialUserId igual ao targetUserId');
+			loggers.webhook.warn(
+				{ trialUserId, targetUserId, provider },
+				'⚠️ Migração ignorada: trialUserId igual ao targetUserId',
+			);
 			return;
 		}
 
@@ -173,7 +192,10 @@ export class AccountLinkingService {
 		const trialAccounts = await userService.getUserAccounts(trialUserId);
 
 		// 1. Migra authProviders: reatribui do trial para o target
-		await db.update(authProviders).set({ userId: targetUserId, updatedAt: new Date() }).where(eq(authProviders.userId, trialUserId));
+		await db
+			.update(authProviders)
+			.set({ userId: targetUserId, updatedAt: new Date() })
+			.where(eq(authProviders.userId, trialUserId));
 
 		// 2. Migra memory_items
 		await db.update(memoryItems).set({ userId: targetUserId }).where(eq(memoryItems.userId, trialUserId));
