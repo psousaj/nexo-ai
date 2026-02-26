@@ -16,7 +16,7 @@ import { loggers } from '@/utils/logger';
 import type { WAMessage } from '@whiskeysockets/baileys';
 import type { IncomingMessage, MessagingProvider, ProviderType } from './types';
 
-const logger = loggers.ai;
+const logger = loggers.baileys;
 
 export class BaileysAdapter implements MessagingProvider {
 	private service: Awaited<ReturnType<typeof getBaileysService>> | null = null;
@@ -160,14 +160,8 @@ export class BaileysAdapter implements MessagingProvider {
 	 */
 	async sendMessage(recipient: string, text: string, _options?: any): Promise<void> {
 		const service = await this.getService();
-
-		// Se recipient já está formatado com @ (qualquer sufixo: @s.whatsapp.net, @lid, @g.us), usa direto
-		// Senão, formata como número de telefone
-		const phoneNumber = recipient.includes('@') ? recipient : recipient;
-
 		logger.info({ recipient, textLength: text.length }, '📤 Enviando mensagem via Baileys');
-
-		await service.sendMessage(phoneNumber, text);
+		await service.sendMessage(recipient, text);
 	}
 
 	/**
@@ -187,15 +181,7 @@ export class BaileysAdapter implements MessagingProvider {
 	 */
 	async sendTypingIndicator(chatId: string): Promise<void> {
 		const service = await this.getService();
-		const sock = (service as any).sock;
-
-		if (sock && chatId) {
-			// Formatar JID se necessário (preserva @lid, @g.us, etc)
-			const jid = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`;
-
-			await sock.chatModify({ markChatRead: false }, jid);
-			logger.debug({ chatId: jid }, '⌨️ Indicador de typing enviado');
-		}
+		await service.sendTypingIndicator(chatId);
 	}
 
 	/**
@@ -214,67 +200,15 @@ export class BaileysAdapter implements MessagingProvider {
 	 */
 	async sendMessageWithButtons(chatId: string, text: string, buttons: any[], _options?: any): Promise<void> {
 		const service = await this.getService();
-		const sock = (service as any).sock;
-
-		if (!sock) {
-			throw new Error('Socket não inicializado');
-		}
-
-		// Formatar JID se necessário (preserva @lid, @g.us, etc)
-		const jid = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`;
-
-		// Converter botões para formato do WhatsApp
-		// buttons é array de arrays ou array de objetos
-		const buttonRows = Array.isArray(buttons[0]) ? buttons : [buttons];
-
-		const waButtons = buttonRows
-			.map((row: any[]) =>
-				row
-					.map((btn: any) => ({
-						buttonId: btn.callback_data || btn.buttonId,
-						buttonText: { displayText: btn.text },
-						type: 1,
-					}))
-					.filter((btn: any) => btn.buttonId && btn.buttonText),
-			)
-			.filter((row: any[]) => row.length > 0);
-
-		if (waButtons.length === 0) {
-			// Se não há botões válidos, envia texto simples
-			await this.sendMessage(jid, text);
-			return;
-		}
-
-		// Enviar mensagem com botões
-		await sock.sendMessage(jid, {
-			text,
-			buttons: waButtons.flat(),
-		});
-
-		logger.info({ chatId: jid, buttonsCount: waButtons.flat().length }, '📨 Mensagem com botões enviada via Baileys');
+		await service.sendMessageWithButtons(chatId, text, buttons);
 	}
 
 	/**
 	 * Enviar foto com caption
 	 */
-	async sendPhoto(chatId: string, photoUrl: string, caption?: string, _buttons?: any[], _options?: any): Promise<void> {
+	async sendPhoto(chatId: string, photoUrl: string, caption?: string, buttons?: any[], _options?: any): Promise<void> {
 		const service = await this.getService();
-		const sock = (service as any).sock;
-
-		if (!sock) {
-			throw new Error('Socket não inicializado');
-		}
-
-		// Formatar JID se necessário (preserva @lid, @g.us, etc)
-		const jid = chatId.includes('@') ? chatId : `${chatId}@s.whatsapp.net`;
-
-		// Enviar imagem
-		await sock.sendMessage(jid, {
-			image: { url: photoUrl },
-			caption: caption || '',
-		});
-
-		logger.info({ chatId: jid, photoUrl }, '📸 Foto enviada via Baileys');
+		await service.sendPhoto(chatId, photoUrl, caption, buttons);
 	}
 
 	/**

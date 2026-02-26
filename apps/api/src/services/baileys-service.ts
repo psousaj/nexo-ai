@@ -129,13 +129,16 @@ export class BaileysService {
 	 */
 	async connect(): Promise<void> {
 		if (this.isConnecting) {
-			logger.warn('Baileys já está em processo de conexão');
+			logger.warn('Baileys já está em processo de conexão, aguardando...');
+			await this.waitForOpenConnection(30000);
+			if (this.connectionState.connection !== 'open') {
+				throw new Error(this.connectionError || 'BaileysConnectTimeout: conexão não abriu em 30s');
+			}
 			return;
 		}
 
 		// Se já existe socket conectado, não reconectar
 		if (this.sock && this.connectionState.connection === 'open') {
-			logger.warn('Baileys já está conectado');
 			return;
 		}
 
@@ -216,6 +219,12 @@ export class BaileysService {
 			});
 
 			logger.info('✅ Socket Baileys criado, aguardando conexão...');
+
+			// Aguarda a conexão abrir — erro real sobe ao invés de throw customizado
+			await this.waitForOpenConnection(30000);
+			if (this.connectionState.connection !== 'open') {
+				throw new Error(this.connectionError || 'BaileysConnectTimeout: conexão não abriu em 30s');
+			}
 		} catch (error) {
 			const connectErr = error instanceof Error ? error : new Error(String(error));
 			captureException(connectErr, {
@@ -322,45 +331,71 @@ export class BaileysService {
 	 * Enviar mensagem de texto
 	 */
 	async sendMessage(phoneNumber: string, text: string): Promise<void> {
-		if (!this.sock || this.connectionState.connection !== 'open') {
-			logger.warn(
-				{
-					connection: this.connectionState.connection || 'close',
-					isConnecting: this.isConnecting,
-					recipient: phoneNumber,
-				},
-				'⚠️ Baileys não conectado no envio, tentando reconectar automaticamente',
-			);
+		// connect() agora aguarda 'open' ou lança erro real
+		await this.connect();
 
-			if (!this.isConnecting) {
-				await this.connect().catch((err) => {
-					logger.warn({ err }, '⚠️ connect() falhou durante auto-reconnect de envio');
-				});
-			}
+		const jid = this.formatJid(phoneNumber);
+		logger.info({ recipient: phoneNumber, jid, textLength: text.length }, '📤 Enviando mensagem via Baileys');
+		await this.sock!.sendMessage(jid, { text });
+		logger.info({ jid }, '✅ Mensagem enviada com sucesso via Baileys');
+	}
 
-			await this.waitForOpenConnection(12000);
+	/**
+	 * Enviar mensagem com botões
+	 * WhatsApp não suporta inline buttons como Telegram —
+	 * formata como lista numerada para seleção por resposta de texto
+	 */
+	async sendMessageWithButtons(
+		phoneNumber: string,
+		text: string,
+		buttons: Array<Array<{ text: string; callback_data?: string }>>,
+	): Promise<void> {
+		await this.connect();
+		const jid = this.formatJid(phoneNumber);
+		const flatButtons = buttons.flat().filter((b) => b.text?.trim());
 
-			if (!this.sock || this.connectionState.connection !== 'open') {
-				const error = new Error('Baileys não está conectado');
-				captureException(error, {
-					provider: 'whatsapp',
-					state: 'baileys_send_message',
-					connection: this.connectionState.connection || 'close',
-					recipient: phoneNumber,
-					text_length: text?.length || 0,
-				});
-				throw error;
-			}
+		if (flatButtons.length === 0) {
+			await this.sock!.sendMessage(jid, { text });
+			return;
 		}
 
-		// Formatar JID (Jaber ID) - preserva @lid, @g.us, etc
+		const numbered = flatButtons.map((btn, i) => `${i + 1}️⃣ ${btn.text}`).join('\n');
+		await this.sock!.sendMessage(jid, { text: `${text}\n\n${numbered}\n\n_Responda com o número da opção_` });
+		logger.info({ jid, optionsCount: flatButtons.length }, '📝 Lista de opções enviada via Baileys');
+	}
+
+	/**
+	 * Enviar foto com caption (e opções numeradas se houver botões)
+	 */
+	async sendPhoto(
+		phoneNumber: string,
+		photoUrl: string,
+		caption?: string,
+		buttons?: Array<Array<{ text: string; callback_data?: string }>>,
+	): Promise<void> {
+		await this.connect();
 		const jid = this.formatJid(phoneNumber);
 
-		logger.info({ recipient: phoneNumber, jid, textLength: text.length }, '📤 Enviando mensagem via Baileys');
+		let captionText = caption || '';
+		const flatButtons = buttons?.flat().filter((b) => b.text?.trim()) || [];
+		if (flatButtons.length > 0) {
+			const numbered = flatButtons.map((btn, i) => `${i + 1}️⃣ ${btn.text}`).join('\n');
+			captionText += `\n\n${numbered}\n\n_Responda com o número da opção_`;
+		}
 
-		await this.sock.sendMessage(jid, { text });
+		await this.sock!.sendMessage(jid, { image: { url: photoUrl }, caption: captionText });
+		logger.info({ jid, photoUrl, hasButtons: flatButtons.length > 0 }, '📸 Foto enviada via Baileys');
+	}
 
-		logger.info({ jid }, '✅ Mensagem enviada com sucesso via Baileys');
+	async sendTypingIndicator(phoneNumber: string): Promise<void> {
+		if (this.connectionState.connection !== 'open' || !this.sock) return;
+		const jid = this.formatJid(phoneNumber);
+		try {
+			await this.sock.sendPresenceUpdate('composing', jid);
+			logger.debug({ jid }, '⌨️ Typing indicator enviado');
+		} catch (err) {
+			logger.warn({ err, jid }, 'Falha ao enviar typing indicator (não crítico)');
+		}
 	}
 
 	private async waitForOpenConnection(timeoutMs: number): Promise<void> {

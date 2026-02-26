@@ -76,7 +76,7 @@ function extractErrorForSentry(args: unknown[]): { error: Error; extra: Record<s
 	}
 }
 
-function createContextLogger(context: string) {
+function createContextLogger(context: string): pino.Logger {
 	const child = logger.child({ context }) as any;
 	const originalError = child.error.bind(child);
 
