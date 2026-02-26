@@ -22,6 +22,26 @@ const logger = loggers.baileys;
 export class BaileysAdapter implements MessagingProvider {
 	private service: Awaited<ReturnType<typeof getBaileysService>> | null = null;
 
+	private parseJid(jid?: string): {
+		raw: string;
+		identifier: string;
+		server: string;
+		isGroup: boolean;
+		isPn: boolean;
+	} {
+		const raw = jid || '';
+		const [identifier = '', server = ''] = raw.split('@');
+		const normalizedServer = server.toLowerCase();
+
+		return {
+			raw,
+			identifier,
+			server: normalizedServer,
+			isGroup: normalizedServer === 'g.us',
+			isPn: normalizedServer === 's.whatsapp.net',
+		};
+	}
+
 	/**
 	 * Inicializa o serviço Baileys
 	 */
@@ -93,16 +113,16 @@ export class BaileysAdapter implements MessagingProvider {
 
 			// Verificar se é mensagem de grupo
 			// Formato: 5511999999999-1234567890@g.us (grupo)
-			const isGroup = remoteJid?.includes('@g.us');
-			const _isBroadcast = remoteJid?.includes('@broadcast');
+			const remote = this.parseJid(remoteJid ?? undefined);
+			const participant = this.parseJid(msg.key.participant ?? undefined);
 
-			// Extrair número de telefone (remover sufixo)
-			const phoneNumber: string = remoteJid?.split('@')[0] || '';
+			const isGroup = remote.isGroup;
+			const phoneNumber = remote.isPn ? remote.identifier : participant.isPn ? participant.identifier : undefined;
 
 			// Para grupos, o userId é o remetente original
-			let userId = phoneNumber;
+			let userId = remote.identifier;
 			if (isGroup && msg.key.participant) {
-				userId = msg.key.participant.split('@')[0];
+				userId = participant.identifier;
 			}
 
 			// Nome do remetente (pushName)
@@ -146,6 +166,9 @@ export class BaileysAdapter implements MessagingProvider {
 					isGroupMessage: isGroup || false,
 					groupId: isGroup ? (remoteJid ?? undefined) : undefined,
 					messageType: callbackData ? 'callback' : 'text',
+					sourceApi: 'baileys',
+					remoteJid: remoteJid ?? undefined,
+					participantJid: msg.key.participant ?? undefined,
 				},
 			};
 		} catch (error) {

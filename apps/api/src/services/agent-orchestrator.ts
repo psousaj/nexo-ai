@@ -55,6 +55,8 @@ export interface AgentContext {
 	// Telegram callback data
 	callbackData?: string;
 	provider: string; // Provider sempre obrigatório (vem do webhook)
+	providerMessageId?: string;
+	providerPayload?: Record<string, unknown>;
 	// OpenClaw pattern: session key for context building
 	sessionKey?: string; // Optional for backward compatibility
 }
@@ -281,7 +283,12 @@ export class AgentOrchestrator {
 			// 6. SALVAR MENSAGENS
 			// Se a resposta for nula (ex: handleAmbiguousMessage), não salva resposta vazia
 			// Mas a mensagem do user SEMPRE deve ser salva
-			await conversationService.addMessage(conversation.id, 'user', context.message);
+			await conversationService.addMessage(conversation.id, 'user', context.message, {
+				provider: context.provider,
+				externalId: context.externalId,
+				providerMessageId: context.providerMessageId,
+				providerPayload: context.providerPayload,
+			});
 			if (response.message) {
 				await conversationService.addMessage(conversation.id, 'assistant', response.message);
 			}

@@ -15,6 +15,11 @@ import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
 export class ConversationService {
+	private normalizeProviderPayload(payload?: Record<string, unknown>) {
+		if (!payload) return undefined;
+		return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+	}
+
 	/**
 	 * Busca ou cria conversação ativa para o usuário
 	 * Conversas 'closed' são consideradas inativas e uma nova é criada
@@ -129,10 +134,7 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info(
-				{ reason, confidence: ambiguityResult.confidence },
-				'🔍 Ambiguidade detectada, solicitando clarificação',
-			);
+			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
 
 			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
 			const clarificationOptions = await getClarificationOptions(language);
@@ -168,13 +170,27 @@ export class ConversationService {
 	/**
 	 * Adiciona mensagem ao histórico
 	 */
-	async addMessage(conversationId: string, role: MessageRole, content: string) {
+	async addMessage(
+		conversationId: string,
+		role: MessageRole,
+		content: string,
+		options?: {
+			provider?: string;
+			externalId?: string;
+			providerMessageId?: string;
+			providerPayload?: Record<string, unknown>;
+		},
+	) {
 		const [message] = await db
 			.insert(messages)
 			.values({
 				conversationId,
 				role,
 				content,
+				provider: options?.provider,
+				externalId: options?.externalId,
+				providerMessageId: options?.providerMessageId,
+				providerPayload: this.normalizeProviderPayload(options?.providerPayload),
 			})
 			.returning();
 
