@@ -36,9 +36,9 @@ RUN pnpm build --filter=@nexo/api
 RUN cd apps/api && pnpm train:nexo
 
 # ============================================
-# Stage 2: Production
+# Stage 2: Runner
 # ============================================
-FROM node:20-alpine AS production
+FROM crg.dev/chainguard/node:latest AS runner
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
