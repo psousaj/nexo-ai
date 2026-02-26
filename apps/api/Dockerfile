@@ -48,6 +48,7 @@ RUN addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
 WORKDIR /app
 
 RUN chown -R appuser:appgroup /app
+RUN chmod -R 770 /app
 
 # Copia configs do monorepo
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
