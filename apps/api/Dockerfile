@@ -19,6 +19,9 @@ COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 COPY packages/prettier-config/package.json packages/prettier-config/
 
+# Copia patches do pnpm (ex: Platform.MACOS fix do Baileys)
+COPY patches/ patches/
+
 # Instala dependências (todas, incluindo dev para build)
 RUN pnpm install --frozen-lockfile
 
@@ -61,6 +64,9 @@ COPY packages/otel/package.json packages/otel/
 COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 COPY packages/prettier-config/package.json packages/prettier-config/
+
+# Copia patches do pnpm (ex: Platform.MACOS fix do Baileys)
+COPY patches/ patches/
 
 # Instala apenas dependências de produção
 RUN pnpm install --frozen-lockfile --prod

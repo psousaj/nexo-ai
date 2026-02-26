@@ -18,6 +18,7 @@ import { captureException } from '@/sentry';
 import { messageQueue } from '@/services/queue-service';
 import { loggers } from '@/utils/logger';
 import {
+	fetchLatestBaileysVersion,
 	type ConnectionState,
 	DisconnectReason,
 	type WAMessage,
@@ -55,6 +56,8 @@ export interface BaileysConnectionEvent {
  */
 export class BaileysService {
 	private sock: WASocket | null = null;
+	private cachedVersion: [number, number, number] | undefined;
+	private lastVersionFetch = 0;
 	private socketGeneration = 0;
 	private connectionState: ConnectionState = { connection: 'close' };
 	private config: Required<BaileysConfig>;
@@ -67,6 +70,7 @@ export class BaileysService {
 	private recoveryInProgress = false;
 	private recoveryAttempts = 0;
 	private readonly MAX_RECOVERY_ATTEMPTS = 3;
+	private readonly VERSION_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 	constructor(config: BaileysConfig = {}) {
 		this.config = {
@@ -75,6 +79,49 @@ export class BaileysService {
 			usePairingCode: config.usePairingCode || false,
 			phoneNumber: config.phoneNumber || '',
 		};
+	}
+
+	private parseVersionFromEnv(value?: string): [number, number, number] | undefined {
+		if (!value) return undefined;
+		const parts = value
+			.split(/[.,]/)
+			.map((v) => Number.parseInt(v.trim(), 10))
+			.filter((v) => Number.isFinite(v));
+
+		if (parts.length !== 3) return undefined;
+		return [parts[0], parts[1], parts[2]];
+	}
+
+	private async getSocketVersion(): Promise<[number, number, number]> {
+		const envVersion = this.parseVersionFromEnv(process.env.BAILEYS_SOCKET_VERSION);
+		if (envVersion) {
+			logger.info({ version: envVersion.join('.') }, '📌 Usando BAILEYS_SOCKET_VERSION do ambiente');
+			return envVersion;
+		}
+
+		const now = Date.now();
+		if (this.cachedVersion && now - this.lastVersionFetch < this.VERSION_CACHE_TTL_MS) {
+			return this.cachedVersion;
+		}
+
+		try {
+			const { version, isLatest } = await fetchLatestBaileysVersion();
+			if (isLatest && version?.length === 3) {
+				this.cachedVersion = [version[0], version[1], version[2]];
+				this.lastVersionFetch = now;
+				logger.info({ version: this.cachedVersion.join('.') }, '✅ Versão Baileys atualizada dinamicamente');
+				return this.cachedVersion;
+			}
+		} catch (error) {
+			logger.warn({ err: error }, '⚠️ Falha ao buscar versão dinâmica do Baileys');
+		}
+
+		// Fallback seguro (pode ser atualizado sem release via env BAILEYS_SOCKET_VERSION)
+		const fallback: [number, number, number] = this.cachedVersion || [2, 3000, 1034074495];
+		this.cachedVersion = fallback;
+		this.lastVersionFetch = now;
+		logger.warn({ version: fallback.join('.') }, '⚠️ Usando versão fallback do Baileys');
+		return fallback;
 	}
 
 	/**
@@ -105,6 +152,7 @@ export class BaileysService {
 		try {
 			logger.info({ authPath: this.config.authPath }, '🔄 Conectando Baileys...');
 			const generation = ++this.socketGeneration;
+			const socketVersion = await this.getSocketVersion();
 
 			// Autenticação com arquivos locais
 			const { state, saveCreds } = await useMultiFileAuthState(this.config.authPath);
@@ -114,10 +162,7 @@ export class BaileysService {
 				auth: state,
 				printQRInTerminal: false,
 				defaultQueryTimeoutMs: undefined,
-				// Fix para erro 405: WhatsApp passou a rejeitar Platform.WEB em 2026-02-24.
-				// A versão 1033893291 é aceita pelo servidor atual enquanto o PR #2365 não é merged.
-				// Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
-				version: [2, 3000, 1033893291],
+				version: socketVersion,
 				// Configurações para melhorar estabilidade
 				syncFullHistory: false, // Não sincronizar todo histórico (evita timeout)
 				browser: ['Nexo AI', 'Chrome', '120.0.0'], // Identificação do cliente
