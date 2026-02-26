@@ -13,6 +13,7 @@ Em **24/02/2026**, o WhatsApp alterou o servidor para rejeitar conexões que se 
 Versões afetadas: `@whiskeysockets/baileys@6.7.x`, `7.0.0-rc.5`, `7.0.0-rc.9` — ou seja, **todas as versões**.
 
 Referências:
+
 - Issue: https://github.com/WhiskeySockets/Baileys/issues/2370
 - PR com fix definitivo: https://github.com/WhiskeySockets/Baileys/pull/2365
 
@@ -30,44 +31,50 @@ E fecha a conexão. **Não é problema de credencial, sessão ou IP** — é rej
 
 ---
 
-## Solução Aplicada (Workaround)
+## Solução Aplicada
 
-Forçar a versão `[2, 3000, 1033893291]` no `makeWASocket`. Essa versão específica faz o servidor aceitar o client payload sem exigir `Platform.MACOS`.
+Duas camadas de fix aplicadas:
 
-```typescript
-// apps/api/src/services/baileys-service.ts
-const socket = makeWASocket({
-  auth: state,
-  version: [2, 3000, 1033893291], // ← workaround para 405
-  // ...
-});
+### 1. pnpm patch — `Platform.WEB → MACOS` (fix definitivo local)
+
+Arquivo: `patches/@whiskeysockets__baileys.patch`  
+Registrado em: `package.json` raiz → `pnpm.patchedDependencies`
+
+```diff
+- platform: proto.ClientPayload.UserAgent.Platform.WEB,
++ platform: proto.ClientPayload.UserAgent.Platform.MACOS,
 ```
+
+O pnpm aplica esse patch automaticamente a cada `pnpm install`. **Não some com reinstalação.**
+
+### 2. Versão dinâmica via `fetchLatestBaileysVersion()` (fallback)
+
+`baileys-service.ts` usa `fetchLatestBaileysVersion()` com cache de 12h e fallback para `[2, 3000, 1034074495]`, além de suporte ao env `BAILEYS_SOCKET_VERSION` para override manual sem redeploy.
 
 ---
 
 ## ⚠️ Ação Pendente — Checar ao atualizar o Baileys
 
-Antes de atualizar `@whiskeysockets/baileys` para qualquer nova versão:
+Quando atualizar `@whiskeysockets/baileys` para nova versão:
 
-1. **Verificar se o PR #2365 foi mergeado**: https://github.com/WhiskeySockets/Baileys/pull/2365  
-   - Se **sim**: o fix `Platform.WEB → MACOS` já está na lib. Remover a linha `version: [2, 3000, 1033893291]` do `makeWASocket` em `baileys-service.ts` e testar.  
-   - Se **não**: manter o workaround e verificar se a nova versão ainda aceita o `version` fixo.
+1. **Verificar se o PR #2365 foi mergeado**: https://github.com/WhiskeySockets/Baileys/pull/2365
+   - Se **sim**: o fix `Platform.MACOS` já está na lib oficial.
+     - Remover `patches/@whiskeysockets__baileys.patch`
+     - Remover a entrada `"@whiskeysockets/baileys"` de `pnpm.patchedDependencies` no `package.json` raiz
+     - Rodar `pnpm install` para confirmar que não há erros
+   - Se **não**: o patch continua necessário, mas precisará ser **recriado** para a nova versão:
+     ```bash
+     pnpm patch @whiskeysockets/baileys --edit-dir /tmp/baileys-patch
+     # editar /tmp/baileys-patch/lib/Utils/validate-connection.js
+     pnpm patch-commit '/tmp/baileys-patch'
+     ```
 
-2. **Testar após remover o workaround**:
-   - Limpar `./baileys-auth` completamente
-   - Subir o servidor e verificar se o QR Code é gerado
-   - Se `statusCode: 405` voltar → o fix ainda não chegou, recolocar o `version` fixo
-
-3. **Alternativa ao `version` fixo** (caso pare de funcionar): aplicar o patch manualmente na lib:
-   ```
-   # Em node_modules/@whiskeysockets/baileys/lib/Utils/validate-connection.js
-   # Trocar: platform: proto.ClientPayload.UserAgent.Platform.WEB
-   # Por:    platform: proto.ClientPayload.UserAgent.Platform.MACOS
-   ```
-   Mas isso exige `patch-package` para ser persistido.
+2. **Testar após qualquer mudança**:
+   - Limpar `./baileys-auth` (ou `/data/baileys-auth` em prod) completamente
+   - Subir o servidor e verificar se o QR Code é gerado sem erro 405
 
 ---
 
 ## Decisão
 
-Manter o workaround `version: [2, 3000, 1033893291]` até que o PR #2365 seja mergeado e uma nova versão do Baileys seja publicada. É a solução menos invasiva e confirmada por múltiplos usuários.
+Usar `pnpm patch` para aplicar `Platform.MACOS` diretamente na lib instalada. É persistente, commitado no repositório e reaplicado automaticamente em todo `pnpm install`. Remover o patch quando o PR #2365 for mergeado e uma nova versão do Baileys for publicada com o fix oficial.

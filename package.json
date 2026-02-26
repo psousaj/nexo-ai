@@ -1,6 +1,6 @@
 {
 	"name": "nexo-monorepo",
-	"version": "0.5.29",
+	"version": "0.5.30",
 	"private": true,
 	"workspaces": [
 		"apps/*",
@@ -35,5 +35,10 @@
 		"@biomejs/biome": "^1.9.4",
 		"turbo": "^2.5.4"
 	},
-	"packageManager": "pnpm@9.15.4"
+	"packageManager": "pnpm@9.15.4",
+	"pnpm": {
+		"patchedDependencies": {
+			"@whiskeysockets/baileys": "patches/@whiskeysockets__baileys.patch"
+		}
+	}
 }

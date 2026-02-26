@@ -1,0 +1,13 @@
+diff --git a/lib/Utils/validate-connection.js b/lib/Utils/validate-connection.js
+index 42fb902f30314efaf0cd89d138236478cfa13d1d..38a2e0c23b97817830261453686f5af51ff0d5fa 100644
+--- a/lib/Utils/validate-connection.js
++++ b/lib/Utils/validate-connection.js
+@@ -13,7 +13,7 @@ const getUserAgent = (config) => {
+             secondary: config.version[1],
+             tertiary: config.version[2]
+         },
+-        platform: proto.ClientPayload.UserAgent.Platform.WEB,
++        platform: proto.ClientPayload.UserAgent.Platform.MACOS,
+         releaseChannel: proto.ClientPayload.UserAgent.ReleaseChannel.RELEASE,
+         osVersion: '0.1',
+         device: 'Desktop',
