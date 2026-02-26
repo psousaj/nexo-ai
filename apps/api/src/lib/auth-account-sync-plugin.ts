@@ -30,7 +30,10 @@ export async function findUserByEmail(email: string) {
 			const [linkedUser] = await db.select().from(schema.users).where(eq(schema.users.id, userEmail.userId)).limit(1);
 
 			if (linkedUser) {
-				loggers.webhook.info({ userId: linkedUser.id, email }, '🔍 [Pre-check] Usuário existente encontrado via email secundário');
+				loggers.webhook.info(
+					{ userId: linkedUser.id, email },
+					'🔍 [Pre-check] Usuário existente encontrado via email secundário',
+				);
 				return linkedUser;
 			}
 		}
@@ -116,7 +119,12 @@ export async function syncOAuthAccount(params: {
 		const [existingAccount] = await db
 			.select()
 			.from(schema.authProviders)
-			.where(and(sql`${schema.authProviders.provider}::text = ${provider}`, eq(schema.authProviders.providerUserId, externalId)))
+			.where(
+				and(
+					sql`${schema.authProviders.provider}::text = ${provider}`,
+					eq(schema.authProviders.providerUserId, externalId),
+				),
+			)
 			.limit(1);
 
 		if (!existingAccount) {
@@ -140,14 +148,23 @@ export async function syncOAuthAccount(params: {
 					providerEmail: email || null,
 					updatedAt: new Date(),
 				})
-				.where(and(sql`${schema.authProviders.provider}::text = ${provider}`, eq(schema.authProviders.providerUserId, externalId)));
+				.where(
+					and(
+						sql`${schema.authProviders.provider}::text = ${provider}`,
+						eq(schema.authProviders.providerUserId, externalId),
+					),
+				);
 
 			loggers.webhook.info({ userId, provider, metadata }, '✅ auth_provider atualizado com metadata');
 		}
 
 		// 2. Sincronizar email com user_emails (se fornecido pelo provider)
 		if (email) {
-			const [existingEmail] = await db.select().from(schema.userEmails).where(eq(schema.userEmails.email, email)).limit(1);
+			const [existingEmail] = await db
+				.select()
+				.from(schema.userEmails)
+				.where(eq(schema.userEmails.email, email))
+				.limit(1);
 
 			if (!existingEmail) {
 				// Verifica se usuário já tem email primário

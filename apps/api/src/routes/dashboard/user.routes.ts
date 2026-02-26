@@ -1,8 +1,8 @@
-import { env } from '@/config/env';
 import { getProvider } from '@/adapters/messaging';
+import { env } from '@/config/env';
 import { getChannelLinkSuccessMessage } from '@/config/prompts';
 import { db } from '@/db';
-import { authProviderEnum, type AuthProvider, authProviders, accounts as betterAuthAccounts } from '@/db/schema';
+import { type AuthProvider, authProviderEnum, authProviders, accounts as betterAuthAccounts } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { emailService } from '@/services/email/email.service';
 import { preferencesService } from '@/services/preferences-service';
@@ -39,9 +39,14 @@ export const userRoutes = new Hono<AuthContext>()
 
 		try {
 			// Buscar todos os accounts do Better Auth
-			const betterAuthAccountsList = await db.select().from(betterAuthAccounts).where(eq(betterAuthAccounts.userId, userId));
+			const betterAuthAccountsList = await db
+				.select()
+				.from(betterAuthAccounts)
+				.where(eq(betterAuthAccounts.userId, userId));
 
-			console.log(`🔄 [Sync] Encontrado ${betterAuthAccountsList.length} account(s) no Better Auth para usuário ${userId}`);
+			console.log(
+				`🔄 [Sync] Encontrado ${betterAuthAccountsList.length} account(s) no Better Auth para usuário ${userId}`,
+			);
 
 			let synced = 0;
 			let skipped = 0;
@@ -60,7 +65,13 @@ export const userRoutes = new Hono<AuthContext>()
 				const [existingUserAccount] = await db
 					.select()
 					.from(authProviders)
-					.where(and(eq(authProviders.userId, userId), eq(authProviders.provider, providerId), eq(authProviders.providerUserId, accountId)))
+					.where(
+						and(
+							eq(authProviders.userId, userId),
+							eq(authProviders.provider, providerId),
+							eq(authProviders.providerUserId, accountId),
+						),
+					)
 					.limit(1);
 
 				if (existingUserAccount) {
@@ -261,27 +272,31 @@ export const userRoutes = new Hono<AuthContext>()
 
 		return c.json({ success: true, sentTo: user.email });
 	})
-	.post('/emails/:emailId/resend-confirmation', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
-		const userState = c.get('user');
-		const { emailId } = c.req.valid('param');
+	.post(
+		'/emails/:emailId/resend-confirmation',
+		zValidator('param', z.object({ emailId: z.string().uuid() })),
+		async (c) => {
+			const userState = c.get('user');
+			const { emailId } = c.req.valid('param');
 
-		const userEmail = await userEmailService.getEmailById(userState.id, emailId);
-		if (!userEmail) {
-			return c.json({ error: 'Email não encontrado' }, 404);
-		}
+			const userEmail = await userEmailService.getEmailById(userState.id, emailId);
+			if (!userEmail) {
+				return c.json({ error: 'Email não encontrado' }, 404);
+			}
 
-		if (userEmail.verified) {
-			return c.json({ success: true, alreadyVerified: true });
-		}
+			if (userEmail.verified) {
+				return c.json({ success: true, alreadyVerified: true });
+			}
 
-		await emailService.sendConfirmationEmail({
-			userId: userState.id,
-			userName: userState.name || 'usuário',
-			email: userEmail.email,
-		});
+			await emailService.sendConfirmationEmail({
+				userId: userState.id,
+				userName: userState.name || 'usuário',
+				email: userEmail.email,
+			});
 
-		return c.json({ success: true });
-	})
+			return c.json({ success: true });
+		},
+	)
 	.patch('/emails/:emailId/primary', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
 		const userState = c.get('user');
 		const { emailId } = c.req.valid('param');
@@ -315,7 +330,9 @@ export const userRoutes = new Hono<AuthContext>()
 
 		try {
 			// Deletar de auth_providers do nosso sistema
-			await db.delete(authProviders).where(and(eq(authProviders.userId, userState.id), eq(authProviders.provider, authProvider)));
+			await db
+				.delete(authProviders)
+				.where(and(eq(authProviders.userId, userState.id), eq(authProviders.provider, authProvider)));
 
 			// Deletar de accounts do Better Auth
 			await db

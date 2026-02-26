@@ -1,9 +1,9 @@
+import { instrumentService } from '@/services/service-instrumentation';
 import type { ItemMetadata, ItemType } from '@/types';
 import { loggers } from '@/utils/logger';
 import { openGraphService } from './opengraph-service';
 import { tmdbService } from './tmdb-service';
 import { youtubeService } from './youtube-service';
-import { instrumentService } from '@/services/service-instrumentation';
 
 /**
  * Serviço unificado de enriquecimento

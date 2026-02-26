@@ -1,5 +1,5 @@
-import { startSpan } from '@nexo/otel/tracing';
 import { logger } from '@/utils/logger';
+import { startSpan } from '@nexo/otel/tracing';
 
 const serviceLogger = logger.child({ context: 'SERVICE' });
 

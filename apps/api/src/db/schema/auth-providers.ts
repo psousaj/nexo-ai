@@ -9,7 +9,15 @@ import { users } from './users';
  * - (provider, providerUserId) é único globalmente
  * - (userId, provider) é único por usuário (1 vínculo por provider)
  */
-export const authProviderEnum = pgEnum('auth_provider', ['whatsapp', 'telegram', 'discord', 'google', 'microsoft', 'credential', 'email']);
+export const authProviderEnum = pgEnum('auth_provider', [
+	'whatsapp',
+	'telegram',
+	'discord',
+	'google',
+	'microsoft',
+	'credential',
+	'email',
+]);
 export type AuthProvider = (typeof authProviderEnum.enumValues)[number];
 
 export const authProviders = pgTable(
