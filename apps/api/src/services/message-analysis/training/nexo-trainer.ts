@@ -35,12 +35,37 @@ export interface TrainerConfig {
 	modelPath?: string;
 }
 
+function resolveDefaultModelPath(): string {
+	if (process.env.NEXO_MODEL_PATH?.trim()) {
+		return process.env.NEXO_MODEL_PATH.trim();
+	}
+
+	const srcModelPath = path.join(
+		process.cwd(),
+		'apps',
+		'api',
+		'src',
+		'services',
+		'message-analysis',
+		'training',
+		'model',
+		'nexo-model.nlp',
+	);
+	const bundledModelPath = path.join(__dirname, 'model', 'nexo-model.nlp');
+
+	if (fs.existsSync(srcModelPath)) {
+		return srcModelPath;
+	}
+
+	return bundledModelPath;
+}
+
 const DEFAULT_CONFIG: TrainerConfig = {
 	useBert: false,
 	epochs: 100,
 	learningRate: 0.1,
 	log: true,
-	modelPath: path.join(__dirname, 'model', 'nexo-model.nlp'),
+	modelPath: resolveDefaultModelPath(),
 };
 
 /**
@@ -75,6 +100,14 @@ export class NexoTrainer {
 		}
 
 		this.manager = new NlpManager(managerConfig);
+	}
+
+	getModelPath(): string {
+		return this.config.modelPath!;
+	}
+
+	hasModelFile(): boolean {
+		return fs.existsSync(this.config.modelPath!);
 	}
 
 	private log(message: string): void {
@@ -166,7 +199,12 @@ export class NexoTrainer {
 		// Garantir que o diretório existe
 		const modelDir = path.dirname(this.config.modelPath!);
 		if (!fs.existsSync(modelDir)) {
-			fs.mkdirSync(modelDir, { recursive: true });
+			try {
+				fs.mkdirSync(modelDir, { recursive: true });
+			} catch (error) {
+				const err = error as NodeJS.ErrnoException;
+				throw new Error(`Falha ao criar diretório do modelo (${modelDir}): ${err.code || err.message}`);
+			}
 		}
 
 		this.manager.save(this.config.modelPath);
@@ -177,7 +215,7 @@ export class NexoTrainer {
 	 * Carrega modelo existente
 	 */
 	async load(): Promise<boolean> {
-		if (fs.existsSync(this.config.modelPath!)) {
+		if (this.hasModelFile()) {
 			this.manager.load(this.config.modelPath);
 			this.log(`📂 Modelo carregado de: ${this.config.modelPath}`);
 			return true;

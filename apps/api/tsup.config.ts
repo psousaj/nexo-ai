@@ -41,12 +41,21 @@ export default defineConfig({
 
 		const templatesSource = join('src', 'templates');
 		const templatesDest = join('dist', 'templates');
+		const nlpModelSource = join('src', 'services', 'message-analysis', 'training', 'model');
+		const nlpModelDest = join('dist', 'model');
 
 		if (existsSync(templatesSource)) {
 			cpSync(templatesSource, templatesDest, { recursive: true });
 			console.log('✓ Templates copiados para dist/templates');
 		} else {
 			console.warn('⚠ Pasta templates não encontrada em', templatesSource);
+		}
+
+		if (existsSync(nlpModelSource)) {
+			cpSync(nlpModelSource, nlpModelDest, { recursive: true });
+			console.log('✓ Modelo NLP copiado para dist/model');
+		} else {
+			console.warn('⚠ Pasta do modelo NLP não encontrada em', nlpModelSource);
 		}
 	},
 });

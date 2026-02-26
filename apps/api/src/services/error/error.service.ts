@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { captureException } from '@/sentry';
+import { sentryLogger } from '@/sentry';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 
@@ -62,6 +63,15 @@ export class GlobalErrorService {
 				error_type: errorType,
 				error_message: errorMessage,
 				...errorExtra,
+				...context.extra,
+			});
+
+			sentryLogger.error('Global Error Captured', normalizedError, {
+				conversationId: context.conversationId,
+				provider: context.provider,
+				state: context.state,
+				intent: context.intent,
+				sessionId,
 				...context.extra,
 			});
 
