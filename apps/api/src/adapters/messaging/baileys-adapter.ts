@@ -12,9 +12,10 @@
  */
 
 import { getBaileysService } from '@/services/baileys-service';
+import { buildSessionKey as buildSessionKeyUtil, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
 import type { WAMessage } from '@whiskeysockets/baileys';
-import type { IncomingMessage, MessagingProvider, ProviderType } from './types';
+import type { IncomingMessage, MessagingProvider, ProviderType, SessionKeyParams, SessionKeyParts } from './types';
 
 const logger = loggers.baileys;
 
@@ -110,6 +111,14 @@ export class BaileysAdapter implements MessagingProvider {
 			// Timestamp
 			const timestamp = new Date(Number(msg.messageTimestamp || 0) * 1000);
 
+			// Detectar resposta numérica como seleção de botão (1-9 → select_0 ... select_8)
+			// Usuário responde "1" ou "2" quando o bot envia lista numerada de candidatos
+			const trimmedText = text.trim();
+			let callbackData: string | undefined;
+			if (/^[1-9]$/.test(trimmedText)) {
+				callbackData = `select_${Number.parseInt(trimmedText, 10) - 1}`;
+			}
+
 			logger.debug(
 				{
 					remoteJid,
@@ -118,6 +127,7 @@ export class BaileysAdapter implements MessagingProvider {
 					userId,
 					senderName,
 					textLength: text.length,
+					callbackData,
 				},
 				'📩 Mensagem Baileys parseada',
 			);
@@ -131,10 +141,11 @@ export class BaileysAdapter implements MessagingProvider {
 				timestamp,
 				provider: 'whatsapp',
 				phoneNumber,
+				callbackData,
 				metadata: {
 					isGroupMessage: isGroup || false,
 					groupId: isGroup ? (remoteJid ?? undefined) : undefined,
-					messageType: 'text',
+					messageType: callbackData ? 'callback' : 'text',
 				},
 			};
 		} catch (error) {
@@ -218,6 +229,20 @@ export class BaileysAdapter implements MessagingProvider {
 	async answerCallbackQuery(_callbackQueryId: string, _text?: string): Promise<void> {
 		// No-op para Baileys
 		logger.debug('📭 answerCallbackQuery (no-op para Baileys)');
+	}
+
+	/**
+	 * Constrói session key no formato OpenClaw
+	 */
+	buildSessionKey(params: SessionKeyParams): string {
+		return buildSessionKeyUtil(params);
+	}
+
+	/**
+	 * Parse session key em componentes
+	 */
+	parseSessionKey(key: string): SessionKeyParts {
+		return parseSessionKeyUtil(key);
 	}
 }
 
