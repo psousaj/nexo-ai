@@ -79,6 +79,8 @@ EXPOSE 3001
 
 # Diretório para persistir credenciais do Baileys (montado como volume no Railway)
 RUN mkdir -p /data/baileys-auth
+RUN chown -R appuser:appgroup /data/baileys-auth
+RUN chmod 770 /data/baileys-auth
 
 # Hardening: remove shell e loga resultado
 RUN set -eux; \
