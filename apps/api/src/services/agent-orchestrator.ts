@@ -74,6 +74,15 @@ export interface AgentResponse {
 export class AgentOrchestrator {
 	private readonly MAX_CLARIFICATION_ATTEMPTS = 4;
 
+	private buildMessagePersistOptions(context: AgentContext, includeProviderMessage = false) {
+		return {
+			provider: context.provider,
+			externalId: context.externalId,
+			providerMessageId: includeProviderMessage ? context.providerMessageId : undefined,
+			providerPayload: includeProviderMessage ? context.providerPayload : undefined,
+		};
+	}
+
 	/**
 	 * Processa mensagem do usuário
 	 */
@@ -125,16 +134,8 @@ export class AgentOrchestrator {
 					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
 					const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
-					await conversationService.addMessage(conversation.id, 'user', context.message, {
-						provider: context.provider,
-						externalId: context.externalId,
-						providerMessageId: context.providerMessageId,
-						providerPayload: context.providerPayload,
-					});
-					await conversationService.addMessage(conversation.id, 'assistant', responseMessage, {
-						provider: context.provider,
-						externalId: context.externalId,
-					});
+					await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+					await conversationService.addMessage(conversation.id, 'assistant', responseMessage, this.buildMessagePersistOptions(context));
 
 					return {
 						message: responseMessage,
@@ -291,17 +292,9 @@ export class AgentOrchestrator {
 			// 6. SALVAR MENSAGENS
 			// Se a resposta for nula (ex: handleAmbiguousMessage), não salva resposta vazia
 			// Mas a mensagem do user SEMPRE deve ser salva
-			await conversationService.addMessage(conversation.id, 'user', context.message, {
-				provider: context.provider,
-				externalId: context.externalId,
-				providerMessageId: context.providerMessageId,
-				providerPayload: context.providerPayload,
-			});
+			await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
 			if (response.message) {
-				await conversationService.addMessage(conversation.id, 'assistant', response.message, {
-					provider: context.provider,
-					externalId: context.externalId,
-				});
+				await conversationService.addMessage(conversation.id, 'assistant', response.message, this.buildMessagePersistOptions(context));
 			}
 
 			// 7. AGENDAR FECHAMENTO SE A AÇÃO FINALIZOU
@@ -1259,16 +1252,8 @@ export class AgentOrchestrator {
 				pendingClarification: undefined, // Limpa para não entrar em loop
 			});
 
-			await conversationService.addMessage(conversation.id, 'user', context.message, {
-				provider: context.provider,
-				externalId: context.externalId,
-				providerMessageId: context.providerMessageId,
-				providerPayload: context.providerPayload,
-			});
-			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage, {
-				provider: context.provider,
-				externalId: context.externalId,
-			});
+			await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage, this.buildMessagePersistOptions(context));
 
 			return {
 				message: offTopicMessage,
@@ -1286,16 +1271,8 @@ export class AgentOrchestrator {
 			clarificationAttempts: attempts,
 		});
 
-		await conversationService.addMessage(conversation.id, 'user', context.message, {
-			provider: context.provider,
-			externalId: context.externalId,
-			providerMessageId: context.providerMessageId,
-			providerPayload: context.providerPayload,
-		});
-		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse, {
-			provider: context.provider,
-			externalId: context.externalId,
-		});
+		await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse, this.buildMessagePersistOptions(context));
 
 		return {
 			message: conversationalResponse,

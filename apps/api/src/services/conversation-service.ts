@@ -14,10 +14,55 @@ import type { ConversationContext, ConversationState, MessageRole } from '@/type
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
+type MessagePersistOptions = {
+	provider?: string;
+	externalId?: string;
+	providerMessageId?: string;
+	providerPayload?: Record<string, unknown>;
+};
+
 export class ConversationService {
 	private normalizeProviderPayload(payload?: Record<string, unknown>) {
 		if (!payload) return undefined;
 		return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+	}
+
+	private buildMessagePersistData(conversationId: string, role: MessageRole, content: string, options?: MessagePersistOptions) {
+		return {
+			conversationId,
+			role,
+			content,
+			provider: options?.provider,
+			externalId: options?.externalId,
+			providerMessageId: options?.providerMessageId,
+			providerPayload: this.normalizeProviderPayload(options?.providerPayload),
+		};
+	}
+
+	private async resolvePersistOptions(conversationId: string, role: MessageRole, options?: MessagePersistOptions) {
+		if (role !== 'assistant') {
+			return options;
+		}
+
+		if (options?.provider && options?.externalId) {
+			return options;
+		}
+
+		const [lastMessage] = await db
+			.select({
+				provider: messages.provider,
+				externalId: messages.externalId,
+			})
+			.from(messages)
+			.where(eq(messages.conversationId, conversationId))
+			.orderBy(desc(messages.createdAt))
+			.limit(1);
+
+		return {
+			...options,
+			provider: options?.provider ?? lastMessage?.provider ?? undefined,
+			externalId: options?.externalId ?? lastMessage?.externalId ?? undefined,
+		};
 	}
 
 	/**
@@ -170,28 +215,12 @@ export class ConversationService {
 	/**
 	 * Adiciona mensagem ao histórico
 	 */
-	async addMessage(
-		conversationId: string,
-		role: MessageRole,
-		content: string,
-		options?: {
-			provider?: string;
-			externalId?: string;
-			providerMessageId?: string;
-			providerPayload?: Record<string, unknown>;
-		},
-	) {
+	async addMessage(conversationId: string, role: MessageRole, content: string, options?: MessagePersistOptions) {
+		const resolvedOptions = await this.resolvePersistOptions(conversationId, role, options);
+
 		const [message] = await db
 			.insert(messages)
-			.values({
-				conversationId,
-				role,
-				content,
-				provider: options?.provider,
-				externalId: options?.externalId,
-				providerMessageId: options?.providerMessageId,
-				providerPayload: this.normalizeProviderPayload(options?.providerPayload),
-			})
+			.values(this.buildMessagePersistData(conversationId, role, content, resolvedOptions))
 			.returning();
 
 		return message;
