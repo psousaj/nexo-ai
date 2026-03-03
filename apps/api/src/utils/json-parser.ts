@@ -1,4 +1,5 @@
 import { loggers } from '@/utils/logger';
+import { isValidAgentDecisionV2, type AgentDecisionV2 } from '@/types/agent-decision-v2';
 
 /**
  * Utilitário para parsear JSON de respostas LLM
@@ -65,4 +66,24 @@ export function isValidAgentResponse(obj: any): boolean {
 	if (obj.action === 'RESPOND' && !obj.message) return false;
 
 	return true;
+}
+
+/**
+ * Valida se é um AgentDecisionV2 válido
+ */
+export function isValidAgentDecisionV2Response(obj: unknown): obj is AgentDecisionV2 {
+	return isValidAgentDecisionV2(obj);
+}
+
+/**
+ * Parseia e valida resposta LLM no contrato AgentDecisionV2
+ */
+export function parseAgentDecisionV2FromLLM(text: string): AgentDecisionV2 {
+	const parsed = parseJSONFromLLM(text);
+
+	if (!isValidAgentDecisionV2Response(parsed)) {
+		throw new Error('AgentDecisionV2 inválido');
+	}
+
+	return parsed;
 }
