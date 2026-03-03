@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { sentryMetrics } from '@/sentry';
 import {
 	isValidAgentDecisionV2Response,
 	parseAgentDecisionV2FromLLM,
@@ -63,5 +64,38 @@ describe('json-parser AgentDecisionV2 helpers', () => {
 
 	test('throws explicit error for fallback/error message', () => {
 		expect(() => parseAgentDecisionV2FromLLM('⚠️ falha ao processar')).toThrowError('Resposta é mensagem de erro');
+	});
+
+	test('emits valid parse metric with action tag', () => {
+		const incrementSpy = vi.spyOn(sentryMetrics, 'increment').mockImplementation(() => undefined);
+
+		parseAgentDecisionV2FromLLM(
+			'{"schema_version":"2.0","action":"NOOP","reasoning_intent":{"category":"system","confidence":1,"trigger":"mixed"},"response":null,"tool_call":null}',
+		);
+
+		expect(incrementSpy).toHaveBeenCalledWith('agent_decision_v2_parse_valid_total', 1, { action: 'NOOP' });
+		incrementSpy.mockRestore();
+	});
+
+	test('emits invalid parse metric for validation failures', () => {
+		const incrementSpy = vi.spyOn(sentryMetrics, 'increment').mockImplementation(() => undefined);
+
+		expect(() =>
+			parseAgentDecisionV2FromLLM(
+				'{"schema_version":"2.1","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.8,"trigger":"natural_language"},"response":{"text":"ok","tone_profile":"friendly"},"tool_call":null}',
+			),
+		).toThrowError('AgentDecisionV2 inválido');
+
+		expect(incrementSpy).toHaveBeenCalledWith('agent_decision_v2_parse_invalid_total', 1, { stage: 'validation' });
+		incrementSpy.mockRestore();
+	});
+
+	test('emits invalid parse metric for json parse failures', () => {
+		const incrementSpy = vi.spyOn(sentryMetrics, 'increment').mockImplementation(() => undefined);
+
+		expect(() => parseAgentDecisionV2FromLLM('isso não é json')).toThrowError('Resposta não é JSON');
+
+		expect(incrementSpy).toHaveBeenCalledWith('agent_decision_v2_parse_invalid_total', 1, { stage: 'json_parse' });
+		incrementSpy.mockRestore();
 	});
 });
