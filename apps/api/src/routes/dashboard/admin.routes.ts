@@ -1,5 +1,6 @@
 import { getWhatsAppSettings, invalidateWhatsAppProviderCache, setActiveWhatsAppApi } from '@/adapters/messaging';
 import { env } from '@/config/env';
+import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { adminService } from '@/services/admin-service';
 import { getSystemTools } from '@/services/tools/registry';
 import { toolService } from '@/services/tools/tool.service';
@@ -20,6 +21,19 @@ export const adminRoutes = new Hono()
 				: null,
 			permissions: '268445712',
 			scopes: ['bot', 'applications.commands'],
+		});
+	})
+	.get('/pivot-feature-flags', async (c) => {
+		const flags = getPivotFeatureFlags();
+		const enabled = Object.values(flags).filter(Boolean).length;
+		const total = Object.keys(flags).length;
+
+		return c.json({
+			success: true,
+			data: {
+				flags,
+				meta: { enabled, total },
+			},
 		});
 	})
 	// ========== WhatsApp Settings ==========
