@@ -1,195 +1,195 @@
-# PLAN — Nexo AI Conversational Memory Pivot
+# PLAN — Nexo AI Pivot to a Conversational Memory Assistant
 
-## Objetivo
-Pivotar o Nexo AI de um fluxo rígido de CRUD para um **assistente conversacional de memórias**: conversa livre por padrão, com ações determinísticas quando há efeito colateral (save/update/delete/integrations), mantendo tool-calling JSON estrito.
+## 1) Goal
 
-## Branch e PR
+Refactor Nexo AI from a CRUD-first assistant into a **free conversational companion** that still enforces **strict deterministic execution** for side effects (save/update/delete/integrations).
+
+Core product behavior:
+- Free conversation by default (max 2–3 paragraphs per reply).
+- Detect memory-capture intent from slash commands, natural language, audio, and image.
+- Execute tools only through a strict JSON contract (`AgentDecisionV2`).
+- Keep tone/humor configurable per user profile (friendly by default).
+
+Target stack direction:
+- Keep **pnpm**.
+- Runtime: **Bun**.
+- HTTP framework migration: **Hono -> Elysia**.
+- Cron migration: **node-cron -> @elysiajs/cron**.
+
+---
+
+## 2) Program milestones
+
+- **M0 — Baseline & Guardrails**
+  - Observability, feature flags, schema telemetry, eval baseline.
+- **M1 — Conversational Freedom**
+  - Open chat flow + short-response policy + companion behavior.
+- **M2 — Strict Tool Contract V2**
+  - Runtime validation gate for all tool calls.
+- **M3 — Multimodal Memory Intake**
+  - Audio STT + image OCR (Python worker) + fallbacks.
+- **M4 — Provider Decoupling**
+  - Messaging core extraction + Discord split app.
+- **M5 — Elysia Migration**
+  - HTTP and cron migration completed.
+- **M6 — Hardening & Go-Live**
+  - KPI/SLO closure + operational readiness.
+
+---
+
+## 3) Current implementation status
+
+### Completed and already merged into PR #93
+
+1. `AgentDecisionV2` contract scaffold
+   - `apps/api/src/types/agent-decision-v2.ts`
+   - Exported via `apps/api/src/types/index.ts`
+
+2. V2 parser helpers and runtime validation hooks
+   - `apps/api/src/utils/json-parser.ts`
+
+3. Pivot feature flag scaffold
+   - `packages/env/src/index.ts`
+   - `apps/api/src/config/pivot-feature-flags.ts`
+
+4. Telemetry for V2 parse validity/invalidity
+   - Metrics:
+     - `agent_decision_v2_parse_valid_total`
+     - `agent_decision_v2_parse_invalid_total`
+
+5. Admin route for effective pivot flags
+   - `GET /api/admin/pivot-feature-flags`
+   - `apps/api/src/routes/dashboard/admin.routes.ts`
+
+6. Tests delivered and green for the above
+   - `agent-decision-v2.test.ts`
+   - `json-parser-agent-decision-v2.test.ts`
+   - `pivot-feature-flags.test.ts`
+   - `admin-routes-pivot-feature-flags.test.ts`
+
+7. Obsolete file removed
+   - Deleted: `TODO_FEATURE_FLAGS.md`
+   - Its content is now tracked in this plan and in session plan.
+
+### Milestone progress snapshot
+
+- M0: **In progress**
+- M1: Pending
+- M2: **Partially done** (contract + parser foundation done; orchestrator rollout pending)
+- M3: Pending
+- M4: Pending
+- M5: Pending
+- M6: Pending
+
+---
+
+## 4) Feature-flag rollout map (migrated from old TODO file)
+
+Active pivot capabilities controlled by flags:
+- `CONVERSATION_FREE`
+- `TOOL_SCHEMA_V2`
+- `MULTIMODAL_AUDIO`
+- `MULTIMODAL_IMAGE`
+- `PROVIDER_SPLIT`
+- `ELYSIA_RUNTIME`
+
+Rollout rules:
+1. Dev -> Staging -> Canary -> Production.
+2. Roll forward by capability, never big-bang.
+3. Keep explicit rollback path per flag.
+4. Any side-effect flow must stay deterministic, even when `CONVERSATION_FREE=true`.
+
+---
+
+## 5) Parallel technical tickets (execution-ready)
+
+### Scope additions (confirmed)
+
+- Support **bodyless memories** (`raw_content` optional).
+- Enforce **type-specific rich metadata** for save/search quality.
+- Movie save requires rich fields (title, year, director, cast, genres, overview, etc.).
+- Long contextual text (e.g., recipes) can be saved as note with short `semantic_context`.
+- If intent is ambiguous, ask a clarification question before saving.
+
+### Tickets
+
+#### Track A — Memory model and vector quality
+
+- **TKT-A1: Memory canonical model v2**
+  - Unified fields: `memory_type`, `source_modality`, `raw_content?`, `semantic_context`, `metadata`.
+  - Explicit support for bodyless memories.
+
+- **TKT-A2: Embedding document builders by type**
+  - Per-domain vector builders.
+  - Movie builder includes rich metadata.
+  - Long notes include normalized body + short semantic summary.
+
+#### Track B — Save/search tools
+
+- **TKT-B1: Rich domain save tools contracts**
+  - Strengthen save contracts per type (movie/book/music/link/note/etc.).
+  - Require minimum metadata before persistence.
+
+- **TKT-B2: Generic bodyless memory save flow**
+  - Tool/path for short insights without full body content.
+
+- **TKT-B3: Search strategy by domain**
+  - Hybrid retrieval (structured + vector) tuned by memory type.
+
+#### Track C — Runtime behavior and policies
+
+- **TKT-C1: Ambiguity policy**
+  - Ask clarifying questions for type ambiguity.
+  - Prefer note flow for long contextual text.
+
+- **TKT-C2: Note contextualizer**
+  - Extract compact title, 1–3 sentence context, tags, vector doc.
+
+- **TKT-C3: Orchestrator V2 integration**
+  - Plug `AgentDecisionV2` into orchestrator runtime with deterministic side-effect gate.
+
+#### Track D — Verification and quality
+
+- **TKT-D1: Test matrix**
+  - Unit/integration/e2e for:
+    - rich movie save
+    - recipe -> note
+    - bodyless memory
+    - ambiguity handling
+
+- **TKT-D2: KPI baseline + regression guardrails**
+  - Track invalid JSON, false-save rate, latency, retrieval quality.
+
+### Dependency waves
+
+1. **Wave 1:** A1 + C1  
+2. **Wave 2:** A2 + B1 + C2  
+3. **Wave 3:** B2 + B3 + C3  
+4. **Wave 4:** D1 + D2
+
+---
+
+## 6) Execution and delivery policy (mandatory)
+
+Loop for every ticket:
+`feature -> tests -> green -> commit -> push -> next`
+
+Rules:
+1. One commit per completed ticket.
+2. No next ticket before relevant tests are green.
+3. Keep PR incremental and always up to date.
+4. Keep this file and session `plan.md` synchronized.
+
+Branch and PR:
 - Branch: `refactor/conversational-memory-pivot`
-- PR: https://github.com/psousaj/nexo-ai/pull/93
+- PR: `https://github.com/psousaj/nexo-ai/pull/93`
 
-## O que já foi feito (até agora)
+---
 
-### 1) Governança do workflow (planejamento + instruções)
-- Plano de execução por sprints/milestones definido no plano da sessão.
-- Regras mandatórias adicionadas:
-  - `feature -> testes -> verdinho -> next`
-  - loop contínuo até fechar milestones/features
-  - commit por feature concluída
-  - branch dedicada + PR incremental
-- Arquivos atualizados:
-  - `AGENTS.md`
-  - `.github/copilot-instructions.md`
+## 7) Recommended next tickets to execute now
 
-### 2) Base técnica inicial do pivot (API)
-- **Contrato AgentDecisionV2 (scaffold)**
-  - `apps/api/src/types/agent-decision-v2.ts`
-  - export em `apps/api/src/types/index.ts`
-  - teste: `apps/api/src/tests/agent-decision-v2.test.ts`
+Ready immediately:
+1. `TKT-A1` (memory canonical model v2)
+2. `TKT-C1` (ambiguity policy)
 
-- **Parser/validator AgentDecisionV2 no json-parser**
-  - `apps/api/src/utils/json-parser.ts`
-  - teste: `apps/api/src/tests/json-parser-agent-decision-v2.test.ts`
-
-- **Feature flags de pivot (env + helper)**
-  - `packages/env/src/index.ts`
-  - `apps/api/src/config/pivot-feature-flags.ts`
-  - teste: `apps/api/src/tests/pivot-feature-flags.test.ts`
-
-- **Telemetria de parse AgentDecisionV2**
-  - métricas adicionadas:
-    - `agent_decision_v2_parse_valid_total`
-    - `agent_decision_v2_parse_invalid_total`
-  - ação (`CALL_TOOL|RESPOND|NOOP`) enviada como atributo no caso válido
-
-- **Visibilidade operacional das flags**
-  - endpoint: `GET /api/admin/pivot-feature-flags`
-  - arquivo: `apps/api/src/routes/dashboard/admin.routes.ts`
-  - teste: `apps/api/src/tests/admin-routes-pivot-feature-flags.test.ts`
-
-## Validação executada
-- `pnpm --filter @nexo/env build`
-- `pnpm --filter @nexo/api exec vitest run src/tests/agent-decision-v2.test.ts src/tests/json-parser-agent-decision-v2.test.ts src/tests/pivot-feature-flags.test.ts src/tests/admin-routes-pivot-feature-flags.test.ts --config vitest.config.ts`
-- Status: ✅ verde
-
-## O que falta (próximos blocos)
-
-## M0 — Baseline & Guardrails (em progresso)
-- [x] Contrato V2 inicial + parser + telemetria básica
-- [x] Flags de pivot + endpoint de visibilidade
-- [ ] Baseline KPI consolidado (latência, invalid JSON rate, false-save rate)
-- [ ] Eval set inicial de conversa livre vs intenção de memória
-
-## M1 — Conversational Freedom
-- [ ] Ajustar políticas para conversa livre (reduzir bloqueio de off-topic)
-- [ ] Limitar resposta para 2-3 parágrafos no composer final
-- [ ] Aplicar tone/humor configurável com presets (friendly default etc.)
-- [ ] Detectar ambiguidade de tipo (filme vs nota/link/etc.) e perguntar quando necessário
-
-## M2 — Tool Contract V2 Enforcement
-- [ ] Integrar AgentDecisionV2 no orquestrador como caminho oficial (guarded por flag)
-- [ ] Matriz determinística por risco (quando exige confirmação)
-- [ ] Reforço de validação/retry com erro explícito de contrato
-- [ ] Evoluir tools para save/search por tipo com metadados completos para embedding vetorial
-
-## M3 — Multimodal Memory Intake
-- [ ] Pipeline de áudio (STT) -> roteador canônico
-- [ ] Pipeline de imagem com OCR (worker Python) -> extração estruturada
-- [ ] Fallback textual + política por confiança
-
-## M4 — Provider Decoupling
-- [ ] Extrair `messaging-core`
-- [ ] Separar Discord em app dedicado (`apps/bot-discord`)
-- [ ] Garantir compatibilidade Telegram/WhatsApp no gateway HTTP
-
-## M5 — Runtime Migration
-- [ ] Migrar API principal para Elysia
-- [ ] Migrar cron para `@elysiajs/cron`
-- [ ] Manter contratos externos e cobertura de integração
-
-## M6 — Hardening & Go-live
-- [ ] Ajuste final de qualidade/custos/latência
-- [ ] Testes E2E completos (texto + áudio + imagem + slash)
-- [ ] Rollout progressivo com gates de aceitação
-
-## Próximo passo recomendado imediato
-1. Implementar baseline de KPIs do M0 (coleta + exposição mínima).
-2. Iniciar M1 com liberdade conversacional (2-3 parágrafos + tom padrão amigável).
-3. Integrar AgentDecisionV2 no orquestrador sob `TOOL_SCHEMA_V2`.
-
-## Tickets técnicos para execução paralela (atualizado)
-
-> Objetivo desta quebra: cobrir também memórias “sem corpo”, enrich completo por tipo (ex.: filmes com diretor/ano/elenco etc.) e salvamento de mensagens longas (ex.: receita) como nota com contexto curto para busca vetorial.
-
-### Trilha A — Modelo de memória e indexação
-
-**TKT-A1 — Memory canonical model v2**  
-**Escopo**
-- Definir shape canônico para memória com:
-  - `memory_type` (movie, tv_show, video, link, note, book, music, generic_memory),
-  - `source_modality` (text, audio, image, mixed),
-  - `raw_content` opcional (suporta memória sem corpo),
-  - `semantic_context` obrigatório (resumo curto para embedding),
-  - `metadata` tipado por domínio.
-- Garantir que memória sem `raw_content` ainda possa ser salva e pesquisada via `semantic_context`.
-**Dependência:** nenhuma.  
-**Paralelismo:** base para B/C, mas pode começar sozinho.
-
-**TKT-A2 — Embedding document builders por tipo**  
-**Escopo**
-- Criar builders de documento vetorial por tipo (movie/note/book/music/link/etc.).
-- Para filme, combinar campos: título, ano, diretor, elenco principal, gêneros, overview, runtime e providers.
-- Para nota longa (ex.: receita), incluir `semantic_context` + corpo normalizado.
-**Dependência:** A1.
-
-### Trilha B — Tools específicas de save/search
-
-**TKT-B1 — Save tools de domínio rico (filme/livro/música/etc.)**  
-**Escopo**
-- Reforçar ferramentas para salvar por domínio com enriquecimento mínimo obrigatório por tipo.
-- Ex.: `save_movie` só finaliza após metadata essencial (ano + diretor + pelo menos 2 campos adicionais).
-**Dependência:** A1.  
-**Paralelismo:** pode rodar junto com C1/C2.
-
-**TKT-B2 — Generic memory sem corpo**  
-**Escopo**
-- Adicionar fluxo/tool para memória “leve” sem corpo completo (insight rápido, ideia curta).
-- Runtime deve gerar `semantic_context` curto e salvar mesmo sem texto longo.
-**Dependência:** A1.
-
-**TKT-B3 — Search tools por estratégia**  
-**Escopo**
-- Definir busca híbrida por tipo:
-  - metadados estruturados (quando houver),
-  - vetor via `semantic_context`.
-- Melhorar recall para consultas naturais.
-**Dependência:** A2 + B1.
-
-### Trilha C — Orquestração e ambiguidade
-
-**TKT-C1 — Intent/type disambiguation policy**  
-**Escopo**
-- Se ambíguo entre tipos (ex.: “clube da luta” pode filme/livro), perguntar antes de salvar.
-- Se mensagem longa e descritiva (ex.: receita), priorizar nota com contexto.
-**Dependência:** nenhuma (usa contrato atual).  
-**Paralelismo:** total com A1/B1.
-
-**TKT-C2 — Save-note contextualizer**  
-**Escopo**
-- Para texto longo: gerar `semantic_context` (1-3 frases), tags e título curto.
-- Armazenar contexto + conteúdo para futura busca vetorial.
-**Dependência:** A1.
-
-**TKT-C3 — AgentDecisionV2 integration in orchestrator**  
-**Escopo**
-- Integrar decisão V2 no fluxo principal com flags.
-- Enforçar caminho determinístico para saves/updates/deletes.
-**Dependência:** B1 + C1.
-
-### Trilha D — Qualidade e rollout
-
-**TKT-D1 — Test matrix (unit/integration/e2e)**  
-**Escopo**
-- Casos obrigatórios:
-  1) filme com metadata rica,
-  2) mensagem longa (receita) salva como nota contextualizada,
-  3) memória sem corpo salva e recuperável,
-  4) ambiguidade dispara pergunta.
-**Dependência:** A2 + B2 + C1.
-
-**TKT-D2 — KPI baseline + regressão**  
-**Escopo**
-- Medir false-save, invalid decision JSON, latência e qualidade de recuperação.
-**Dependência:** C3 + D1.
-
-## Ordem recomendada para paralelizar (com worktrees)
-
-1. **Sprint wave 1:** A1 + C1 em paralelo.  
-2. **Sprint wave 2:** A2 + B1 + C2 em paralelo.  
-3. **Sprint wave 3:** B2 + B3 + C3 em paralelo.  
-4. **Sprint wave 4:** D1 + D2.
-
-## Regras operacionais (mantendo o combinado)
-
-- Sempre: `feature -> testes -> verdinho -> next`.
-- 1 commit por ticket concluído.
-- PR #93 atualizado incrementalmente a cada ticket verde.
+Then continue by dependency waves until M0–M6 are complete.
