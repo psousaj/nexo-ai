@@ -79,11 +79,11 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 		if (!response.tool) return false;
 	}
 
-	// Validar tamanho de RESPOND (máx 200 chars)
+	// Validar tamanho de RESPOND (máx 700 chars)
 	if (response.action === 'RESPOND' && response.message) {
-		if (response.message.length > 200) {
-			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo');
-			response.message = `${response.message.substring(0, 197)}...`;
+		if (response.message.length > 700) {
+			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo (máx 700 chars)');
+			response.message = `${response.message.substring(0, 697)}...`;
 		}
 	}
 
