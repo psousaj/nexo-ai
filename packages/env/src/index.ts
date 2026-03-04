@@ -107,7 +107,7 @@ const envSchema = z.object({
 	CONVERSATION_FREE: z
 		.enum(['true', 'false'])
 		.transform((val) => val === 'true')
-		.default('false'),
+		.default('true'),
 	TOOL_SCHEMA_V2: z
 		.enum(['true', 'false'])
 		.transform((val) => val === 'true')

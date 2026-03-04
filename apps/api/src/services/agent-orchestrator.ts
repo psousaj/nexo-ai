@@ -32,6 +32,7 @@ import {
 	formatItemsList,
 	getRandomMessage as getRandomResponse,
 } from '@/config/prompts';
+import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
@@ -40,6 +41,7 @@ import { isValidAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { llmService } from './ai';
+import { decideAgentAction } from './agent-action-routing';
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
@@ -313,33 +315,8 @@ export class AgentOrchestrator {
 	 * Decide qual ação tomar baseado em intenção + estado
 	 */
 	private decideAction(intent: IntentResult, state: ConversationState): string {
-		// Confirmação/Negação só importam se estamos aguardando
-		if (state === 'awaiting_confirmation' || state === 'awaiting_final_confirmation') {
-			if (intent.action === 'confirm') return 'handle_confirmation';
-			if (intent.action === 'deny') return 'handle_denial';
-		}
-
-		// AÇÕES DETERMINÍSTICAS (execução direta, sem LLM)
-		switch (intent.action) {
-			case 'delete_all':
-				return 'handle_delete_all';
-			case 'delete_item':
-			case 'delete_selected':
-				return 'handle_delete_item';
-			case 'list_all':
-			case 'search':
-				return 'handle_search';
-			case 'save_previous':
-				return 'handle_save_previous';
-			case 'greet':
-			case 'thank':
-				return 'handle_casual';
-			case 'get_assistant_name':
-				return 'handle_get_assistant_name';
-		}
-
-		// Resto: delega para LLM
-		return 'handle_with_llm';
+		const { CONVERSATION_FREE } = getPivotFeatureFlags();
+		return decideAgentAction(intent, state, CONVERSATION_FREE);
 	}
 
 	/**
