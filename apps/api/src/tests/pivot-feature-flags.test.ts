@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe('Pivot feature flags', () => {
-	test('defaults all pivot flags to false when env vars are not set', async () => {
+	test('defaults CONVERSATION_FREE to true and all other pivot flags to false when env vars are not set', async () => {
 		for (const key of PIVOT_FLAG_KEYS) {
 			delete process.env[key];
 		}
@@ -34,7 +34,7 @@ describe('Pivot feature flags', () => {
 		const flags = getPivotFeatureFlags();
 
 		expect(flags).toEqual({
-			CONVERSATION_FREE: false,
+			CONVERSATION_FREE: true,
 			TOOL_SCHEMA_V2: false,
 			MULTIMODAL_AUDIO: false,
 			MULTIMODAL_IMAGE: false,
