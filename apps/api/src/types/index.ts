@@ -14,6 +14,7 @@ import type {
 	VideoMetadata,
 } from '@nexo/shared';
 export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
+export * from './agent-decision-v2';
 
 export type ConversationState =
 	| 'idle' // Conversa inativa, pronta para receber comandos

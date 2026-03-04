@@ -1213,6 +1213,28 @@ pnpm run dev | pino-pretty
 9. **Read ADR-011 for architecture principles** ([docs/adr/011-deterministic-runtime-control.md](docs/adr/011-deterministic-runtime-control.md))
 10. **Check existing patterns before creating new ones**
 11. **ALWAYS check if servers are already running before restarting** (see below)
+12. **Mandatory workflow for every feature**: `feature -> tests -> green -> next`
+13. **Do not start next feature with failing tests**
+14. **Work in loop until all planned milestones/features are done**
+15. **Commit each completed feature/iteration**
+16. **Use dedicated refactor branch + keep PR updated for review**
+
+### 🔁 Mandatory Delivery Loop (Pivot/Refactors)
+
+For major refactors (like conversational-memory pivot), execution must follow this loop:
+
+1. pick next ready feature
+2. implement in isolated branch/worktree
+3. run relevant tests until green
+4. commit feature
+5. update/open PR
+6. repeat until all milestones are complete
+
+### 🌿 Branch & PR Policy (Pivot/Refactors)
+
+- Branch name pattern: `refactor/<initiative-name>`
+- Recommended for current pivot: `refactor/conversational-memory-pivot`
+- Keep one active PR for reviewer visibility; update it incrementally after each green feature commit.
 
 ### ⚠️ Server Management (CRITICAL)
 

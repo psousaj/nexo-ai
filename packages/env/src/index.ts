@@ -103,6 +103,32 @@ const envSchema = z.object({
 	PORT_LANDING: z.coerce.number().default(3005), // Landing na 3005
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
 
+	// Pivot feature flags
+	CONVERSATION_FREE: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	TOOL_SCHEMA_V2: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	MULTIMODAL_AUDIO: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	MULTIMODAL_IMAGE: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	PROVIDER_SPLIT: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	ELYSIA_RUNTIME: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+
 	// Email (Resend)
 	RESEND_API_KEY: z.string().optional(),
 
