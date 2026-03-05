@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const MAX_INLINE_BASE64_LENGTH = 10 * 1024 * 1024;
+const MAX_INLINE_BASE64_CHAR_LENGTH = 10 * 1024 * 1024;
 const ALLOWED_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
 const commonPayloadFields = {
@@ -9,7 +9,7 @@ const commonPayloadFields = {
 	timestamp: z.coerce.date().optional(),
 	mimeType: z.string().min(1),
 	url: z.string().url().optional(),
-	base64: z.string().min(1).max(MAX_INLINE_BASE64_LENGTH).optional(),
+	base64: z.string().min(1).max(MAX_INLINE_BASE64_CHAR_LENGTH).optional(),
 	filename: z.string().min(1).optional(),
 	byteLength: z.number().int().positive().optional(),
 };

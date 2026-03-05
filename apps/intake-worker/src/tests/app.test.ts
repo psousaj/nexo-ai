@@ -264,4 +264,40 @@ describe('intake worker app routes', () => {
 			message: 'Request body must include an attachments array',
 		});
 	});
+
+	it('returns 422 when attachment schema validation fails', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				INTAKE_WORKER_TOKEN: '',
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				attachments: [
+					{
+						kind: 'image',
+						messageId: 'msg-image',
+						userId: 'user-1',
+						mimeType: 'image/png',
+						url: 'file:///tmp/image.png',
+					},
+				],
+			}),
+		});
+
+		expect(response.status).toBe(422);
+		await expect(response.json()).resolves.toEqual({
+			error: 'unprocessable_attachment',
+			message: 'url transport must use http or https',
+		});
+	});
 });

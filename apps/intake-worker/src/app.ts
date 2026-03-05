@@ -1,5 +1,6 @@
 import { type Context, Hono } from 'hono';
 import { normalizeMultimodalPayload } from '@nexo/shared';
+import { ZodError } from 'zod';
 import { StubOcrAdapter } from './adapters/ocr/ocr-adapter';
 import { StubSttAdapter } from './adapters/stt/stt-adapter';
 import { getWorkerEnv } from './config/env';
@@ -41,6 +42,21 @@ function isAuthorizedRequest(c: Context): boolean {
 	}
 
 	return match[1] === configuredToken;
+}
+
+function getUnprocessableAttachmentMessage(error: unknown): string | null {
+	if (error instanceof ZodError) {
+		return error.issues[0]?.message ?? 'Invalid attachment payload';
+	}
+
+	if (
+		error instanceof Error &&
+		(error.message.includes('feature flag is disabled') || error.message.includes('payload must'))
+	) {
+		return error.message;
+	}
+
+	return null;
 }
 
 export function createIntakeWorkerApp() {
@@ -108,11 +124,9 @@ export function createIntakeWorkerApp() {
 
 			return c.json({ items }, 200);
 		} catch (error) {
-			if (
-				error instanceof Error &&
-				(error.message.includes('feature flag is disabled') || error.message.includes('payload must'))
-			) {
-				return jsonError(c, 422, 'unprocessable_attachment', error.message);
+			const unprocessableMessage = getUnprocessableAttachmentMessage(error);
+			if (unprocessableMessage) {
+				return jsonError(c, 422, 'unprocessable_attachment', unprocessableMessage);
 			}
 
 			return jsonError(c, 500, 'internal_error', 'Failed to process attachments');
