@@ -53,17 +53,17 @@ export class EnrichmentService {
 	}
 
 	/**
-	 * Busca filmes no TMDB
+	 * Busca filmes no TMDB, com filtro opcional de ano
 	 */
-	async searchMovies(query: string) {
-		return tmdbService.searchMovies(query);
+	async searchMovies(query: string, year?: number) {
+		return tmdbService.searchMovies(query, year);
 	}
 
 	/**
-	 * Busca séries no TMDB
+	 * Busca séries no TMDB, com filtro opcional de ano
 	 */
-	async searchTVShows(query: string) {
-		return tmdbService.searchTVShows(query);
+	async searchTVShows(query: string, year?: number) {
+		return tmdbService.searchTVShows(query, year);
 	}
 
 	/**

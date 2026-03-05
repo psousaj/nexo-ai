@@ -275,10 +275,7 @@ export class ItemService {
 			}
 		}
 
-		loggers.db.debug(
-			{ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords },
-			'📝 Documento semântico preparado',
-		);
+		loggers.db.debug({ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords }, '📝 Documento semântico preparado');
 
 		return text;
 	}
@@ -522,10 +519,7 @@ export class ItemService {
 				.from(memoryItems)
 				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 				.where(
-					and(
-						eq(memoryItems.userId, userId),
-						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
-					),
+					and(eq(memoryItems.userId, userId), sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`),
 				);
 
 			if (itemsWithEmbedding.length === 0) {
@@ -738,10 +732,11 @@ export class ItemService {
 	}
 
 	/**
-	 * Deleta todas as memórias do usuário
+	 * Deleta todas as memórias do usuário, opcionalmente filtradas por tipo
 	 */
-	async deleteAllItems(userId: string): Promise<number> {
-		const result = await db.delete(memoryItems).where(eq(memoryItems.userId, userId)).returning();
+	async deleteAllItems(userId: string, type?: string): Promise<number> {
+		const condition = type ? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any)) : eq(memoryItems.userId, userId);
+		const result = await db.delete(memoryItems).where(condition).returning();
 		return result.length;
 	}
 

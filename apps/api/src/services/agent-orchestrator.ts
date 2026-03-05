@@ -961,12 +961,14 @@ ${personalizedContext}`;
 		};
 
 		// Executar delete direto (ação irreversível)
-		const result = await executeTool('delete_all_memories', toolContext, {});
+		// Se o intent trouxe itemType, deleta apenas o tipo específico (ex: "apaga todas as notas")
+		const deleteType = intent.entities?.itemType ?? undefined;
+		const result = await executeTool('delete_all_memories', toolContext, { type: deleteType });
 
 		if (result.success) {
 			const count = result.data?.deleted_count || 0;
 			return {
-				message: `✅ ${count} item(ns) deletado(s) com sucesso.`,
+				message: `✅ ${result.message || `${count} item(ns) deletado(s)`} com sucesso.`,
 				state: 'idle',
 				toolsUsed: ['delete_all_memories'],
 			};

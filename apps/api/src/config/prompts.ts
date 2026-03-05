@@ -188,6 +188,7 @@ TODA resposta deve ser JSON neste formato:
 - Usar emojis
 - Repetir informações
 - Confundir notas/ideias pessoais com filmes/séries
+- Colocar o ano dentro do campo title (ex: title: "marty supreme 2025" → ERRADO)
 
 ✅ SEMPRE:
 - Retornar JSON válido
@@ -195,18 +196,21 @@ TODA resposta deve ser JSON neste formato:
 - Executar ou perguntar informação faltante
 - Português brasileiro
 - save_note para ideias/anotações do usuário (não títulos de filmes!)
-- Para filmes/séries: usar save_movie/save_tv_show SEM tmdb_id (runtime busca TMDB e mostra opções)
+- Para filmes/séries: usar save_movie/save_tv_show SEM tmdb_id, extraindo title e year separadamente
+- Quando o usuário mencionar ano, SEMPRE passar como parâmetro year separado do title
 
 # CLASSIFICAÇÃO INTELIGENTE
 
 Texto longo ou descritivo → save_note
 Exemplo: "Aplicativo over screen que conecta no spotify..." → save_note
 
-Nome curto de filme conhecido → save_movie (sem tmdb_id, buscará no TMDB automaticamente)
+Nome curto de filme conhecido → save_movie(title, year?) — extraia título e ano SEPARADOS da linguagem natural
 Exemplo: "clube da luta" → save_movie(title: "clube da luta")
+Exemplo: "quero salvar o filme marty supreme lançado no ano de 2025" → save_movie(title: "marty supreme", year: 2025)
 
-Nome curto de série conhecida → save_tv_show (sem tmdb_id, buscará no TMDB automaticamente)
+Nome curto de série conhecida → save_tv_show(title, year?) — extraia título e ano SEPARADOS da linguagem natural
 Exemplo: "breaking bad" → save_tv_show(title: "breaking bad")
+Exemplo: "salva a serie severance de 2022" → save_tv_show(title: "severance", year: 2022)
 
 Link do YouTube → save_video
 Exemplo: "https://youtube.com/watch?v=abc" → save_video
@@ -372,11 +376,14 @@ ${AGENT_DECISION_V2_CONTRACT_PROMPT}
 Texto longo ou descritivo → save_note
 Exemplo: "Aplicativo over screen que conecta no spotify..." → save_note
 
-Nome curto de filme conhecido → save_movie (sem tmdb_id, buscará no TMDB automaticamente)
+Nome curto de filme conhecido → save_movie(title, year?) — extraia título e ano SEPARADOS da linguagem natural
 Exemplo: "clube da luta" → save_movie(title: "clube da luta")
+Exemplo: "quero salvar o filme marty supreme lançado no ano de 2025" → save_movie(title: "marty supreme", year: 2025)
+Exemplo: "salva a serie severance de 2022" → save_tv_show(title: "severance", year: 2022)
 
-Nome curto de série conhecida → save_tv_show (sem tmdb_id, buscará no TMDB automaticamente)
+Nome curto de série conhecida → save_tv_show(title, year?) — extraia título e ano SEPARADOS da linguagem natural
 Exemplo: "breaking bad" → save_tv_show(title: "breaking bad")
+Exemplo: "the last of us que começou em 2023" → save_tv_show(title: "the last of us", year: 2023)
 
 Link do YouTube → save_video
 Exemplo: "https://youtube.com/watch?v=abc" → save_video
@@ -387,6 +394,7 @@ Exemplo: "https://youtube.com/watch?v=abc" → save_video
 - Perguntar "quer que eu salve?"
 - Confirmar antes de executar
 - Confundir notas/ideias pessoais com filmes/séries
+- Colocar o ano dentro do campo title (ex: title: "marty supreme 2025" → ERRADO)
 
 ✅ SEMPRE:
 - Retornar JSON válido
@@ -394,7 +402,8 @@ Exemplo: "https://youtube.com/watch?v=abc" → save_video
 - Executar ou perguntar informação faltante
 - Português brasileiro
 - save_note para ideias/anotações do usuário (não títulos de filmes!)
-- Para filmes/séries: usar save_movie/save_tv_show SEM tmdb_id (runtime busca TMDB e mostra opções)`;
+- Para filmes/séries: usar save_movie/save_tv_show SEM tmdb_id, extraindo title e year separadamente
+- Quando o usuário mencionar ano, SEMPRE passar como parâmetro year separado do title`;
 
 export function getAgentSystemPrompt(assistantName: string, useToolSchemaV2 = false): string {
 	const prompt = useToolSchemaV2 ? AGENT_SYSTEM_PROMPT_V2 : AGENT_SYSTEM_PROMPT;

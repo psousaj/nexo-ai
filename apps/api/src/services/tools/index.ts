@@ -138,8 +138,8 @@ export async function save_movie(
 	try {
 		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
 		if (!params.tmdb_id) {
-			loggers.tools.info({ title: params.title }, '🔍 save_movie sem tmdb_id → buscando candidatos no TMDB');
-			const results = await enrichmentService.searchMovies(params.title);
+			loggers.tools.info({ title: params.title, year: params.year }, '🔍 save_movie sem tmdb_id → buscando candidatos no TMDB');
+			const results = await enrichmentService.searchMovies(params.title, params.year);
 
 			if (results && results.length > 0) {
 				return {
@@ -444,7 +444,7 @@ export async function enrich_movie(
 	}
 
 	try {
-		const results = await enrichmentService.searchMovies(params.title);
+		const results = await enrichmentService.searchMovies(params.title, params.year);
 
 		if (!results || results.length === 0) {
 			return {
@@ -491,7 +491,7 @@ export async function enrich_tv_show(
 	}
 
 	try {
-		const results = await enrichmentService.searchTVShows(params.title);
+		const results = await enrichmentService.searchTVShows(params.title, params.year);
 
 		if (!results || results.length === 0) {
 			return {
@@ -598,14 +598,23 @@ export async function delete_memory(
 	}
 }
 
-export async function delete_all_memories(context: ToolContext, _params: {}): Promise<ToolOutput> {
+export async function delete_all_memories(context: ToolContext, params: { type?: string }): Promise<ToolOutput> {
 	try {
-		const deleted_count = await itemService.deleteAllItems(context.userId);
+		const deleted_count = await itemService.deleteAllItems(context.userId, params.type);
+
+		const typeLabel: Record<string, string> = {
+			note: 'nota(s)',
+			movie: 'filme(s)',
+			tv_show: 'série(s)',
+			video: 'vídeo(s)',
+			link: 'link(s)',
+		};
+		const label = params.type ? (typeLabel[params.type] ?? 'item(ns)') : 'item(ns)';
 
 		return {
 			success: true,
-			data: { deleted_count },
-			message: `${deleted_count} item(ns) deletado(s)`,
+			data: { deleted_count, type: params.type ?? null },
+			message: `${deleted_count} ${label} deletado(s)`,
 		};
 	} catch (error) {
 		return {
