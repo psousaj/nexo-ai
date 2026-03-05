@@ -303,15 +303,15 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.9
         version: 1.19.9(hono@4.11.9)
-      '@nexo/env':
-        specifier: workspace:*
-        version: link:../../packages/env
       '@nexo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       hono:
         specifier: ^4.11.5
         version: 4.11.9
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       '@nexo/typescript-config':
         specifier: workspace:*

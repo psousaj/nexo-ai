@@ -24,7 +24,7 @@ function selectTransport(payload: MultimodalIntakePayload): { transport: 'url' |
 		return { transport: 'base64', content: payload.base64 };
 	}
 
-	throw new Error('payload must include url or base64');
+	throw new Error('payload must include exactly one transport: url or base64');
 }
 
 export function normalizeMultimodalPayload(
@@ -32,7 +32,7 @@ export function normalizeMultimodalPayload(
 	flags: MultimodalFeatureFlags,
 	defaultTimestamp = new Date(),
 ) {
-	const parsedPayload = multimodalIntakePayloadSchema.parse(payload);
+	const parsedPayload = multimodalIntakePayloadSchema.parse(payload) as MultimodalIntakePayload;
 	assertFeatureFlag(parsedPayload.kind, flags);
 
 	const { transport, content } = selectTransport(parsedPayload);

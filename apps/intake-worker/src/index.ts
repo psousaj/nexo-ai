@@ -1,13 +1,13 @@
 import { serve } from '@hono/node-server';
-import { env } from '@nexo/env';
 import { createIntakeWorkerApp } from './app';
+import { getWorkerEnv } from './config/env';
 
 const app = createIntakeWorkerApp();
-const port = env.PORT;
+const env = getWorkerEnv();
 
 serve({
 	fetch: app.fetch,
-	port,
+	port: env.PORT,
 });
 
-console.log(`intake-worker listening on port ${port}`);
+console.log(`intake-worker listening on port ${env.PORT}`);

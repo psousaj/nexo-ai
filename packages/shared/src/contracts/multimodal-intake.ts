@@ -1,29 +1,47 @@
 import { z } from 'zod';
 
-const basePayloadSchema = z.object({
+const MAX_INLINE_BASE64_LENGTH = 10 * 1024 * 1024;
+
+const commonPayloadFields = {
 	messageId: z.string().min(1),
 	userId: z.string().min(1),
 	timestamp: z.coerce.date().optional(),
 	mimeType: z.string().min(1),
 	url: z.string().url().optional(),
-	base64: z.string().min(1).optional(),
+	base64: z.string().min(1).max(MAX_INLINE_BASE64_LENGTH).optional(),
 	filename: z.string().min(1).optional(),
 	byteLength: z.number().int().positive().optional(),
-});
+};
 
-export const audioIntakePayloadSchema = basePayloadSchema.extend({
-	kind: z.literal('audio'),
-	languageHint: z.string().min(2).max(12).optional(),
-});
+function validateSingleTransport(value: { url?: string; base64?: string }, ctx: z.RefinementCtx) {
+	const hasUrl = Boolean(value.url);
+	const hasBase64 = Boolean(value.base64);
 
-export const imageIntakePayloadSchema = basePayloadSchema.extend({
-	kind: z.literal('image'),
-});
+	if (hasUrl === hasBase64) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: 'payload must include exactly one transport: url or base64',
+			path: ['url'],
+		});
+	}
+}
 
-export const multimodalIntakePayloadSchema = z.discriminatedUnion('kind', [
-	audioIntakePayloadSchema,
-	imageIntakePayloadSchema,
-]);
+export const audioIntakePayloadSchema = z
+	.object({
+		...commonPayloadFields,
+		kind: z.literal('audio'),
+		languageHint: z.string().min(2).max(12).optional(),
+	})
+	.superRefine(validateSingleTransport);
+
+export const imageIntakePayloadSchema = z
+	.object({
+		...commonPayloadFields,
+		kind: z.literal('image'),
+	})
+	.superRefine(validateSingleTransport);
+
+export const multimodalIntakePayloadSchema = z.union([audioIntakePayloadSchema, imageIntakePayloadSchema]);
 
 const normalizedBaseSchema = z.object({
 	kind: z.enum(['audio', 'image']),

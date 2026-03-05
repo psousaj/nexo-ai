@@ -12,16 +12,16 @@
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.19.9",
-		"@nexo/env": "workspace:*",
 		"@nexo/shared": "workspace:*",
-		"hono": "^4.11.5"
+		"hono": "^4.11.5",
+		"zod": "^3.25.76"
 	},
 	"devDependencies": {
+		"@nexo/typescript-config": "workspace:*",
 		"@types/node": "^20.19.30",
 		"tsup": "^8.5.1",
 		"tsx": "^4.21.0",
 		"typescript": "^5.9.3",
-		"vitest": "^2.1.9",
-		"@nexo/typescript-config": "workspace:*"
+		"vitest": "^2.1.9"
 	}
 }

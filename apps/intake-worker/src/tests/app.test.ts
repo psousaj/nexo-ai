@@ -1,19 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@nexo/env', () => ({
-	env: {
-		MULTIMODAL_AUDIO: true,
-		MULTIMODAL_IMAGE: false,
-	},
-}));
-
-import { createIntakeWorkerApp } from '../app';
+beforeEach(() => {
+	vi.resetModules();
+});
 
 describe('intake worker healthcheck', () => {
 	it('returns service health and multimodal feature flags', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3001,
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: false,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
 		const app = createIntakeWorkerApp();
 		const response = await app.request('http://localhost/health');
-		const body = (await response.json()) as Record<string, any>;
+		const body = (await response.json()) as Record<string, unknown>;
 
 		expect(response.status).toBe(200);
 		expect(body.status).toBe('ok');

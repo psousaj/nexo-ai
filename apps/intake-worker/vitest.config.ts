@@ -11,7 +11,6 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			'@': resolve(__dirname, './src'),
-			'@nexo/env': resolve(__dirname, '../../packages/env/src/index.ts'),
 			'@nexo/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
 		},
 	},
