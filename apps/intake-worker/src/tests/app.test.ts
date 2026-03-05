@@ -4,11 +4,11 @@ beforeEach(() => {
 	vi.resetModules();
 });
 
-describe('intake worker healthcheck', () => {
+describe('intake worker app routes', () => {
 	it('returns service health and multimodal feature flags', async () => {
 		vi.doMock('../config/env', () => ({
 			getWorkerEnv: () => ({
-				PORT: 3001,
+				PORT: 3002,
 				MULTIMODAL_AUDIO: true,
 				MULTIMODAL_IMAGE: false,
 			}),
@@ -23,5 +23,92 @@ describe('intake worker healthcheck', () => {
 		expect(body.status).toBe('ok');
 		expect(body.service).toBe('intake-worker');
 		expect(body.features).toEqual({ audio: true, image: false });
+	});
+
+	it('processes multimodal attachments and returns deterministic items shape', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				attachments: [
+					{
+						kind: 'audio',
+						messageId: 'msg-audio',
+						userId: 'user-1',
+						mimeType: 'audio/ogg',
+						url: 'https://cdn.example/audio.ogg',
+					},
+					{
+						kind: 'image',
+						messageId: 'msg-image',
+						userId: 'user-1',
+						mimeType: 'image/png',
+						url: 'https://cdn.example/image.png',
+					},
+				],
+			}),
+		});
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			items: [
+				{
+					kind: 'audio',
+					messageId: 'msg-audio',
+					text: '',
+					metadata: {
+						provider: 'stub-stt',
+						transport: 'url',
+						mimeType: 'audio/ogg',
+					},
+				},
+				{
+					kind: 'image',
+					messageId: 'msg-image',
+					text: '',
+					metadata: {
+						provider: 'stub-ocr',
+						transport: 'url',
+						mimeType: 'image/png',
+					},
+				},
+			],
+		});
+	});
+
+	it('returns 400 when request body does not contain attachments array', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ payload: [] }),
+		});
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({
+			error: 'invalid_request',
+			message: 'Request body must include an attachments array',
+		});
 	});
 });

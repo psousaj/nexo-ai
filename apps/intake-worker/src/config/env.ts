@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const workerEnvSchema = z.object({
-	PORT: z.coerce.number().int().positive().default(3001),
+	PORT: z.coerce.number().int().positive().default(3002),
 	MULTIMODAL_AUDIO: z
 		.enum(['true', 'false'])
 		.transform((value) => value === 'true')

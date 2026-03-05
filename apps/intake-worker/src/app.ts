@@ -1,8 +1,32 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
+import { normalizeMultimodalPayload } from '@nexo/shared';
+import { StubOcrAdapter } from './adapters/ocr/ocr-adapter';
+import { StubSttAdapter } from './adapters/stt/stt-adapter';
 import { getWorkerFeatureFlags } from './config/feature-flags';
+
+function jsonError(c: Context, status: 400 | 422 | 500, error: string, message: string) {
+	return c.json(
+		{
+			error,
+			message,
+		},
+		status,
+	);
+}
+
+function hasAttachmentsArray(body: unknown): body is { attachments: unknown[] } {
+	if (!body || typeof body !== 'object') {
+		return false;
+	}
+
+	const payload = body as { attachments?: unknown };
+	return Array.isArray(payload.attachments);
+}
 
 export function createIntakeWorkerApp() {
 	const app = new Hono();
+	const sttAdapter = new StubSttAdapter();
+	const ocrAdapter = new StubOcrAdapter();
 
 	app.get('/health', (c) => {
 		const flags = getWorkerFeatureFlags();
@@ -15,6 +39,60 @@ export function createIntakeWorkerApp() {
 				image: flags.MULTIMODAL_IMAGE,
 			},
 		});
+	});
+
+	app.post('/intake/process', async (c) => {
+		const flags = getWorkerFeatureFlags();
+		const body = await c.req.json().catch(() => null);
+
+		if (!hasAttachmentsArray(body)) {
+			return jsonError(c, 400, 'invalid_request', 'Request body must include an attachments array');
+		}
+
+		try {
+			const items = await Promise.all(
+				body.attachments.map(async (payload) => {
+					const normalized = normalizeMultimodalPayload(payload, flags);
+
+					if (normalized.kind === 'audio') {
+						const transcription = await sttAdapter.transcribe(normalized);
+						return {
+							kind: 'audio' as const,
+							messageId: normalized.messageId,
+							text: transcription.text,
+							metadata: {
+								provider: transcription.provider,
+								transport: normalized.transport,
+								mimeType: normalized.mimeType,
+							},
+						};
+					}
+
+					const extraction = await ocrAdapter.extractText(normalized);
+					return {
+						kind: 'image' as const,
+						messageId: normalized.messageId,
+						text: extraction.text,
+						metadata: {
+							provider: extraction.provider,
+							transport: normalized.transport,
+							mimeType: normalized.mimeType,
+						},
+					};
+				}),
+			);
+
+			return c.json({ items }, 200);
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				(error.message.includes('feature flag is disabled') || error.message.includes('payload must'))
+			) {
+				return jsonError(c, 422, 'unprocessable_attachment', error.message);
+			}
+
+			return jsonError(c, 500, 'internal_error', 'Failed to process attachments');
+		}
 	});
 
 	return app;
