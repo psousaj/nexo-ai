@@ -275,7 +275,10 @@ export class ItemService {
 			}
 		}
 
-		loggers.db.debug({ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords }, '📝 Documento semântico preparado');
+		loggers.db.debug(
+			{ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords },
+			'📝 Documento semântico preparado',
+		);
 
 		return text;
 	}
@@ -519,7 +522,10 @@ export class ItemService {
 				.from(memoryItems)
 				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 				.where(
-					and(eq(memoryItems.userId, userId), sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`),
+					and(
+						eq(memoryItems.userId, userId),
+						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
+					),
 				);
 
 			if (itemsWithEmbedding.length === 0) {

@@ -2,10 +2,10 @@ import './otel'; // OpenTelemetry must be imported first
 import './sentry'; // Sentry error tracking
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
 import { env } from '@/config/env';
+import { shutdownSentry } from '@/sentry';
 import app from '@/server';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { initializeLangfuse, shutdownLangfuse } from '@/services/langfuse'; // Langfuse AI observability
-import { shutdownSentry } from '@/sentry';
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';

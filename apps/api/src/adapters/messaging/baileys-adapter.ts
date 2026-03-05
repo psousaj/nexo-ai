@@ -12,7 +12,10 @@
  */
 
 import { getBaileysService } from '@/services/baileys-service';
-import { buildSessionKey as buildSessionKeyUtil, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
+import {
+	buildSessionKey as buildSessionKeyUtil,
+	parseSessionKey as parseSessionKeyUtil,
+} from '@/services/session-service';
 import { loggers } from '@/utils/logger';
 import type { WAMessage } from '@whiskeysockets/baileys';
 import type { IncomingMessage, MessagingProvider, ProviderType, SessionKeyParams, SessionKeyParts } from './types';

@@ -129,6 +129,11 @@ const envSchema = z.object({
 		.transform((val) => val === 'true')
 		.default('false'),
 
+	// Intake Worker
+	INTAKE_WORKER_URL: z.string().url().default('http://localhost:3002'),
+	INTAKE_WORKER_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(4000),
+	INTAKE_WORKER_TOKEN: z.string().optional(),
+
 	// Email (Resend)
 	RESEND_API_KEY: z.string().optional(),
 
