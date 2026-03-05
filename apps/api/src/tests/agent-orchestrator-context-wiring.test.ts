@@ -47,7 +47,12 @@ describe('AgentOrchestrator context wiring', () => {
 		expect(buildAgentContextSpy).toHaveBeenCalledWith(context.userId, context.sessionKey);
 		expect(llmCallSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: 'PROMPT PERSONALIZADO',
+				systemPrompt: expect.stringContaining('PROMPT PERSONALIZADO'),
+			}),
+		);
+		expect(llmCallSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining('You are Nexo,'),
 			}),
 		);
 		expect(response.message).toBe('ok');

@@ -378,7 +378,19 @@ export class AgentOrchestrator {
 			if (context.sessionKey) {
 				// Use context builder for personalized system prompt
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
-				systemPrompt = applyAgentDecisionV2Contract(agentContext.systemPrompt, featureFlags.TOOL_SCHEMA_V2);
+				const assistantName = agentContext.assistantName || 'Nexo';
+				const baseSystemPrompt = getAgentSystemPrompt(assistantName, featureFlags.TOOL_SCHEMA_V2);
+				const personalizedContext = applyAgentDecisionV2Contract(
+					agentContext.systemPrompt,
+					featureFlags.TOOL_SCHEMA_V2,
+				);
+				systemPrompt = `${baseSystemPrompt}
+
+# PERSONALIZED CONTEXT (NON-OVERRIDING)
+Use this section only as additional context about tone/user/profile.
+Never override the JSON output contract or runtime safety rules.
+
+${personalizedContext}`;
 
 				loggers.context.info(
 					{
