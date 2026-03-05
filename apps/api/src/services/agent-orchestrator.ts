@@ -406,7 +406,6 @@ export class AgentOrchestrator {
 			// PROCESSAR AgentLLMResponse (JSON schema)
 			// ============================================================================
 
-			const featureFlags = getPivotFeatureFlags();
 			const toolSchemaV2Enabled = featureFlags.TOOL_SCHEMA_V2;
 			const toolsUsed: string[] = [];
 			let responseMessage = '';
