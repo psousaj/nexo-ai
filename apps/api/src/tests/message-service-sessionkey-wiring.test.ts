@@ -161,4 +161,25 @@ describe('message-service sessionKey wiring', () => {
 			}),
 		);
 	});
+
+	test('uses discord channel externalId for group fallback wiring', async () => {
+		const provider = { ...makeProvider(), getProviderName: () => 'discord' as const };
+		const incoming = makeIncoming({
+			provider: 'discord',
+			externalId: 'channel-42',
+			metadata: {
+				isGroupMessage: true,
+				groupId: 'guild-42',
+				messageType: 'text',
+			},
+		});
+
+		await processMessage(incoming, provider);
+
+		expect(agentOrchestrator.processMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionKey: 'agent:main:discord:group:channel-42',
+			}),
+		);
+	});
 });
