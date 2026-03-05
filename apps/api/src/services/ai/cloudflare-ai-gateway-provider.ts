@@ -1,8 +1,8 @@
 import { loggers } from '@/utils/logger';
+import { observe, updateActiveObservation } from '@langfuse/tracing';
 import { encode } from '@toon-format/toon';
 import OpenAI from 'openai';
 import type { AIProvider, AIResponse, Message } from './types';
-import { observe, updateActiveObservation } from '@langfuse/tracing';
 
 /**
  * Provider unificado usando Cloudflare AI Gateway
@@ -117,7 +117,6 @@ Mensagem atual: ${message}`;
 				model: this.model,
 				messages,
 			});
-
 			const duration = Date.now() - startTime;
 			const rawContent = response.choices[0]?.message?.content;
 

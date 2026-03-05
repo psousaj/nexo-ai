@@ -74,10 +74,10 @@ export class TMDBService {
 	private apiKey = env.TMDB_API_KEY;
 
 	/**
-	 * Busca filmes por título
+	 * Busca filmes por título, com filtro opcional de ano
 	 */
-	async searchMovies(query: string): Promise<TMDBMovie[]> {
-		const cacheKey = `tmdb:search:movie:${query.toLowerCase()}`;
+	async searchMovies(query: string, year?: number): Promise<TMDBMovie[]> {
+		const cacheKey = `tmdb:search:movie:${query.toLowerCase()}${year ? `:${year}` : ''}`;
 
 		// Tenta cache primeiro
 		const cached = await cacheGet<TMDBMovie[]>(cacheKey);
@@ -90,6 +90,7 @@ export class TMDBService {
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('query', query);
 		url.searchParams.set('language', 'pt-BR');
+		if (year) url.searchParams.set('primary_release_year', String(year));
 
 		const response = await fetchWithRetry(url.toString(), undefined, {
 			maxRetries: 2,
@@ -120,10 +121,10 @@ export class TMDBService {
 	}
 
 	/**
-	 * Busca séries por título
+	 * Busca séries por título, com filtro opcional de ano
 	 */
-	async searchTVShows(query: string): Promise<TMDBTVShow[]> {
-		const cacheKey = `tmdb:search:tv:${query.toLowerCase()}`;
+	async searchTVShows(query: string, year?: number): Promise<TMDBTVShow[]> {
+		const cacheKey = `tmdb:search:tv:${query.toLowerCase()}${year ? `:${year}` : ''}`;
 
 		// Tenta cache primeiro
 		const cached = await cacheGet<TMDBTVShow[]>(cacheKey);
@@ -136,6 +137,7 @@ export class TMDBService {
 		url.searchParams.set('api_key', this.apiKey);
 		url.searchParams.set('query', query);
 		url.searchParams.set('language', 'pt-BR');
+		if (year) url.searchParams.set('first_air_date_year', String(year));
 
 		const response = await fetchWithRetry(url.toString(), undefined, {
 			maxRetries: 2,

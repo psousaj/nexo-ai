@@ -50,6 +50,8 @@ const envSchema = z.object({
 	LANGFUSE_SECRET_KEY: z.string().optional(),
 	LANGFUSE_HOST: z.string().optional(),
 	LANGFUSE_BASE_URL: z.string().optional(),
+	LANGFUSE_PROMPT_NAME: z.string().optional(),
+	LANGFUSE_PROMPT_LABEL: z.string().optional(),
 	// Sentry - Error tracking & Sourcemaps
 	SENTRY_DSN: z.string().optional(),
 	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.1),
@@ -102,6 +104,37 @@ const envSchema = z.object({
 	PORT_DASHBOARD: z.coerce.number().default(5173), // Dashboard na 5173
 	PORT_LANDING: z.coerce.number().default(3005), // Landing na 3005
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
+
+	// Pivot feature flags
+	CONVERSATION_FREE: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('true'),
+	TOOL_SCHEMA_V2: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	MULTIMODAL_AUDIO: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	MULTIMODAL_IMAGE: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	PROVIDER_SPLIT: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+	ELYSIA_RUNTIME: z
+		.enum(['true', 'false'])
+		.transform((val) => val === 'true')
+		.default('false'),
+
+	// Intake Worker
+	INTAKE_WORKER_URL: z.string().url().default('http://localhost:3002'),
+	INTAKE_WORKER_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(4000),
+	INTAKE_WORKER_TOKEN: z.string().optional(),
 
 	// Email (Resend)
 	RESEND_API_KEY: z.string().optional(),

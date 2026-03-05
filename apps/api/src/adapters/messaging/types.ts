@@ -1,4 +1,5 @@
 import type { LinkingTokenProvider } from '@/db/schema';
+import type { MultimodalIntakePayload } from '@nexo/shared';
 
 /**
  * Messaging Provider Adapter Interface
@@ -56,6 +57,8 @@ export interface SessionKeyParts {
  * Message metadata including group information
  */
 export interface MessageMetadata {
+	/** Session key (OpenClaw) quando já resolvida no ingresso */
+	sessionKey?: string;
 	/** Whether the message is from a group/channel */
 	isGroupMessage: boolean;
 	/** Group/Channel ID (if applicable) */
@@ -74,6 +77,8 @@ export interface MessageMetadata {
 	participantJid?: string;
 	/** Payload bruto do provider para casos avançados (ex: getMessage no Baileys) */
 	providerPayload?: Record<string, unknown>;
+	/** Attachments multimodais mapeados para intake-worker (opcional) */
+	attachments?: MultimodalIntakePayload[];
 }
 
 /**

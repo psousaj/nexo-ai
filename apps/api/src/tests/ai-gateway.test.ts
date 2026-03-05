@@ -64,7 +64,7 @@ describe('CloudflareAIGatewayProvider', () => {
 		const lastCall = mockOpenAIInstance.chat.completions.create.mock.calls[0][0];
 		const userMessage = lastCall.messages.find((m: any) => m.role === 'user').content;
 
-		expect(userMessage).toContain('format TOON');
+		expect(userMessage).toContain('formato TOON');
 		expect(userMessage).toContain('pergunta anterior');
 		expect(userMessage).toContain('pergunta atual');
 	});

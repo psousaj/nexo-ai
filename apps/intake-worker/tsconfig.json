@@ -1,0 +1,13 @@
+{
+	"extends": "@nexo/typescript-config/node.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"strict": true,
+		"lib": ["ESNext"],
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules", "dist"]
+}

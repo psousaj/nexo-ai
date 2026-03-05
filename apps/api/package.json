@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/api",
-	"version": "0.5.36",
+	"version": "0.5.38",
 	"description": "Assistente pessoal via WhatsApp com IA",
 	"type": "module",
 	"scripts": {
@@ -14,10 +14,10 @@
 		"test": "vitest --run --config vitest.config.ts",
 		"test:watch": "vitest --config vitest.config.ts --watch",
 		"test:ui": "vitest --ui",
-		"format": "biome format --write .",
+		"format": "biome format --fix .",
 		"format:check": "biome format .",
 		"lint:biome": "biome check .",
-		"lint:biome:fix": "biome check --write .",
+		"lint:biome:fix": "biome check --fix .",
 		"train:nexo": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
 		"train:nexo:bert": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
 		"set-admin": "tsx scripts/set-admin.ts"
@@ -30,6 +30,7 @@
 		"@hono/node-server": "^1.19.9",
 		"@hono/swagger-ui": "^0.5.3",
 		"@hono/zod-validator": "^0.7.6",
+		"@langfuse/openai": "^4.6.1",
 		"@langfuse/tracing": "^4.6.1",
 		"@nexo/env": "workspace:*",
 		"@nexo/otel": "workspace:*",

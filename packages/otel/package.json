@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/otel",
-	"version": "0.5.36",
+	"version": "0.5.38",
 	"private": true,
 	"type": "module",
 	"main": "./dist/index.cjs",
@@ -23,11 +23,12 @@
 		"dev": "tsup --watch"
 	},
 	"dependencies": {
+		"@langfuse/otel": "^4.6.1",
 		"@opentelemetry/api": "^1.9.0",
-		"@opentelemetry/sdk-node": "^0.57.0",
 		"@opentelemetry/auto-instrumentations-node": "^0.50.0",
 		"@opentelemetry/exporter-trace-otlp-grpc": "^0.57.0",
 		"@opentelemetry/resources": "^1.27.0",
+		"@opentelemetry/sdk-node": "^0.57.0",
 		"@opentelemetry/semantic-conventions": "^1.27.0"
 	},
 	"devDependencies": {

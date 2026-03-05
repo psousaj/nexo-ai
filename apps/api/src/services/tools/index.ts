@@ -119,6 +119,8 @@ export async function save_note(
 /**
  * Tool: save_movie
  * Salva filme (com ou sem enriquecimento)
+ * Se não tem tmdb_id, busca no TMDB e retorna candidatos para seleção
+ * Se tem tmdb_id, salva imediatamente com dados básicos e dispara enriquecimento completo async
  */
 export async function save_movie(
 	context: ToolContext,
@@ -128,6 +130,9 @@ export async function save_movie(
 		tmdb_id?: number;
 		rating?: number;
 		genres?: string[];
+		// Campos opcionais vindos do selectedItem (evita chamada síncrona ao TMDB)
+		overview?: string;
+		poster_path?: string | null;
 	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
@@ -135,23 +140,53 @@ export async function save_movie(
 	}
 
 	try {
-		let metadata: MovieMetadata = {
+		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
+		if (!params.tmdb_id) {
+			loggers.tools.info(
+				{ title: params.title, year: params.year },
+				'🔍 save_movie sem tmdb_id → buscando candidatos no TMDB',
+			);
+			const results = await enrichmentService.searchMovies(params.title, params.year);
+
+			if (results && results.length > 0) {
+				return {
+					success: true,
+					data: {
+						results: results.map((r) => ({
+							type: 'movie' as const,
+							title: r.title,
+							year: r.release_date ? Number.parseInt(r.release_date.split('-')[0]) : undefined,
+							tmdb_id: r.id,
+							rating: r.vote_average || 0,
+							overview: r.overview || '',
+							poster_path: r.poster_path,
+						})),
+					},
+				};
+			}
+
+			// Nenhum resultado no TMDB: salva sem enriquecimento como fallback
+			loggers.tools.warn({ title: params.title }, '⚠️ TMDB sem resultados, salvando filme sem enriquecimento');
+		}
+
+		// Com tmdb_id: salva imediatamente com dados básicos disponíveis em params
+		// e dispara enriquecimento completo em background (sem bloquear a resposta)
+		const metadata: MovieMetadata = {
 			tmdb_id: params.tmdb_id || 0,
 			year: params.year || new Date().getFullYear(),
 			genres: params.genres || [],
 			rating: params.rating || 0,
-		};
+			...(params.overview && { overview: params.overview }),
+			...(params.poster_path && { poster_path: params.poster_path }),
+		} as MovieMetadata;
 
-		// Se tem tmdb_id, busca detalhes completos (diretor, elenco, etc)
 		if (params.tmdb_id) {
-			try {
-				const enriched = await enrichmentService.enrich('movie', { tmdbId: params.tmdb_id });
-				if (enriched) {
-					metadata = { ...metadata, ...enriched } as MovieMetadata;
-				}
-			} catch (enrichError) {
-				loggers.tools.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer filme');
-			}
+			// Enriquecimento async — não bloqueia a resposta ao usuário
+			void enrichmentService
+				.enrich('movie', { tmdbId: params.tmdb_id })
+				.catch((err) =>
+					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
+				);
 		}
 
 		const item = await itemService.createItem({
@@ -176,6 +211,8 @@ export async function save_movie(
 /**
  * Tool: save_tv_show
  * Salva série
+ * Se não tem tmdb_id, busca no TMDB e retorna candidatos para seleção
+ * Se tem tmdb_id, salva imediatamente com dados básicos e dispara enriquecimento completo async
  */
 export async function save_tv_show(
 	context: ToolContext,
@@ -185,6 +222,9 @@ export async function save_tv_show(
 		tmdb_id?: number;
 		rating?: number;
 		genres?: string[];
+		// Campos opcionais vindos do selectedItem (evita chamada síncrona ao TMDB)
+		overview?: string;
+		poster_path?: string | null;
 	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
@@ -192,7 +232,35 @@ export async function save_tv_show(
 	}
 
 	try {
-		let metadata: TVShowMetadata = {
+		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
+		if (!params.tmdb_id) {
+			loggers.tools.info({ title: params.title }, '🔍 save_tv_show sem tmdb_id → buscando candidatos no TMDB');
+			const results = await enrichmentService.searchTVShows(params.title);
+
+			if (results && results.length > 0) {
+				return {
+					success: true,
+					data: {
+						results: results.map((r) => ({
+							type: 'tv_show' as const,
+							title: r.name,
+							year: r.first_air_date,
+							tmdb_id: r.id,
+							rating: r.rating,
+							overview: r.overview,
+							poster_path: r.poster_path,
+						})),
+					},
+				};
+			}
+
+			// Nenhum resultado no TMDB: salva sem enriquecimento como fallback
+			loggers.tools.warn({ title: params.title }, '⚠️ TMDB sem resultados, salvando série sem enriquecimento');
+		}
+
+		// Com tmdb_id: salva imediatamente com dados básicos disponíveis em params
+		// e dispara enriquecimento completo em background (sem bloquear a resposta)
+		const metadata: TVShowMetadata = {
 			tmdb_id: params.tmdb_id || 0,
 			first_air_date: params.year || new Date().getFullYear(),
 			number_of_seasons: 0,
@@ -200,18 +268,17 @@ export async function save_tv_show(
 			status: 'Unknown',
 			genres: params.genres || [],
 			rating: params.rating || 0,
-		};
+			...(params.overview && { overview: params.overview }),
+			...(params.poster_path && { poster_path: params.poster_path }),
+		} as TVShowMetadata;
 
-		// Se tem tmdb_id, busca detalhes completos
 		if (params.tmdb_id) {
-			try {
-				const enriched = await enrichmentService.enrich('tv_show', { tmdbId: params.tmdb_id });
-				if (enriched) {
-					metadata = { ...metadata, ...enriched } as TVShowMetadata;
-				}
-			} catch (enrichError) {
-				loggers.tools.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer série');
-			}
+			// Enriquecimento async — não bloqueia a resposta ao usuário
+			void enrichmentService
+				.enrich('tv_show', { tmdbId: params.tmdb_id })
+				.catch((err) =>
+					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
+				);
 		}
 
 		const item = await itemService.createItem({
@@ -390,7 +457,7 @@ export async function enrich_movie(
 	}
 
 	try {
-		const results = await enrichmentService.searchMovies(params.title);
+		const results = await enrichmentService.searchMovies(params.title, params.year);
 
 		if (!results || results.length === 0) {
 			return {
@@ -437,7 +504,7 @@ export async function enrich_tv_show(
 	}
 
 	try {
-		const results = await enrichmentService.searchTVShows(params.title);
+		const results = await enrichmentService.searchTVShows(params.title, params.year);
 
 		if (!results || results.length === 0) {
 			return {
@@ -544,14 +611,23 @@ export async function delete_memory(
 	}
 }
 
-export async function delete_all_memories(context: ToolContext, _params: {}): Promise<ToolOutput> {
+export async function delete_all_memories(context: ToolContext, params: { type?: string }): Promise<ToolOutput> {
 	try {
-		const deleted_count = await itemService.deleteAllItems(context.userId);
+		const deleted_count = await itemService.deleteAllItems(context.userId, params.type);
+
+		const typeLabel: Record<string, string> = {
+			note: 'nota(s)',
+			movie: 'filme(s)',
+			tv_show: 'série(s)',
+			video: 'vídeo(s)',
+			link: 'link(s)',
+		};
+		const label = params.type ? (typeLabel[params.type] ?? 'item(ns)') : 'item(ns)';
 
 		return {
 			success: true,
-			data: { deleted_count },
-			message: `${deleted_count} item(ns) deletado(s)`,
+			data: { deleted_count, type: params.type ?? null },
+			message: `${deleted_count} ${label} deletado(s)`,
 		};
 	} catch (error) {
 		return {
@@ -766,7 +842,9 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -832,8 +910,9 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
-			await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);

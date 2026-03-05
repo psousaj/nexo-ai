@@ -755,13 +755,18 @@ export class IntentClassifier {
 		if (!hasDeleteKeyword) return null;
 
 		// Detectar alvo: tudo, item específico, ou seleção
-		if (msg.includes('tudo') || msg.includes('tudo mesmo') || msg.includes('todos')) {
+		const hasAllKeyword =
+			msg.includes('tudo') || msg.includes('tudo mesmo') || msg.includes('todos') || msg.includes('todas');
+		if (hasAllKeyword) {
+			// Se "todas as notas", "apaga todos os filmes", etc → delete_all filtrado por tipo
+			const itemType = this.extractItemType(msg);
 			return {
 				intent: 'delete_content',
 				action: 'delete_all',
 				confidence: 0.95,
 				entities: {
-					target: 'all',
+					target: itemType ? 'type' : 'all',
+					itemType,
 				},
 			};
 		}

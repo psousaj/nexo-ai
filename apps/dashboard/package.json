@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/dashboard",
-	"version": "0.5.36",
+	"version": "0.5.38",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -26,6 +26,7 @@
 		"@casl/ability": "^6.8.0",
 		"@casl/vue": "^2.2.6",
 		"@iconify-json/lucide": "^1.2.87",
+		"@iconify-json/heroicons": "^1.2.2",
 		"@iconify-json/simple-icons": "^1.2.68",
 		"@nexo/auth": "workspace:*",
 		"@nexo/env": "workspace:*",

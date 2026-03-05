@@ -14,6 +14,7 @@ import type {
 	VideoMetadata,
 } from '@nexo/shared';
 export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
+export * from './agent-decision-v2';
 
 export type ConversationState =
 	| 'idle' // Conversa inativa, pronta para receber comandos
@@ -78,11 +79,15 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 		if (!response.tool) return false;
 	}
 
-	// Validar tamanho de RESPOND (máx 200 chars)
-	if (response.action === 'RESPOND' && response.message) {
-		if (response.message.length > 200) {
-			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo');
-			response.message = `${response.message.substring(0, 197)}...`;
+	if (response.action === 'RESPOND' && typeof response.message !== 'string') {
+		return false;
+	}
+
+	// Validar tamanho de RESPOND (máx 700 chars)
+	if (response.action === 'RESPOND' && typeof response.message === 'string') {
+		if (response.message.length > 700) {
+			loggers.ai.warn({ length: response.message.length }, 'RESPOND muito longo (máx 700 chars)');
+			response.message = `${response.message.substring(0, 697)}...`;
 		}
 	}
 
@@ -106,6 +111,11 @@ export interface ConversationContext {
 	};
 	clarificationAttempts?: number; // Contador de tentativas de clarificação
 	lastClarificationMessage?: string; // Última mensagem original antes de off_topic
+
+	// Confirmação de ação destrutiva
+	pendingDelete?: boolean; // Aguardando confirmação antes de deletar
+	deleteType?: string | null; // Tipo de item a deletar (null = todos)
+	deleteCount?: number; // Quantidade de itens que serão apagados
 
 	// Batch processing
 	batch_queue?: Array<{

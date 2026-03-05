@@ -202,8 +202,7 @@ export async function scheduleReminder(params: {
 		{
 			jobId,
 			delay,
-			attempts: 3,
-			backoff: { type: 'exponential', delay: 5000 },
+			attempts: 1,
 			removeOnComplete: false,
 			removeOnFail: false,
 		},

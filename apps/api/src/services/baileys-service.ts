@@ -19,17 +19,17 @@ import { messages } from '@/db/schema';
 import { captureException } from '@/sentry';
 import { messageQueue } from '@/services/queue-service';
 import { loggers } from '@/utils/logger';
-import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
-	fetchLatestBaileysVersion,
 	type ConnectionState,
 	DisconnectReason,
 	type WAMessage,
 	type WAMessageKey,
 	type WASocket,
+	fetchLatestBaileysVersion,
 	makeWASocket,
 	useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 const logger = loggers.baileys;
 
@@ -120,7 +120,11 @@ export class BaileysService {
 
 		const baseWhere = and(eq(messages.provider, 'whatsapp'), eq(messages.providerMessageId, key.id));
 
-		const query = db.select({ providerPayload: messages.providerPayload }).from(messages).orderBy(desc(messages.createdAt)).limit(1);
+		const query = db
+			.select({ providerPayload: messages.providerPayload })
+			.from(messages)
+			.orderBy(desc(messages.createdAt))
+			.limit(1);
 
 		const [row] =
 			candidateJids.length > 0
@@ -605,7 +609,8 @@ export class BaileysService {
 							'❌ BaileysMaxRecoveryError: máximo de tentativas atingido - reinicie o serviço',
 						);
 						this.connectionStatus = 'error';
-						this.connectionError = 'Falha persistente na conexão WhatsApp (servidor rejeita cliente). Reinicie o serviço.';
+						this.connectionError =
+							'Falha persistente na conexão WhatsApp (servidor rejeita cliente). Reinicie o serviço.';
 						this.recoveryAttempts = 0;
 						return;
 					}
@@ -666,7 +671,10 @@ export class BaileysService {
 									await this.connect();
 								}
 							} catch (err) {
-								logger.error({ err }, '❌ BaileysReconnectError: falha ao limpar sessão e reconectar após restart (515)');
+								logger.error(
+									{ err },
+									'❌ BaileysReconnectError: falha ao limpar sessão e reconectar após restart (515)',
+								);
 							}
 						}
 					}, 2000);
@@ -774,7 +782,9 @@ export class BaileysService {
 
 			// Timestamp
 			const timestampValue =
-				typeof message.messageTimestamp === 'number' ? message.messageTimestamp : (message.messageTimestamp as any)?.toNumber?.() || 0;
+				typeof message.messageTimestamp === 'number'
+					? message.messageTimestamp
+					: (message.messageTimestamp as any)?.toNumber?.() || 0;
 			const timestamp = new Date(timestampValue * 1000);
 
 			const trimmedText = text.trim();
@@ -818,7 +828,10 @@ export class BaileysService {
 				tags: { service: 'baileys', operation: 'parseMessage' },
 				extra: { messageId: message.key.id },
 			});
-			logger.error({ err: parseErr, messageId: message.key.id }, '❌ BaileysParseError: falha ao parsear mensagem recebida');
+			logger.error(
+				{ err: parseErr, messageId: message.key.id },
+				'❌ BaileysParseError: falha ao parsear mensagem recebida',
+			);
 			return null;
 		}
 	}
@@ -852,7 +865,8 @@ export class BaileysService {
 						},
 						{
 							removeOnComplete: true,
-							attempts: 1,
+							attempts: 3,
+							backoff: { type: 'exponential', delay: 2000 },
 						},
 					);
 

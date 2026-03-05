@@ -1,3 +1,5 @@
+import { sentryMetrics } from '@/sentry';
+import { type AgentDecisionV2, isValidAgentDecisionV2 } from '@/types/agent-decision-v2';
 import { loggers } from '@/utils/logger';
 
 /**
@@ -61,8 +63,62 @@ export function isValidAgentResponse(obj: any): boolean {
 	// Se CALL_TOOL, precisa ter tool
 	if (obj.action === 'CALL_TOOL' && !obj.tool) return false;
 
-	// Se RESPOND, precisa ter message
-	if (obj.action === 'RESPOND' && !obj.message) return false;
+	// Se RESPOND, precisa ter message textual
+	if (obj.action === 'RESPOND' && typeof obj.message !== 'string') return false;
 
 	return true;
+}
+
+/**
+ * Aplica guardrails de normalização para resposta do agente
+ */
+export function normalizeAgentResponse(obj: any): void {
+	if (!obj || typeof obj !== 'object') return;
+
+	if (obj.action === 'RESPOND' && typeof obj.message === 'string' && obj.message.length > 700) {
+		loggers.ai.warn({ length: obj.message.length }, 'RESPOND muito longo (máx 700 chars)');
+		obj.message = `${obj.message.substring(0, 697)}...`;
+	}
+}
+
+/**
+ * Valida se é um AgentDecisionV2 válido
+ */
+export function isValidAgentDecisionV2Response(obj: unknown): obj is AgentDecisionV2 {
+	const isValid = isValidAgentDecisionV2(obj);
+
+	try {
+		if (isValid) {
+			sentryMetrics.increment('agent_decision_v2_parse_valid_total', 1, { action: (obj as AgentDecisionV2).action });
+		} else {
+			sentryMetrics.increment('agent_decision_v2_parse_invalid_total', 1, { stage: 'validation' });
+		}
+	} catch (error) {
+		loggers.ai.debug({ err: error }, 'Falha ao enviar telemetria AgentDecisionV2');
+	}
+
+	return isValid;
+}
+
+/**
+ * Parseia e valida resposta LLM no contrato AgentDecisionV2
+ */
+export function parseAgentDecisionV2FromLLM(text: string): AgentDecisionV2 {
+	let parsed: unknown;
+	try {
+		parsed = parseJSONFromLLM(text);
+	} catch (error) {
+		try {
+			sentryMetrics.increment('agent_decision_v2_parse_invalid_total', 1, { stage: 'json_parse' });
+		} catch (metricError) {
+			loggers.ai.debug({ err: metricError }, 'Falha ao enviar telemetria AgentDecisionV2');
+		}
+		throw error;
+	}
+
+	if (!isValidAgentDecisionV2Response(parsed)) {
+		throw new Error('AgentDecisionV2 inválido');
+	}
+
+	return parsed;
 }

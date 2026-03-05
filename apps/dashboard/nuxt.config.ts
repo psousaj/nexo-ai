@@ -9,6 +9,13 @@ import { env } from './app/config/env';
 
 export default defineNuxtConfig({
 	modules: ['@nuxt/eslint', '@nuxt/ui', '@nuxt/image', '@nuxt/scripts', '@nuxt/test-utils', '@pinia/nuxt'],
+	app: {
+		head: {
+			title: 'Dashboard',
+			titleTemplate: '%s · Nexo AI',
+			link: [{ rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }],
+		},
+	},
 
 	devtools: {
 		enabled: true,

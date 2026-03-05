@@ -15,7 +15,7 @@ import OpenAI from 'openai';
  */
 export class EmbeddingService {
 	private client: OpenAI;
-	private model = env.EMBEDDING_MODEL ?? 'dynamic/embeddings';
+	private model = env.EMBEDDING_MODEL ?? '@cf/baai/bge-small-en-v1.5';
 	private readonly timeoutMs = env.EMBEDDING_TIMEOUT_MS ?? 25000;
 	private readonly maxRetries = env.EMBEDDING_MAX_RETRIES ?? 4;
 	private readonly retryBaseDelayMs = env.EMBEDDING_RETRY_BASE_DELAY_MS ?? 600;
@@ -95,7 +95,10 @@ export class EmbeddingService {
 		if (text.length <= maxChars) return text;
 
 		const truncated = text.slice(0, maxChars);
-		loggers.enrichment.warn({ originalLength: text.length, truncatedLength: maxChars }, '⚠️ Texto truncado para embedding');
+		loggers.enrichment.warn(
+			{ originalLength: text.length, truncatedLength: maxChars },
+			'⚠️ Texto truncado para embedding',
+		);
 
 		return `${truncated}...`;
 	}
@@ -153,7 +156,10 @@ export class EmbeddingService {
 			// Validar se o embedding não é um vetor de zeros
 			const isZeroVector = embedding.every((v: number) => v === 0);
 			if (isZeroVector) {
-				loggers.enrichment.error({ textLength: processedText.length, model: this.model }, '❌ API retornou vetor de zeros!');
+				loggers.enrichment.error(
+					{ textLength: processedText.length, model: this.model },
+					'❌ API retornou vetor de zeros!',
+				);
 				throw new Error('Embedding inválido: vetor de zeros retornado');
 			}
 
