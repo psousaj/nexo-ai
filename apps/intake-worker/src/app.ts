@@ -2,9 +2,10 @@ import { type Context, Hono } from 'hono';
 import { normalizeMultimodalPayload } from '@nexo/shared';
 import { StubOcrAdapter } from './adapters/ocr/ocr-adapter';
 import { StubSttAdapter } from './adapters/stt/stt-adapter';
+import { getWorkerEnv } from './config/env';
 import { getWorkerFeatureFlags } from './config/feature-flags';
 
-function jsonError(c: Context, status: 400 | 422 | 500, error: string, message: string) {
+function jsonError(c: Context, status: 400 | 401 | 422 | 500, error: string, message: string) {
 	return c.json(
 		{
 			error,
@@ -21,6 +22,25 @@ function hasAttachmentsArray(body: unknown): body is { attachments: unknown[] } 
 
 	const payload = body as { attachments?: unknown };
 	return Array.isArray(payload.attachments);
+}
+
+function isAuthorizedRequest(c: Context): boolean {
+	const configuredToken = getWorkerEnv().INTAKE_WORKER_TOKEN.trim();
+	if (!configuredToken) {
+		return true;
+	}
+
+	const authorization = c.req.header('authorization');
+	if (!authorization) {
+		return false;
+	}
+
+	const match = authorization.match(/^Bearer\s+(.+)$/i);
+	if (!match) {
+		return false;
+	}
+
+	return match[1] === configuredToken;
 }
 
 export function createIntakeWorkerApp() {
@@ -42,6 +62,10 @@ export function createIntakeWorkerApp() {
 	});
 
 	app.post('/intake/process', async (c) => {
+		if (!isAuthorizedRequest(c)) {
+			return jsonError(c, 401, 'unauthorized', 'Missing or invalid bearer token');
+		}
+
 		const flags = getWorkerFeatureFlags();
 		const body = await c.req.json().catch(() => null);
 

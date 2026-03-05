@@ -9,6 +9,7 @@ describe('intake worker app routes', () => {
 		vi.doMock('../config/env', () => ({
 			getWorkerEnv: () => ({
 				PORT: 3002,
+				INTAKE_WORKER_TOKEN: '',
 				MULTIMODAL_AUDIO: true,
 				MULTIMODAL_IMAGE: false,
 			}),
@@ -25,10 +26,11 @@ describe('intake worker app routes', () => {
 		expect(body.features).toEqual({ audio: true, image: false });
 	});
 
-	it('processes multimodal attachments and returns deterministic items shape', async () => {
+	it('rejects unauthorized requests when worker token is configured', async () => {
 		vi.doMock('../config/env', () => ({
 			getWorkerEnv: () => ({
 				PORT: 3002,
+				INTAKE_WORKER_TOKEN: 'worker-token',
 				MULTIMODAL_AUDIO: true,
 				MULTIMODAL_IMAGE: true,
 			}),
@@ -40,6 +42,52 @@ describe('intake worker app routes', () => {
 		const response = await app.request('http://localhost/intake/process', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				attachments: [
+					{
+						kind: 'audio',
+						messageId: 'msg-audio',
+						userId: 'user-1',
+						mimeType: 'audio/ogg',
+						url: 'https://cdn.example/audio.ogg',
+					},
+					{
+						kind: 'image',
+						messageId: 'msg-image',
+						userId: 'user-1',
+						mimeType: 'image/png',
+						url: 'https://cdn.example/image.png',
+					},
+				],
+			}),
+		});
+
+		expect(response.status).toBe(401);
+		await expect(response.json()).resolves.toEqual({
+			error: 'unauthorized',
+			message: 'Missing or invalid bearer token',
+		});
+	});
+
+	it('accepts authorized requests when worker token is configured', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				INTAKE_WORKER_TOKEN: 'worker-token',
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer worker-token',
+			},
 			body: JSON.stringify({
 				attachments: [
 					{
@@ -87,10 +135,57 @@ describe('intake worker app routes', () => {
 		});
 	});
 
+	it('still processes requests without auth token when token is not configured', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				INTAKE_WORKER_TOKEN: '',
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				attachments: [
+					{
+						kind: 'image',
+						messageId: 'msg-image',
+						userId: 'user-1',
+						mimeType: 'image/png',
+						url: 'https://cdn.example/image.png',
+					},
+				],
+			}),
+		});
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			items: [
+				{
+					kind: 'image',
+					messageId: 'msg-image',
+					text: '',
+					metadata: {
+						provider: 'stub-ocr',
+						transport: 'url',
+						mimeType: 'image/png',
+					},
+				},
+			],
+		});
+	});
+
 	it('returns 400 when request body does not contain attachments array', async () => {
 		vi.doMock('../config/env', () => ({
 			getWorkerEnv: () => ({
 				PORT: 3002,
+				INTAKE_WORKER_TOKEN: '',
 				MULTIMODAL_AUDIO: true,
 				MULTIMODAL_IMAGE: true,
 			}),
