@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const MAX_INLINE_BASE64_LENGTH = 10 * 1024 * 1024;
+const ALLOWED_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
 const commonPayloadFields = {
 	messageId: z.string().min(1),
@@ -23,6 +24,17 @@ function validateSingleTransport(value: { url?: string; base64?: string }, ctx: 
 			message: 'payload must include exactly one transport: url or base64',
 			path: ['url'],
 		});
+	}
+
+	if (hasUrl && value.url) {
+		const protocol = new URL(value.url).protocol;
+		if (!ALLOWED_URL_PROTOCOLS.has(protocol)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'url transport must use http or https',
+				path: ['url'],
+			});
+		}
 	}
 }
 

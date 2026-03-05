@@ -25,6 +25,22 @@ describe('normalizeMultimodalPayload', () => {
 		expect(normalized.content).toBe('https://cdn.example/audio.ogg');
 	});
 
+	it('normalizes payload with http url transport', () => {
+		const normalized = normalizeMultimodalPayload(
+			{
+				kind: 'image',
+				messageId: 'msg-http',
+				userId: 'user-http',
+				mimeType: 'image/png',
+				url: 'http://cdn.example/image.png',
+			},
+			enabledFlags,
+		);
+
+		expect(normalized.transport).toBe('url');
+		expect(normalized.content).toBe('http://cdn.example/image.png');
+	});
+
 	it('normalizes image payload with base64 transport', () => {
 		const normalized = normalizeMultimodalPayload(
 			{
@@ -88,6 +104,24 @@ describe('normalizeMultimodalPayload', () => {
 			),
 		).toThrow('payload must include exactly one transport: url or base64');
 	});
+
+	it.each(['file:///tmp/audio.ogg', 'ftp://cdn.example/audio.ogg', 'javascript:alert(1)'])(
+		'throws when url transport has a disallowed scheme (%s)',
+		(url) => {
+			expect(() =>
+				normalizeMultimodalPayload(
+					{
+						kind: 'audio',
+						messageId: 'msg-invalid-scheme',
+						userId: 'user-invalid-scheme',
+						mimeType: 'audio/ogg',
+						url,
+					},
+					enabledFlags,
+				),
+			).toThrow('url transport must use http or https');
+		},
+	);
 
 	it('throws when audio modality is disabled by feature flag', () => {
 		expect(() =>
