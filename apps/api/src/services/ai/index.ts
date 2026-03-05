@@ -1,9 +1,9 @@
 import { env } from '@/config/env';
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
+import { getLangfuse } from '@/services/langfuse';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
-import { startActiveObservation, startObservation } from '@langfuse/tracing';
-import { setAttributes, startSpan } from '@nexo/otel/tracing';
+import { getCurrentTraceId, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
 import type { AIResponse, Message } from './types';
 
@@ -41,80 +41,53 @@ export class AIService {
 			loggers.ai.info(`📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
 			loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
 
-			return startActiveObservation('llm-user-request', async (span) => {
-				span.update({
-					input: {
-						query: params.message,
-						historyCount: params.history?.length || 0,
-						hasSystemPrompt: Boolean(systemPrompt),
+			// Langfuse integration
+			const langfuse = getLangfuse();
+			const traceId = getCurrentTraceId();
+			let generation: any = null;
+
+			if (langfuse) {
+				generation = langfuse
+					.trace({
+						name: 'llm_call',
+						id: traceId,
+					})
+					.generation({
+						model: (this.provider as any).model || 'dynamic/cloudflare',
+						metadata: {
+							provider: 'cloudflare',
+							messageLength: params.message.length,
+						},
+					});
+			}
+
+			const response = await this.provider.callLLM({
+				...rest,
+				systemPrompt: prompt,
+			});
+
+			// OTEL attributes - Token usage
+			const usage = (response as any).usage;
+			setAttributes({
+				'llm.prompt_tokens': usage?.promptTokens || 0,
+				'llm.completion_tokens': usage?.completionTokens || 0,
+				'llm.total_tokens': usage?.totalTokens || 0,
+				'llm.response_length': response.message?.length || 0,
+			});
+
+			// Langfuse - Completion
+			if (generation && usage) {
+				generation.end({
+					completion: response.message,
+					usage: {
+						promptTokens: usage.promptTokens,
+						completionTokens: usage.completionTokens,
+						totalTokens: usage.totalTokens,
 					},
 				});
+			}
 
-				const generation = startObservation(
-					'llm-call',
-					{
-						model: (this.provider as any).model || 'dynamic/cloudflare',
-						input: [{ role: 'user', content: params.message }],
-						metadata: {
-							provider: 'cloudflare-ai-gateway',
-							historyCount: params.history?.length || 0,
-						},
-					},
-					{ asType: 'generation' },
-				);
-
-				try {
-					const response = await this.provider.callLLM({
-						...rest,
-						systemPrompt: prompt,
-					});
-
-					const usage = (response as any).usage;
-					setAttributes({
-						'llm.prompt_tokens': usage?.promptTokens || 0,
-						'llm.completion_tokens': usage?.completionTokens || 0,
-						'llm.total_tokens': usage?.totalTokens || 0,
-						'llm.response_length': response.message?.length || 0,
-					});
-
-					generation
-						.update({
-							output: { content: response.message },
-							metadata: {
-								usage,
-							},
-						})
-						.end();
-
-					span.update({
-						output: {
-							status: 'success',
-							responseLength: response.message?.length || 0,
-						},
-					});
-
-					return response;
-				} catch (error) {
-					generation
-						.update({
-							output: {
-								status: 'error',
-							},
-							metadata: {
-								error: error instanceof Error ? error.message : String(error),
-							},
-						})
-						.end();
-
-					span.update({
-						output: {
-							status: 'error',
-						},
-					});
-
-					throw error;
-				}
-			});
+			return response;
 		});
 	}
 
