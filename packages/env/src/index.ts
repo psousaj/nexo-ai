@@ -50,6 +50,8 @@ const envSchema = z.object({
 	LANGFUSE_SECRET_KEY: z.string().optional(),
 	LANGFUSE_HOST: z.string().optional(),
 	LANGFUSE_BASE_URL: z.string().optional(),
+	LANGFUSE_PROMPT_NAME: z.string().optional(),
+	LANGFUSE_PROMPT_LABEL: z.string().optional(),
 	// Sentry - Error tracking & Sourcemaps
 	SENTRY_DSN: z.string().optional(),
 	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.1),

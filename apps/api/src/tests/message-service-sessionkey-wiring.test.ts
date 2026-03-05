@@ -1,4 +1,5 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
+import { ERROR_MESSAGES } from '@/config/prompts';
 import { processMessage } from '@/services/message-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -180,6 +181,38 @@ describe('message-service sessionKey wiring', () => {
 			expect.objectContaining({
 				sessionKey: 'agent:main:discord:group:channel-42',
 			}),
+		);
+	});
+
+	test('does not notify user when LLM contract fails in non-final attempt', async () => {
+		const provider = makeProvider();
+		const incoming = makeIncoming();
+		const contractError = new Error('Resposta não é JSON: plain text output');
+
+		vi.mocked(agentOrchestrator.processMessage).mockRejectedValue(contractError);
+
+		await expect(
+			processMessage(incoming, provider, {
+				shouldNotifyUserOnProcessingError: false,
+			}),
+		).rejects.toThrow('Resposta não é JSON');
+
+		expect(provider.sendMessage).not.toHaveBeenCalled();
+	});
+
+	test('notifies user with generic error when LLM contract fails in final attempt', async () => {
+		const provider = makeProvider();
+		const incoming = makeIncoming();
+		const contractError = new Error('Resposta não é JSON: plain text output');
+
+		vi.mocked(agentOrchestrator.processMessage).mockRejectedValue(contractError);
+
+		await expect(processMessage(incoming, provider)).rejects.toThrow('Resposta não é JSON');
+
+		expect(provider.sendMessage).toHaveBeenCalledTimes(1);
+		expect(provider.sendMessage).toHaveBeenCalledWith(
+			incoming.externalId,
+			expect.stringMatching(new RegExp(ERROR_MESSAGES.map((message) => message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))),
 		);
 	});
 });

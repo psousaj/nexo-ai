@@ -1,3 +1,4 @@
+import { LangfuseSpanProcessor } from '@langfuse/otel';
 import * as otel from '@opentelemetry/sdk-node';
 import { getTraceExporter } from './exporters';
 import { getAutoInstrumentations } from './instrumentations';
@@ -91,13 +92,25 @@ export function initializeOtel(config?: InitializeOtelConfig): void {
 		httpHeadersToInclude: config?.httpHeadersToInclude,
 	});
 
+	const spanProcessors: any[] = [];
+	const hasLangfuseKeys = Boolean(process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY);
+
+	if (hasLangfuseKeys) {
+		try {
+			spanProcessors.push(new LangfuseSpanProcessor());
+			console.log('[OTEL] LangfuseSpanProcessor enabled');
+		} catch (error) {
+			console.warn('[OTEL] Failed to enable LangfuseSpanProcessor, continuing without it', error);
+		}
+	}
+
 	// Create and start SDK
 	sdk = new otel.NodeSDK({
 		resource,
 		traceExporter,
 		instrumentations,
 		// Configure span processors for sampling, batching, etc.
-		spanProcessors: [],
+		spanProcessors,
 	});
 
 	sdk.start();

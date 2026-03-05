@@ -22,6 +22,7 @@
  */
 
 import {
+	AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT,
 	applyAgentDecisionV2Contract,
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
@@ -138,18 +139,8 @@ export class AgentOrchestrator {
 					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
 					const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
-					await conversationService.addMessage(
-						conversation.id,
-						'user',
-						context.message,
-						this.buildMessagePersistOptions(context, true),
-					);
-					await conversationService.addMessage(
-						conversation.id,
-						'assistant',
-						responseMessage,
-						this.buildMessagePersistOptions(context),
-					);
+					await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+					await conversationService.addMessage(conversation.id, 'assistant', responseMessage, this.buildMessagePersistOptions(context));
 
 					return {
 						message: responseMessage,
@@ -170,10 +161,7 @@ export class AgentOrchestrator {
 				const cb = context.callbackData;
 				const isKnownCallback = cb.startsWith('select_') || cb === 'confirm_final' || cb === 'choose_again';
 
-				if (
-					isKnownCallback &&
-					(conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')
-				) {
+				if (isKnownCallback && (conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')) {
 					loggers.ai.info({ callbackData: cb, state: conversation.state }, '🔘 Callback do Telegram detectado');
 
 					// Cria intent artificial para handleConfirmation
@@ -224,10 +212,7 @@ export class AgentOrchestrator {
 				const endAmbiguous = performance.now();
 
 				if (isAmbiguous) {
-					loggers.ai.info(
-						{ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` },
-						'🔍 Ambiguidade detectada',
-					);
+					loggers.ai.info({ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` }, '🔍 Ambiguidade detectada');
 					return {
 						message: null as any, // Mensagem já enviada pelo conversationService
 						state: 'awaiting_context', // Estado atualizado pelo service
@@ -312,19 +297,9 @@ export class AgentOrchestrator {
 			// 6. SALVAR MENSAGENS
 			// Se a resposta for nula (ex: handleAmbiguousMessage), não salva resposta vazia
 			// Mas a mensagem do user SEMPRE deve ser salva
-			await conversationService.addMessage(
-				conversation.id,
-				'user',
-				context.message,
-				this.buildMessagePersistOptions(context, true),
-			);
+			await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
 			if (response.message) {
-				await conversationService.addMessage(
-					conversation.id,
-					'assistant',
-					response.message,
-					this.buildMessagePersistOptions(context),
-				);
+				await conversationService.addMessage(conversation.id, 'assistant', response.message, this.buildMessagePersistOptions(context));
 			}
 
 			// 7. AGENDAR FECHAMENTO SE A AÇÃO FINALIZOU
@@ -355,6 +330,7 @@ export class AgentOrchestrator {
 	 */
 	private async handleWithLLM(context: AgentContext, _intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
+			const MAX_CONTRACT_RETRIES = 3;
 			const featureFlags = getPivotFeatureFlags();
 			const toolContext: ToolContext = {
 				userId: context.userId,
@@ -380,10 +356,7 @@ export class AgentOrchestrator {
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
 				const assistantName = agentContext.assistantName || 'Nexo';
 				const baseSystemPrompt = getAgentSystemPrompt(assistantName, featureFlags.TOOL_SCHEMA_V2);
-				const personalizedContext = applyAgentDecisionV2Contract(
-					agentContext.systemPrompt,
-					featureFlags.TOOL_SCHEMA_V2,
-				);
+				const personalizedContext = applyAgentDecisionV2Contract(agentContext.systemPrompt, featureFlags.TOOL_SCHEMA_V2);
 				systemPrompt = `${baseSystemPrompt}
 
 # PERSONALIZED CONTEXT (NON-OVERRIDING)
@@ -410,213 +383,225 @@ ${personalizedContext}`;
 			}
 			// ============================================================================
 
-			// Chama LLM
-			const llmResponse = await llmService.callLLM({
-				message: context.message,
-				history: formattedHistory,
-				systemPrompt,
-			});
-
-			// ============================================================================
-			// PROCESSAR AgentLLMResponse (JSON schema)
-			// ============================================================================
-
 			const toolSchemaV2Enabled = featureFlags.TOOL_SCHEMA_V2;
 			const toolsUsed: string[] = [];
-			let responseMessage = '';
 			const nextState: ConversationState = 'idle';
+			let lastContractError: Error | null = null;
+			let lastInvalidOutput = '';
 
-			// DETECTA MENSAGEM DE ERRO ANTES DE PARSEAR JSON
-			if (
-				llmResponse.message.trim().startsWith('😅') ||
-				llmResponse.message.trim().startsWith('⚠️') ||
-				llmResponse.message.trim().startsWith('❌')
-			) {
-				loggers.ai.warn('⚠️ LLM retornou mensagem de erro ao invés de JSON');
-				return {
-					message: llmResponse.message.trim(),
-					state: 'idle',
-				};
-			}
+			for (let attempt = 1; attempt <= MAX_CONTRACT_RETRIES; attempt++) {
+				let llmMessage = '';
+				let responseMessage = '';
 
-			try {
-				if (toolSchemaV2Enabled) {
-					const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmResponse.message);
+				try {
+					const repairDetails =
+						attempt === 1
+							? ''
+							: `\n\n# CONTRACT ERROR CONTEXT\n- Required schema_version: ${toolSchemaV2Enabled ? '2.0' : '1.0'}\n- Previous invalid output (truncated): ${lastInvalidOutput.substring(0, 220)}\n- Validation error: ${(lastContractError?.message || 'unknown error').substring(0, 180)}`;
 
-					loggers.ai.info(
-						{ action: agentDecision.action, schemaVersion: agentDecision.schema_version },
-						'🤖 LLM action (schema v2)',
-					);
+					const llmResponse = await llmService.callLLM({
+						message: context.message,
+						history: formattedHistory,
+						systemPrompt: attempt === 1 ? systemPrompt : `${systemPrompt}\n\n${AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT}${repairDetails}`,
+					});
 
-					switch (agentDecision.action) {
-						case 'CALL_TOOL': {
-							if (!agentDecision.tool_call) {
-								throw new Error('action=CALL_TOOL requer tool_call');
-							}
+					llmMessage = llmResponse.message?.trim() || '';
 
-							const toolName = agentDecision.tool_call.name;
-							const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
+					if (llmMessage.startsWith('😅') || llmMessage.startsWith('⚠️') || llmMessage.startsWith('❌')) {
+						throw new Error('LLM retornou mensagem de erro em vez de JSON');
+					}
 
-							if (!gateDecision.allow) {
-								loggers.ai.warn(
-									{
-										tool: toolName,
-										action: agentDecision.action,
-										deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
-										gateReason: gateDecision.reason,
-									},
-									'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
-								);
-								responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
+					if (toolSchemaV2Enabled) {
+						const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmMessage);
+
+						loggers.ai.info(
+							{ action: agentDecision.action, schemaVersion: agentDecision.schema_version, attempt },
+							'🤖 LLM action (schema v2)',
+						);
+
+						switch (agentDecision.action) {
+							case 'CALL_TOOL': {
+								if (!agentDecision.tool_call) {
+									throw new Error('action=CALL_TOOL requer tool_call');
+								}
+
+								const toolName = agentDecision.tool_call.name;
+								const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
+
+								if (!gateDecision.allow) {
+									loggers.ai.warn(
+										{
+											tool: toolName,
+											action: agentDecision.action,
+											deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
+											gateReason: gateDecision.reason,
+										},
+										'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
+									);
+									responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
+									break;
+								}
+
+								loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
+								const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
+
+								toolsUsed.push(toolName);
+
+								if (result.success) {
+									if (result.data?.results && result.data.results.length > 0) {
+										if (result.data.results.length === 1) {
+											return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+										}
+										return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
+									}
+									if (result.message) {
+										responseMessage = result.message || '';
+									} else {
+										responseMessage = getSuccessMessageForTool(toolName, result.data);
+									}
+								} else {
+									loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
+
+									if (result.error === 'duplicate') {
+										responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
+									} else if (result.message) {
+										responseMessage = result.message;
+									} else {
+										responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+									}
+								}
 								break;
 							}
 
-							loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
-							const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
+							case 'RESPOND':
+								responseMessage = agentDecision.response?.text || 'Ok!';
+								break;
 
-							toolsUsed.push(toolName);
+							case 'NOOP':
+								loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
+								responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
+								break;
 
-							if (result.success) {
-								if (result.data?.results && result.data.results.length > 0) {
-									if (result.data.results.length === 1) {
-										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
-									}
-									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-								}
-								if (result.message) {
-									responseMessage = result.message || '';
-								} else {
-									responseMessage = getSuccessMessageForTool(toolName, result.data);
-								}
-							} else {
-								loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
+							default:
+								loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
+								responseMessage = 'Desculpe, não entendi o que fazer.';
+						}
+					} else {
+						const agentResponse = parseJSONFromLLM(llmMessage);
 
-								if (result.error === 'duplicate') {
-									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-								} else if (result.message) {
-									responseMessage = result.message;
-								} else {
-									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
-								}
-							}
-							break;
+						// 2. Validar schema
+						if (!isValidAgentResponse(agentResponse)) {
+							throw new Error('Resposta LLM não segue schema AgentLLMResponse');
 						}
 
-						case 'RESPOND':
-							responseMessage = agentDecision.response?.text || 'Ok!';
-							break;
+						loggers.ai.info({ action: agentResponse.action, attempt }, '🤖 LLM action');
 
-						case 'NOOP':
-							loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
-							responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
-							break;
-
-						default:
-							loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
-							responseMessage = 'Desculpe, não entendi o que fazer.';
-					}
-				} else {
-					// 1. Parsear JSON da resposta (remove markdown code blocks)
-					const agentResponse = parseJSONFromLLM(llmResponse.message);
-
-					// 2. Validar schema
-					if (!isValidAgentResponse(agentResponse)) {
-						throw new Error('Resposta LLM não segue schema AgentLLMResponse');
-					}
-
-					loggers.ai.info({ action: agentResponse.action }, '🤖 LLM action');
-
-					// 3. Validar schema_version
-					if (agentResponse.schema_version !== '1.0') {
-						loggers.ai.warn({ version: agentResponse.schema_version }, '⚠️ Schema version incompatível');
-					}
-
-					// 4. Executar baseado na ação
-					switch (agentResponse.action) {
-						case 'CALL_TOOL': {
-							if (!agentResponse.tool) {
-								throw new Error('action=CALL_TOOL requer tool');
-							}
-
-							loggers.ai.info({ tool: agentResponse.tool }, '🔧 Executando tool');
-							const result = await executeTool(agentResponse.tool as any, toolContext, agentResponse.args || {});
-
-							toolsUsed.push(agentResponse.tool);
-
-							if (result.success) {
-								// Se tem resultados
-								if (result.data?.results && result.data.results.length > 0) {
-									// Se é 1 resultado: pula lista, vai direto pro poster
-									if (result.data.results.length === 1) {
-										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
-									}
-									// Se são múltiplos: mostra lista com botões
-									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-								}
-								if (result.message) {
-									// Mensagem específica da tool
-									responseMessage = result.message || '';
-								} else {
-									// Mensagens genéricas amigáveis baseadas na tool
-									responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
-								}
-							} else {
-								// Erro - tratar casos específicos
-								loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou (detalhes acima)');
-
-								// Casos especiais de erro
-								if (result.error === 'duplicate') {
-									// Duplicata detectada - usar mensagem da tool ou padrão
-									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-								} else if (result.message) {
-									// Tool forneceu mensagem de erro específica
-									responseMessage = result.message;
-								} else {
-									// Erro genérico
-									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
-								}
-							}
-							break;
+						// 3. Validar schema_version
+						if (agentResponse.schema_version !== '1.0') {
+							loggers.ai.warn({ version: agentResponse.schema_version }, '⚠️ Schema version incompatível');
 						}
 
-						case 'RESPOND':
-							// LLM quer responder diretamente (sem tool)
-							responseMessage = agentResponse.message || 'Ok!';
-							break;
+						// 4. Executar baseado na ação
+						switch (agentResponse.action) {
+							case 'CALL_TOOL': {
+								if (!agentResponse.tool) {
+									throw new Error('action=CALL_TOOL requer tool');
+								}
 
-						case 'NOOP':
-							// Nada a fazer
-							loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
-							responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
-							break;
+								loggers.ai.info({ tool: agentResponse.tool }, '🔧 Executando tool');
+								const result = await executeTool(agentResponse.tool as any, toolContext, agentResponse.args || {});
 
-						default:
-							loggers.ai.error({ action: agentResponse.action }, '❌ Action desconhecida');
-							responseMessage = 'Desculpe, não entendi o que fazer.';
+								toolsUsed.push(agentResponse.tool);
+
+								if (result.success) {
+									// Se tem resultados
+									if (result.data?.results && result.data.results.length > 0) {
+										// Se é 1 resultado: pula lista, vai direto pro poster
+										if (result.data.results.length === 1) {
+											return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+										}
+										// Se são múltiplos: mostra lista com botões
+										return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
+									}
+									if (result.message) {
+										// Mensagem específica da tool
+										responseMessage = result.message || '';
+									} else {
+										// Mensagens genéricas amigáveis baseadas na tool
+										responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
+									}
+								} else {
+									// Erro - tratar casos específicos
+									loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou (detalhes acima)');
+
+									// Casos especiais de erro
+									if (result.error === 'duplicate') {
+										// Duplicata detectada - usar mensagem da tool ou padrão
+										responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
+									} else if (result.message) {
+										// Tool forneceu mensagem de erro específica
+										responseMessage = result.message;
+									} else {
+										// Erro genérico
+										responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+									}
+								}
+								break;
+							}
+
+							case 'RESPOND':
+								// LLM quer responder diretamente (sem tool)
+								responseMessage = agentResponse.message || 'Ok!';
+								break;
+
+							case 'NOOP':
+								// Nada a fazer
+								loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
+								responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
+								break;
+
+							default:
+								loggers.ai.error({ action: agentResponse.action }, '❌ Action desconhecida');
+								responseMessage = 'Desculpe, não entendi o que fazer.';
+						}
 					}
-				}
-			} catch (parseError) {
-				// Fallback: NUNCA enviar JSON cru ao usuário
-				loggers.ai.error(
-					{
-						err: parseError instanceof Error ? parseError : new Error(String(parseError)),
-						originalMessage: llmResponse.message.substring(0, 200),
-					},
-					'❌ LLMParseError: falha ao parsear resposta do LLM como AgentLLMResponse',
-				);
+					return {
+						message: responseMessage,
+						state: nextState,
+						toolsUsed,
+					};
+				} catch (parseError) {
+					lastContractError = parseError instanceof Error ? parseError : new Error(String(parseError));
+					lastInvalidOutput = llmMessage;
 
-				const fallbackMessage = llmResponse.message?.trim();
-				if (fallbackMessage && !fallbackMessage.startsWith('{') && !fallbackMessage.startsWith('[')) {
-					loggers.ai.warn('⚠️ Usando resposta textual de fallback (sem execução de tools)');
-					responseMessage =
-						fallbackMessage.length > 700 ? `${fallbackMessage.substring(0, 697)}...` : fallbackMessage;
-				} else {
-					responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
+					loggers.ai.error(
+						{
+							err: lastContractError,
+							attempt,
+							maxAttempts: MAX_CONTRACT_RETRIES,
+							originalMessage: llmMessage.substring(0, 200),
+						},
+						'❌ LLMParseError: falha ao parsear resposta do LLM como AgentLLMResponse',
+					);
+
+					if (attempt < MAX_CONTRACT_RETRIES) {
+						loggers.ai.warn(
+							{ attempt: attempt + 1, maxAttempts: MAX_CONTRACT_RETRIES },
+							'🔁 Reenviando para LLM em modo de recuperação de contrato JSON',
+						);
+						continue;
+					}
+
+					return {
+						message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
+						state: nextState,
+						toolsUsed,
+					};
 				}
 			}
 
 			return {
-				message: responseMessage,
+				message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
 				state: nextState,
 				toolsUsed,
 			};
@@ -626,11 +611,7 @@ ${personalizedContext}`;
 	/**
 	 * Trata confirmação do usuário
 	 */
-	private async handleConfirmation(
-		context: AgentContext,
-		conversation: any,
-		intent: IntentResult,
-	): Promise<AgentResponse> {
+	private async handleConfirmation(context: AgentContext, conversation: any, intent: IntentResult): Promise<AgentResponse> {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
 
@@ -798,10 +779,7 @@ ${personalizedContext}`;
 		}
 
 		// Confirmação genérica (fallback)
-		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace(
-			'{type}',
-			'item',
-		);
+		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
 		return {
 			message: confirmMsg,
 			state: 'idle',
@@ -1013,9 +991,7 @@ ${personalizedContext}`;
 
 		// Se tem selection (número ou array), busca primeiro para pegar IDs
 		if (intent.entities?.selection) {
-			const selections = Array.isArray(intent.entities.selection)
-				? intent.entities.selection
-				: [intent.entities.selection];
+			const selections = Array.isArray(intent.entities.selection) ? intent.entities.selection : [intent.entities.selection];
 
 			// Buscar lista para pegar os itens
 			const searchResult = await executeTool('search_items', toolContext, {
@@ -1028,9 +1004,7 @@ ${personalizedContext}`;
 				const notFoundSelections: number[] = [];
 
 				// Filtra por tipo se especificado (ex: "deleta o filme 1" → filtra apenas filmes)
-				const targetItems = intent.entities?.itemType
-					? items.filter((i: any) => i.type === intent.entities?.itemType)
-					: items;
+				const targetItems = intent.entities?.itemType ? items.filter((i: any) => i.type === intent.entities?.itemType) : items;
 
 				// Processar cada seleção
 				for (const selection of selections) {
@@ -1145,10 +1119,7 @@ ${personalizedContext}`;
 		if (!isNumber || Number.isNaN(choice)) {
 			try {
 				const nlpResult = await messageAnalyzer.classifyIntent(message);
-				loggers.ai.info(
-					{ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action },
-					'🧠 NLP Classification',
-				);
+				loggers.ai.info({ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action }, '🧠 NLP Classification');
 
 				// Mapeamento de intents para tipos
 				const intentToType: Record<string, string> = {
@@ -1166,10 +1137,7 @@ ${personalizedContext}`;
 						series: '📺',
 						link: '🔗',
 					};
-					loggers.ai.info(
-						{ message, detectedType, confidence: nlpResult.confidence },
-						`${typeEmoji[detectedType]} Tipo detectado via NLP`,
-					);
+					loggers.ai.info({ message, detectedType, confidence: nlpResult.confidence }, `${typeEmoji[detectedType]} Tipo detectado via NLP`);
 				}
 			} catch (error) {
 				loggers.ai.warn({ error }, '⚠️ Erro ao classificar via NLP, tentando fallback');
@@ -1211,10 +1179,7 @@ ${personalizedContext}`;
 				}
 			} else {
 				// Número fora do range — reprocessa como nova mensagem
-				loggers.ai.info(
-					{ message, choice, totalOptions: cancelIndex },
-					'↩️ Número fora do range - reprocessando como nova mensagem',
-				);
+				loggers.ai.info({ message, choice, totalOptions: cancelIndex }, '↩️ Número fora do range - reprocessando como nova mensagem');
 
 				await conversationService.updateState(conversation.id, 'idle', {
 					pendingClarification: undefined,
@@ -1375,18 +1340,8 @@ ${personalizedContext}`;
 				pendingClarification: undefined, // Limpa para não entrar em loop
 			});
 
-			await conversationService.addMessage(
-				conversation.id,
-				'user',
-				context.message,
-				this.buildMessagePersistOptions(context, true),
-			);
-			await conversationService.addMessage(
-				conversation.id,
-				'assistant',
-				offTopicMessage,
-				this.buildMessagePersistOptions(context),
-			);
+			await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage, this.buildMessagePersistOptions(context));
 
 			return {
 				message: offTopicMessage,
@@ -1398,28 +1353,14 @@ ${personalizedContext}`;
 		// Conversa livre com IA
 		loggers.ai.info({ attempts }, '💬 NLP inconclusivo, gerando resposta conversacional via IA');
 
-		const conversationalResponse = await this.getConversationalClarification(
-			context,
-			pendingClarification.originalMessage,
-			attempts,
-		);
+		const conversationalResponse = await this.getConversationalClarification(context, pendingClarification.originalMessage, attempts);
 
 		await conversationService.updateState(conversation.id, 'awaiting_context', {
 			clarificationAttempts: attempts,
 		});
 
-		await conversationService.addMessage(
-			conversation.id,
-			'user',
-			context.message,
-			this.buildMessagePersistOptions(context, true),
-		);
-		await conversationService.addMessage(
-			conversation.id,
-			'assistant',
-			conversationalResponse,
-			this.buildMessagePersistOptions(context),
-		);
+		await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse, this.buildMessagePersistOptions(context));
 
 		return {
 			message: conversationalResponse,
@@ -1431,11 +1372,7 @@ ${personalizedContext}`;
 	/**
 	 * Gera resposta conversacional durante clarificação usando LLM
 	 */
-	private async getConversationalClarification(
-		context: AgentContext,
-		originalMessage: string,
-		attempt: number,
-	): Promise<string> {
+	private async getConversationalClarification(context: AgentContext, originalMessage: string, attempt: number): Promise<string> {
 		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
 
 		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
@@ -1456,11 +1393,7 @@ ${personalizedContext}`;
 	 * Envia lista de candidatos com botões clicáveis (Telegram Inline Keyboard)
 
 	 */
-	private async sendCandidatesWithButtons(
-		context: AgentContext,
-		conversation: any,
-		candidates: any[],
-	): Promise<AgentResponse> {
+	private async sendCandidatesWithButtons(context: AgentContext, conversation: any, candidates: any[]): Promise<AgentResponse> {
 		const contextData = conversation.context || {};
 		const itemType = contextData.detected_type || 'movie';
 

@@ -101,11 +101,9 @@ describe('AgentOrchestrator tool schema switch', () => {
 
 		expect(mockParseJSONFromLLM).toHaveBeenCalledTimes(1);
 		expect(mockParseAgentDecisionV2FromLLM).not.toHaveBeenCalled();
-		expect(mockExecuteTool).toHaveBeenCalledWith(
-			'save_note',
-			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
-			{ content: 'hello' },
-		);
+		expect(mockExecuteTool).toHaveBeenCalledWith('save_note', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
+			content: 'hello',
+		});
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -115,11 +113,61 @@ describe('AgentOrchestrator tool schema switch', () => {
 		);
 	});
 
-	test('falls back to plain-text response when v1 parser fails on non-JSON output', async () => {
+	test('retries contract parsing and succeeds on second attempt when first output is plain text', async () => {
 		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: false });
-		mockCallLLM.mockResolvedValue({
-			message: "Hello! I'm NEXO, your personal AI assistant.",
-		});
+		mockCallLLM
+			.mockResolvedValueOnce({
+				message: "Hello! I'm NEXO, your personal AI assistant.",
+			})
+			.mockResolvedValueOnce({
+				message: '{"schema_version":"1.0","action":"RESPOND","tool":null,"args":null,"message":"Oi!"}',
+			});
+		mockParseJSONFromLLM
+			.mockImplementationOnce(() => {
+				throw new Error('Resposta não é JSON');
+			})
+			.mockImplementationOnce(() => ({
+				schema_version: '1.0',
+				action: 'RESPOND',
+				tool: null,
+				args: null,
+				message: 'Oi!',
+			}));
+		mockIsValidAgentResponse.mockReturnValue(true);
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
+
+		const response = await (orchestrator as any).handleWithLLM(
+			{
+				userId: 'u1',
+				conversationId: 'c1',
+				externalId: 'e1',
+				message: 'hey',
+				provider: 'telegram',
+			},
+			{},
+			{ id: 'c1' },
+		);
+
+		expect(mockCallLLM).toHaveBeenCalledTimes(2);
+		expect(mockParseJSONFromLLM).toHaveBeenCalledTimes(2);
+		expect(mockExecuteTool).not.toHaveBeenCalled();
+		expect(response).toEqual(
+			expect.objectContaining({
+				message: 'Oi!',
+				state: 'idle',
+				toolsUsed: [],
+			}),
+		);
+	});
+
+	test('returns generic processing error after max contract retries are exhausted', async () => {
+		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: false });
+		mockCallLLM
+			.mockResolvedValueOnce({ message: 'texto inválido 1' })
+			.mockResolvedValueOnce({ message: 'texto inválido 2' })
+			.mockResolvedValueOnce({ message: 'texto inválido 3' });
 		mockParseJSONFromLLM.mockImplementation(() => {
 			throw new Error('Resposta não é JSON');
 		});
@@ -139,11 +187,12 @@ describe('AgentOrchestrator tool schema switch', () => {
 			{ id: 'c1' },
 		);
 
-		expect(mockParseJSONFromLLM).toHaveBeenCalledTimes(1);
+		expect(mockCallLLM).toHaveBeenCalledTimes(3);
+		expect(mockParseJSONFromLLM).toHaveBeenCalledTimes(3);
 		expect(mockExecuteTool).not.toHaveBeenCalled();
 		expect(response).toEqual(
 			expect.objectContaining({
-				message: "Hello! I'm NEXO, your personal AI assistant.",
+				message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
 				state: 'idle',
 				toolsUsed: [],
 			}),
@@ -188,11 +237,9 @@ describe('AgentOrchestrator tool schema switch', () => {
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
 		expect(mockParseJSONFromLLM).not.toHaveBeenCalled();
 		expect(mockIsValidAgentResponse).not.toHaveBeenCalled();
-		expect(mockExecuteTool).toHaveBeenCalledWith(
-			'save_movie',
-			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
-			{ title: 'Inception' },
-		);
+		expect(mockExecuteTool).toHaveBeenCalledWith('save_movie', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
+			title: 'Inception',
+		});
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -284,11 +331,9 @@ describe('AgentOrchestrator tool schema switch', () => {
 		);
 
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
-		expect(mockExecuteTool).toHaveBeenCalledWith(
-			'search_items',
-			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
-			{ query: 'inception' },
-		);
+		expect(mockExecuteTool).toHaveBeenCalledWith('search_items', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
+			query: 'inception',
+		});
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',

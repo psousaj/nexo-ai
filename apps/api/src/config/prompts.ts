@@ -304,6 +304,21 @@ SAFETY + DETERMINISM:
 - Keep side-effecting actions deterministic through guardrails.
 - If uncertain, prefer NOOP over unsafe tool usage.`;
 
+export const AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT = `# CONTRACT RECOVERY MODE (STRICT)
+
+Your previous output violated the JSON contract.
+
+You MUST now return ONLY valid JSON for the required schema version.
+
+Hard constraints:
+- No prose, no markdown, no explanations.
+- Start with { and end with }.
+- Include only fields allowed by the schema.
+- Respect required nullability and enum values.
+- If unsure, return a safe NOOP JSON object for the same schema version.
+
+Return ONLY JSON.`;
+
 export const AGENT_SYSTEM_PROMPT_V2 = `# OPERATING MODE: PLANNER
 
 You are operating in PLANNER MODE.
