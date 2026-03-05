@@ -25,7 +25,7 @@ function hasAttachmentsArray(body: unknown): body is { attachments: unknown[] } 
 }
 
 function isAuthorizedRequest(c: Context): boolean {
-	const configuredToken = getWorkerEnv().INTAKE_WORKER_TOKEN.trim();
+	const configuredToken = getWorkerEnv().INTAKE_WORKER_TOKEN;
 	if (!configuredToken) {
 		return true;
 	}

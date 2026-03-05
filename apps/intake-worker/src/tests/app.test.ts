@@ -69,6 +69,64 @@ describe('intake worker app routes', () => {
 		});
 	});
 
+	it('rejects requests with an invalid bearer token when worker token is configured', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				INTAKE_WORKER_TOKEN: 'worker-token',
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Bearer wrong-token',
+			},
+			body: JSON.stringify({ attachments: [] }),
+		});
+
+		expect(response.status).toBe(401);
+		await expect(response.json()).resolves.toEqual({
+			error: 'unauthorized',
+			message: 'Missing or invalid bearer token',
+		});
+	});
+
+	it('rejects malformed authorization schemes when worker token is configured', async () => {
+		vi.doMock('../config/env', () => ({
+			getWorkerEnv: () => ({
+				PORT: 3002,
+				INTAKE_WORKER_TOKEN: 'worker-token',
+				MULTIMODAL_AUDIO: true,
+				MULTIMODAL_IMAGE: true,
+			}),
+		}));
+
+		const { createIntakeWorkerApp } = await import('../app');
+		const app = createIntakeWorkerApp();
+
+		const response = await app.request('http://localhost/intake/process', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: 'Basic worker-token',
+			},
+			body: JSON.stringify({ attachments: [] }),
+		});
+
+		expect(response.status).toBe(401);
+		await expect(response.json()).resolves.toEqual({
+			error: 'unauthorized',
+			message: 'Missing or invalid bearer token',
+		});
+	});
+
 	it('accepts authorized requests when worker token is configured', async () => {
 		vi.doMock('../config/env', () => ({
 			getWorkerEnv: () => ({
