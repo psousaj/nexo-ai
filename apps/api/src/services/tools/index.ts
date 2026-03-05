@@ -120,6 +120,7 @@ export async function save_note(
  * Tool: save_movie
  * Salva filme (com ou sem enriquecimento)
  * Se não tem tmdb_id, busca no TMDB e retorna candidatos para seleção
+ * Se tem tmdb_id, salva imediatamente com dados básicos e dispara enriquecimento completo async
  */
 export async function save_movie(
 	context: ToolContext,
@@ -129,6 +130,9 @@ export async function save_movie(
 		tmdb_id?: number;
 		rating?: number;
 		genres?: string[];
+		// Campos opcionais vindos do selectedItem (evita chamada síncrona ao TMDB)
+		overview?: string;
+		poster_path?: string | null;
 	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
@@ -162,23 +166,22 @@ export async function save_movie(
 			loggers.tools.warn({ title: params.title }, '⚠️ TMDB sem resultados, salvando filme sem enriquecimento');
 		}
 
-		// Com tmdb_id (ou fallback sem resultados TMDB): salva direto com enriquecimento
-		let metadata: MovieMetadata = {
+		// Com tmdb_id: salva imediatamente com dados básicos disponíveis em params
+		// e dispara enriquecimento completo em background (sem bloquear a resposta)
+		const metadata: MovieMetadata = {
 			tmdb_id: params.tmdb_id || 0,
 			year: params.year || new Date().getFullYear(),
 			genres: params.genres || [],
 			rating: params.rating || 0,
-		};
+			...(params.overview && { overview: params.overview }),
+			...(params.poster_path && { poster_path: params.poster_path }),
+		} as MovieMetadata;
 
 		if (params.tmdb_id) {
-			try {
-				const enriched = await enrichmentService.enrich('movie', { tmdbId: params.tmdb_id });
-				if (enriched) {
-					metadata = { ...metadata, ...enriched } as MovieMetadata;
-				}
-			} catch (enrichError) {
-				loggers.tools.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer filme');
-			}
+			// Enriquecimento async — não bloqueia a resposta ao usuário
+			void enrichmentService
+				.enrich('movie', { tmdbId: params.tmdb_id })
+				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
 		}
 
 		const item = await itemService.createItem({
@@ -204,6 +207,7 @@ export async function save_movie(
  * Tool: save_tv_show
  * Salva série
  * Se não tem tmdb_id, busca no TMDB e retorna candidatos para seleção
+ * Se tem tmdb_id, salva imediatamente com dados básicos e dispara enriquecimento completo async
  */
 export async function save_tv_show(
 	context: ToolContext,
@@ -213,6 +217,9 @@ export async function save_tv_show(
 		tmdb_id?: number;
 		rating?: number;
 		genres?: string[];
+		// Campos opcionais vindos do selectedItem (evita chamada síncrona ao TMDB)
+		overview?: string;
+		poster_path?: string | null;
 	},
 ): Promise<ToolOutput> {
 	if (!params.title?.trim()) {
@@ -246,8 +253,9 @@ export async function save_tv_show(
 			loggers.tools.warn({ title: params.title }, '⚠️ TMDB sem resultados, salvando série sem enriquecimento');
 		}
 
-		// Com tmdb_id (ou fallback sem resultados TMDB): salva direto com enriquecimento
-		let metadata: TVShowMetadata = {
+		// Com tmdb_id: salva imediatamente com dados básicos disponíveis em params
+		// e dispara enriquecimento completo em background (sem bloquear a resposta)
+		const metadata: TVShowMetadata = {
 			tmdb_id: params.tmdb_id || 0,
 			first_air_date: params.year || new Date().getFullYear(),
 			number_of_seasons: 0,
@@ -255,17 +263,15 @@ export async function save_tv_show(
 			status: 'Unknown',
 			genres: params.genres || [],
 			rating: params.rating || 0,
-		};
+			...(params.overview && { overview: params.overview }),
+			...(params.poster_path && { poster_path: params.poster_path }),
+		} as TVShowMetadata;
 
 		if (params.tmdb_id) {
-			try {
-				const enriched = await enrichmentService.enrich('tv_show', { tmdbId: params.tmdb_id });
-				if (enriched) {
-					metadata = { ...metadata, ...enriched } as TVShowMetadata;
-				}
-			} catch (enrichError) {
-				loggers.tools.warn({ err: enrichError, tmdb_id: params.tmdb_id }, '⚠️ Falha ao enriquecer série');
-			}
+			// Enriquecimento async — não bloqueia a resposta ao usuário
+			void enrichmentService
+				.enrich('tv_show', { tmdbId: params.tmdb_id })
+				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
 		}
 
 		const item = await itemService.createItem({

@@ -39,7 +39,7 @@ import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.se
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
 import type { AgentDecisionV2, ConversationState, ToolName } from '@/types';
-import { isValidAgentResponse, parseAgentDecisionV2FromLLM, parseJSONFromLLM } from '@/utils/json-parser';
+import { parseAgentDecisionV2FromLLM } from '@/utils/json-parser';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { decideAgentAction } from './agent-action-routing';
@@ -48,6 +48,7 @@ import { canExecuteAgentDecisionV2Tool } from './agent-decision-v2-side-effect-g
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
+import { itemService } from './item-service';
 import { type IntentResult, intentClassifier } from './intent-classifier';
 import { scheduleConversationClose } from './queue-service';
 import { type ToolContext, executeTool } from './tools';
@@ -244,7 +245,7 @@ export class AgentOrchestrator {
 
 			switch (action) {
 				case 'handle_delete_all':
-					response = await this.handleDeleteAll(context);
+					response = await this.handleDeleteAll(context, intent, conversation);
 					break;
 
 				case 'handle_delete_item':
@@ -397,7 +398,7 @@ ${personalizedContext}`;
 					const repairDetails =
 						attempt === 1
 							? ''
-							: `\n\n# CONTRACT ERROR CONTEXT\n- Required schema_version: ${toolSchemaV2Enabled ? '2.0' : '1.0'}\n- Previous invalid output (truncated): ${lastInvalidOutput.substring(0, 220)}\n- Validation error: ${(lastContractError?.message || 'unknown error').substring(0, 180)}`;
+							: `\n\n# CONTRACT ERROR CONTEXT\n- Required schema_version: 2.0\n- Previous invalid output (truncated): ${lastInvalidOutput.substring(0, 220)}\n- Validation error: ${(lastContractError?.message || 'unknown error').substring(0, 180)}`;
 
 					const llmResponse = await llmService.callLLM({
 						message: context.message,
@@ -411,7 +412,8 @@ ${personalizedContext}`;
 						throw new Error('LLM retornou mensagem de erro em vez de JSON');
 					}
 
-					if (toolSchemaV2Enabled) {
+					if (true) {
+						// V2 only — V1 removido
 						const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmMessage);
 
 						loggers.ai.info(
@@ -486,84 +488,6 @@ ${personalizedContext}`;
 								loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
 								responseMessage = 'Desculpe, não entendi o que fazer.';
 						}
-					} else {
-						const agentResponse = parseJSONFromLLM(llmMessage);
-
-						// 2. Validar schema
-						if (!isValidAgentResponse(agentResponse)) {
-							throw new Error('Resposta LLM não segue schema AgentLLMResponse');
-						}
-
-						loggers.ai.info({ action: agentResponse.action, attempt }, '🤖 LLM action');
-
-						// 3. Validar schema_version
-						if (agentResponse.schema_version !== '1.0') {
-							loggers.ai.warn({ version: agentResponse.schema_version }, '⚠️ Schema version incompatível');
-						}
-
-						// 4. Executar baseado na ação
-						switch (agentResponse.action) {
-							case 'CALL_TOOL': {
-								if (!agentResponse.tool) {
-									throw new Error('action=CALL_TOOL requer tool');
-								}
-
-								loggers.ai.info({ tool: agentResponse.tool }, '🔧 Executando tool');
-								const result = await executeTool(agentResponse.tool as any, toolContext, agentResponse.args || {});
-
-								toolsUsed.push(agentResponse.tool);
-
-								if (result.success) {
-									// Se tem resultados
-									if (result.data?.results && result.data.results.length > 0) {
-										// Se é 1 resultado: pula lista, vai direto pro poster
-										if (result.data.results.length === 1) {
-											return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
-										}
-										// Se são múltiplos: mostra lista com botões
-										return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-									}
-									if (result.message) {
-										// Mensagem específica da tool
-										responseMessage = result.message || '';
-									} else {
-										// Mensagens genéricas amigáveis baseadas na tool
-										responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
-									}
-								} else {
-									// Erro - tratar casos específicos
-									loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou (detalhes acima)');
-
-									// Casos especiais de erro
-									if (result.error === 'duplicate') {
-										// Duplicata detectada - usar mensagem da tool ou padrão
-										responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-									} else if (result.message) {
-										// Tool forneceu mensagem de erro específica
-										responseMessage = result.message;
-									} else {
-										// Erro genérico
-										responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
-									}
-								}
-								break;
-							}
-
-							case 'RESPOND':
-								// LLM quer responder diretamente (sem tool)
-								responseMessage = agentResponse.message || 'Ok!';
-								break;
-
-							case 'NOOP':
-								// Nada a fazer
-								loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
-								responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
-								break;
-
-							default:
-								loggers.ai.error({ action: agentResponse.action }, '❌ Action desconhecida');
-								responseMessage = 'Desculpe, não entendi o que fazer.';
-						}
 					}
 					return {
 						message: responseMessage,
@@ -614,6 +538,47 @@ ${personalizedContext}`;
 	private async handleConfirmation(context: AgentContext, conversation: any, intent: IntentResult): Promise<AgentResponse> {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
+
+		// ─── Confirmação de delete destrutivo ───────────────────────────────
+		if (contextData.pendingDelete) {
+			const toolContext: ToolContext = {
+				provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
+				externalId: context.externalId,
+				userId: context.userId,
+				conversationId: context.conversationId,
+			};
+
+			if (context.callbackData === 'confirm_delete_all' || intent.action === 'confirm') {
+				const result = await executeTool('delete_all_memories', toolContext, {
+					type: contextData.deleteType ?? undefined,
+				});
+				await conversationService.updateState(conversation.id, 'idle', {
+					pendingDelete: null,
+					deleteType: null,
+					deleteCount: null,
+				} as any);
+				return {
+					message: result.success
+						? `✅ ${result.message || `${result.data?.deleted_count ?? 0} item(ns) apagado(s)`} com sucesso.`
+						: '❌ Erro ao apagar itens. Tente novamente.',
+					state: 'idle',
+					toolsUsed: ['delete_all_memories'],
+				};
+			}
+
+			if (context.callbackData === 'cancel_delete_all' || intent.action === 'deny') {
+				await conversationService.updateState(conversation.id, 'idle', {
+					pendingDelete: null,
+					deleteType: null,
+					deleteCount: null,
+				} as any);
+				return {
+					message: '👍 Operação cancelada. Seus itens estão seguros!',
+					state: 'idle',
+				};
+			}
+		}
+		// ────────────────────────────────────────────────────────────────────
 
 		// DEBUG: Log para verificar callbackData
 		loggers.ai.info(
@@ -951,32 +916,65 @@ ${personalizedContext}`;
 
 	/**
 	 * Handler: Deletar TUDO (determinístico, sem LLM)
+	 * Pede confirmação antes de executar ação destrutiva irreversível
 	 */
-	private async handleDeleteAll(context: AgentContext): Promise<AgentResponse> {
-		const toolContext: ToolContext = {
-			provider: context.provider as 'telegram' | 'whatsapp' | 'discord',
-			externalId: context.externalId,
-			userId: context.userId,
-			conversationId: context.conversationId,
-		};
-
-		// Executar delete direto (ação irreversível)
-		// Se o intent trouxe itemType, deleta apenas o tipo específico (ex: "apaga todas as notas")
+	private async handleDeleteAll(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		const deleteType = intent.entities?.itemType ?? undefined;
-		const result = await executeTool('delete_all_memories', toolContext, { type: deleteType });
 
-		if (result.success) {
-			const count = result.data?.deleted_count || 0;
+		// 1. Contar itens afetados para informar o usuário
+		const count = await itemService.countItems(context.userId, deleteType);
+
+		if (count === 0) {
+			const typeLabel = deleteType
+				? `${deleteType === 'movie' ? 'filmes' : deleteType === 'tv_show' ? 'séries' : deleteType === 'note' ? 'notas' : deleteType === 'link' ? 'links' : deleteType}`
+				: 'itens';
 			return {
-				message: `✅ ${result.message || `${count} item(ns) deletado(s)`} com sucesso.`,
+				message: `Não há ${typeLabel} para apagar. 🤷`,
 				state: 'idle',
-				toolsUsed: ['delete_all_memories'],
 			};
 		}
 
+		// 2. Perguntar confirmação antes de deletar (ação irreversível)
+		const typeLabel = deleteType
+			? `${count} ${deleteType === 'movie' ? (count === 1 ? 'filme' : 'filmes') : deleteType === 'tv_show' ? (count === 1 ? 'série' : 'séries') : deleteType === 'note' ? (count === 1 ? 'nota' : 'notas') : deleteType === 'link' ? (count === 1 ? 'link' : 'links') : deleteType}`
+			: `${count} ${count === 1 ? 'item' : 'itens'}`;
+
+		const warningMsg = `⚠️ Você está prestes a apagar *${typeLabel}*. Essa ação é irreversível!\n\nTem certeza?`;
+
+		// Salva contexto para execução após confirmação
+		if (conversation) {
+			await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
+				pendingDelete: true,
+				deleteType: deleteType ?? null,
+				deleteCount: count,
+			} as any);
+		}
+
+		const confirmButtons = [
+			[
+				{ text: '✅ Sim, apagar tudo', callback_data: 'confirm_delete_all' },
+				{ text: '❌ Cancelar', callback_data: 'cancel_delete_all' },
+			],
+		];
+
+		const { getProvider } = await import('@/adapters/messaging');
+		const provider = await getProvider(context.provider as any);
+
+		if (provider && 'sendMessageWithButtons' in provider) {
+			await (provider as any).sendMessageWithButtons(context.externalId, warningMsg, confirmButtons);
+			return {
+				message: '',
+				state: 'awaiting_confirmation',
+				toolsUsed: [],
+				skipFallback: true,
+			};
+		}
+
+		// Fallback: texto simples
 		return {
-			message: 'Erro ao deletar itens. Tente novamente.',
-			state: 'idle',
+			message: warningMsg,
+			state: 'awaiting_confirmation',
+			toolsUsed: [],
 		};
 	}
 

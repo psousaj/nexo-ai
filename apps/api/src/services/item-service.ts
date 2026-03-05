@@ -734,6 +734,12 @@ export class ItemService {
 	/**
 	 * Deleta todas as memórias do usuário, opcionalmente filtradas por tipo
 	 */
+	async countItems(userId: string, type?: string): Promise<number> {
+		const condition = type ? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any)) : eq(memoryItems.userId, userId);
+		const result = await db.select({ id: memoryItems.id }).from(memoryItems).where(condition);
+		return result.length;
+	}
+
 	async deleteAllItems(userId: string, type?: string): Promise<number> {
 		const condition = type ? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any)) : eq(memoryItems.userId, userId);
 		const result = await db.delete(memoryItems).where(condition).returning();
