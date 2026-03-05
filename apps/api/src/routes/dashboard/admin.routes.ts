@@ -2,6 +2,7 @@ import { getWhatsAppSettings, invalidateWhatsAppProviderCache, setActiveWhatsApp
 import { env } from '@/config/env';
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { adminService } from '@/services/admin-service';
+import { embeddingService } from '@/services/ai/embedding-service';
 import { getSystemTools } from '@/services/tools/registry';
 import { toolService } from '@/services/tools/tool.service';
 import { Hono } from 'hono';
@@ -281,4 +282,113 @@ export const adminRoutes = new Hono()
 				500,
 			);
 		}
+	})
+	// ========== Playground ==========
+	.get('/playground/config', async (c) => {
+		return c.json({
+			success: true,
+			data: {
+				model: env.EMBEDDING_MODEL ?? '@cf/baai/bge-small-en-v1.5',
+				accountId: env.CLOUDFLARE_ACCOUNT_ID ? `${env.CLOUDFLARE_ACCOUNT_ID.slice(0, 6)}...` : null,
+				gatewayId: env.CLOUDFLARE_GATEWAY_ID ?? null,
+				timeoutMs: env.EMBEDDING_TIMEOUT_MS ?? 25000,
+				maxRetries: env.EMBEDDING_MAX_RETRIES ?? 4,
+				gatewayUrl: env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_GATEWAY_ID
+					? `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`
+					: null,
+			},
+		});
+	})
+	.post('/playground/embedding', async (c) => {
+		const body = await c.req.json().catch(() => ({}));
+		const text: string = body.text ?? '';
+
+		if (!text.trim()) {
+			return c.json({ success: false, error: 'Campo "text" é obrigatório' }, 400);
+		}
+
+		const startMs = Date.now();
+		try {
+			const embedding = await embeddingService.generateEmbedding(text);
+			const elapsedMs = Date.now() - startMs;
+
+			const magnitude = Math.sqrt(embedding.reduce((sum: number, v: number) => sum + v * v, 0));
+			const isZero = embedding.every((v: number) => v === 0);
+
+			return c.json({
+				success: true,
+				data: {
+					dimensions: embedding.length,
+					magnitude: Number(magnitude.toFixed(6)),
+					isZeroVector: isZero,
+					elapsedMs,
+					sample: {
+						first5: embedding.slice(0, 5),
+						last5: embedding.slice(-5),
+					},
+					textLength: text.length,
+					model: env.EMBEDDING_MODEL ?? '@cf/baai/bge-small-en-v1.5',
+				},
+			});
+		} catch (error: any) {
+			const elapsedMs = Date.now() - startMs;
+			return c.json(
+				{
+					success: false,
+					elapsedMs,
+					error: error instanceof Error ? error.message : String(error),
+					status: error?.status ?? null,
+					code: error?.code ?? null,
+				},
+				500,
+			);
+		}
+	})
+	.post('/playground/connectivity', async (c) => {
+		const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+		const gatewayId = env.CLOUDFLARE_GATEWAY_ID;
+
+		if (!accountId || !gatewayId) {
+			return c.json({ success: false, error: 'CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_GATEWAY_ID não configurados' }, 400);
+		}
+
+		const gatewayUrl = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
+
+		const checks: Array<{ target: string; url: string; ok: boolean; status?: number; elapsedMs: number; error?: string }> = [];
+
+		// Checar gateway Cloudflare
+		const gateStart = Date.now();
+		try {
+			const res = await fetch(`${gatewayUrl}/models`, {
+				method: 'GET',
+				headers: {
+					Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+					'Content-Type': 'application/json',
+				},
+				signal: AbortSignal.timeout(8000),
+			});
+			checks.push({ target: 'CF AI Gateway', url: gatewayUrl, ok: res.ok, status: res.status, elapsedMs: Date.now() - gateStart });
+		} catch (e: any) {
+			checks.push({ target: 'CF AI Gateway', url: gatewayUrl, ok: false, elapsedMs: Date.now() - gateStart, error: e?.message ?? String(e) });
+		}
+
+		// Checar Cloudflare API diretamente
+		const cfApiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/baai/bge-small-en-v1.5`;
+		const cfStart = Date.now();
+		try {
+			const res = await fetch(cfApiUrl, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ text: ['ping'] }),
+				signal: AbortSignal.timeout(8000),
+			});
+			checks.push({ target: 'CF Workers AI (direct)', url: cfApiUrl, ok: res.ok, status: res.status, elapsedMs: Date.now() - cfStart });
+		} catch (e: any) {
+			checks.push({ target: 'CF Workers AI (direct)', url: cfApiUrl, ok: false, elapsedMs: Date.now() - cfStart, error: e?.message ?? String(e) });
+		}
+
+		return c.json({ success: true, data: { checks } });
 	});

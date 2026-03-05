@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
-import { Database, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
+import { Database, FlaskConical, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
@@ -30,6 +30,7 @@ const menuItems = computed(() => {
 		{ name: 'Usuários', icon: Users, path: '/admin/users', subject: 'AdminPanel', action: 'manage' },
 		{ name: 'Conversas', icon: MessageSquare, path: '/admin/conversations', subject: 'AdminPanel', action: 'manage' },
 		{ name: 'Configurações', icon: Settings, path: '/admin/settings', subject: 'AdminPanel', action: 'manage' },
+		{ name: 'Playground', icon: FlaskConical, path: '/admin/playground', subject: 'AdminPanel', action: 'manage' },
 	];
 
 	// Filter based on CASL abilities
