@@ -50,6 +50,24 @@ describe('resolveSessionKey', () => {
 		expect(resolveSessionKey(incoming)).toBe('agent:main:telegram:group:-100123');
 	});
 
+	test('uses discord channel-scoped externalId for group fallback', () => {
+		const baseMessage = makeIncomingMessage({
+			provider: 'discord',
+			metadata: {
+				isGroupMessage: true,
+				groupId: 'guild-1',
+				messageType: 'text',
+			},
+		});
+
+		const channelA = { ...baseMessage, externalId: 'channel-a' };
+		const channelB = { ...baseMessage, externalId: 'channel-b' };
+
+		expect(resolveSessionKey(channelA)).toBe('agent:main:discord:group:channel-a');
+		expect(resolveSessionKey(channelB)).toBe('agent:main:discord:group:channel-b');
+		expect(resolveSessionKey(channelA)).not.toBe(resolveSessionKey(channelB));
+	});
+
 	test('returns undefined when no usable peer id exists', () => {
 		const incoming = makeIncomingMessage({
 			externalId: '',

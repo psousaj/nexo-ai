@@ -9,7 +9,12 @@ export function resolveSessionKey(incomingMsg: IncomingMessage): string | undefi
 
 	const isGroupMessage = incomingMsg.metadata?.isGroupMessage === true;
 	const peerKind = isGroupMessage ? 'group' : 'direct';
-	const peerId = isGroupMessage ? incomingMsg.metadata?.groupId || incomingMsg.externalId : incomingMsg.userId || incomingMsg.externalId;
+	const isDiscordGroupMessage = isGroupMessage && incomingMsg.provider === 'discord';
+	const peerId = isGroupMessage
+		? isDiscordGroupMessage
+			? incomingMsg.externalId
+			: incomingMsg.metadata?.groupId || incomingMsg.externalId
+		: incomingMsg.userId || incomingMsg.externalId;
 
 	if (!peerId) {
 		return undefined;
