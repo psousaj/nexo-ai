@@ -24,6 +24,10 @@ import * as Sentry from '@sentry/node';
 
 export const userTimeouts = new Map<string, number>();
 
+interface ProcessMessageOptions {
+	shouldNotifyUserOnProcessingError?: boolean;
+}
+
 /**
  * Verifica se a mensagem contém conteúdo ofensivo usando nlp.js
  */
@@ -39,10 +43,7 @@ async function containsOffensiveContent(message: string): Promise<boolean> {
 			'offensive.is_offensive': sentiment.score < -3,
 		});
 
-		loggers.webhook.info(
-			{ score: sentiment.score, sentiment: sentiment.sentiment, message },
-			'🛡️ Sentiment Analysis (nlp.js)',
-		);
+		loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
 
 		return sentiment.score < -3;
 	});
@@ -73,7 +74,7 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 	return timeoutMinutes;
 }
 
-export async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider) {
+export async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider, options: ProcessMessageOptions = {}) {
 	const messageText = incomingMsg.text;
 
 	return Sentry.startSpan(
@@ -237,10 +238,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
 								// (Pode ser um erro de cache ou estado, mas evita spam de trial para usuários registrados)
 								if (user.status === 'active') {
-									loggers.webhook.warn(
-										{ userId: user.id },
-										'⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando',
-									);
+									loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando');
 									// Força update se necessário ou segue fluxo
 								} else {
 									// Verifica se o usuário tem conta vinculada no UserService
@@ -284,11 +282,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								const isNewUser = accounts.length <= 1;
 
 								if (isNewUser) {
-									const signupToken = await accountLinkingService.generateLinkingToken(
-										user.id,
-										providerName as any,
-										'signup',
-									);
+									const signupToken = await accountLinkingService.generateLinkingToken(user.id, providerName as any, 'signup');
 									const signupLink = `${dashboardUrl}?vinculate_code=${signupToken}`;
 									const signupRequiredMessage = getChannelSignupRequiredMessage(providerName, signupLink);
 
@@ -301,11 +295,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 											);
 										} else {
 											const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
-											await (provider as any).sendMessageWithButtons(
-												incomingMsg.externalId,
-												signupRequiredMessage,
-												buttons,
-											);
+											await (provider as any).sendMessageWithButtons(incomingMsg.externalId, signupRequiredMessage, buttons);
 										}
 									} else {
 										await provider.sendMessage(incomingMsg.externalId, signupRequiredMessage);
@@ -365,10 +355,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								} catch (sendError: any) {
 									// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
 									if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-										loggers.webhook.error(
-											{ error: sendError.cause?.code },
-											'❌ Erro de rede ao enviar mensagem - não enviando fallback',
-										);
+										loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
 										throw sendError; // Re-throw para Bull não fazer retry
 									}
 									throw sendError;
@@ -386,10 +373,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 							} catch (sendError: any) {
 								// Se erro de rede, apenas loga e retorna
 								if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-									loggers.webhook.error(
-										{ error: sendError.cause?.code },
-										'❌ Erro de rede ao enviar fallback - abortando',
-									);
+									loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar fallback - abortando');
 									throw sendError;
 								}
 								throw sendError;
@@ -402,10 +386,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						}
 
 						const endTotal = performance.now();
-						loggers.webhook.info(
-							{ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` },
-							'🏁 Processamento finalizado',
-						);
+						loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
 					} catch (error: any) {
 						recordException(error as Error, {
 							'user.id': userId,
@@ -417,13 +398,19 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						error.conversationId = conversationId;
 						// Apenas tenta avisar o usuário se não for erro de conexão
 						// O Global Error Handler (via Queue) vai cuidar de logar e persistir tudo com contexto
-						if (error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
+						const shouldNotifyUserOnProcessingError = options.shouldNotifyUserOnProcessingError ?? true;
+						if (shouldNotifyUserOnProcessingError && error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
 							try {
 								const errorMsg = getRandomMessage(ERROR_MESSAGES);
 								await provider.sendMessage(incomingMsg.externalId, errorMsg);
 							} catch (_sendError) {
 								// Ignora erro de envio de falha
 							}
+						} else if (!shouldNotifyUserOnProcessingError) {
+							loggers.webhook.warn(
+								{ externalId: incomingMsg.externalId },
+								'⚠️ Erro de processamento sem notificar usuário (tentativa intermediária)',
+							);
 						}
 
 						// Re-throw OBRIGATÓRIO para o Bull capturar e chamar worker.on('failed') -> GlobalErrorHandler
