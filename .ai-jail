@@ -1,0 +1,9 @@
+# ai-jail sandbox configuration
+# Edit freely. Regenerate with: ai-jail --clean --init
+
+command = [
+    "copilot",
+    "--resume=6fd8943a-5d58-4ab6-a560-a5a4b5b6f3c3",
+]
+rw_maps = []
+ro_maps = []
