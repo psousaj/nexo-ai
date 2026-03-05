@@ -49,7 +49,10 @@ function getUnprocessableAttachmentMessage(error: unknown): string | null {
 		return error.issues[0]?.message ?? 'Invalid attachment payload';
 	}
 
-	if (error instanceof Error && (error.message.includes('feature flag is disabled') || error.message.includes('payload must'))) {
+	if (
+		error instanceof Error &&
+		(error.message.includes('feature flag is disabled') || error.message.includes('payload must'))
+	) {
 		return error.message;
 	}
 
