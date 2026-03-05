@@ -332,7 +332,6 @@ export class AgentOrchestrator {
 	private async handleWithLLM(context: AgentContext, _intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
 			const MAX_CONTRACT_RETRIES = 3;
-			const featureFlags = getPivotFeatureFlags();
 			const toolContext: ToolContext = {
 				userId: context.userId,
 				conversationId: context.conversationId,
@@ -356,8 +355,8 @@ export class AgentOrchestrator {
 				// Use context builder for personalized system prompt
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
 				const assistantName = agentContext.assistantName || 'Nexo';
-				const baseSystemPrompt = getAgentSystemPrompt(assistantName, featureFlags.TOOL_SCHEMA_V2);
-				const personalizedContext = applyAgentDecisionV2Contract(agentContext.systemPrompt, featureFlags.TOOL_SCHEMA_V2);
+				const baseSystemPrompt = getAgentSystemPrompt(assistantName);
+				const personalizedContext = applyAgentDecisionV2Contract(agentContext.systemPrompt);
 				systemPrompt = `${baseSystemPrompt}
 
 # PERSONALIZED CONTEXT (NON-OVERRIDING)
@@ -380,11 +379,10 @@ ${personalizedContext}`;
 				// Fallback to original method for backward compatibility
 				const user = await userService.getUserById(context.userId);
 				const assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = getAgentSystemPrompt(assistantName, featureFlags.TOOL_SCHEMA_V2);
+				systemPrompt = getAgentSystemPrompt(assistantName);
 			}
 			// ============================================================================
 
-			const toolSchemaV2Enabled = featureFlags.TOOL_SCHEMA_V2;
 			const toolsUsed: string[] = [];
 			const nextState: ConversationState = 'idle';
 			let lastContractError: Error | null = null;
@@ -412,82 +410,79 @@ ${personalizedContext}`;
 						throw new Error('LLM retornou mensagem de erro em vez de JSON');
 					}
 
-					if (true) {
-						// V2 only — V1 removido
-						const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmMessage);
+					const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmMessage);
 
-						loggers.ai.info(
-							{ action: agentDecision.action, schemaVersion: agentDecision.schema_version, attempt },
-							'🤖 LLM action (schema v2)',
-						);
+					loggers.ai.info(
+						{ action: agentDecision.action, schemaVersion: agentDecision.schema_version, attempt },
+						'🤖 LLM action (schema v2)',
+					);
 
-						switch (agentDecision.action) {
-							case 'CALL_TOOL': {
-								if (!agentDecision.tool_call) {
-									throw new Error('action=CALL_TOOL requer tool_call');
-								}
+					switch (agentDecision.action) {
+						case 'CALL_TOOL': {
+							if (!agentDecision.tool_call) {
+								throw new Error('action=CALL_TOOL requer tool_call');
+							}
 
-								const toolName = agentDecision.tool_call.name;
-								const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
+							const toolName = agentDecision.tool_call.name;
+							const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
 
-								if (!gateDecision.allow) {
-									loggers.ai.warn(
-										{
-											tool: toolName,
-											action: agentDecision.action,
-											deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
-											gateReason: gateDecision.reason,
-										},
-										'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
-									);
-									responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
-									break;
-								}
-
-								loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
-								const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
-
-								toolsUsed.push(toolName);
-
-								if (result.success) {
-									if (result.data?.results && result.data.results.length > 0) {
-										if (result.data.results.length === 1) {
-											return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
-										}
-										return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-									}
-									if (result.message) {
-										responseMessage = result.message || '';
-									} else {
-										responseMessage = getSuccessMessageForTool(toolName, result.data);
-									}
-								} else {
-									loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
-
-									if (result.error === 'duplicate') {
-										responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-									} else if (result.message) {
-										responseMessage = result.message;
-									} else {
-										responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
-									}
-								}
+							if (!gateDecision.allow) {
+								loggers.ai.warn(
+									{
+										tool: toolName,
+										action: agentDecision.action,
+										deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
+										gateReason: gateDecision.reason,
+									},
+									'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
+								);
+								responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
 								break;
 							}
 
-							case 'RESPOND':
-								responseMessage = agentDecision.response?.text || 'Ok!';
-								break;
+							loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
+							const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
 
-							case 'NOOP':
-								loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
-								responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
-								break;
+							toolsUsed.push(toolName);
 
-							default:
-								loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
-								responseMessage = 'Desculpe, não entendi o que fazer.';
+							if (result.success) {
+								if (result.data?.results && result.data.results.length > 0) {
+									if (result.data.results.length === 1) {
+										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+									}
+									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
+								}
+								if (result.message) {
+									responseMessage = result.message || '';
+								} else {
+									responseMessage = getSuccessMessageForTool(toolName, result.data);
+								}
+							} else {
+								loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
+
+								if (result.error === 'duplicate') {
+									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
+								} else if (result.message) {
+									responseMessage = result.message;
+								} else {
+									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+								}
+							}
+							break;
 						}
+
+						case 'RESPOND':
+							responseMessage = agentDecision.response?.text || 'Ok!';
+							break;
+
+						case 'NOOP':
+							loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
+							responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
+							break;
+
+						default:
+							loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
+							responseMessage = 'Desculpe, não entendi o que fazer.';
 					}
 					return {
 						message: responseMessage,

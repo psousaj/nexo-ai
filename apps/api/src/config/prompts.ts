@@ -405,13 +405,11 @@ Exemplo: "https://youtube.com/watch?v=abc" → save_video
 - Para filmes/séries: usar save_movie/save_tv_show SEM tmdb_id, extraindo title e year separadamente
 - Quando o usuário mencionar ano, SEMPRE passar como parâmetro year separado do title`;
 
-export function getAgentSystemPrompt(assistantName: string, useToolSchemaV2 = false): string {
-	const prompt = useToolSchemaV2 ? AGENT_SYSTEM_PROMPT_V2 : AGENT_SYSTEM_PROMPT;
-	return prompt.replace('You are Nexo,', `You are ${assistantName},`);
+export function getAgentSystemPrompt(assistantName: string): string {
+	return AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', `You are ${assistantName},`);
 }
 
-export function applyAgentDecisionV2Contract(systemPrompt: string, useToolSchemaV2 = false): string {
-	if (!useToolSchemaV2) return systemPrompt;
+export function applyAgentDecisionV2Contract(systemPrompt: string): string {
 	return `${systemPrompt.trim()}\n\n${AGENT_DECISION_V2_CONTRACT_PROMPT}`;
 }
 
