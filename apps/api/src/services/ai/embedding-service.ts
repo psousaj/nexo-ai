@@ -15,7 +15,7 @@ import OpenAI from 'openai';
  */
 export class EmbeddingService {
 	private client: OpenAI;
-	private model = env.EMBEDDING_MODEL ?? 'dynamic/embeddings';
+	private model = env.EMBEDDING_MODEL ?? '@cf/baai/bge-small-en-v1.5';
 	private readonly timeoutMs = env.EMBEDDING_TIMEOUT_MS ?? 25000;
 	private readonly maxRetries = env.EMBEDDING_MAX_RETRIES ?? 4;
 	private readonly retryBaseDelayMs = env.EMBEDDING_RETRY_BASE_DELAY_MS ?? 600;

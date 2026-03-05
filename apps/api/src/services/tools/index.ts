@@ -119,6 +119,7 @@ export async function save_note(
 /**
  * Tool: save_movie
  * Salva filme (com ou sem enriquecimento)
+ * Se não tem tmdb_id, busca no TMDB e retorna candidatos para seleção
  */
 export async function save_movie(
 	context: ToolContext,
@@ -135,6 +136,33 @@ export async function save_movie(
 	}
 
 	try {
+		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
+		if (!params.tmdb_id) {
+			loggers.tools.info({ title: params.title }, '🔍 save_movie sem tmdb_id → buscando candidatos no TMDB');
+			const results = await enrichmentService.searchMovies(params.title);
+
+			if (results && results.length > 0) {
+				return {
+					success: true,
+					data: {
+						results: results.map((r) => ({
+							type: 'movie' as const,
+							title: r.title,
+							year: r.release_date ? Number.parseInt(r.release_date.split('-')[0]) : undefined,
+							tmdb_id: r.id,
+							rating: r.vote_average || 0,
+							overview: r.overview || '',
+							poster_path: r.poster_path,
+						})),
+					},
+				};
+			}
+
+			// Nenhum resultado no TMDB: salva sem enriquecimento como fallback
+			loggers.tools.warn({ title: params.title }, '⚠️ TMDB sem resultados, salvando filme sem enriquecimento');
+		}
+
+		// Com tmdb_id (ou fallback sem resultados TMDB): salva direto com enriquecimento
 		let metadata: MovieMetadata = {
 			tmdb_id: params.tmdb_id || 0,
 			year: params.year || new Date().getFullYear(),
@@ -142,7 +170,6 @@ export async function save_movie(
 			rating: params.rating || 0,
 		};
 
-		// Se tem tmdb_id, busca detalhes completos (diretor, elenco, etc)
 		if (params.tmdb_id) {
 			try {
 				const enriched = await enrichmentService.enrich('movie', { tmdbId: params.tmdb_id });
@@ -176,6 +203,7 @@ export async function save_movie(
 /**
  * Tool: save_tv_show
  * Salva série
+ * Se não tem tmdb_id, busca no TMDB e retorna candidatos para seleção
  */
 export async function save_tv_show(
 	context: ToolContext,
@@ -192,6 +220,33 @@ export async function save_tv_show(
 	}
 
 	try {
+		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
+		if (!params.tmdb_id) {
+			loggers.tools.info({ title: params.title }, '🔍 save_tv_show sem tmdb_id → buscando candidatos no TMDB');
+			const results = await enrichmentService.searchTVShows(params.title);
+
+			if (results && results.length > 0) {
+				return {
+					success: true,
+					data: {
+						results: results.map((r) => ({
+							type: 'tv_show' as const,
+							title: r.name,
+							year: r.first_air_date,
+							tmdb_id: r.id,
+							rating: r.rating,
+							overview: r.overview,
+							poster_path: r.poster_path,
+						})),
+					},
+				};
+			}
+
+			// Nenhum resultado no TMDB: salva sem enriquecimento como fallback
+			loggers.tools.warn({ title: params.title }, '⚠️ TMDB sem resultados, salvando série sem enriquecimento');
+		}
+
+		// Com tmdb_id (ou fallback sem resultados TMDB): salva direto com enriquecimento
 		let metadata: TVShowMetadata = {
 			tmdb_id: params.tmdb_id || 0,
 			first_air_date: params.year || new Date().getFullYear(),
@@ -202,7 +257,6 @@ export async function save_tv_show(
 			rating: params.rating || 0,
 		};
 
-		// Se tem tmdb_id, busca detalhes completos
 		if (params.tmdb_id) {
 			try {
 				const enriched = await enrichmentService.enrich('tv_show', { tmdbId: params.tmdb_id });
@@ -766,9 +820,7 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -834,9 +886,8 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
+			await import('@/services/integrations/google-calendar.service');
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);

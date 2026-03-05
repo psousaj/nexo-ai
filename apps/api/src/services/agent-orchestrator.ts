@@ -1568,7 +1568,7 @@ function getSuccessMessageForTool(tool: string, data?: any): string {
 			if (count === 0) {
 				return 'Não encontrei nada 😕';
 			}
-			return `Encontrei ${count} item(ns)`;
+			return formatItemsList(data.items, count);
 		}
 		case 'delete_memory':
 			return '✅ Item deletado!';
