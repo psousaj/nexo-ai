@@ -32,11 +32,12 @@ import {
 	formatItemsList,
 	getRandomMessage as getRandomResponse,
 } from '@/config/prompts';
+import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
-import type { ConversationState, ToolName } from '@/types';
-import { isValidAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
+import type { AgentDecisionV2, ConversationState, ToolName } from '@/types';
+import { isValidAgentResponse, parseAgentDecisionV2FromLLM, parseJSONFromLLM } from '@/utils/json-parser';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { llmService } from './ai';
@@ -403,6 +404,8 @@ export class AgentOrchestrator {
 			// PROCESSAR AgentLLMResponse (JSON schema)
 			// ============================================================================
 
+			const featureFlags = getPivotFeatureFlags();
+			const toolSchemaV2Enabled = featureFlags.TOOL_SCHEMA_V2;
 			const toolsUsed: string[] = [];
 			let responseMessage = '';
 			const nextState: ConversationState = 'idle';
@@ -421,83 +424,144 @@ export class AgentOrchestrator {
 			}
 
 			try {
-				// 1. Parsear JSON da resposta (remove markdown code blocks)
-				const agentResponse = parseJSONFromLLM(llmResponse.message);
+				if (toolSchemaV2Enabled) {
+					const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmResponse.message);
 
-				// 2. Validar schema
-				if (!isValidAgentResponse(agentResponse)) {
-					throw new Error('Resposta LLM não segue schema AgentLLMResponse');
-				}
+					loggers.ai.info(
+						{ action: agentDecision.action, schemaVersion: agentDecision.schema_version },
+						'🤖 LLM action (schema v2)',
+					);
 
-				loggers.ai.info({ action: agentResponse.action }, '🤖 LLM action');
+					switch (agentDecision.action) {
+						case 'CALL_TOOL': {
+							if (!agentDecision.tool_call) {
+								throw new Error('action=CALL_TOOL requer tool_call');
+							}
 
-				// 3. Validar schema_version
-				if (agentResponse.schema_version !== '1.0') {
-					loggers.ai.warn({ version: agentResponse.schema_version }, '⚠️ Schema version incompatível');
-				}
+							const toolName = agentDecision.tool_call.name;
+							loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
+							const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
 
-				// 4. Executar baseado na ação
-				switch (agentResponse.action) {
-					case 'CALL_TOOL': {
-						if (!agentResponse.tool) {
-							throw new Error('action=CALL_TOOL requer tool');
-						}
+							toolsUsed.push(toolName);
 
-						loggers.ai.info({ tool: agentResponse.tool }, '🔧 Executando tool');
-						const result = await executeTool(agentResponse.tool as any, toolContext, agentResponse.args || {});
-
-						toolsUsed.push(agentResponse.tool);
-
-						if (result.success) {
-							// Se tem resultados
-							if (result.data?.results && result.data.results.length > 0) {
-								// Se é 1 resultado: pula lista, vai direto pro poster
-								if (result.data.results.length === 1) {
-									return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+							if (result.success) {
+								if (result.data?.results && result.data.results.length > 0) {
+									if (result.data.results.length === 1) {
+										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+									}
+									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
 								}
-								// Se são múltiplos: mostra lista com botões
-								return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-							}
-							if (result.message) {
-								// Mensagem específica da tool
-								responseMessage = result.message || '';
+								if (result.message) {
+									responseMessage = result.message || '';
+								} else {
+									responseMessage = getSuccessMessageForTool(toolName, result.data);
+								}
 							} else {
-								// Mensagens genéricas amigáveis baseadas na tool
-								responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
-							}
-						} else {
-							// Erro - tratar casos específicos
-							loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou (detalhes acima)');
+								loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
 
-							// Casos especiais de erro
-							if (result.error === 'duplicate') {
-								// Duplicata detectada - usar mensagem da tool ou padrão
-								responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-							} else if (result.message) {
-								// Tool forneceu mensagem de erro específica
-								responseMessage = result.message;
-							} else {
-								// Erro genérico
-								responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+								if (result.error === 'duplicate') {
+									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
+								} else if (result.message) {
+									responseMessage = result.message;
+								} else {
+									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+								}
 							}
+							break;
 						}
-						break;
+
+						case 'RESPOND':
+							responseMessage = agentDecision.response?.text || 'Ok!';
+							break;
+
+						case 'NOOP':
+							loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
+							responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
+							break;
+
+						default:
+							loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
+							responseMessage = 'Desculpe, não entendi o que fazer.';
+					}
+				} else {
+					// 1. Parsear JSON da resposta (remove markdown code blocks)
+					const agentResponse = parseJSONFromLLM(llmResponse.message);
+
+					// 2. Validar schema
+					if (!isValidAgentResponse(agentResponse)) {
+						throw new Error('Resposta LLM não segue schema AgentLLMResponse');
 					}
 
-					case 'RESPOND':
-						// LLM quer responder diretamente (sem tool)
-						responseMessage = agentResponse.message || 'Ok!';
-						break;
+					loggers.ai.info({ action: agentResponse.action }, '🤖 LLM action');
 
-					case 'NOOP':
-						// Nada a fazer
-						loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
-						responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
-						break;
+					// 3. Validar schema_version
+					if (agentResponse.schema_version !== '1.0') {
+						loggers.ai.warn({ version: agentResponse.schema_version }, '⚠️ Schema version incompatível');
+					}
 
-					default:
-						loggers.ai.error({ action: agentResponse.action }, '❌ Action desconhecida');
-						responseMessage = 'Desculpe, não entendi o que fazer.';
+					// 4. Executar baseado na ação
+					switch (agentResponse.action) {
+						case 'CALL_TOOL': {
+							if (!agentResponse.tool) {
+								throw new Error('action=CALL_TOOL requer tool');
+							}
+
+							loggers.ai.info({ tool: agentResponse.tool }, '🔧 Executando tool');
+							const result = await executeTool(agentResponse.tool as any, toolContext, agentResponse.args || {});
+
+							toolsUsed.push(agentResponse.tool);
+
+							if (result.success) {
+								// Se tem resultados
+								if (result.data?.results && result.data.results.length > 0) {
+									// Se é 1 resultado: pula lista, vai direto pro poster
+									if (result.data.results.length === 1) {
+										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
+									}
+									// Se são múltiplos: mostra lista com botões
+									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
+								}
+								if (result.message) {
+									// Mensagem específica da tool
+									responseMessage = result.message || '';
+								} else {
+									// Mensagens genéricas amigáveis baseadas na tool
+									responseMessage = getSuccessMessageForTool(agentResponse.tool, result.data);
+								}
+							} else {
+								// Erro - tratar casos específicos
+								loggers.ai.error({ tool: agentResponse.tool, err: result.error }, '❌ Tool falhou (detalhes acima)');
+
+								// Casos especiais de erro
+								if (result.error === 'duplicate') {
+									// Duplicata detectada - usar mensagem da tool ou padrão
+									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
+								} else if (result.message) {
+									// Tool forneceu mensagem de erro específica
+									responseMessage = result.message;
+								} else {
+									// Erro genérico
+									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
+								}
+							}
+							break;
+						}
+
+						case 'RESPOND':
+							// LLM quer responder diretamente (sem tool)
+							responseMessage = agentResponse.message || 'Ok!';
+							break;
+
+						case 'NOOP':
+							// Nada a fazer
+							loggers.ai.info('🚫 NOOP - nenhuma ação necessária');
+							responseMessage = 'Entendido! Se precisar de algo, é só falar. 👍';
+							break;
+
+						default:
+							loggers.ai.error({ action: agentResponse.action }, '❌ Action desconhecida');
+							responseMessage = 'Desculpe, não entendi o que fazer.';
+					}
 				}
 			} catch (parseError) {
 				// Fallback: NUNCA enviar JSON cru ao usuário
