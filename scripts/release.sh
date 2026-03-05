@@ -8,7 +8,13 @@ set -e
 
 # Executa lint com Biome para garantir que tudo está ok antes da release
 echo "🔍 Rodando validações de código (pnpm check)..."
-pnpm check:fix
+pnpm check
+if ! git diff --exit-code --quiet; then
+  echo ""
+  echo "❌ Biome detectou arquivos com problemas de formatação/lint."
+  echo "   Rode 'pnpm check:fix' localmente, revise e commit antes de fazer release."
+  exit 1
+fi
 echo "✅ Validações de lint OK!"
 echo ""
 
