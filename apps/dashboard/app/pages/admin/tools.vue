@@ -196,7 +196,7 @@ const userTools = computed(() => allTools.value.filter((t) => t.category === 'us
 async function loadTools() {
 	isLoading.value = true;
 	try {
-		const response = await $fetch<ToolsResponse>(`${apiUrl}/api/admin/tools`, {
+		const response = await $fetch<ToolsResponse>(`${apiUrl}/admin/tools`, {
 			credentials: 'include',
 		});
 
@@ -218,7 +218,7 @@ async function loadTools() {
 async function toggleTool(toolName: string, enabled: boolean) {
 	updatingTool.value = toolName;
 	try {
-		await $fetch(`${apiUrl}/api/admin/tools/${toolName}`, {
+		await $fetch(`${apiUrl}/admin/tools/${toolName}`, {
 			method: 'PATCH',
 			credentials: 'include',
 			body: { enabled },
@@ -256,7 +256,7 @@ async function toggleTool(toolName: string, enabled: boolean) {
 async function enableAllTools() {
 	isEnablingAll.value = true;
 	try {
-		await $fetch(`${apiUrl}/api/admin/tools/enable-all`, {
+		await $fetch(`${apiUrl}/admin/tools/enable-all`, {
 			method: 'POST',
 			credentials: 'include',
 		});
@@ -282,7 +282,7 @@ async function enableAllTools() {
 async function disableAllTools() {
 	isDisablingAll.value = true;
 	try {
-		await $fetch(`${apiUrl}/api/admin/tools/disable-all`, {
+		await $fetch(`${apiUrl}/admin/tools/disable-all`, {
 			method: 'POST',
 			credentials: 'include',
 		});
