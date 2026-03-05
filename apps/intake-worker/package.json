@@ -1,0 +1,27 @@
+{
+	"name": "@nexo/intake-worker",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tsx -r dotenv/config --env-file=../../.env src/index.ts",
+		"build": "tsup",
+		"start": "NODE_ENV=production node dist/index.js",
+		"test": "vitest --run --config vitest.config.ts",
+		"lint:biome": "biome check ."
+	},
+	"dependencies": {
+		"@hono/node-server": "^1.19.9",
+		"@nexo/env": "workspace:*",
+		"@nexo/shared": "workspace:*",
+		"hono": "^4.11.5"
+	},
+	"devDependencies": {
+		"@types/node": "^20.19.30",
+		"tsup": "^8.5.1",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3",
+		"vitest": "^2.1.9",
+		"@nexo/typescript-config": "workspace:*"
+	}
+}
