@@ -22,16 +22,18 @@
  */
 
 import {
-	AGENT_SYSTEM_PROMPT,
+	applyAgentDecisionV2Contract,
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
 	CHOOSE_AGAIN_MESSAGES,
 	ERROR_MESSAGES,
+	getAgentSystemPrompt,
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
 	formatItemsList,
 	getRandomMessage as getRandomResponse,
 } from '@/config/prompts';
+import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
@@ -350,6 +352,7 @@ export class AgentOrchestrator {
 	 */
 	private async handleWithLLM(context: AgentContext, _intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
+			const featureFlags = getPivotFeatureFlags();
 			const toolContext: ToolContext = {
 				userId: context.userId,
 				conversationId: context.conversationId,
@@ -372,7 +375,7 @@ export class AgentOrchestrator {
 			if (context.sessionKey) {
 				// Use context builder for personalized system prompt
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
-				systemPrompt = agentContext.systemPrompt;
+				systemPrompt = applyAgentDecisionV2Contract(agentContext.systemPrompt, featureFlags.TOOL_SCHEMA_V2);
 
 				loggers.context.info(
 					{
@@ -388,7 +391,7 @@ export class AgentOrchestrator {
 				// Fallback to original method for backward compatibility
 				const user = await userService.getUserById(context.userId);
 				const assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = AGENT_SYSTEM_PROMPT.replace('You are Nexo,', `You are ${assistantName},`);
+				systemPrompt = getAgentSystemPrompt(assistantName, featureFlags.TOOL_SCHEMA_V2);
 			}
 			// ============================================================================
 
