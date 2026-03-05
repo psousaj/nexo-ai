@@ -191,9 +191,7 @@ export const adminRoutes = new Hono()
 
 			return c.json({
 				success: true,
-				message: newQRCode
-					? 'Sessão limpa e novo QR Code gerado com sucesso!'
-					: 'Sessão limpa. Aguarde o QR Code aparecer.',
+				message: newQRCode ? 'Sessão limpa e novo QR Code gerado com sucesso!' : 'Sessão limpa. Aguarde o QR Code aparecer.',
 				qrCode: newQRCode,
 			});
 		} catch (error) {
@@ -293,9 +291,10 @@ export const adminRoutes = new Hono()
 				gatewayId: env.CLOUDFLARE_GATEWAY_ID ?? null,
 				timeoutMs: env.EMBEDDING_TIMEOUT_MS ?? 25000,
 				maxRetries: env.EMBEDDING_MAX_RETRIES ?? 4,
-				gatewayUrl: env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_GATEWAY_ID
-					? `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`
-					: null,
+				gatewayUrl:
+					env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_GATEWAY_ID
+						? `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`
+						: null,
 			},
 		});
 	})
@@ -369,7 +368,13 @@ export const adminRoutes = new Hono()
 			});
 			checks.push({ target: 'CF AI Gateway', url: gatewayUrl, ok: res.ok, status: res.status, elapsedMs: Date.now() - gateStart });
 		} catch (e: any) {
-			checks.push({ target: 'CF AI Gateway', url: gatewayUrl, ok: false, elapsedMs: Date.now() - gateStart, error: e?.message ?? String(e) });
+			checks.push({
+				target: 'CF AI Gateway',
+				url: gatewayUrl,
+				ok: false,
+				elapsedMs: Date.now() - gateStart,
+				error: e?.message ?? String(e),
+			});
 		}
 
 		// Checar Cloudflare API diretamente
@@ -387,7 +392,13 @@ export const adminRoutes = new Hono()
 			});
 			checks.push({ target: 'CF Workers AI (direct)', url: cfApiUrl, ok: res.ok, status: res.status, elapsedMs: Date.now() - cfStart });
 		} catch (e: any) {
-			checks.push({ target: 'CF Workers AI (direct)', url: cfApiUrl, ok: false, elapsedMs: Date.now() - cfStart, error: e?.message ?? String(e) });
+			checks.push({
+				target: 'CF Workers AI (direct)',
+				url: cfApiUrl,
+				ok: false,
+				elapsedMs: Date.now() - cfStart,
+				error: e?.message ?? String(e),
+			});
 		}
 
 		return c.json({ success: true, data: { checks } });
