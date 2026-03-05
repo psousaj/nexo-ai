@@ -129,6 +129,10 @@ describe('AgentOrchestrator tool schema switch', () => {
 				name: 'save_movie',
 				arguments: { title: 'Inception' },
 			},
+			guardrails: {
+				requires_confirmation: false,
+				deterministic_path: true,
+			},
 		});
 
 		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
@@ -159,6 +163,102 @@ describe('AgentOrchestrator tool schema switch', () => {
 				message: 'ok',
 				state: 'idle',
 				toolsUsed: ['save_movie'],
+			}),
+		);
+	});
+
+	test('blocks side-effecting CALL_TOOL when deterministic_path is not true (v2 only)', async () => {
+		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockParseAgentDecisionV2FromLLM.mockReturnValue({
+			schema_version: '2.0',
+			action: 'CALL_TOOL',
+			reasoning_intent: {
+				category: 'memory_write',
+				confidence: 0.8,
+				trigger: 'natural_language',
+			},
+			tool_call: {
+				name: 'save_note',
+				arguments: { content: 'hello' },
+			},
+			guardrails: {
+				requires_confirmation: false,
+				deterministic_path: false,
+			},
+		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
+
+		const response = await (orchestrator as any).handleWithLLM(
+			{
+				userId: 'u1',
+				conversationId: 'c1',
+				externalId: 'e1',
+				message: 'salva isso',
+				provider: 'telegram',
+			},
+			{},
+			{ id: 'c1' },
+		);
+
+		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
+		expect(mockExecuteTool).not.toHaveBeenCalled();
+		expect(response).toEqual(
+			expect.objectContaining({
+				state: 'idle',
+				toolsUsed: [],
+			}),
+		);
+		expect(response.message).toContain('Por segurança');
+	});
+
+	test('allows read-only CALL_TOOL even when deterministic_path is false (v2 only)', async () => {
+		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockParseAgentDecisionV2FromLLM.mockReturnValue({
+			schema_version: '2.0',
+			action: 'CALL_TOOL',
+			reasoning_intent: {
+				category: 'memory_read',
+				confidence: 0.93,
+				trigger: 'natural_language',
+			},
+			tool_call: {
+				name: 'search_items',
+				arguments: { query: 'inception' },
+			},
+			guardrails: {
+				requires_confirmation: false,
+				deterministic_path: false,
+			},
+		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
+
+		const response = await (orchestrator as any).handleWithLLM(
+			{
+				userId: 'u1',
+				conversationId: 'c1',
+				externalId: 'e1',
+				message: 'busca inception',
+				provider: 'telegram',
+			},
+			{},
+			{ id: 'c1' },
+		);
+
+		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
+		expect(mockExecuteTool).toHaveBeenCalledWith(
+			'search_items',
+			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
+			{ query: 'inception' },
+		);
+		expect(response).toEqual(
+			expect.objectContaining({
+				message: 'ok',
+				state: 'idle',
+				toolsUsed: ['search_items'],
 			}),
 		);
 	});

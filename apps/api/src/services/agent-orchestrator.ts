@@ -42,6 +42,7 @@ import { isValidAgentResponse, parseAgentDecisionV2FromLLM, parseJSONFromLLM } f
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { llmService } from './ai';
+import { canExecuteAgentDecisionV2Tool } from './agent-decision-v2-side-effect-gate';
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
@@ -440,6 +441,22 @@ export class AgentOrchestrator {
 							}
 
 							const toolName = agentDecision.tool_call.name;
+							const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
+
+							if (!gateDecision.allow) {
+								loggers.ai.warn(
+									{
+										tool: toolName,
+										action: agentDecision.action,
+										deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
+										gateReason: gateDecision.reason,
+									},
+									'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
+								);
+								responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
+								break;
+							}
+
 							loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
 							const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
 
