@@ -1,6 +1,6 @@
-import { loggers } from '@/utils/logger';
-import { isValidAgentDecisionV2, type AgentDecisionV2 } from '@/types/agent-decision-v2';
 import { sentryMetrics } from '@/sentry';
+import { type AgentDecisionV2, isValidAgentDecisionV2 } from '@/types/agent-decision-v2';
+import { loggers } from '@/utils/logger';
 
 /**
  * Utilitário para parsear JSON de respostas LLM

@@ -27,7 +27,12 @@ export class ConversationService {
 		return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
 	}
 
-	private buildMessagePersistData(conversationId: string, role: MessageRole, content: string, options?: MessagePersistOptions) {
+	private buildMessagePersistData(
+		conversationId: string,
+		role: MessageRole,
+		content: string,
+		options?: MessagePersistOptions,
+	) {
 		return {
 			conversationId,
 			role,
@@ -179,7 +184,10 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
+			loggers.db.info(
+				{ reason, confidence: ambiguityResult.confidence },
+				'🔍 Ambiguidade detectada, solicitando clarificação',
+			);
 
 			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
 			const clarificationOptions = await getClarificationOptions(language);

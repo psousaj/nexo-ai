@@ -106,7 +106,9 @@ export class WhatsAppAdapter implements MessagingProvider {
 	private async validateSignature(receivedSignature: string, payload: string): Promise<boolean> {
 		try {
 			// Remove prefixo "sha256=" se presente
-			const signatureHash = receivedSignature.startsWith('sha256=') ? receivedSignature.substring(7) : receivedSignature;
+			const signatureHash = receivedSignature.startsWith('sha256=')
+				? receivedSignature.substring(7)
+				: receivedSignature;
 
 			// Converte app secret para ArrayBuffer
 			const encoder = new TextEncoder();
@@ -114,7 +116,9 @@ export class WhatsAppAdapter implements MessagingProvider {
 			const messageData = encoder.encode(payload);
 
 			// Importa key para HMAC
-			const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+			const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, [
+				'sign',
+			]);
 
 			// Calcula HMAC SHA-256
 			const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);

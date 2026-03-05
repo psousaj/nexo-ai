@@ -44,7 +44,10 @@ describe('IntakeWorkerClient', () => {
 		const result = await client.processAttachments(attachments);
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(fetchMock).toHaveBeenCalledWith('http://localhost:3002/intake/process', expect.objectContaining({ method: 'POST' }));
+		expect(fetchMock).toHaveBeenCalledWith(
+			'http://localhost:3002/intake/process',
+			expect.objectContaining({ method: 'POST' }),
+		);
 		expect(result.items).toHaveLength(1);
 		expect(result.items[0].text).toBe('screenshot text');
 	});

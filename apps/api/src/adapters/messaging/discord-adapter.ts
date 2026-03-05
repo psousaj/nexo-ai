@@ -10,9 +10,8 @@
  * - Session key management
  */
 
-import { env } from '@/config/env';
 import { mapDiscordAttachmentsToMetadata } from '@/adapters/messaging/multimodal-attachments';
-import { messageQueue } from '@/services/queue-service';
+import { env } from '@/config/env';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
 import {
@@ -211,21 +210,26 @@ export class DiscordAdapter implements MessagingProvider {
 		// Parse the message and enqueue for processing
 		const incomingMessage = this.parseIncomingMessage(message);
 		if (incomingMessage) {
-			// Enqueue message processing (same pattern as Telegram/WhatsApp webhooks)
-			await messageQueue.add(
-				'message-processing',
-				{
-					incomingMsg: incomingMessage,
-					providerName: 'discord',
-				},
-				{
-					removeOnComplete: true,
-					attempts: 1,
-				},
-			);
+			await this.enqueueIncomingMessage(incomingMessage);
 
 			loggers.discord.info({ messageId: incomingMessage.messageId }, '✅ Discord message enqueued for processing');
 		}
+	}
+
+	private async enqueueIncomingMessage(incomingMessage: IncomingMessage): Promise<void> {
+		const { messageQueue } = await import('@/services/queue-service');
+
+		await messageQueue.add(
+			'message-processing',
+			{
+				incomingMsg: incomingMessage,
+				providerName: 'discord',
+			},
+			{
+				removeOnComplete: true,
+				attempts: 1,
+			},
+		);
 	}
 
 	/**
@@ -253,7 +257,9 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Handle messageDelete event
 	 */
-	private async handleMessageDelete(message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>): Promise<void> {
+	private async handleMessageDelete(
+		message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>,
+	): Promise<void> {
 		loggers.discord.debug({ messageId: message.id }, '🗑️ Message deleted');
 
 		// Handle message deletion if needed
@@ -366,11 +372,7 @@ export class DiscordAdapter implements MessagingProvider {
 			},
 		};
 
-		await messageQueue.add(
-			'message-processing',
-			{ incomingMsg: incomingMessage, providerName: 'discord' },
-			{ removeOnComplete: true, attempts: 1 },
-		);
+		await this.enqueueIncomingMessage(incomingMessage);
 
 		loggers.discord.info({ customId, messageId: interaction.id }, '✅ Button interaction enqueued for processing');
 	}
@@ -404,7 +406,9 @@ export class DiscordAdapter implements MessagingProvider {
 			new SlashCommandBuilder()
 				.setName('profile')
 				.setDescription('Show or update your profile')
-				.addStringOption((option) => option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false))
+				.addStringOption((option) =>
+					option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false),
+				)
 				.addStringOption((option) => option.setName('value').setDescription('New value').setRequired(false)),
 			new SlashCommandBuilder().setName('help').setDescription('Show available commands'),
 		];
@@ -502,6 +506,40 @@ export class DiscordAdapter implements MessagingProvider {
 				providerPayload,
 				attachments: mappedAttachments.length > 0 ? mappedAttachments : undefined,
 			},
+		};
+	}
+
+	parseMessage(payload: any): {
+		content: string;
+		isDirectMessage: boolean;
+		botMentioned: boolean;
+		attachments?: Array<{ type: 'image' | 'audio' | 'file'; url: string; name?: string }>;
+		edited: boolean;
+	} {
+		const isDirectMessage = payload.guildId == null;
+		const mentions = payload.mentions?.users;
+		const botMentioned = Array.isArray(mentions)
+			? mentions.some((mention: { bot?: boolean }) => Boolean(mention?.bot))
+			: false;
+		const attachments = Array.isArray(payload.attachments)
+			? payload.attachments.map((attachment: { contentType?: string | null; url: string; name?: string }) => ({
+					type:
+						attachment.contentType?.startsWith('image/') === true
+							? 'image'
+							: attachment.contentType?.startsWith('audio/') === true
+								? 'audio'
+								: 'file',
+					url: attachment.url,
+					name: attachment.name,
+				}))
+			: undefined;
+
+		return {
+			content: payload.content || '',
+			isDirectMessage,
+			botMentioned,
+			attachments,
+			edited: Boolean(payload.editedTimestamp),
 		};
 	}
 

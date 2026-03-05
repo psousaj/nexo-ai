@@ -9,10 +9,10 @@ import {
 	getRandomMessage,
 } from '@/config/prompts';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
-import { applyMultimodalRuntime } from '@/services/multimodal-runtime';
 import { commandHandlerService } from '@/services/command-handler.service';
 import { conversationService } from '@/services/conversation-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import { applyMultimodalRuntime } from '@/services/multimodal-runtime';
 import { onboardingService } from '@/services/onboarding-service';
 import { cancelConversationClose } from '@/services/queue-service';
 import { userService } from '@/services/user-service';
@@ -38,7 +38,10 @@ async function containsOffensiveContent(message: string): Promise<boolean> {
 			'offensive.is_offensive': sentiment.score < -3,
 		});
 
-		loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
+		loggers.webhook.info(
+			{ score: sentiment.score, sentiment: sentiment.sentiment, message },
+			'🛡️ Sentiment Analysis (nlp.js)',
+		);
 
 		return sentiment.score < -3;
 	});
@@ -233,7 +236,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
 								// (Pode ser um erro de cache ou estado, mas evita spam de trial para usuários registrados)
 								if (user.status === 'active') {
-									loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando');
+									loggers.webhook.warn(
+										{ userId: user.id },
+										'⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando',
+									);
 									// Força update se necessário ou segue fluxo
 								} else {
 									// Verifica se o usuário tem conta vinculada no UserService
@@ -277,7 +283,11 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								const isNewUser = accounts.length <= 1;
 
 								if (isNewUser) {
-									const signupToken = await accountLinkingService.generateLinkingToken(user.id, providerName as any, 'signup');
+									const signupToken = await accountLinkingService.generateLinkingToken(
+										user.id,
+										providerName as any,
+										'signup',
+									);
 									const signupLink = `${dashboardUrl}?vinculate_code=${signupToken}`;
 									const signupRequiredMessage = getChannelSignupRequiredMessage(providerName, signupLink);
 
@@ -290,7 +300,11 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 											);
 										} else {
 											const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
-											await (provider as any).sendMessageWithButtons(incomingMsg.externalId, signupRequiredMessage, buttons);
+											await (provider as any).sendMessageWithButtons(
+												incomingMsg.externalId,
+												signupRequiredMessage,
+												buttons,
+											);
 										}
 									} else {
 										await provider.sendMessage(incomingMsg.externalId, signupRequiredMessage);
@@ -347,7 +361,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								} catch (sendError: any) {
 									// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
 									if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-										loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
+										loggers.webhook.error(
+											{ error: sendError.cause?.code },
+											'❌ Erro de rede ao enviar mensagem - não enviando fallback',
+										);
 										throw sendError; // Re-throw para Bull não fazer retry
 									}
 									throw sendError;
@@ -365,7 +382,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 							} catch (sendError: any) {
 								// Se erro de rede, apenas loga e retorna
 								if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-									loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar fallback - abortando');
+									loggers.webhook.error(
+										{ error: sendError.cause?.code },
+										'❌ Erro de rede ao enviar fallback - abortando',
+									);
 									throw sendError;
 								}
 								throw sendError;
@@ -378,7 +398,10 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						}
 
 						const endTotal = performance.now();
-						loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
+						loggers.webhook.info(
+							{ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` },
+							'🏁 Processamento finalizado',
+						);
 					} catch (error: any) {
 						recordException(error as Error, {
 							'user.id': userId,

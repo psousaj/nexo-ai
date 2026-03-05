@@ -1,5 +1,5 @@
-import type { MultimodalIntakePayload } from '@nexo/shared';
 import type { LinkingTokenProvider } from '@/db/schema';
+import type { MultimodalIntakePayload } from '@nexo/shared';
 
 /**
  * Messaging Provider Adapter Interface

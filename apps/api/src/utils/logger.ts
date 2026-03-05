@@ -1,5 +1,5 @@
-import pino from 'pino';
 import * as Sentry from '@sentry/node';
+import pino from 'pino';
 
 /**
  * Pino logger com transports para New Relic e pretty print em dev

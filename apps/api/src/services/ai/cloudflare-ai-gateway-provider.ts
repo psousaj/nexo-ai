@@ -1,8 +1,8 @@
 import { loggers } from '@/utils/logger';
+import { observe, updateActiveObservation } from '@langfuse/tracing';
 import { encode } from '@toon-format/toon';
 import OpenAI from 'openai';
 import type { AIProvider, AIResponse, Message } from './types';
-import { observe, updateActiveObservation } from '@langfuse/tracing';
 
 /**
  * Provider unificado usando Cloudflare AI Gateway
