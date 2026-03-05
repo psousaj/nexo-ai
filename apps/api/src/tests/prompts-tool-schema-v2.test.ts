@@ -1,8 +1,8 @@
 import {
 	AGENT_DECISION_V2_CONTRACT_PROMPT,
 	AGENT_SYSTEM_PROMPT_V2,
-	getAgentSystemPrompt,
 	applyAgentDecisionV2Contract,
+	getAgentSystemPrompt,
 } from '@/config/prompts';
 import { describe, expect, test } from 'vitest';
 

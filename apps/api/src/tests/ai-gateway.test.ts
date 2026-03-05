@@ -43,7 +43,9 @@ describe('CloudflareAIGatewayProvider', () => {
 		expect(mockOpenAIInstance.chat.completions.create).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model: 'dynamic/cloudflare',
-				messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: expect.stringContaining('hello') })]),
+				messages: expect.arrayContaining([
+					expect.objectContaining({ role: 'user', content: expect.stringContaining('hello') }),
+				]),
 			}),
 		);
 	});

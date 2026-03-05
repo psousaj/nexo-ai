@@ -1,7 +1,7 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { ERROR_MESSAGES } from '@/config/prompts';
-import { processMessage } from '@/services/message-service';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
+import { processMessage } from '@/services/message-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('@langfuse/tracing', () => ({
@@ -212,7 +212,9 @@ describe('message-service sessionKey wiring', () => {
 		expect(provider.sendMessage).toHaveBeenCalledTimes(1);
 		expect(provider.sendMessage).toHaveBeenCalledWith(
 			incoming.externalId,
-			expect.stringMatching(new RegExp(ERROR_MESSAGES.map((message) => message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))),
+			expect.stringMatching(
+				new RegExp(ERROR_MESSAGES.map((message) => message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')),
+			),
 		);
 	});
 });

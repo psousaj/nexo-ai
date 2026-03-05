@@ -14,10 +14,10 @@
 		"test": "vitest --run --config vitest.config.ts",
 		"test:watch": "vitest --config vitest.config.ts --watch",
 		"test:ui": "vitest --ui",
-		"format": "biome format --write .",
+		"format": "biome format --fix .",
 		"format:check": "biome format .",
 		"lint:biome": "biome check .",
-		"lint:biome:fix": "biome check --write .",
+		"lint:biome:fix": "biome check --fix .",
 		"train:nexo": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
 		"train:nexo:bert": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
 		"set-admin": "tsx scripts/set-admin.ts"

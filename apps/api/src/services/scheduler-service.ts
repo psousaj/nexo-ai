@@ -62,7 +62,10 @@ reminderQueue.on('completed', (job) => {
 });
 
 reminderQueue.on('failed', async (job, error) => {
-	schedulerLogger.error({ jobId: job?.id, reminderId: job?.data.reminderId, err: error }, '❌ [reminder-processing] Job falhou');
+	schedulerLogger.error(
+		{ jobId: job?.id, reminderId: job?.data.reminderId, err: error },
+		'❌ [reminder-processing] Job falhou',
+	);
 
 	// Mark reminder as failed in database
 	if (job?.data.reminderId) {
@@ -178,7 +181,10 @@ export async function scheduleReminder(params: {
 
 	const reminderId = reminder.id;
 
-	schedulerLogger.info({ reminderId, userId, scheduledFor: scheduledFor.toISOString(), delay }, '📅 Criando lembrete no banco de dados');
+	schedulerLogger.info(
+		{ reminderId, userId, scheduledFor: scheduledFor.toISOString(), delay },
+		'📅 Criando lembrete no banco de dados',
+	);
 
 	// Schedule job
 	const jobId = `reminder:${reminderId}`;

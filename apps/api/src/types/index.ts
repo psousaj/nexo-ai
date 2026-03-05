@@ -4,7 +4,15 @@ import { loggers } from '@/utils/logger';
 
 // Re-export shared types
 // Re-export shared types
-import type { ItemMetadata, ItemType, LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@nexo/shared';
+import type {
+	ItemMetadata,
+	ItemType,
+	LinkMetadata,
+	MovieMetadata,
+	NoteMetadata,
+	TVShowMetadata,
+	VideoMetadata,
+} from '@nexo/shared';
 export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
 export * from './agent-decision-v2';
 
@@ -59,7 +67,10 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 
 	// Validar schema_version
 	if (response.schema_version !== CURRENT_SCHEMA_VERSION) {
-		loggers.ai.warn({ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION }, 'Versão de schema incompatível');
+		loggers.ai.warn(
+			{ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION },
+			'Versão de schema incompatível',
+		);
 	}
 
 	if (!['CALL_TOOL', 'RESPOND', 'NOOP'].includes(response.action)) return false;

@@ -8,7 +8,7 @@ set -e
 
 # Executa lint com Biome para garantir que tudo está ok antes da release
 echo "🔍 Rodando validações de código (pnpm check)..."
-pnpm check
+pnpm check:fix
 echo "✅ Validações de lint OK!"
 echo ""
 

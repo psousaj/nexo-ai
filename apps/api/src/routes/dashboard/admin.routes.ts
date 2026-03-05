@@ -191,7 +191,9 @@ export const adminRoutes = new Hono()
 
 			return c.json({
 				success: true,
-				message: newQRCode ? 'Sessão limpa e novo QR Code gerado com sucesso!' : 'Sessão limpa. Aguarde o QR Code aparecer.',
+				message: newQRCode
+					? 'Sessão limpa e novo QR Code gerado com sucesso!'
+					: 'Sessão limpa. Aguarde o QR Code aparecer.',
 				qrCode: newQRCode,
 			});
 		} catch (error) {
@@ -353,7 +355,14 @@ export const adminRoutes = new Hono()
 
 		const gatewayUrl = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
 
-		const checks: Array<{ target: string; url: string; ok: boolean; status?: number; elapsedMs: number; error?: string }> = [];
+		const checks: Array<{
+			target: string;
+			url: string;
+			ok: boolean;
+			status?: number;
+			elapsedMs: number;
+			error?: string;
+		}> = [];
 
 		// Checar gateway Cloudflare
 		const gateStart = Date.now();
@@ -366,7 +375,13 @@ export const adminRoutes = new Hono()
 				},
 				signal: AbortSignal.timeout(8000),
 			});
-			checks.push({ target: 'CF AI Gateway', url: gatewayUrl, ok: res.ok, status: res.status, elapsedMs: Date.now() - gateStart });
+			checks.push({
+				target: 'CF AI Gateway',
+				url: gatewayUrl,
+				ok: res.ok,
+				status: res.status,
+				elapsedMs: Date.now() - gateStart,
+			});
 		} catch (e: any) {
 			checks.push({
 				target: 'CF AI Gateway',
@@ -390,7 +405,13 @@ export const adminRoutes = new Hono()
 				body: JSON.stringify({ text: ['ping'] }),
 				signal: AbortSignal.timeout(8000),
 			});
-			checks.push({ target: 'CF Workers AI (direct)', url: cfApiUrl, ok: res.ok, status: res.status, elapsedMs: Date.now() - cfStart });
+			checks.push({
+				target: 'CF Workers AI (direct)',
+				url: cfApiUrl,
+				ok: res.ok,
+				status: res.status,
+				elapsedMs: Date.now() - cfStart,
+			});
 		} catch (e: any) {
 			checks.push({
 				target: 'CF Workers AI (direct)',

@@ -1,8 +1,8 @@
 import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
 import { AgentOrchestrator } from '@/services/agent-orchestrator';
+import { llmService } from '@/services/ai';
 import * as contextBuilder from '@/services/context-builder';
 import { conversationService } from '@/services/conversation-service';
-import { llmService } from '@/services/ai';
 import { userService } from '@/services/user-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 

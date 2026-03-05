@@ -142,7 +142,10 @@ export async function save_movie(
 	try {
 		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
 		if (!params.tmdb_id) {
-			loggers.tools.info({ title: params.title, year: params.year }, '🔍 save_movie sem tmdb_id → buscando candidatos no TMDB');
+			loggers.tools.info(
+				{ title: params.title, year: params.year },
+				'🔍 save_movie sem tmdb_id → buscando candidatos no TMDB',
+			);
 			const results = await enrichmentService.searchMovies(params.title, params.year);
 
 			if (results && results.length > 0) {
@@ -181,7 +184,9 @@ export async function save_movie(
 			// Enriquecimento async — não bloqueia a resposta ao usuário
 			void enrichmentService
 				.enrich('movie', { tmdbId: params.tmdb_id })
-				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
+				.catch((err) =>
+					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
+				);
 		}
 
 		const item = await itemService.createItem({
@@ -271,7 +276,9 @@ export async function save_tv_show(
 			// Enriquecimento async — não bloqueia a resposta ao usuário
 			void enrichmentService
 				.enrich('tv_show', { tmdbId: params.tmdb_id })
-				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
+				.catch((err) =>
+					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
+				);
 		}
 
 		const item = await itemService.createItem({
@@ -835,7 +842,9 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -901,8 +910,9 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
-			await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);

@@ -319,14 +319,15 @@ export class TMDBService {
 		const cacheKey = `tmdb:streaming:${type}:${tmdbId}`;
 
 		// Tenta cache primeiro
-		const cached = await cacheGet<
-			Array<{
-				provider_id: number;
-				provider_name: string;
-				logo_path: string;
-				type: 'flatrate' | 'rent' | 'buy';
-			}>
-		>(cacheKey);
+		const cached =
+			await cacheGet<
+				Array<{
+					provider_id: number;
+					provider_name: string;
+					logo_path: string;
+					type: 'flatrate' | 'rent' | 'buy';
+				}>
+			>(cacheKey);
 		if (cached) {
 			loggers.enrichment.debug(`Cache hit: ${cacheKey}`);
 			return cached;

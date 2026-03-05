@@ -280,7 +280,13 @@ closeConversationQueue.process('close-conversation', async (job) => {
 					closeJobId: null,
 					updatedAt: new Date(),
 				})
-				.where(and(eq(conversations.id, conversationId), eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, new Date())))
+				.where(
+					and(
+						eq(conversations.id, conversationId),
+						eq(conversations.state, 'waiting_close'),
+						lte(conversations.closeAt, new Date()),
+					),
+				)
 				.returning({ id: conversations.id });
 
 			if (result.length === 0) {
@@ -345,7 +351,10 @@ messageQueue.process('message-processing', async (job) => {
 			});
 
 			setAttributes({ 'queue.status': 'success' });
-			queueLogger.info({ providerName, externalId: incomingMsg.externalId, jobId: job.id }, '✅ [Worker] Mensagem processada com sucesso');
+			queueLogger.info(
+				{ providerName, externalId: incomingMsg.externalId, jobId: job.id },
+				'✅ [Worker] Mensagem processada com sucesso',
+			);
 		} catch (error) {
 			recordException(error as Error, { 'queue.status': 'failed' });
 			queueLogger.error(
@@ -454,7 +463,10 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 				return { inserted: 0, skipped: 0, reason: 'no_candidates' };
 			}
 
-			queueLogger.info({ provider, type, count: candidates.length, jobId: job.id }, '🚀 [Worker] Iniciando bulk enrichment');
+			queueLogger.info(
+				{ provider, type, count: candidates.length, jobId: job.id },
+				'🚀 [Worker] Iniciando bulk enrichment',
+			);
 
 			// 1. Extrair IDs
 			const externalIds = candidates.map((c) => String(c.id));
@@ -512,7 +524,9 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 				if (!i || !i.embedding) return false;
 				// Valida embedding: array, 384 dimensões, todos números válidos
 				return (
-					Array.isArray(i.embedding) && i.embedding.length === 384 && i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
+					Array.isArray(i.embedding) &&
+					i.embedding.length === 384 &&
+					i.embedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
 				);
 			});
 
@@ -523,7 +537,10 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 			}
 
 			// 5. Bulk Insert
-			const insertResult = await db.insert(semanticExternalItems).values(validItems).returning({ id: semanticExternalItems.id });
+			const insertResult = await db
+				.insert(semanticExternalItems)
+				.values(validItems)
+				.returning({ id: semanticExternalItems.id });
 
 			const insertedCount = insertResult.length;
 			const skippedCount = candidates.length - insertedCount;
@@ -579,7 +596,10 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			})
 			.where(eq(conversations.id, conversationId));
 
-		queueLogger.info({ conversationId, closeAt: closeAt.toISOString() }, '📅 Banco atualizado: conversa aguardando fechamento');
+		queueLogger.info(
+			{ conversationId, closeAt: closeAt.toISOString() },
+			'📅 Banco atualizado: conversa aguardando fechamento',
+		);
 
 		await closeConversationQueue.add(
 			'close-conversation',
@@ -718,10 +738,20 @@ export async function queueResponse(data: ResponseJob): Promise<void> {
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
+	await Promise.all([
+		closeConversationQueue.close(),
+		messageQueue.close(),
+		responseQueue.close(),
+		enrichmentQueue.close(),
+	]);
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues...');
-	await Promise.all([closeConversationQueue.close(), messageQueue.close(), responseQueue.close(), enrichmentQueue.close()]);
+	await Promise.all([
+		closeConversationQueue.close(),
+		messageQueue.close(),
+		responseQueue.close(),
+		enrichmentQueue.close(),
+	]);
 });

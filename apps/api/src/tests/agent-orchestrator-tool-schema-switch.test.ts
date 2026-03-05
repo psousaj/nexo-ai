@@ -101,9 +101,13 @@ describe('AgentOrchestrator tool schema switch', () => {
 
 		expect(mockParseJSONFromLLM).toHaveBeenCalledTimes(1);
 		expect(mockParseAgentDecisionV2FromLLM).not.toHaveBeenCalled();
-		expect(mockExecuteTool).toHaveBeenCalledWith('save_note', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
-			content: 'hello',
-		});
+		expect(mockExecuteTool).toHaveBeenCalledWith(
+			'save_note',
+			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
+			{
+				content: 'hello',
+			},
+		);
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -237,9 +241,13 @@ describe('AgentOrchestrator tool schema switch', () => {
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
 		expect(mockParseJSONFromLLM).not.toHaveBeenCalled();
 		expect(mockIsValidAgentResponse).not.toHaveBeenCalled();
-		expect(mockExecuteTool).toHaveBeenCalledWith('save_movie', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
-			title: 'Inception',
-		});
+		expect(mockExecuteTool).toHaveBeenCalledWith(
+			'save_movie',
+			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
+			{
+				title: 'Inception',
+			},
+		);
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -331,9 +339,13 @@ describe('AgentOrchestrator tool schema switch', () => {
 		);
 
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
-		expect(mockExecuteTool).toHaveBeenCalledWith('search_items', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
-			query: 'inception',
-		});
+		expect(mockExecuteTool).toHaveBeenCalledWith(
+			'search_items',
+			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
+			{
+				query: 'inception',
+			},
+		);
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
