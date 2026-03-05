@@ -262,4 +262,87 @@ describe('AgentOrchestrator tool schema switch', () => {
 			}),
 		);
 	});
+
+	test('handles RESPOND action in v2 without executing tools', async () => {
+		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockParseAgentDecisionV2FromLLM.mockReturnValue({
+			schema_version: '2.0',
+			action: 'RESPOND',
+			reasoning_intent: {
+				category: 'conversation',
+				confidence: 0.95,
+				trigger: 'natural_language',
+			},
+			response: {
+				text: 'Perfeito! Já deixei isso registrado.',
+				tone_profile: 'friendly-default',
+			},
+			tool_call: null,
+		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
+
+		const response = await (orchestrator as any).handleWithLLM(
+			{
+				userId: 'u1',
+				conversationId: 'c1',
+				externalId: 'e1',
+				message: 'só me responda',
+				provider: 'telegram',
+			},
+			{},
+			{ id: 'c1' },
+		);
+
+		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
+		expect(mockExecuteTool).not.toHaveBeenCalled();
+		expect(response).toEqual(
+			expect.objectContaining({
+				message: 'Perfeito! Já deixei isso registrado.',
+				state: 'idle',
+				toolsUsed: [],
+			}),
+		);
+	});
+
+	test('handles NOOP action in v2 with fallback response and no tools', async () => {
+		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockParseAgentDecisionV2FromLLM.mockReturnValue({
+			schema_version: '2.0',
+			action: 'NOOP',
+			reasoning_intent: {
+				category: 'system',
+				confidence: 1,
+				trigger: 'mixed',
+			},
+			response: null,
+			tool_call: null,
+		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
+
+		const response = await (orchestrator as any).handleWithLLM(
+			{
+				userId: 'u1',
+				conversationId: 'c1',
+				externalId: 'e1',
+				message: 'ok',
+				provider: 'telegram',
+			},
+			{},
+			{ id: 'c1' },
+		);
+
+		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
+		expect(mockExecuteTool).not.toHaveBeenCalled();
+		expect(response).toEqual(
+			expect.objectContaining({
+				message: 'Entendido! Se precisar de algo, é só falar. 👍',
+				state: 'idle',
+				toolsUsed: [],
+			}),
+		);
+	});
 });
