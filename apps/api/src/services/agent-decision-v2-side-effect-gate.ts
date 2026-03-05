@@ -15,7 +15,12 @@ const READ_ONLY_TOOLS = new Set([
 
 export interface AgentDecisionV2ToolGateResult {
 	allow: boolean;
-	reason: 'not_call_tool' | 'read_only_tool' | 'deterministic_path' | 'missing_deterministic_path';
+	reason:
+		| 'not_call_tool'
+		| 'read_only_tool'
+		| 'deterministic_path'
+		| 'missing_deterministic_path'
+		| 'requires_confirmation';
 }
 
 export function canExecuteAgentDecisionV2Tool(decision: AgentDecisionV2): AgentDecisionV2ToolGateResult {
@@ -25,6 +30,10 @@ export function canExecuteAgentDecisionV2Tool(decision: AgentDecisionV2): AgentD
 
 	if (READ_ONLY_TOOLS.has(decision.tool_call.name)) {
 		return { allow: true, reason: 'read_only_tool' };
+	}
+
+	if (decision.guardrails?.requires_confirmation === true) {
+		return { allow: false, reason: 'requires_confirmation' };
 	}
 
 	if (decision.guardrails?.deterministic_path === true) {

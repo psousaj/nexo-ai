@@ -36,6 +36,19 @@ describe('AgentDecisionV2 deterministic side-effect gate', () => {
 		expect(result).toEqual({ allow: false, reason: 'missing_deterministic_path' });
 	});
 
+	test('blocks side-effecting tool when requires_confirmation is true', () => {
+		const result = canExecuteAgentDecisionV2Tool({
+			...baseDecision,
+			tool_call: { name: 'save_note', arguments: { content: 'hello' } },
+			guardrails: {
+				requires_confirmation: true,
+				deterministic_path: true,
+			},
+		});
+
+		expect(result).toEqual({ allow: false, reason: 'requires_confirmation' });
+	});
+
 	test('allows read-only tools even when deterministic_path is false', () => {
 		const result = canExecuteAgentDecisionV2Tool({
 			...baseDecision,
