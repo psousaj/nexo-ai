@@ -34,6 +34,8 @@ Target stack direction:
   - HTTP and cron migration completed.
 - **M6 — Hardening & Go-Live**
   - KPI/SLO closure + operational readiness.
+- **M7 — Telegram Native Experience**
+  - Integrate high-value Telegram-native bot features into the Nexo conversational memory flow.
 
 ---
 
@@ -80,6 +82,7 @@ Target stack direction:
 - M4: Pending
 - M5: Pending
 - M6: Pending
+- M7: Pending
 
 ---
 
@@ -193,3 +196,64 @@ Ready immediately:
 2. `TKT-C1` (ambiguity policy)
 
 Then continue by dependency waves until M0–M6 are complete.
+
+---
+
+## 8) New milestone — M7 Telegram Native Experience
+
+Goal: add Telegram-native interaction features that improve discovery, UX, and memory-capture conversion while preserving deterministic side-effect execution.
+
+### M7 scope (in)
+
+- Command UX:
+  - global commands (`/start`, `/help`, `/settings`) and domain commands for memory flows.
+  - command scopes by context (private chat, groups, admins, language).
+- Menu and keyboards:
+  - menu button configuration.
+  - reply keyboard and inline keyboard templates for save/search/disambiguation flows.
+- Deep linking:
+  - support `t.me/<bot>?start=<payload>` and deterministic payload parsing for onboarding, account linking, and referral/context handoff.
+- Attachment entrypoint:
+  - attachment-menu-compatible flow wired to current multimodal intake.
+- Inline mode:
+  - `inline_query` support for quick memory search/share from any Telegram chat.
+
+### M7 scope (out for now)
+
+- Monetization features (Stars, paid media, subscriptions, ads revenue share).
+- Full Mini App productization (store optimization, story integrations, advanced webapp APIs).
+
+### M7 technical tickets
+
+- **TKT-TG1: Command catalog and scopes**
+  - Define command matrix + localized descriptions.
+  - Configure per-scope commands via Bot API / BotFather automation script.
+
+- **TKT-TG2: Global command handlers**
+  - Implement deterministic handlers for `/start`, `/help`, `/settings`.
+  - Keep responses aligned with conversational assistant positioning.
+
+- **TKT-TG3: Keyboard system**
+  - Add reusable inline/reply keyboard builders.
+  - Map callback actions to deterministic runtime intents (no free-form side effects).
+
+- **TKT-TG4: Deep-link payload gateway**
+  - Add signed/validated payload parser.
+  - Support onboarding, account-link, and context-prefill intents.
+
+- **TKT-TG5: Attachment menu integration**
+  - Route attachment-menu launches into multimodal intake with confirmation policy.
+
+- **TKT-TG6: Inline mode memory search**
+  - Implement inline query endpoint + result ranking for memory retrieval snippets.
+
+- **TKT-TG7: Telegram-specific test matrix**
+  - Unit/integration coverage for commands, callbacks, deep links, inline query, and attachment launch paths.
+
+### M7 dependency order
+
+1. `TKT-TG1` -> `TKT-TG2`
+2. `TKT-TG3` and `TKT-TG4` in parallel after `TKT-TG2`
+3. `TKT-TG5` after `TKT-TG3`
+4. `TKT-TG6` after `TKT-TG1`
+5. `TKT-TG7` after all TG implementation tickets
