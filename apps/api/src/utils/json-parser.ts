@@ -1,6 +1,6 @@
-import { loggers } from '@/utils/logger';
-import { isValidAgentDecisionV2, type AgentDecisionV2 } from '@/types/agent-decision-v2';
 import { sentryMetrics } from '@/sentry';
+import { type AgentDecisionV2, isValidAgentDecisionV2 } from '@/types/agent-decision-v2';
+import { loggers } from '@/utils/logger';
 
 /**
  * Utilitário para parsear JSON de respostas LLM
@@ -63,10 +63,22 @@ export function isValidAgentResponse(obj: any): boolean {
 	// Se CALL_TOOL, precisa ter tool
 	if (obj.action === 'CALL_TOOL' && !obj.tool) return false;
 
-	// Se RESPOND, precisa ter message
-	if (obj.action === 'RESPOND' && !obj.message) return false;
+	// Se RESPOND, precisa ter message textual
+	if (obj.action === 'RESPOND' && typeof obj.message !== 'string') return false;
 
 	return true;
+}
+
+/**
+ * Aplica guardrails de normalização para resposta do agente
+ */
+export function normalizeAgentResponse(obj: any): void {
+	if (!obj || typeof obj !== 'object') return;
+
+	if (obj.action === 'RESPOND' && typeof obj.message === 'string' && obj.message.length > 700) {
+		loggers.ai.warn({ length: obj.message.length }, 'RESPOND muito longo (máx 700 chars)');
+		obj.message = `${obj.message.substring(0, 697)}...`;
+	}
 }
 
 /**

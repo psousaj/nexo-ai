@@ -33,7 +33,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const ALLOWED_ACTIONS: AgentDecisionAction[] = ['CALL_TOOL', 'RESPOND', 'NOOP'];
 const ALLOWED_CATEGORIES: AgentDecisionCategory[] = ['conversation', 'memory_write', 'memory_read', 'system'];
-const ALLOWED_TRIGGERS: AgentDecisionTrigger[] = ['slash_command', 'natural_language', 'audio_transcript', 'image_ocr', 'mixed'];
+const ALLOWED_TRIGGERS: AgentDecisionTrigger[] = [
+	'slash_command',
+	'natural_language',
+	'audio_transcript',
+	'image_ocr',
+	'mixed',
+];
 
 /**
  * Strict validator for the pivot contract.
@@ -60,7 +66,8 @@ export function isValidAgentDecisionV2(payload: unknown): payload is AgentDecisi
 	if (payload.action === 'RESPOND') {
 		if (!isRecord(payload.response)) return false;
 		if (typeof payload.response.text !== 'string' || payload.response.text.trim().length === 0) return false;
-		if (typeof payload.response.tone_profile !== 'string' || payload.response.tone_profile.trim().length === 0) return false;
+		if (typeof payload.response.tone_profile !== 'string' || payload.response.tone_profile.trim().length === 0)
+			return false;
 		if (payload.tool_call !== null && payload.tool_call !== undefined) return false;
 	}
 

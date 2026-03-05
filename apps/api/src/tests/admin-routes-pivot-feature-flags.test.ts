@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-const { mockGetPivotFeatureFlags, mockGetWhatsAppSettings, mockInvalidateCache, mockSetActiveWhatsAppApi } =
-	vi.hoisted(() => ({
-	mockGetPivotFeatureFlags: vi.fn(),
-	mockGetWhatsAppSettings: vi.fn(),
-	mockInvalidateCache: vi.fn(),
-	mockSetActiveWhatsAppApi: vi.fn(),
-}));
+const { mockGetPivotFeatureFlags, mockGetWhatsAppSettings, mockInvalidateCache, mockSetActiveWhatsAppApi } = vi.hoisted(
+	() => ({
+		mockGetPivotFeatureFlags: vi.fn(),
+		mockGetWhatsAppSettings: vi.fn(),
+		mockInvalidateCache: vi.fn(),
+		mockSetActiveWhatsAppApi: vi.fn(),
+	}),
+);
 
 vi.mock('@/config/pivot-feature-flags', () => ({
 	getPivotFeatureFlags: mockGetPivotFeatureFlags,

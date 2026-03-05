@@ -1,10 +1,6 @@
-import { describe, expect, test, vi } from 'vitest';
 import { sentryMetrics } from '@/sentry';
-import {
-	isValidAgentDecisionV2Response,
-	parseAgentDecisionV2FromLLM,
-	parseJSONFromLLM,
-} from '@/utils/json-parser';
+import { isValidAgentDecisionV2Response, parseAgentDecisionV2FromLLM, parseJSONFromLLM } from '@/utils/json-parser';
+import { describe, expect, test, vi } from 'vitest';
 
 describe('json-parser AgentDecisionV2 helpers', () => {
 	test('parses valid AgentDecisionV2 from markdown json', () => {

@@ -766,7 +766,9 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -832,8 +834,9 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
-			await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
