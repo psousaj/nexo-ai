@@ -593,7 +593,14 @@ export class AgentOrchestrator {
 					'❌ LLMParseError: falha ao parsear resposta do LLM como AgentLLMResponse',
 				);
 
-				responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
+				const fallbackMessage = llmResponse.message?.trim();
+				if (fallbackMessage && !fallbackMessage.startsWith('{') && !fallbackMessage.startsWith('[')) {
+					loggers.ai.warn('⚠️ Usando resposta textual de fallback (sem execução de tools)');
+					responseMessage =
+						fallbackMessage.length > 700 ? `${fallbackMessage.substring(0, 697)}...` : fallbackMessage;
+				} else {
+					responseMessage = 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?';
+				}
 			}
 
 			return {

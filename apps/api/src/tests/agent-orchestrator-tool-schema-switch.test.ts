@@ -115,6 +115,41 @@ describe('AgentOrchestrator tool schema switch', () => {
 		);
 	});
 
+	test('falls back to plain-text response when v1 parser fails on non-JSON output', async () => {
+		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: false });
+		mockCallLLM.mockResolvedValue({
+			message: "Hello! I'm NEXO, your personal AI assistant.",
+		});
+		mockParseJSONFromLLM.mockImplementation(() => {
+			throw new Error('Resposta não é JSON');
+		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
+
+		const response = await (orchestrator as any).handleWithLLM(
+			{
+				userId: 'u1',
+				conversationId: 'c1',
+				externalId: 'e1',
+				message: 'hey',
+				provider: 'telegram',
+			},
+			{},
+			{ id: 'c1' },
+		);
+
+		expect(mockParseJSONFromLLM).toHaveBeenCalledTimes(1);
+		expect(mockExecuteTool).not.toHaveBeenCalled();
+		expect(response).toEqual(
+			expect.objectContaining({
+				message: "Hello! I'm NEXO, your personal AI assistant.",
+				state: 'idle',
+				toolsUsed: [],
+			}),
+		);
+	});
+
 	test('uses AgentDecisionV2 path when TOOL_SCHEMA_V2 is enabled', async () => {
 		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
 		mockParseAgentDecisionV2FromLLM.mockReturnValue({
