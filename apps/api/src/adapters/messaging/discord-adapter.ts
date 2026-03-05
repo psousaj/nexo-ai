@@ -11,6 +11,7 @@
  */
 
 import { env } from '@/config/env';
+import { mapDiscordAttachmentsToMetadata } from '@/adapters/messaging/multimodal-attachments';
 import { messageQueue } from '@/services/queue-service';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
@@ -441,7 +442,19 @@ export class DiscordAdapter implements MessagingProvider {
 		// Extract text content
 		let text = message.content || '';
 
-		// Handle attachments (images, files, etc)
+		const mappedAttachments = mapDiscordAttachmentsToMetadata({
+			attachments: Array.from(message.attachments.values()).map((attachment) => ({
+				url: attachment.url,
+				contentType: attachment.contentType,
+				name: attachment.name,
+				size: attachment.size,
+			})),
+			messageId: message.id,
+			userId: message.author.id,
+			timestamp: message.createdAt,
+		});
+
+		// Backward compatibility: preserve current URL-to-text behavior
 		if (message.attachments.size > 0) {
 			const attachmentUrls = Array.from(message.attachments.values())
 				.map((a) => a.url)
@@ -487,6 +500,7 @@ export class DiscordAdapter implements MessagingProvider {
 				botMentioned,
 				messageType: isCommand ? 'command' : 'text',
 				providerPayload,
+				attachments: mappedAttachments.length > 0 ? mappedAttachments : undefined,
 			},
 		};
 	}

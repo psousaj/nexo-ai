@@ -1,3 +1,4 @@
+import type { MultimodalIntakePayload } from '@nexo/shared';
 import type { LinkingTokenProvider } from '@/db/schema';
 
 /**
@@ -74,6 +75,8 @@ export interface MessageMetadata {
 	participantJid?: string;
 	/** Payload bruto do provider para casos avançados (ex: getMessage no Baileys) */
 	providerPayload?: Record<string, unknown>;
+	/** Attachments multimodais mapeados para intake-worker (opcional) */
+	attachments?: MultimodalIntakePayload[];
 }
 
 /**
