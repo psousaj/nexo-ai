@@ -14,6 +14,7 @@ import { conversationService } from '@/services/conversation-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { onboardingService } from '@/services/onboarding-service';
 import { cancelConversationClose } from '@/services/queue-service';
+import { resolveSessionKey } from '@/services/session-key-resolver';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { startObservation } from '@langfuse/tracing';
@@ -315,6 +316,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 						// 6. PROCESSA COM AGENT ORCHESTRATOR
 						const agentResponse = await startSpan('agent.process_message', async (_agentSpan) => {
+							const sessionKey = resolveSessionKey(incomingMsg);
+
 							return await agentOrchestrator.processMessage({
 								userId: user.id,
 								conversationId: conversation.id,
@@ -324,6 +327,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								provider: provider.getProviderName(),
 								providerMessageId: incomingMsg.messageId,
 								providerPayload: incomingMsg.metadata?.providerPayload,
+								sessionKey,
 							});
 						});
 
