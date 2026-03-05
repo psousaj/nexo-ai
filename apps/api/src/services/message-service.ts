@@ -9,6 +9,7 @@ import {
 	getRandomMessage,
 } from '@/config/prompts';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
+import { applyMultimodalRuntime } from '@/services/multimodal-runtime';
 import { commandHandlerService } from '@/services/command-handler.service';
 import { conversationService } from '@/services/conversation-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
@@ -314,16 +315,20 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 						}
 
 						// 6. PROCESSA COM AGENT ORCHESTRATOR
+						const multimodalRuntime = await startSpan('message.multimodal_runtime', async () => {
+							return await applyMultimodalRuntime(messageText, incomingMsg.metadata);
+						});
+
 						const agentResponse = await startSpan('agent.process_message', async (_agentSpan) => {
 							return await agentOrchestrator.processMessage({
 								userId: user.id,
 								conversationId: conversation.id,
 								externalId: incomingMsg.externalId,
-								message: messageText,
+								message: multimodalRuntime.message,
 								callbackData: incomingMsg.callbackData,
 								provider: provider.getProviderName(),
 								providerMessageId: incomingMsg.messageId,
-								providerPayload: incomingMsg.metadata?.providerPayload,
+								providerPayload: multimodalRuntime.providerPayload,
 							});
 						});
 
