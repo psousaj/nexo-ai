@@ -14,6 +14,7 @@ import { conversationService } from '@/services/conversation-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { onboardingService } from '@/services/onboarding-service';
 import { cancelConversationClose } from '@/services/queue-service';
+import { buildSessionKey } from '@/services/session-service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { startObservation } from '@langfuse/tracing';
@@ -21,6 +22,27 @@ import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import * as Sentry from '@sentry/node';
 
 export const userTimeouts = new Map<string, number>();
+
+function resolveSessionKey(incomingMsg: IncomingMessage): string | undefined {
+	const providedSessionKey = incomingMsg.metadata?.sessionKey?.trim();
+	if (providedSessionKey) {
+		return providedSessionKey;
+	}
+
+	const isGroupMessage = incomingMsg.metadata?.isGroupMessage === true;
+	const peerKind = isGroupMessage ? 'group' : 'direct';
+	const peerId = isGroupMessage ? incomingMsg.metadata?.groupId || incomingMsg.externalId : incomingMsg.userId || incomingMsg.externalId;
+
+	if (!peerId) {
+		return undefined;
+	}
+
+	return buildSessionKey({
+		channel: incomingMsg.provider,
+		peerKind,
+		peerId,
+	});
+}
 
 /**
  * Verifica se a mensagem contém conteúdo ofensivo usando nlp.js
@@ -315,6 +337,8 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 						// 6. PROCESSA COM AGENT ORCHESTRATOR
 						const agentResponse = await startSpan('agent.process_message', async (_agentSpan) => {
+							const sessionKey = resolveSessionKey(incomingMsg);
+
 							return await agentOrchestrator.processMessage({
 								userId: user.id,
 								conversationId: conversation.id,
@@ -324,6 +348,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								provider: provider.getProviderName(),
 								providerMessageId: incomingMsg.messageId,
 								providerPayload: incomingMsg.metadata?.providerPayload,
+								sessionKey,
 							});
 						});
 
