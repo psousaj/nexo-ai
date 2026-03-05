@@ -1,6 +1,4 @@
-import { getLangfuse } from '@/services/langfuse';
 import { loggers } from '@/utils/logger';
-import { observeOpenAI } from '@langfuse/openai';
 import { observe, updateActiveObservation } from '@langfuse/tracing';
 import { encode } from '@toon-format/toon';
 import OpenAI from 'openai';
@@ -20,7 +18,6 @@ import type { AIProvider, AIResponse, Message } from './types';
 export class CloudflareAIGatewayProvider implements AIProvider {
 	private client: OpenAI;
 	private model: string;
-	private cachedLangfusePrompt: { key: string; prompt: unknown } | null = null;
 
 	constructor(accountId: string, gatewayId: string, cfApiToken: string, model = 'dynamic/cloudflare') {
 		const baseURL = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
@@ -41,58 +38,6 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 	setModel(model: string): void {
 		this.model = model;
 		loggers.ai.info(`🔄 Model alterado para: ${model}`);
-	}
-
-	private async resolveLangfusePrompt(): Promise<{
-		langfusePrompt: unknown | null;
-		promptName: string | null;
-		promptLabel: string | null;
-	}> {
-		const promptName = process.env.LANGFUSE_PROMPT_NAME?.trim() || null;
-		const promptLabel = process.env.LANGFUSE_PROMPT_LABEL?.trim() || null;
-
-		if (!promptName) {
-			return { langfusePrompt: null, promptName: null, promptLabel };
-		}
-
-		const langfuse = getLangfuse();
-		if (!langfuse) {
-			loggers.ai.warn({ promptName }, '⚠️ LANGFUSE_PROMPT_NAME definido, mas Langfuse não inicializado');
-			return { langfusePrompt: null, promptName, promptLabel };
-		}
-
-		const cacheKey = `${promptName}:${promptLabel || 'default'}`;
-		if (this.cachedLangfusePrompt?.key === cacheKey) {
-			return {
-				langfusePrompt: this.cachedLangfusePrompt.prompt,
-				promptName,
-				promptLabel,
-			};
-		}
-
-		try {
-			const prompt = promptLabel
-				? await (langfuse as any).prompt.get(promptName, { label: promptLabel })
-				: await (langfuse as any).prompt.get(promptName);
-
-			this.cachedLangfusePrompt = {
-				key: cacheKey,
-				prompt,
-			};
-
-			return { langfusePrompt: prompt, promptName, promptLabel };
-		} catch (error) {
-			loggers.ai.warn(
-				{
-					err: error,
-					promptName,
-					promptLabel,
-				},
-				'⚠️ Falha ao buscar prompt no Langfuse Prompt Management; seguindo sem link de prompt',
-			);
-
-			return { langfusePrompt: null, promptName, promptLabel };
-		}
 	}
 
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
@@ -122,8 +67,6 @@ ${toonHistory}
 Mensagem atual: ${message}`;
 			}
 
-			const forwardedUserContent = contextContent;
-
 			// Montar messages no formato OpenAI
 			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
@@ -136,11 +79,8 @@ Mensagem atual: ${message}`;
 
 			messages.push({
 				role: 'user',
-				content: forwardedUserContent,
+				content: contextContent,
 			});
-
-			const { langfusePrompt, promptName, promptLabel } = await this.resolveLangfusePrompt();
-			const openaiClient = langfusePrompt ? observeOpenAI(this.client, { langfusePrompt: langfusePrompt as any }) : this.client;
 
 			const tracedGatewayCompletion = observe(
 				async (payload: { model: string; messages: OpenAI.Chat.ChatCompletionMessageParam[] }) => {
@@ -150,16 +90,10 @@ Mensagem atual: ${message}`;
 							model: payload.model,
 							historyCount: history.length,
 							hasSystemPrompt: Boolean(systemPrompt),
-							systemPromptLength: systemPrompt?.length || 0,
-							userContentLength: forwardedUserContent.length,
-							systemPromptForwardedInUser: false,
-							promptLinkEnabled: Boolean(langfusePrompt),
-							promptName: promptName || null,
-							promptLabel: promptLabel || null,
 						},
 					});
 
-					const completion = await openaiClient.chat.completions.create(payload);
+					const completion = await this.client.chat.completions.create(payload);
 
 					updateActiveObservation({
 						metadata: {
@@ -183,7 +117,6 @@ Mensagem atual: ${message}`;
 				model: this.model,
 				messages,
 			});
-
 			const duration = Date.now() - startTime;
 			const rawContent = response.choices[0]?.message?.content;
 
