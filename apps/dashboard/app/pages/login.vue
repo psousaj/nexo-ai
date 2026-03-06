@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import api from '@/utils/api';
+import { useAuthStore } from '~/stores/auth';
 
 definePageMeta({
 	layout: false,
 });
 
 const authClient = useAuthClient();
+const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -47,6 +49,27 @@ const handleLogin = async () => {
 		if (data) {
 			// Consome o token de vinculação (WhatsApp/Telegram) se presente
 			await consumeLinkingToken();
+
+			// Aguarda o estado da sessão ser refletido na store antes de navegar.
+			// Sem isso, o middleware auth.global.ts pode ver isAuthenticated=false
+			// (race condition: useSession() ainda está refazendo o fetch da sessão)
+			// e redirecionar de volta ao /login mesmo após login bem-sucedido.
+			if (!authStore.isAuthenticated) {
+				await new Promise<void>((resolve) => {
+					const stop = watchEffect(() => {
+						if (authStore.isAuthenticated) {
+							stop();
+							resolve();
+						}
+					});
+					// Timeout de segurança de 3s para evitar bloqueio eterno
+					setTimeout(() => {
+						stop();
+						resolve();
+					}, 3000);
+				});
+			}
+
 			// Redireciona para callbackUrl ou dashboard
 			const callbackUrl = (route.query.callbackUrl as string) || '/';
 			await navigateTo(callbackUrl, { replace: true });
