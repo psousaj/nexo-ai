@@ -6,6 +6,7 @@
  */
 
 import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessages';
+import { conversationService } from '@/services/conversation-service';
 import { enrichmentService } from '@/services/enrichment';
 import { itemService } from '@/services/item-service';
 import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
@@ -142,10 +143,7 @@ export async function save_movie(
 	try {
 		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
 		if (!params.tmdb_id) {
-			loggers.tools.info(
-				{ title: params.title, year: params.year },
-				'🔍 save_movie sem tmdb_id → buscando candidatos no TMDB',
-			);
+			loggers.tools.info({ title: params.title, year: params.year }, '🔍 save_movie sem tmdb_id → buscando candidatos no TMDB');
 			const results = await enrichmentService.searchMovies(params.title, params.year);
 
 			if (results && results.length > 0) {
@@ -184,9 +182,7 @@ export async function save_movie(
 			// Enriquecimento async — não bloqueia a resposta ao usuário
 			void enrichmentService
 				.enrich('movie', { tmdbId: params.tmdb_id })
-				.catch((err) =>
-					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
-				);
+				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
 		}
 
 		const item = await itemService.createItem({
@@ -276,9 +272,7 @@ export async function save_tv_show(
 			// Enriquecimento async — não bloqueia a resposta ao usuário
 			void enrichmentService
 				.enrich('tv_show', { tmdbId: params.tmdb_id })
-				.catch((err) =>
-					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
-				);
+				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
 		}
 
 		const item = await itemService.createItem({
@@ -842,9 +836,7 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -910,9 +902,8 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
+			await import('@/services/integrations/google-calendar.service');
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -1102,6 +1093,85 @@ export async function schedule_reminder(
 }
 
 // ============================================================================
+// CONTEXT RESOLUTION TOOL
+// ============================================================================
+
+/**
+ * Resolve uma referência contextual do usuário ("esse primeiro", "aquele filme", "era esse")
+ * buscando nas mensagens recentes do assistente para identificar a entidade referenciada.
+ *
+ * IMPORTANTE: Esta tool NUNCA chama save_*. Ela apenas resolve a referência e retorna
+ * { resolved, type } para que o LLM chame enrich_movie/enrich_tv_show e acione o
+ * pipeline de confirmação existente.
+ */
+export async function resolve_context_reference(context: ToolContext, params: { reference_hint: string }): Promise<ToolOutput> {
+	const { conversationId } = context;
+	const { reference_hint } = params;
+
+	const history = await conversationService.getHistory(conversationId, 6);
+	const assistantMessages = history.filter((m) => m.role === 'assistant').reverse(); // mais recentes primeiro
+
+	if (assistantMessages.length === 0) {
+		return {
+			success: false,
+			error: 'Nenhuma mensagem do assistente encontrada no histórico recente.',
+		};
+	}
+
+	// Padrões para extrair entidades das mensagens do assistente
+	// Exemplos: 'Interstellar', "The Bear", como 'Foo', seria 'Bar'
+	const entityPatterns = [
+		/['"]([^'"]{2,60})['"]/g, // texto entre aspas simples ou duplas
+		/(?:como|seria|parece|chama(?:do)?|título|chamado)\s+['"]?([A-Z][\w\s:–-]{1,50})['"]?/gi,
+		/(?:^|\n)\d+[.)\s]+([A-Z][\w\s:–-]{1,50})/gm, // itens numerados ("1. Interstellar")
+	];
+
+	interface Candidate {
+		entity: string;
+		type: 'movie' | 'tv_show' | 'video' | 'link' | 'note' | null;
+		source: string;
+	}
+
+	const candidates: Candidate[] = [];
+
+	for (const msg of assistantMessages) {
+		for (const pattern of entityPatterns) {
+			let match: RegExpExecArray | null;
+			const re = new RegExp(pattern.source, pattern.flags);
+			while ((match = re.exec(msg.content)) !== null) {
+				const entity = match[1]?.trim();
+				if (entity && entity.length >= 2) {
+					candidates.push({ entity, type: null, source: msg.content.slice(0, 120) });
+				}
+			}
+		}
+		if (candidates.length > 0) break; // usar mensagem mais recente com matches
+	}
+
+	if (candidates.length === 0) {
+		return {
+			success: false,
+			error: 'Não consegui identificar o item referenciado nas mensagens recentes.',
+		};
+	}
+
+	// Heurística simples: pegar o primeiro candidato (mais relevante no contexto)
+	const best = candidates[0];
+
+	loggers.tools.info({ reference_hint, resolved: best.entity, candidatesCount: candidates.length }, '🔍 resolve_context_reference');
+
+	return {
+		success: true,
+		data: {
+			resolved: best.entity,
+			type: best.type,
+			confidence: candidates.length === 1 ? 0.9 : 0.7,
+			source_message: best.source,
+		},
+	};
+}
+
+// ============================================================================
 // REGISTRO DE TOOLS
 // ============================================================================
 
@@ -1140,6 +1210,9 @@ export const AVAILABLE_TOOLS = {
 	list_todos,
 	create_todo,
 	schedule_reminder,
+
+	// Context resolution
+	resolve_context_reference,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;

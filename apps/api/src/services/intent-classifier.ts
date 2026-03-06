@@ -245,9 +245,9 @@ export class IntentClassifier {
 		// Extrair query limpa se for busca ou info
 		let query = neural.entities?.query || originalMessage.trim();
 		if (intent === 'search_content') {
-			// extractSearchQuery retorna undefined quando é "listar tudo" (sem filtro)
-			// Não usar fallback: undefined = listar tudo, string = query de filtro
-			query = this.extractSearchQuery(originalMessage);
+			// Se o NLP já decidiu que é "listar tudo" (search.all), confiar nessa decisão
+			// em vez de tentar extrair query do texto (o que causa "então" virar query)
+			query = neural.action === 'search.all' ? undefined : (neural.entities?.query ?? this.extractSearchQuery(originalMessage));
 		} else if (intent === 'get_info') {
 			query = this.extractInfoQuery(originalMessage) || query;
 		} else if (action === 'delete_item') {

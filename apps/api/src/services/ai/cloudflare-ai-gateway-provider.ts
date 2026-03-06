@@ -47,40 +47,22 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 		try {
 			loggers.ai.info(`🚀 Enviando para AI Gateway (model: ${this.model})`);
 
-			// Converter histórico para TOON (economiza 30-60% tokens)
-			let contextContent = message;
-
-			if (history.length > 0) {
-				const historyData = history.map((msg) => ({
-					role: msg.role,
-					content: msg.content,
-				}));
-
-				const toonHistory = encode(historyData, { delimiter: '\t' });
-
-				contextContent = `Histórico da conversa em formato TOON (tab-separated):
-
-\`\`\`toon
-${toonHistory}
-\`\`\`
-
-Mensagem atual: ${message}`;
-			}
-
-			// Montar messages no formato OpenAI
+			// Montar messages no formato OpenAI:
+			// - System prompt comprimido em TOON (grande, estático, vale comprimir)
+			// - Histórico como turns reais (LLM precisa dos roles para raciocinar)
+			// - Mensagem atual como turn final do usuário
 			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
 			if (systemPrompt) {
-				messages.push({
-					role: 'system',
-					content: systemPrompt,
-				});
+				const toonSystem = encode([{ role: 'system', content: systemPrompt }], { delimiter: '\t' });
+				messages.push({ role: 'system', content: toonSystem });
 			}
 
-			messages.push({
-				role: 'user',
-				content: contextContent,
-			});
+			for (const msg of history) {
+				messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+			}
+
+			messages.push({ role: 'user', content: message });
 
 			const tracedGatewayCompletion = observe(
 				async (payload: { model: string; messages: OpenAI.Chat.ChatCompletionMessageParam[] }) => {
