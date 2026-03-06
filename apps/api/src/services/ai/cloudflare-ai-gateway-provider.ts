@@ -1,6 +1,5 @@
 import { loggers } from '@/utils/logger';
 import { observe, updateActiveObservation } from '@langfuse/tracing';
-import { encode } from '@toon-format/toon';
 import OpenAI from 'openai';
 import type { AIProvider, AIResponse, Message } from './types';
 
@@ -48,14 +47,13 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 			loggers.ai.info(`🚀 Enviando para AI Gateway (model: ${this.model})`);
 
 			// Montar messages no formato OpenAI:
-			// - System prompt comprimido em TOON (grande, estático, vale comprimir)
+			// - System prompt como texto puro (TOON degrada adesão ao contrato JSON)
 			// - Histórico como turns reais (LLM precisa dos roles para raciocinar)
 			// - Mensagem atual como turn final do usuário
 			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
 			if (systemPrompt) {
-				const toonSystem = encode([{ role: 'system', content: systemPrompt }], { delimiter: '\t' });
-				messages.push({ role: 'system', content: toonSystem });
+				messages.push({ role: 'system', content: systemPrompt });
 			}
 
 			for (const msg of history) {

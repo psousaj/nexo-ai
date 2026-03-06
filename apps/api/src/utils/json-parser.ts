@@ -33,9 +33,18 @@ export function parseJSONFromLLM(text: string): any {
 	// Remove espaços em branco extras
 	cleaned = cleaned.trim();
 
-	// Se não parece ser JSON, throw erro mais específico
+	// Se não começa com JSON, tenta extrair JSON embutido no texto (preamble do modelo)
 	if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-		throw new Error(`Resposta não é JSON: ${cleaned.substring(0, 100)}`);
+		const jsonStart = cleaned.indexOf('{');
+		const arrayStart = cleaned.indexOf('[');
+		const start = jsonStart === -1 ? arrayStart : arrayStart === -1 ? jsonStart : Math.min(jsonStart, arrayStart);
+
+		if (start === -1) {
+			throw new Error(`Resposta não é JSON: ${cleaned.substring(0, 100)}`);
+		}
+
+		loggers.ai.warn({ preamble: cleaned.substring(0, start) }, '⚠️ LLM enviou texto antes do JSON — extraindo JSON embutido');
+		cleaned = cleaned.substring(start);
 	}
 
 	// Tenta parsear
@@ -150,6 +159,7 @@ export function parseAgentDecisionV2FromLLM(text: string): AgentDecisionV2 {
 		} catch (metricError) {
 			loggers.ai.debug({ err: metricError }, 'Falha ao enviar telemetria AgentDecisionV2');
 		}
+
 		throw error;
 	}
 
