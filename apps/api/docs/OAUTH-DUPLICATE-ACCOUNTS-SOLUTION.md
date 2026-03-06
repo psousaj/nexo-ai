@@ -37,7 +37,7 @@ Better Auth 1.4.17 cria **nova conta** toda vez que usuário faz OAuth, mesmo se
 ```
 ⚠️ DUPLICAÇÃO DETECTADA! Mesclando contas...
    email: "josepsousa2012@gmail.com"
-   newUserId: "hGiyxywqNkmBy71EUcenwBejZ8M09xGu"  
+   newUserId: "hGiyxywqNkmBy71EUcenwBejZ8M09xGu"
    existingUserId: "WG4AbaWByd1TH5jBEfbIs0HNpsY1NhrL"
 
 ✅ Account movido para usuário existente
@@ -52,6 +52,7 @@ Better Auth 1.4.17 cria **nova conta** toda vez que usuário faz OAuth, mesmo se
 ```
 
 **Vantagens:**
+
 - ✅ Zero intervenção do usuário
 - ✅ Funciona retroativamente (se já duplicou, mescla na próxima vez)
 - ✅ Mantém usuário mais antigo (preserva histórico)
@@ -71,12 +72,13 @@ Response:
   "user": {
     "id": "WG4AbaWByd1TH5jBEfbIs0HNpsY1NhrL",
     "name": "José Filho",
-    "email": "jose@crudbox.tech"
+    "email": "jose@pinheirodev.com.br"
   }
 }
 ```
 
 **Uso no Dashboard:**
+
 - Antes de iniciar OAuth, frontend chama endpoint
 - Se `exists: true` → mostrar mensagem "Você já tem conta, faça login primeiro"
 - Se `exists: false` → prossegue com OAuth normalmente
@@ -90,11 +92,12 @@ Busca usuário existente por email antes do OAuth processar.
 ```typescript
 const existingUser = await findUserByEmail('josepsousa2012@gmail.com');
 if (existingUser) {
-  // Vincular ao usuário existente
+	// Vincular ao usuário existente
 }
 ```
 
 **Busca em 2 lugares:**
+
 1. `users.email` (email principal do Better Auth)
 2. `user_emails.email` (emails secundários)
 
@@ -104,14 +107,15 @@ Vincula OAuth account a usuário existente ao invés de criar novo.
 
 ```typescript
 await linkOAuthToExistingUser({
-  existingUserId: 'WG4AbaWByd1TH5jBEfbIs0HNpsY1NhrL',
-  provider: 'discord',
-  externalId: '278895921268523008',
-  email: 'josepsousa2012@gmail.com'
+	existingUserId: 'WG4AbaWByd1TH5jBEfbIs0HNpsY1NhrL',
+	provider: 'discord',
+	externalId: '278895921268523008',
+	email: 'josepsousa2012@gmail.com',
 });
 ```
 
 **O que faz:**
+
 1. Cria entrada em `accounts` (Better Auth) para o usuário existente
 2. Cria entrada em `auth_providers` (nosso runtime canônico)
 3. Adiciona email em `user_emails` se não existir
@@ -123,28 +127,28 @@ await linkOAuthToExistingUser({
 ```vue
 <!-- Login.vue -->
 <template>
-  <button @click="handleDiscordLogin">Login com Discord</button>
+	<button @click="handleDiscordLogin">Login com Discord</button>
 </template>
 
 <script setup>
 async function handleDiscordLogin() {
-  // 1. Buscar email do usuário via Discord OAuth (sem autenticar)
-  const discordEmail = await getDiscordEmailPreview(); // API do Discord
-  
-  // 2. Verificar se email já existe
-  const check = await fetch('/api/auth/check-email', {
-    method: 'POST',
-    body: JSON.stringify({ email: discordEmail })
-  }).then(r => r.json());
-  
-  // 3. Se já existe, avisar usuário
-  if (check.exists) {
-    alert(`Você já tem conta com ${check.user.email}. Faça login primeiro e depois vincule seu Discord nas configurações.`);
-    return;
-  }
-  
-  // 4. Prosseguir com OAuth
-  window.location.href = '/api/auth/signin/discord';
+	// 1. Buscar email do usuário via Discord OAuth (sem autenticar)
+	const discordEmail = await getDiscordEmailPreview(); // API do Discord
+
+	// 2. Verificar se email já existe
+	const check = await fetch('/api/auth/check-email', {
+		method: 'POST',
+		body: JSON.stringify({ email: discordEmail }),
+	}).then((r) => r.json());
+
+	// 3. Se já existe, avisar usuário
+	if (check.exists) {
+		alert(`Você já tem conta com ${check.user.email}. Faça login primeiro e depois vincule seu Discord nas configurações.`);
+		return;
+	}
+
+	// 4. Prosseguir com OAuth
+	window.location.href = '/api/auth/signin/discord';
 }
 </script>
 ```
@@ -155,18 +159,18 @@ Criar página "Configurações > Contas Vinculadas":
 
 ```vue
 <template>
-  <div>
-    <h2>Vincular Contas</h2>
-    <button @click="linkDiscord">Vincular Discord</button>
-    <button @click="linkGoogle">Vincular Google</button>
-  </div>
+	<div>
+		<h2>Vincular Contas</h2>
+		<button @click="linkDiscord">Vincular Discord</button>
+		<button @click="linkGoogle">Vincular Google</button>
+	</div>
 </template>
 
 <script setup>
 async function linkDiscord() {
-  // Usuário já está autenticado
-  // OAuth apenas adiciona account, não cria usuário novo
-  window.location.href = '/api/auth/signin/discord?mode=link';
+	// Usuário já está autenticado
+	// OAuth apenas adiciona account, não cria usuário novo
+	window.location.href = '/api/auth/signin/discord?mode=link';
 }
 </script>
 ```
@@ -210,35 +214,38 @@ async function linkDiscord() {
 
 ```sql
 -- 1. Listar contas duplicadas por email
-SELECT email, COUNT(*) 
-FROM users 
-GROUP BY email 
+SELECT email, COUNT(*)
+FROM users
+GROUP BY email
 HAVING COUNT(*) > 1;
 
 -- 2. Mover accounts da conta nova para a antiga
-UPDATE accounts 
+UPDATE accounts
 SET user_id = 'WG4AbaWByd1TH5jBEfbIs0HNpsY1NhrL' -- usuário antigo
 WHERE user_id = 'hGiyxywqNkmBy71EUcenwBejZ8M09xGu'; -- usuário duplicado
 
 -- 3. Deletar usuário duplicado
-DELETE FROM users 
+DELETE FROM users
 WHERE id = 'hGiyxywqNkmBy71EUcenwBejZ8M09xGu';
 ```
 
 ## Roadmap
 
 ### v0.4.2 (imediato)
+
 - [x] Endpoint `/check-email` implementado
 - [x] Funções `findUserByEmail` e `linkOAuthToExistingUser`
 - [ ] Dashboard: pre-check antes do OAuth
 - [ ] Dashboard: mensagem de aviso se email já existe
 
 ### v0.5.0 (próximo sprint)
+
 - [ ] Página "Vincular Contas" no dashboard
 - [ ] Botão "Mesclar Contas" (admin)
 - [ ] Script de limpeza de duplicados
 
 ### v1.0.0 (futuro)
+
 - [ ] Upgrade Better Auth quando corrigirem hooks + Hono
 - [ ] Remover workarounds temporários
 - [ ] Account linking nativo via hooks
