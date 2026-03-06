@@ -39,6 +39,12 @@
 	"pnpm": {
 		"patchedDependencies": {
 			"@whiskeysockets/baileys": "patches/@whiskeysockets__baileys.patch"
+		},
+		"overrides": {
+			"@opentelemetry/sdk-trace-base": "2.6.0",
+			"@opentelemetry/sdk-trace-node": "2.6.0",
+			"@opentelemetry/context-async-hooks": "2.6.0",
+			"@opentelemetry/core": "2.6.0"
 		}
 	}
 }

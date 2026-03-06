@@ -1,9 +1,9 @@
-import { Resource } from '@opentelemetry/resources';
-import {
-	SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
-	SEMRESATTRS_SERVICE_NAME,
-	SEMRESATTRS_SERVICE_VERSION,
-} from '@opentelemetry/semantic-conventions';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import type { Resource } from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+
+// deployment.environment is in the experimental/incubating spec; use the string directly
+const ATTR_DEPLOYMENT_ENVIRONMENT = 'deployment.environment' as const;
 
 export interface ResourceConfig {
 	serviceName: string;
@@ -17,16 +17,16 @@ export interface ResourceConfig {
  */
 export function getResource(config: ResourceConfig): Resource {
 	const attributes: Record<string, string> = {
-		[SEMRESATTRS_SERVICE_NAME]: config.serviceName,
-		[SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: config.environment,
+		[ATTR_SERVICE_NAME]: config.serviceName,
+		[ATTR_DEPLOYMENT_ENVIRONMENT]: config.environment,
 		...config.additionalAttributes,
 	};
 
 	if (config.serviceVersion) {
-		attributes[SEMRESATTRS_SERVICE_VERSION] = config.serviceVersion;
+		attributes[ATTR_SERVICE_VERSION] = config.serviceVersion;
 	}
 
-	return new Resource({
+	return resourceFromAttributes({
 		...attributes,
 		'telemetry.sdk.name': 'opentelemetry',
 		'telemetry.sdk.language': 'nodejs',
@@ -40,9 +40,7 @@ export function getResource(config: ResourceConfig): Resource {
 export function getResourceFromEnv(): ResourceConfig {
 	const serviceName = process.env.OTEL_SERVICE_NAME || process.env.npm_package_name || 'nexo-ai-service';
 	const environment =
-		process.env.NODE_ENV ||
-		process.env.OTEL_RESOURCE_ATTRIBUTES?.match(/deployment\.environment=([^,]+)/)?.[1] ||
-		'development';
+		process.env.NODE_ENV || process.env.OTEL_RESOURCE_ATTRIBUTES?.match(/deployment\.environment=([^,]+)/)?.[1] || 'development';
 
 	return {
 		serviceName,

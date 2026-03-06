@@ -8,6 +8,8 @@ initializeOtel({
 	serviceName: '@nexo/api',
 	environment: env.NODE_ENV,
 	traceExporterEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
+	// Langfuse habilitado automaticamente se as chaves estiverem no env
+	langfuse: !!env.LANGFUSE_PUBLIC_KEY,
 	additionalAttributes: {
 		'app.version': process.env.npm_package_version || 'unknown',
 	},
