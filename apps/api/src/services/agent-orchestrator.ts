@@ -176,6 +176,18 @@ export class AgentOrchestrator {
 				}
 			}
 
+			// B2. GUARD: usuário digitou texto enquanto aguardamos seleção de botão
+			if (
+				!context.callbackData &&
+				(conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')
+			) {
+				loggers.ai.info({ state: conversation.state }, '⚠️ Usuário digitou texto em estado de seleção');
+				return {
+					message: 'Ops... pra gente prosseguir, preciso que selecione um dos botões acima 👆',
+					state: conversation.state as any,
+				};
+			}
+
 			// 1. CLASSIFICAR INTENÇÃO (determinístico)
 			const startIntent = performance.now();
 			const intent = await intentClassifier.classify(context.message);
