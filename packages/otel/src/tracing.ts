@@ -1,10 +1,10 @@
-import { type Span, type SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
+import { type Attributes, type Span, type SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 
 export interface TracingOptions {
 	/**
 	 * Optional attributes to add to the span
 	 */
-	attributes?: Record<string, any>;
+	attributes?: Attributes;
 	/**
 	 * The kind of span (internal, server, client, producer, consumer)
 	 */
@@ -28,11 +28,7 @@ export interface TracingOptions {
  * });
  * ```
  */
-export async function startSpan<T>(
-	name: string,
-	fn: (span: Span) => Promise<T> | T,
-	options?: TracingOptions,
-): Promise<T> {
+export async function startSpan<T>(name: string, fn: (span: Span) => Promise<T> | T, options?: TracingOptions): Promise<T> {
 	const tracer = trace.getTracer('nexo-ai');
 
 	return tracer.startActiveSpan(
@@ -73,7 +69,7 @@ export async function startSpan<T>(
  * });
  * ```
  */
-export function setAttributes(attributes: Record<string, any>): void {
+export function setAttributes(attributes: Attributes): void {
 	const activeSpan = trace.getActiveSpan();
 	if (activeSpan) {
 		activeSpan.setAttributes(attributes);
@@ -93,7 +89,7 @@ export function setAttributes(attributes: Record<string, any>): void {
  * }
  * ```
  */
-export function recordException(error: Error, attributes?: Record<string, any>): void {
+export function recordException(error: Error, attributes?: Attributes): void {
 	const activeSpan = trace.getActiveSpan();
 	if (activeSpan) {
 		if (attributes) {
@@ -152,7 +148,7 @@ export function setStatus(code: SpanStatusCode, message?: string): void {
  * });
  * ```
  */
-export function addEvent(name: string, attributes?: Record<string, any>): void {
+export function addEvent(name: string, attributes?: Attributes): void {
 	const activeSpan = trace.getActiveSpan();
 	if (activeSpan) {
 		activeSpan.addEvent(name, attributes);

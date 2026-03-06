@@ -73,7 +73,7 @@ class EmailService {
 		const html = this.renderTemplate(templateName, data);
 
 		await this.resend.emails.send({
-			from: 'Nexo AI <nexo.onboarding@crudbox.tech>',
+			from: 'Nexo AI <nexo.onboarding@pinheirodev.com.br>',
 			to,
 			subject,
 			html,

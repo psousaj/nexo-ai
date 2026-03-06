@@ -134,14 +134,25 @@ export class IntentClassifier {
 					return this.mapNeuralToIntentResult(neuralResult, message);
 				}
 
-				// 3. Confiança baixa - usa LLM se disponível
+				// 3. Confiança baixa - tenta regex antes do LLM para padrões comuns
 				loggers.ai.info({ confidence: neuralResult.confidence.toFixed(2) }, '🤖 Confiança baixa, tentando LLM');
+
+				const regexResult = this.classifyWithRegex(message);
+				if (regexResult.intent !== 'unknown') {
+					setAttributes({
+						'intent.method': 'regex',
+						'intent.final_intent': regexResult.intent,
+						'intent.final_confidence': regexResult.confidence,
+					});
+					loggers.ai.info({ intent: regexResult.intent, action: regexResult.action }, '✅ Matched por regex');
+					return regexResult;
+				}
 
 				// Se Cloudflare não configurado, usa regex como último fallback
 				if (!this.client) {
 					setAttributes({ 'intent.method': 'regex_fallback' });
 					loggers.ai.warn('⚠️ LLM não disponível, usando fallback regex');
-					return this.classifyWithRegex(message);
+					return regexResult;
 				}
 
 				// Chama LLM para casos complexos
@@ -234,7 +245,9 @@ export class IntentClassifier {
 		// Extrair query limpa se for busca ou info
 		let query = neural.entities?.query || originalMessage.trim();
 		if (intent === 'search_content') {
-			query = this.extractSearchQuery(originalMessage) || query;
+			// Se o NLP já decidiu que é "listar tudo" (search.all), confiar nessa decisão
+			// em vez de tentar extrair query do texto (o que causa "então" virar query)
+			query = neural.action === 'search.all' ? undefined : (neural.entities?.query ?? this.extractSearchQuery(originalMessage));
 		} else if (intent === 'get_info') {
 			query = this.extractInfoQuery(originalMessage) || query;
 		} else if (action === 'delete_item') {
@@ -352,10 +365,7 @@ export class IntentClassifier {
 					selection: this.extractSelection(message),
 				},
 			};
-			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
@@ -388,19 +398,13 @@ export class IntentClassifier {
 				confidence: 0.9,
 				entities: { query },
 			};
-			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
 		// 4. PERGUNTAR NOME DO ASSISTENTE (antes de info request genérico)
 		if (this.isAskingAssistantName(lowerMsg)) {
-			loggers.ai.info(
-				{ intent: 'get_info', action: 'get_assistant_name', confidence: 0.95 },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: 'get_info', action: 'get_assistant_name', confidence: 0.95 }, '🎯 Intenção detectada (regex)');
 			return {
 				intent: 'get_info',
 				action: 'get_assistant_name',
@@ -445,10 +449,7 @@ export class IntentClassifier {
 					refersToPrevious,
 				},
 			};
-			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
@@ -509,18 +510,7 @@ export class IntentClassifier {
 
 		// Se contém qualquer seleção numérica E é uma mensagem curta de confirmação, é confirmação
 		// Mas não para mensagens que são comandos (como "exclui a nota 3")
-		const deleteKeywords = [
-			'deleta',
-			'deletar',
-			'apaga',
-			'apagar',
-			'remove',
-			'remover',
-			'limpa',
-			'limpar',
-			'exclui',
-			'excluir',
-		];
+		const deleteKeywords = ['deleta', 'deletar', 'apaga', 'apagar', 'remove', 'remover', 'limpa', 'limpar', 'exclui', 'excluir'];
 		const hasSelection = this.extractSelection(msg);
 		if (hasSelection && normalized.length < 20 && !deleteKeywords.some((kw: string) => msg.includes(kw))) {
 			return true;
@@ -533,12 +523,7 @@ export class IntentClassifier {
 	 * Verifica se é negação
 	 */
 	private isDenial(msg: string): boolean {
-		const denyPatterns = [
-			/^(não|nao|no|n)$/i,
-			/^(cancela|cancelar)$/i,
-			/^(deixa pra lá|deixa|esquece)$/i,
-			/^(outro|outra)$/i,
-		];
+		const denyPatterns = [/^(não|nao|no|n)$/i, /^(cancela|cancelar)$/i, /^(deixa pra lá|deixa|esquece)$/i, /^(outro|outra)$/i];
 
 		return denyPatterns.some((pattern) => pattern.test(msg));
 	}
@@ -665,11 +650,7 @@ export class IntentClassifier {
 		// Se mensagem não é pergunta e menciona conteúdo explicitamente
 		const isNotQuestion = !msg.startsWith('o que') && !msg.startsWith('qual') && !msg.includes('?');
 		const mentionsContent =
-			msg.includes('filme') ||
-			msg.includes('série') ||
-			msg.includes('video') ||
-			msg.includes('aplicativo') ||
-			msg.includes('ideia');
+			msg.includes('filme') || msg.includes('série') || msg.includes('video') || msg.includes('aplicativo') || msg.includes('ideia');
 
 		// Se é mensagem longa descritiva OU tem streaming + conteúdo
 		return isLongDescription || (isNotQuestion && hasStreaming && mentionsContent);
@@ -738,25 +719,13 @@ export class IntentClassifier {
 	 * Detecta pedido de deletar
 	 */
 	private isDeleteRequest(msg: string): IntentResult | null {
-		const deleteKeywords = [
-			'deleta',
-			'deletar',
-			'apaga',
-			'apagar',
-			'remove',
-			'remover',
-			'limpa',
-			'limpar',
-			'exclui',
-			'excluir',
-		];
+		const deleteKeywords = ['deleta', 'deletar', 'apaga', 'apagar', 'remove', 'remover', 'limpa', 'limpar', 'exclui', 'excluir'];
 
 		const hasDeleteKeyword = deleteKeywords.some((kw) => msg.includes(kw));
 		if (!hasDeleteKeyword) return null;
 
 		// Detectar alvo: tudo, item específico, ou seleção
-		const hasAllKeyword =
-			msg.includes('tudo') || msg.includes('tudo mesmo') || msg.includes('todos') || msg.includes('todas');
+		const hasAllKeyword = msg.includes('tudo') || msg.includes('tudo mesmo') || msg.includes('todos') || msg.includes('todas');
 		if (hasAllKeyword) {
 			// Se "todas as notas", "apaga todos os filmes", etc → delete_all filtrado por tipo
 			const itemType = this.extractItemType(msg);
@@ -765,7 +734,7 @@ export class IntentClassifier {
 				action: 'delete_all',
 				confidence: 0.95,
 				entities: {
-					target: itemType ? 'type' : 'all',
+					target: 'all',
 					itemType,
 				},
 			};
@@ -929,30 +898,35 @@ export class IntentClassifier {
 		// Comandos genéricos que significam "listar tudo" (sem filtro)
 		const listAllPatterns = [
 			/^(o que (eu )?salvei|o que (eu )?tenho)$/i,
-			/^(mostra|lista)$/i,
-			/^(minha|minhas) (lista|coisas)$/i,
+			/^(mostra|mostre|lista|listar)$/i,
+			/^(minha|minhas) (lista|coisas)( a[ií]| aqui)?$/i,
 			/^(ver lista|ver tudo)$/i,
+			/^(mostra|mostre|lista|listar) (minha|minhas)? ?(lista|coisas|tudo|itens)( a[ií]| aqui)?$/i,
+			/^(mostra|mostre|lista|listar) tudo( a[ií]| aqui)?$/i,
 		];
 
 		// Se é comando genérico, retorna undefined (sem query = listar tudo)
-		if (listAllPatterns.some((pattern) => pattern.test(msg))) {
+		if (listAllPatterns.some((pattern) => pattern.test(msg.trim()))) {
 			return undefined;
 		}
 
 		// Remove palavras-chave de busca para extrair o filtro
+		// IMPORTANTE: ordem importa - minhas/meus antes de minha/meu para evitar match parcial
 		const cleaned = msg
 			.replace(/o que (eu )?salvei/gi, '')
 			.replace(/o que (eu )?tenho/gi, '')
-			.replace(/mostra/gi, '')
-			.replace(/lista/gi, '')
-			.replace(/busca/gi, '')
-			.replace(/procura/gi, '')
-			.replace(/minha|minhas|meus|meu/gi, '')
+			.replace(/mostra(r)?/gi, '')
+			.replace(/lista(r)?/gi, '')
+			.replace(/busca(r)?/gi, '')
+			.replace(/procura(r)?/gi, '')
+			.replace(/minhas|minha|meus|meu/gi, '') // longer first para evitar match parcial
+			.replace(/\b(coisas|tudo|itens|a[ií]|aqui|lá|la)\b/gi, '')
+			.replace(/\s+/g, ' ')
 			.trim();
 
 		// Se sobrou algo específico, é a query
-		// Se sobrou só palavras genéricas (de/a/o), retorna undefined (listar tudo)
-		const genericWords = ['de', 'a', 'o', 'os', 'as'];
+		// Se sobrou só palavras genéricas (de/a/o/coisas/aí), retorna undefined (listar tudo)
+		const genericWords = ['de', 'a', 'o', 'os', 'as', 'coisas', 'aí', 'ai', 'tudo', 'aqui', 'itens'];
 		if (!cleaned || genericWords.includes(cleaned.toLowerCase())) {
 			return undefined;
 		}

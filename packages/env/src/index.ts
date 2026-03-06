@@ -43,8 +43,11 @@ const envSchema = z.object({
 
 	// Observability
 	UPTRACE_DSN: z.string().optional(),
-	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+	// OTLP collector endpoint (traces). Default aponta pro Jaeger local.
+	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
 	OTEL_SERVICE_NAME: z.string().optional(),
+	// Jaeger UI URL para acesso em dev/local (apenas informativo no log de init)
+	JAEGER_UI_URL: z.string().default('http://localhost:16686'),
 	// Langfuse - AI Observability
 	LANGFUSE_PUBLIC_KEY: z.string().optional(),
 	LANGFUSE_SECRET_KEY: z.string().optional(),

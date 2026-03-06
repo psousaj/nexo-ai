@@ -1,5 +1,6 @@
 import * as otel from '@opentelemetry/sdk-node';
-import { getTraceExporter } from './exporters';
+import type { SpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { type LangfuseExporterConfig, getLangfuseSpanProcessor, getTraceExporter } from './exporters';
 import { getAutoInstrumentations } from './instrumentations';
 import { getResource, getResourceFromEnv } from './resource';
 
@@ -40,6 +41,13 @@ export interface InitializeOtelConfig {
 	 * HTTP headers to include in spans
 	 */
 	httpHeadersToInclude?: string[];
+
+	/**
+	 * Langfuse SDK v4 integration via LangfuseSpanProcessor.
+	 * Pass `true` to use LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY env vars,
+	 * or pass a config object for full control.
+	 */
+	langfuse?: LangfuseExporterConfig | boolean;
 }
 
 /**
@@ -91,21 +99,38 @@ export function initializeOtel(config?: InitializeOtelConfig): void {
 		httpHeadersToInclude: config?.httpHeadersToInclude,
 	});
 
+	// Build span processors
+	const spanProcessors: SpanProcessor[] = [];
+
+	if (config?.langfuse) {
+		const langfuseConfig = typeof config.langfuse === 'boolean' ? undefined : config.langfuse;
+		const langfuseProcessor = getLangfuseSpanProcessor(langfuseConfig);
+		if (langfuseProcessor) {
+			spanProcessors.push(langfuseProcessor);
+			const langfuseUrl =
+				(typeof config.langfuse === 'object' && config.langfuse.baseUrl) ?? process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com';
+			console.log(`[OTEL] Langfuse enabled → ${langfuseUrl}`);
+		}
+	}
+
 	// Create and start SDK
 	sdk = new otel.NodeSDK({
 		resource,
 		traceExporter,
 		instrumentations,
-		// Configure span processors for sampling, batching, etc.
-		spanProcessors: [],
+		spanProcessors,
 	});
 
 	sdk.start();
 
+	const otlpEndpoint = config?.traceExporterEndpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+	const jaegerUiUrl = process.env.JAEGER_UI_URL;
+
 	console.log(`[OTEL] Initialized for ${serviceName} (${environment})`);
-	console.log(
-		`[OTEL] Exporting traces to: ${config?.traceExporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'none (configured for no-op)'}`,
-	);
+	console.log(`[OTEL] Tracing → ${otlpEndpoint ?? 'disabled (no OTEL_EXPORTER_OTLP_ENDPOINT)'}`);
+	if (jaegerUiUrl) {
+		console.log(`[OTEL] Jaeger UI → ${jaegerUiUrl}`);
+	}
 }
 
 /**

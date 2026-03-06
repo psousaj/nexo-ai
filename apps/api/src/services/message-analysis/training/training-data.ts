@@ -894,6 +894,18 @@ export const NEXO_TRAINING_DATA: TrainingIntent[] = [
 			'mostra minhas fita',
 			'mostra o que tem',
 			'cadê minha lista',
+			// com palavras de preenchimento coloquiais (não são queries de filtro)
+			'mostra ai minhas coisas então',
+			'mostra minhas coisas então',
+			'mostra minhas coisas aí então',
+			'lista tudo né',
+			'me mostra o que eu salvei ok',
+			'pode me mostrar tudo então',
+			'mostra o que eu tenho tá',
+			'lista minhas coisas certo',
+			'mostra aí então',
+			'vai lá mostra tudo',
+			'lista tudo pelo amor de deus',
 		],
 	},
 	{
@@ -1524,18 +1536,7 @@ export const NEXO_ENTITIES = {
 		},
 		{
 			value: 'tv_show',
-			synonyms: [
-				'série',
-				'séries',
-				'series',
-				'show',
-				'programa',
-				'novela',
-				'seriado',
-				'seriados',
-				'minissérie',
-				'temporada',
-			],
+			synonyms: ['série', 'séries', 'series', 'show', 'programa', 'novela', 'seriado', 'seriados', 'minissérie', 'temporada'],
 		},
 		{
 			value: 'video',

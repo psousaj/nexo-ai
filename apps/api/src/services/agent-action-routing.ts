@@ -1,11 +1,7 @@
 import type { ConversationState } from '@/types';
 import type { IntentResult } from './intent-classifier';
 
-export function decideAgentAction(
-	intent: IntentResult,
-	state: ConversationState,
-	conversationFreedomEnabled: boolean,
-): string {
+export function decideAgentAction(intent: IntentResult, state: ConversationState, conversationFreedomEnabled: boolean): string {
 	// Confirmação/Negação só importam se estamos aguardando
 	if (state === 'awaiting_confirmation' || state === 'awaiting_final_confirmation') {
 		if (intent.action === 'confirm') return 'handle_confirmation';
@@ -23,7 +19,8 @@ export function decideAgentAction(
 		case 'search':
 			return 'handle_search';
 		case 'save_previous':
-			return 'handle_save_previous';
+			// Delegar ao LLM para resolver a referência contextual via resolve_context_reference
+			return 'handle_with_llm';
 		case 'greet':
 		case 'thank':
 			return conversationFreedomEnabled ? 'handle_with_llm' : 'handle_casual';

@@ -1,10 +1,10 @@
 {
 	"name": "@nexo/api",
-	"version": "0.5.38",
+	"version": "0.5.39",
 	"description": "Assistente pessoal via WhatsApp com IA",
 	"type": "module",
 	"scripts": {
-		"dev": "tsx -r dotenv/config --env-file=../../.env src/index.ts",
+		"dev": "tsx watch -r dotenv/config --env-file=../../.env src/index.ts",
 		"build": "tsup",
 		"start": "NODE_ENV=production node dist/index.js",
 		"start:binary": "./server",
@@ -27,7 +27,7 @@
 		"@bull-board/hono": "^6.16.4",
 		"@bull-board/ui": "^6.16.4",
 		"@google/generative-ai": "^0.24.1",
-		"@hono/node-server": "^1.19.9",
+		"@hono/node-server": "^1.19.11",
 		"@hono/swagger-ui": "^0.5.3",
 		"@hono/zod-validator": "^0.7.6",
 		"@langfuse/openai": "^4.6.1",

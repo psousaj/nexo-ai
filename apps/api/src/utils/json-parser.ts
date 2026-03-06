@@ -33,9 +33,18 @@ export function parseJSONFromLLM(text: string): any {
 	// Remove espaços em branco extras
 	cleaned = cleaned.trim();
 
-	// Se não parece ser JSON, throw erro mais específico
+	// Se não começa com JSON, tenta extrair JSON embutido no texto (preamble do modelo)
 	if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-		throw new Error(`Resposta não é JSON: ${cleaned.substring(0, 100)}`);
+		const jsonStart = cleaned.indexOf('{');
+		const arrayStart = cleaned.indexOf('[');
+		const start = jsonStart === -1 ? arrayStart : arrayStart === -1 ? jsonStart : Math.min(jsonStart, arrayStart);
+
+		if (start === -1) {
+			throw new Error(`Resposta não é JSON: ${cleaned.substring(0, 100)}`);
+		}
+
+		loggers.ai.warn({ preamble: cleaned.substring(0, start) }, '⚠️ LLM enviou texto antes do JSON — extraindo JSON embutido');
+		cleaned = cleaned.substring(start);
 	}
 
 	// Tenta parsear
@@ -101,6 +110,43 @@ export function isValidAgentDecisionV2Response(obj: unknown): obj is AgentDecisi
 }
 
 /**
+ * Normaliza desvios comuns do LLM no contrato AgentDecisionV2 antes da validação.
+ * Cobre dois padrões de desvio observados:
+ * 1. LLM usa o nome da tool como action (ex: "save_note") em vez de "CALL_TOOL"
+ * 2. LLM usa "tool_calls" (plural) em vez de "tool_call" (singular)
+ */
+function normalizeAgentDecisionV2(obj: any): any {
+	if (!obj || typeof obj !== 'object') return obj;
+
+	const VALID_ACTIONS = ['CALL_TOOL', 'RESPOND', 'NOOP'];
+
+	// Desvio 1: action é nome da tool em vez de "CALL_TOOL"
+	if (typeof obj.action === 'string' && !VALID_ACTIONS.includes(obj.action)) {
+		const toolName = obj.action;
+		loggers.ai.warn({ originalAction: toolName }, '🔧 Normalizando action de tool-name para CALL_TOOL');
+		obj.action = 'CALL_TOOL';
+		if (!obj.tool_call && !obj.tool_calls) {
+			obj.tool_call = { name: toolName, arguments: obj.args || obj.arguments || {} };
+		}
+		if (obj.response === undefined) obj.response = null;
+	}
+
+	// Desvio 2: "tool_calls" (plural) em vez de "tool_call" (singular)
+	if (!obj.tool_call && obj.tool_calls) {
+		loggers.ai.warn({}, '🔧 Normalizando tool_calls → tool_call');
+		obj.tool_call = obj.tool_calls;
+		delete obj.tool_calls;
+	}
+
+	// Garante que response seja null (nunca undefined) para CALL_TOOL
+	if (obj.action === 'CALL_TOOL' && obj.response === undefined) {
+		obj.response = null;
+	}
+
+	return obj;
+}
+
+/**
  * Parseia e valida resposta LLM no contrato AgentDecisionV2
  */
 export function parseAgentDecisionV2FromLLM(text: string): AgentDecisionV2 {
@@ -113,8 +159,12 @@ export function parseAgentDecisionV2FromLLM(text: string): AgentDecisionV2 {
 		} catch (metricError) {
 			loggers.ai.debug({ err: metricError }, 'Falha ao enviar telemetria AgentDecisionV2');
 		}
+
 		throw error;
 	}
+
+	// Normaliza desvios comuns antes da validação estrita
+	parsed = normalizeAgentDecisionV2(parsed);
 
 	if (!isValidAgentDecisionV2Response(parsed)) {
 		throw new Error('AgentDecisionV2 inválido');
