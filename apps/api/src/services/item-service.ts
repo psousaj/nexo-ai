@@ -328,7 +328,6 @@ export class ItemService {
 
 		// Lógica para itens globais (Movies/TV/Videos) vs Itens Pessoais
 		let semanticExternalItemId: string | null = null;
-		let embedding: number[] | null = null;
 
 		const isGlobalType = ['movie', 'tv_show', 'video'].includes(type);
 		const provider = type === 'movie' || type === 'tv_show' ? 'tmdb' : type === 'video' ? 'youtube' : null;
@@ -351,11 +350,9 @@ export class ItemService {
 				semanticExternalItemId = globalItem.id;
 				loggers.db.debug({ externalId, type }, '🔗 Linkado com item global existente');
 			} else {
-				// 2. FALLBACK: Cria item global inline (síncrono)
+				// 2. FALLBACK: Cria item global inline SEM embedding (síncrono rápido)
+				// Embedding será gerado em background após retorno
 				try {
-					const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
-					const globalEmbedding = await embeddingService.generateEmbedding(textToEmbed);
-
 					const [newGlobal] = await db
 						.insert(semanticExternalItems)
 						.values({
@@ -363,7 +360,7 @@ export class ItemService {
 							type,
 							provider,
 							rawData: metadata,
-							embedding: globalEmbedding,
+							embedding: null,
 						})
 						.onConflictDoNothing({
 							target: [semanticExternalItems.externalId, semanticExternalItems.type, semanticExternalItems.provider],
@@ -373,7 +370,20 @@ export class ItemService {
 					// Pode ser undefined se race condition pegou (onConflictDoNothing)
 					if (newGlobal) {
 						semanticExternalItemId = newGlobal.id;
-						loggers.db.info({ externalId }, '🌍 Item global criado inline (fallback)');
+						loggers.db.info({ externalId }, '🌍 Item global criado inline (sem vetor, embedding em background)');
+
+						// Gera e persiste embedding em background (fire-and-forget)
+						const globalId = newGlobal.id;
+						const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+						embeddingService
+							.generateEmbedding(textToEmbed)
+							.then((vec) =>
+								db
+									.update(semanticExternalItems)
+									.set({ embedding: vec })
+									.where(eq(semanticExternalItems.id, globalId)),
+							)
+							.catch((err) => loggers.db.warn({ err, externalId }, '⚠️ Falha ao gerar embedding global em background'));
 					} else {
 						// Se falhar insert por conflito, busca novamente
 						const [existing] = await db
@@ -395,23 +405,11 @@ export class ItemService {
 			}
 		}
 
-		// Se não linkou com global (ou falhou), gera embedding local somente se não tiver
-		// (Para notas e links, sempre gera local)
-		if (!semanticExternalItemId) {
-			try {
-				const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
-				embedding = await embeddingService.generateEmbedding(textToEmbed);
-				loggers.db.info({ title: title.substring(0, 30) }, '✨ Vetor gerado (local)');
-			} catch (error) {
-				loggers.db.warn({ err: error }, '⚠️ Falha ao gerar embedding local, salvando sem vetor');
-			}
-		}
-
-		// Se linkado, NÃO salva duplicata de metadata e embedding no banco
+		// Se não linkou com global (ou falhou), agenda embedding local em background
+		// O item é salvo imediatamente sem vetor; embedding gerado depois e atualizado
 		const metadataToSave = semanticExternalItemId ? {} : metadata;
-		// Embedding já é null se semanticExternalItemId existe (na lógica acima)
 
-		// Cria nova memória
+		// Cria nova memória SEM embedding (rápido)
 		const [item] = await db
 			.insert(memoryItems)
 			.values({
@@ -421,10 +419,26 @@ export class ItemService {
 				externalId,
 				contentHash,
 				metadata: metadataToSave,
-				embedding,
+				embedding: null,
 				semanticExternalItemId,
 			})
 			.returning();
+
+		// Se não tem item global, gera embedding local em background
+		if (!semanticExternalItemId) {
+			const itemId = item.id;
+			const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+			embeddingService
+				.generateEmbedding(textToEmbed)
+				.then((vec) =>
+					db
+						.update(memoryItems)
+						.set({ embedding: vec })
+						.where(eq(memoryItems.id, itemId)),
+				)
+				.then(() => loggers.db.info({ itemId }, '✨ Embedding local atualizado em background'))
+				.catch((err) => loggers.db.warn({ err, itemId }, '⚠️ Falha ao gerar embedding local em background'));
+		}
 
 		return { item, isDuplicate: false };
 	}
