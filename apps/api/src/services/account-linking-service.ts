@@ -192,10 +192,29 @@ export class AccountLinkingService {
 		const trialAccounts = await userService.getUserAccounts(trialUserId);
 
 		// 1. Migra authProviders: reatribui do trial para o target
-		await db
-			.update(authProviders)
-			.set({ userId: targetUserId, updatedAt: new Date() })
-			.where(eq(authProviders.userId, trialUserId));
+		//    Se o target já tem um registro para o mesmo provider (ex: via OAuth + linkSocial),
+		//    não podemos fazer UPDATE pois a unique constraint (userId, provider) seria violada.
+		//    Nesses casos, simplesmente removemos os auth_providers do trial (o target já tem o vínculo correto).
+		const [targetHasProvider] = await db
+			.select({ id: authProviders.id })
+			.from(authProviders)
+			.where(and(eq(authProviders.userId, targetUserId), sql`${authProviders.provider}::text = ${provider}`))
+			.limit(1);
+
+		if (targetHasProvider) {
+			// Target já tem o provider vinculado → apenas remove os do trial para evitar conflito
+			await db.delete(authProviders).where(eq(authProviders.userId, trialUserId));
+			loggers.webhook.info(
+				{ trialUserId, targetUserId, provider },
+				'🔗 Target já tem auth_provider para o provider. Removendo duplicata do trial.',
+			);
+		} else {
+			// Migração normal: move auth_providers do trial para o target
+			await db
+				.update(authProviders)
+				.set({ userId: targetUserId, updatedAt: new Date() })
+				.where(eq(authProviders.userId, trialUserId));
+		}
 
 		// 2. Migra memory_items
 		await db.update(memoryItems).set({ userId: targetUserId }).where(eq(memoryItems.userId, trialUserId));

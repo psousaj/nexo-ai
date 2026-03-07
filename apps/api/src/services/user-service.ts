@@ -2,6 +2,7 @@ import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete, cacheGet, cacheSet } from '@/config/redis';
 import { db } from '@/db';
 import { authProviders, users } from '@/db/schema';
+import { accounts as betterAuthAccounts } from '@/db/schema/auth';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import { and, eq, sql } from 'drizzle-orm';
@@ -127,6 +128,60 @@ export class UserService {
 
 				await cacheSet(cacheKey, result, 3600);
 				return result;
+			}
+		}
+
+		// 1c. Fallback: verifica Better Auth accounts (cobertura para OAuth via linkSocial)
+		//     Providers OAuth (discord/google) registram o userId no Better Auth account,
+		//     mas não criam auth_provider automaticamente.
+		//     Se encontrado, cria o auth_provider canônico e retorna o usuário real.
+		const oauthProviders: ProviderType[] = ['discord', 'google', 'microsoft'];
+		if (oauthProviders.includes(provider)) {
+			const [betterAuthAccount] = await db
+				.select({ id: betterAuthAccounts.id, userId: betterAuthAccounts.userId })
+				.from(betterAuthAccounts)
+				.where(and(eq(betterAuthAccounts.providerId, provider), eq(betterAuthAccounts.accountId, externalId)))
+				.limit(1);
+
+			if (betterAuthAccount) {
+				const realUser = await this.getUserById(betterAuthAccount.userId);
+				if (realUser) {
+					// Cria auth_provider canônico para que próximas mensagens sejam resolvidas via cache
+					let linkedProvider: typeof authProviders.$inferSelect | undefined;
+					try {
+						const [created] = await db
+							.insert(authProviders)
+							.values({
+								userId: realUser.id,
+								provider,
+								providerUserId: externalId,
+								linkedAt: new Date(),
+								updatedAt: new Date(),
+							})
+							.onConflictDoNothing()
+							.returning();
+						linkedProvider = created;
+					} catch (e) {
+						loggers.webhook.warn({ e, provider, externalId }, '⚠️ auth_provider já existe (race condition ignorada)');
+					}
+
+					const newEntry = linkedProvider ?? (await this.findProviderAccount(provider, externalId));
+					const result = {
+						user: realUser,
+						account: {
+							id: newEntry?.id ?? '',
+							userId: realUser.id,
+							provider,
+							externalId,
+							metadata: {},
+							providerEmail: null,
+							linkedAt: newEntry?.linkedAt ?? new Date(),
+						},
+					};
+					await cacheSet(cacheKey, result, 3600);
+					loggers.webhook.info({ provider, externalId, userId: realUser.id }, '🔗 auth_provider criado via Better Auth account');
+					return result;
+				}
 			}
 		}
 

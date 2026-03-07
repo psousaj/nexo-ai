@@ -546,8 +546,9 @@ export class DiscordAdapter implements MessagingProvider {
 			}
 		}
 
-		// Build externalId (channel ID for DMs, channel ID for guilds)
-		const externalId = message.channelId;
+		// Para DMs: usa Discord user ID como externalId (mesmo ID que OAuth salva)
+		// Para guilds: usa channelId para enviar a resposta no canal correto
+		const externalId = isDM ? message.author.id : message.channelId;
 
 		// Detect linking tokens
 		let _linkingToken: string | undefined;
@@ -630,19 +631,30 @@ export class DiscordAdapter implements MessagingProvider {
 	}
 
 	/**
-	 * Send message to Discord channel
+	 * Send message to Discord channel or user DM.
+	 * recipient pode ser channelId (guilds) ou userId (DMs — mesmo ID usado como externalId)
 	 */
 	async sendMessage(recipient: string, text: string, _options?: any): Promise<void> {
 		try {
-			const channel = await client.channels.fetch(recipient);
-			if (!channel) throw new Error('Channel not found');
+			// Tenta primeiro como channel ID (guild ou DM channel existente)
+			try {
+				const channel = await client.channels.fetch(recipient);
+				if (channel?.isTextBased()) {
+					await (channel as any).send(text);
+					loggers.discord.info({ channelId: recipient, textLength: text.length }, '✅ Message sent via channel');
+					return;
+				}
+			} catch {
+				// Não é um channelId válido — tenta como userId (DM)
+			}
 
-			if (!channel.isTextBased()) throw new Error('Channel is not text-based');
-
-			await (channel as any).send(text);
-			loggers.discord.info({ channelId: recipient, textLength: text.length }, '✅ Message sent');
+			// Fallback: abre DM pelo userId
+			const user = await client.users.fetch(recipient);
+			const dmChannel = await user.createDM();
+			await dmChannel.send(text);
+			loggers.discord.info({ userId: recipient, textLength: text.length }, '✅ Message sent via DM');
 		} catch (error) {
-			loggers.discord.error({ error, channelId: recipient }, '❌ Failed to send message');
+			loggers.discord.error({ error, recipient }, '❌ Failed to send message');
 			throw error;
 		}
 	}
