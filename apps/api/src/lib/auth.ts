@@ -5,9 +5,13 @@ import { betterAuth } from 'better-auth';
 import type { BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
+// APP_URL is optional in schema; fallback prevents "undefined/api/auth" bug if not set in prod.
+const appBaseURL = env.APP_URL ?? `http://localhost:${env.PORT}`;
+const isSecureEnv = env.NODE_ENV === 'production' || env.CORS_ORIGINS.some((o) => o.startsWith('https'));
+
 export const authPlugin = betterAuth({
 	secret: env.BETTER_AUTH_SECRET,
-	baseURL: `${env.APP_URL}/api/auth`,
+	baseURL: `${appBaseURL}/api/auth`,
 	trustedOrigins: env.CORS_ORIGINS,
 	database: drizzleAdapter(db, {
 		provider: 'pg',
@@ -41,18 +45,20 @@ export const authPlugin = betterAuth({
 		},
 	},
 	advanced: {
-		// Usa cookies seguros se a API estiver acessível via HTTPS
-		// (produção OU dev com túnel zrok/ngrok)
-		useSecureCookies: env.CORS_ORIGINS.some((o) => o.startsWith('https')),
+		// Secure cookies required in prod (HTTPS) and in dev with HTTPS tunnels (zrok/ngrok).
+		useSecureCookies: isSecureEnv,
+		// COOKIE_DOMAIN habilita cross-subdomain cookies (ex: .pinheirodev.com.br).
+		// Necessário quando dashboard e API estão em subdomínios diferentes do mesmo root.
+		// Deixe vazio/ausente em dev ou se os serviços estão em domínios diferentes.
 		crossSubDomainCookies: {
-			enabled: env.NODE_ENV === 'production',
-			domain: env.NODE_ENV === 'production' ? '.crudbox.tech' : undefined,
+			enabled: !!env.COOKIE_DOMAIN,
+			domain: env.COOKIE_DOMAIN,
 		},
 		// @ts-ignore
 		cookieOptions: {
-			// 'none' necessário para cross-origin com withCredentials (axios)
-			// Requer Secure=true, que é garantido pela linha acima
-			sameSite: env.CORS_ORIGINS.some((o) => o.startsWith('https')) ? 'none' : 'lax',
+			// SameSite=none necessário para cross-origin com credentials:include.
+			// Requer Secure=true (garantido por useSecureCookies acima em prod).
+			sameSite: isSecureEnv ? 'none' : 'lax',
 		},
 	},
 	emailAndPassword: {
