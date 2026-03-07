@@ -91,6 +91,7 @@ const envSchema = z.object({
 	// Application
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 	APP_URL: z.string().url().optional(),
+	COOKIE_DOMAIN: z.string().optional(),
 	CORS_ORIGINS: z
 		.string()
 		.optional()
