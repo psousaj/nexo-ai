@@ -1,7 +1,8 @@
 /**
  * Tool Management Routes (Admin Only)
  *
- * Endpoints para gerenciar tools globalmente (CASL protected)
+ * Endpoints para gerenciar tools globalmente.
+ * Protegidos pelo adminMiddleware aplicado em /admin/* no dashboard router.
  * ADR-019: Pluggable Tools System with CASL Protection
  */
 
@@ -12,9 +13,6 @@ import { z } from 'zod';
 
 const toolsRoutes = new Hono();
 
-/**
- * Schema de validação
- */
 const updateToolSchema = z.object({
 	enabled: z.boolean(),
 });
@@ -22,17 +20,9 @@ const updateToolSchema = z.object({
 /**
  * GET /api/admin/tools
  * Lista todas as tools (system + user) com status enabled/disabled
- *
- * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.get('/', async (c) => {
 	try {
-		// TODO: Adicionar middleware CASL
-		// const ability = c.get('ability');
-		// if (!ability.can('manage', 'AdminPanel')) {
-		//   return c.json({ error: 'Forbidden' }, 403);
-		// }
-
 		const allTools = await toolService.getAllTools();
 
 		return c.json({
@@ -56,24 +46,15 @@ toolsRoutes.get('/', async (c) => {
 
 /**
  * PATCH /api/admin/tools/:toolName
- * Atualiza status de tool global
+ * Habilita ou desabilita uma tool globalmente
  *
  * Body: { enabled: boolean }
- *
- * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.patch('/:toolName', async (c) => {
 	try {
-		// TODO: Adicionar middleware CASL
-		// const ability = c.get('ability');
-		// if (!ability.can('manage', 'AdminPanel')) {
-		//   return c.json({ error: 'Forbidden' }, 403);
-		// }
-
 		const toolName = c.req.param('toolName');
 		const body = await c.req.json();
 
-		// Validar body
 		const result = updateToolSchema.safeParse(body);
 		if (!result.success) {
 			return c.json({ error: 'Invalid request body', details: result.error }, 400);
@@ -81,7 +62,6 @@ toolsRoutes.patch('/:toolName', async (c) => {
 
 		const { enabled } = result.data;
 
-		// Atualizar tool
 		await toolService.updateTool(toolName as any, enabled);
 
 		loggers.api.info({ toolName, enabled }, '✅ Tool global atualizada');
@@ -92,11 +72,6 @@ toolsRoutes.patch('/:toolName', async (c) => {
 		});
 	} catch (error) {
 		loggers.api.error({ err: error }, '❌ Erro ao atualizar tool');
-
-		if (error instanceof Error && error.message.includes('System tools')) {
-			return c.json({ error: error.message }, 400);
-		}
-
 		return c.json({ error: 'Internal server error' }, 500);
 	}
 });
@@ -104,17 +79,9 @@ toolsRoutes.patch('/:toolName', async (c) => {
 /**
  * POST /api/admin/tools/enable-all
  * Habilita todas as user tools
- *
- * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.post('/enable-all', async (c) => {
 	try {
-		// TODO: Adicionar middleware CASL
-		// const ability = c.get('ability');
-		// if (!ability.can('manage', 'AdminPanel')) {
-		//   return c.json({ error: 'Forbidden' }, 403);
-		// }
-
 		await toolService.enableAllTools();
 
 		loggers.api.info('✅ Todas as tools habilitadas');
@@ -132,17 +99,9 @@ toolsRoutes.post('/enable-all', async (c) => {
 /**
  * POST /api/admin/tools/disable-all
  * Desabilita todas as user tools
- *
- * CASL: Requer permissão 'manage' no subject 'AdminPanel'
  */
 toolsRoutes.post('/disable-all', async (c) => {
 	try {
-		// TODO: Adicionar middleware CASL
-		// const ability = c.get('ability');
-		// if (!ability.can('manage', 'AdminPanel')) {
-		//   return c.json({ error: 'Forbidden' }, 403);
-		// }
-
 		await toolService.disableAllTools();
 
 		loggers.api.info('❌ Todas as tools desabilitadas');

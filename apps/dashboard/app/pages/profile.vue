@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Mail, MessageSquare, Smartphone } from 'lucide-vue-next';
+import { LinkIcon, Loader2, Mail, MessageSquare, Plus, RefreshCw, Smartphone, User, XCircle } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 
@@ -104,10 +104,12 @@ const handleLink = async (provider: string) => {
 			const { link } = await dashboard.linkTelegram();
 			if (process.client) window.open(link, '_blank');
 		} else if (provider === 'discord') {
-			const { link } = await dashboard.linkDiscord();
-			if (process.client) window.open(link, '_blank');
+			await authClient.linkSocial({
+				provider: 'discord',
+				callbackURL: process.client ? `${window.location.origin}/profile?success=discord` : '/profile?success=discord',
+			});
 		} else if (provider === 'google') {
-			await authClient.signIn.social({
+			await authClient.linkSocial({
 				provider: 'google',
 				callbackURL: process.client ? `${window.location.origin}/profile?success=google` : '/profile?success=google',
 			});

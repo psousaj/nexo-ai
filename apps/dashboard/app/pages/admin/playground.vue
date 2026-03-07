@@ -9,7 +9,7 @@
 		<!-- CASL guard (extra segurança no template) -->
 		<template v-if="!can('manage', 'AdminPanel')">
 			<UAlert
-				color="red"
+				color="error"
 				variant="soft"
 				icon="i-heroicons-lock-closed"
 				title="Acesso negado"
@@ -76,13 +76,13 @@
 				</template>
 
 				<div class="space-y-4">
-					<UFormGroup label="Texto para gerar embedding" help="Mínimo 1 caractere. Textos > 2000 chars serão truncados.">
-						<UTextarea v-model="embeddingText" placeholder="Ex: Inception é um filme de ficção científica de 2010..." :rows="4" resize />
-					</UFormGroup>
+<UFormField label="Texto para gerar embedding" help="Mínimo 1 caractere. Textos > 2000 chars serão truncados.">
+					<UTextarea v-model="embeddingText" placeholder="Ex: Inception é um filme de ficção científica de 2010..." :rows="4" resize />
+				</UFormField>
 
 					<div class="flex items-center gap-3">
 						<UButton
-							color="purple"
+							color="secondary"
 							:loading="loadingEmbedding"
 							:disabled="!embeddingText.trim()"
 							icon="i-heroicons-bolt"
@@ -96,8 +96,7 @@
 					<!-- Resultado -->
 					<div v-if="embeddingResult" class="space-y-3">
 						<UAlert
-							:color="embeddingResult.success ? 'green' : 'red'"
-							:variant="embeddingResult.success ? 'soft' : 'soft'"
+						:color="embeddingResult.success ? 'success' : 'error'"
 							:icon="embeddingResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
 							:title="embeddingResult.success ? '✅ Embedding gerado com sucesso' : '❌ Falha ao gerar embedding'"
 						/>
@@ -173,7 +172,7 @@
 						Testa a conexão direta com a Cloudflare AI Gateway e a Workers AI API. Útil para diagnosticar erros 502.
 					</p>
 
-					<UButton color="orange" variant="soft" :loading="loadingConnectivity" icon="i-heroicons-wifi" @click="checkConnectivity">
+					<UButton color="warning" variant="soft" :loading="loadingConnectivity" icon="i-heroicons-wifi" @click="checkConnectivity">
 						Verificar Conectividade
 					</UButton>
 
@@ -198,10 +197,10 @@
 							<div class="flex-1 min-w-0 space-y-1">
 								<div class="flex items-center gap-2 flex-wrap">
 									<span class="font-semibold text-sm">{{ check.target }}</span>
-									<UBadge :color="check.ok ? 'green' : 'red'" variant="subtle" size="xs">
-										{{ check.ok ? 'OK' : 'FALHOU' }}
-									</UBadge>
-									<UBadge v-if="check.status" color="gray" variant="outline" size="xs"> HTTP {{ check.status }} </UBadge>
+								<UBadge :color="check.ok ? 'success' : 'error'" variant="subtle" size="xs">
+									{{ check.ok ? 'OK' : 'FALHOU' }}
+								</UBadge>
+								<UBadge v-if="check.status" color="neutral" variant="outline" size="xs"> HTTP {{ check.status }} </UBadge>
 									<span class="text-xs text-gray-400">{{ check.elapsedMs }}ms</span>
 								</div>
 								<p class="text-xs font-mono text-gray-500 break-all">{{ check.url }}</p>
@@ -222,7 +221,7 @@ import { useAbility } from '@casl/vue';
 import { onMounted, ref } from 'vue';
 
 definePageMeta({
-	middleware: ['auth', 'role'],
+	middleware: ['role'],
 	layout: 'default',
 });
 

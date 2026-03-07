@@ -275,7 +275,10 @@ export class ItemService {
 			}
 		}
 
-		loggers.db.debug({ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords }, '📝 Documento semântico preparado');
+		loggers.db.debug(
+			{ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords },
+			'📝 Documento semântico preparado',
+		);
 
 		return text;
 	}
@@ -374,7 +377,9 @@ export class ItemService {
 						const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
 						embeddingService
 							.generateEmbedding(textToEmbed)
-							.then((vec) => db.update(semanticExternalItems).set({ embedding: vec }).where(eq(semanticExternalItems.id, globalId)))
+							.then((vec) =>
+								db.update(semanticExternalItems).set({ embedding: vec }).where(eq(semanticExternalItems.id, globalId)),
+							)
 							.catch((err) => loggers.db.warn({ err, externalId }, '⚠️ Falha ao gerar embedding global em background'));
 					} else {
 						// Se falhar insert por conflito, busca novamente
@@ -523,7 +528,10 @@ export class ItemService {
 				.from(memoryItems)
 				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
 				.where(
-					and(eq(memoryItems.userId, userId), sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`),
+					and(
+						eq(memoryItems.userId, userId),
+						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
+					),
 				);
 
 			if (itemsWithEmbedding.length === 0) {
@@ -739,13 +747,17 @@ export class ItemService {
 	 * Deleta todas as memórias do usuário, opcionalmente filtradas por tipo
 	 */
 	async countItems(userId: string, type?: string): Promise<number> {
-		const condition = type ? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any)) : eq(memoryItems.userId, userId);
+		const condition = type
+			? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any))
+			: eq(memoryItems.userId, userId);
 		const result = await db.select({ id: memoryItems.id }).from(memoryItems).where(condition);
 		return result.length;
 	}
 
 	async deleteAllItems(userId: string, type?: string): Promise<number> {
-		const condition = type ? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any)) : eq(memoryItems.userId, userId);
+		const condition = type
+			? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any))
+			: eq(memoryItems.userId, userId);
 		const result = await db.delete(memoryItems).where(condition).returning();
 		return result.length;
 	}

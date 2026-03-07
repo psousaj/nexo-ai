@@ -1,6 +1,10 @@
 import { env } from '@/config/env';
+import {
+	buildSessionKey as buildSessionKeyUtil,
+	parseSessionKey as parseSessionKeyUtil,
+} from '@/services/session-service';
 import { loggers } from '@/utils/logger';
-import type { IncomingMessage, MessagingProvider, ProviderType } from './types';
+import type { IncomingMessage, MessagingProvider, ProviderType, SessionKeyParams, SessionKeyParts } from './types';
 
 /**
  * Adapter para Meta WhatsApp Business API
@@ -22,28 +26,64 @@ export class WhatsAppAdapter implements MessagingProvider {
 		const value = changes?.value;
 		const message = value?.messages?.[0];
 
-		if (!message?.text?.body) {
+		if (!message) {
 			return null;
 		}
 
-		// Extrai nome do contato
-		const contact = value?.contacts?.[0];
-		const senderName = contact?.profile?.name;
+		// Extrai tipo da mensagem (Meta API sempre inclui o campo "type")
+		const msgType: string = message.type || 'text';
 
-		// Phone number é o externalId no WhatsApp
-		const phoneNumber = message.from;
+		// Extrai texto/caption conforme tipo
+		let text: string | undefined;
+		if (msgType === 'text') {
+			text = message.text?.body;
+		} else if (msgType === 'image') {
+			text = message.image?.caption ? `[Imagem] ${message.image.caption}` : '[Imagem]';
+		} else if (msgType === 'video') {
+			text = message.video?.caption ? `[Vídeo] ${message.video.caption}` : '[Vídeo]';
+		} else if (msgType === 'audio' || msgType === 'voice') {
+			text = '[Áudio]';
+		} else if (msgType === 'document') {
+			text = message.document?.filename ? `[Documento] ${message.document.filename}` : '[Documento]';
+		} else if (msgType === 'sticker') {
+			text = '[Sticker]';
+		} else if (msgType === 'location') {
+			text = `[Localização] ${message.location?.name || ''}`.trim();
+		}
+
+		// Ignora mensagens sem conteúdo reconhecível
+		if (!text) {
+			return null;
+		}
+
+		// Extrai nome do contato com fallback
+		const contact = value?.contacts?.[0];
+		const senderName = contact?.profile?.name || message.from || 'Usuário';
+
+		// Phone number é o externalId no WhatsApp (Meta API é sempre 1:1, sem grupos)
+		const phoneNumber = message.from as string;
+
+		// Detectar resposta numérica como seleção de botão (1-9 → select_0 ... select_8)
+		// Usuário responde "1" ou "2" quando o bot envia lista numerada de candidatos
+		const trimmedText = text.trim();
+		let callbackData: string | undefined;
+		if (/^[1-9]$/.test(trimmedText)) {
+			callbackData = `select_${Number.parseInt(trimmedText, 10) - 1}`;
+		}
 
 		return {
 			messageId: message.id,
 			externalId: phoneNumber,
+			userId: phoneNumber, // Meta Business API é sempre 1:1, userId === externalId
 			senderName,
-			text: message.text.body,
+			text,
 			timestamp: new Date(Number.parseInt(message.timestamp) * 1000),
 			provider: 'whatsapp',
-			phoneNumber, // WhatsApp sempre tem telefone
+			phoneNumber,
+			callbackData,
 			metadata: {
-				isGroupMessage: false,
-				messageType: 'text',
+				isGroupMessage: false, // Meta Business Cloud API não suporta grupos
+				messageType: callbackData ? 'callback' : 'text',
 				sourceApi: 'meta',
 				providerPayload,
 			},
@@ -180,6 +220,83 @@ export class WhatsAppAdapter implements MessagingProvider {
 			},
 			body: JSON.stringify(payload),
 		});
+	}
+
+	/**
+	 * Indicador de digitando — Meta API não tem suporte nativo, é um no-op.
+	 */
+	async sendTypingIndicator(_chatId: string): Promise<void> {
+		// Meta Business Cloud API não expõe typing indicator para o usuário final
+	}
+
+	/**
+	 * Ação de chat — delega typing para sendTypingIndicator; demais são no-op.
+	 */
+	async sendChatAction(chatId: string, action: string): Promise<void> {
+		if (action === 'typing') {
+			await this.sendTypingIndicator(chatId);
+		}
+	}
+
+	/**
+	 * Envia mensagem com botões de resposta rápida (interactive/button).
+	 * Máximo de 3 botões por mensagem conforme limite da Meta API.
+	 */
+	async sendMessageWithButtons(
+		chatId: string,
+		text: string,
+		buttons: Array<{ text: string; callback_data?: string }>,
+		_options?: any,
+	): Promise<void> {
+		const url = `${this.baseUrl}/${this.phoneNumberId}/messages`;
+
+		// Meta API aceita no máximo 3 botões do tipo "reply"
+		const limitedButtons = buttons.slice(0, 3).map((btn, idx) => ({
+			type: 'reply',
+			reply: {
+				id: btn.callback_data || `btn_${idx}`,
+				title: btn.text.substring(0, 20), // limite de 20 chars no título
+			},
+		}));
+
+		const payload = {
+			messaging_product: 'whatsapp',
+			to: chatId,
+			type: 'interactive',
+			interactive: {
+				type: 'button',
+				body: { text },
+				action: { buttons: limitedButtons },
+			},
+		};
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${this.token}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			throw new Error(`WhatsApp API error (interactive): ${error}`);
+		}
+	}
+
+	/**
+	 * Constrói session key no formato OpenClaw
+	 */
+	buildSessionKey(params: SessionKeyParams): string {
+		return buildSessionKeyUtil(params);
+	}
+
+	/**
+	 * Parse session key em componentes
+	 */
+	parseSessionKey(key: string): SessionKeyParts {
+		return parseSessionKeyUtil(key);
 	}
 }
 

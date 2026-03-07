@@ -14,8 +14,9 @@ import {
 	Title,
 	Tooltip,
 } from 'chart.js';
-import { Activity, Database, MessageSquare, Users } from 'lucide-vue-next';
+import { Activity, Database, Download, Filter, MessageSquare, Users } from 'lucide-vue-next';
 import { computed, markRaw, onMounted } from 'vue';
+import { Doughnut, Line } from 'vue-chartjs';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 
@@ -62,8 +63,8 @@ const iconMap: Record<string, any> = {
 // Chart Data
 const lineChartData = computed(() => {
 	const trends = analytics.value?.trends;
-	if (!trends) return { labels: [], datasets: [] };
-	return {
+	if (!trends) return markRaw({ labels: [], datasets: [] });
+	return markRaw({
 		labels: trends.labels,
 		datasets: trends.datasets.map((ds) =>
 			markRaw({
@@ -77,10 +78,10 @@ const lineChartData = computed(() => {
 				pointHoverRadius: 6,
 			}),
 		),
-	};
+	});
 });
 
-const lineChartOptions = {
+const lineChartOptions = markRaw({
 	responsive: true,
 	maintainAspectRatio: false,
 	plugins: {
@@ -112,12 +113,12 @@ const lineChartOptions = {
 			},
 		},
 	},
-};
+});
 
 const doughnutData = computed(() => {
 	const breakdown = analytics.value?.breakdown;
-	if (!breakdown) return { labels: [], datasets: [] };
-	return {
+	if (!breakdown) return markRaw({ labels: [], datasets: [] });
+	return markRaw({
 		labels: breakdown.labels,
 		datasets: [
 			markRaw({
@@ -127,10 +128,10 @@ const doughnutData = computed(() => {
 				hoverOffset: 10,
 			}),
 		],
-	};
+	});
 });
 
-const doughnutOptions = {
+const doughnutOptions = markRaw({
 	responsive: true,
 	maintainAspectRatio: false,
 	cutout: '70%',
@@ -144,15 +145,10 @@ const doughnutOptions = {
 			},
 		},
 	},
-};
-
-// Filtered KPIs based on role/CASL
-const displayKPIs = computed(() => {
-	if (!analytics.value?.kpis) return [];
-	return can('manage', 'AdminPanel')
-		? analytics.value.kpis
-		: analytics.value.kpis.filter((k) => k.title === 'Memórias Salvas' || k.title === 'Mensagens Processadas');
 });
+
+// O backend já escopa os KPIs por role, exibe todos os retornados
+const displayKPIs = computed(() => analytics.value?.kpis ?? []);
 </script>
 
 <template>

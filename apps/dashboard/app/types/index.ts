@@ -1,4 +1,12 @@
 export type UserRole = 'admin' | 'user';
+
+export interface ToolDefinition {
+	name: string;
+	label: string;
+	description: string;
+	icon: string;
+	category: 'system' | 'user';
+}
 export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'text' | 'image' | 'audio';
 
 export interface User {

@@ -41,7 +41,7 @@ const config = useRuntimeConfig();
 const { data: users, isLoading } = useQuery<UsersResponse>({
 	queryKey: ['admin-users'],
 	queryFn: async () => {
-		const response = await $fetch<UsersResponse>('/api/admin/users', {
+		const response = await $fetch<UsersResponse>('/admin/users', {
 			baseURL: config.public.apiUrl,
 			credentials: 'include',
 		});
@@ -64,11 +64,11 @@ const stats = computed(() => {
 });
 
 const columns: any = [
-	{ key: 'name', label: 'Nome' },
-	{ key: 'email', label: 'Email' },
-	{ key: 'accounts', label: 'Contas' },
-	{ key: 'createdAt', label: 'Criado em' },
-	{ key: 'actions', label: 'Ações' },
+	{ accessorKey: 'name', header: 'Nome' },
+	{ accessorKey: 'email', header: 'Email' },
+	{ accessorKey: 'accounts', header: 'Contas' },
+	{ accessorKey: 'createdAt', header: 'Criado em' },
+	{ id: 'actions', header: 'Ações' },
 ];
 
 function formatDate(date: string) {
@@ -194,33 +194,33 @@ function getProviderColor(provider: string): 'primary' | 'success' | 'info' | 'w
 			<UTable
 				v-else
 				:columns="columns"
-				:rows="users.data"
+				:data="users.data"
 				class="w-full"
 			>
 				<!-- @ts-ignore -->
-				<template #name-data="{ row }">
+				<template #name-cell="{ row }">
 					<div class="flex items-center gap-3">
 						<UAvatar
-							:alt="(row as unknown as User).name || 'User'"
+							:alt="(row.original as User).name || 'User'"
 							size="sm"
 						/>
 						<div>
-							<p class="font-medium">{{ (row as unknown as User).name || 'Sem nome' }}</p>
-							<p class="text-xs text-gray-500">ID: {{ (row as unknown as User).id }}</p>
+							<p class="font-medium">{{ (row.original as User).name || 'Sem nome' }}</p>
+							<p class="text-xs text-gray-500">ID: {{ (row.original as User).id }}</p>
 						</div>
 					</div>
 				</template>
 
 				<!-- @ts-ignore -->
-				<template #email-data="{ row }">
-					<span class="text-sm">{{ (row as unknown as User).email || '-' }}</span>
+				<template #email-cell="{ row }">
+					<span class="text-sm">{{ (row.original as User).email || '-' }}</span>
 				</template>
 
 				<!-- @ts-ignore -->
-				<template #accounts-data="{ row }">
+				<template #accounts-cell="{ row }">
 					<div class="flex gap-1">
 						<UBadge
-							v-for="account in (row as unknown as User).accounts"
+							v-for="account in (row.original as User).accounts"
 							:key="account.id"
 							:color="getProviderColor(account.provider)"
 							variant="subtle"
@@ -229,24 +229,24 @@ function getProviderColor(provider: string): 'primary' | 'success' | 'info' | 'w
 							<UIcon :name="getProviderIcon(account.provider)" class="w-3 h-3 mr-1" />
 							{{ account.provider }}
 						</UBadge>
-						<span v-if="!(row as unknown as User).accounts?.length" class="text-xs text-gray-500">Nenhuma</span>
+						<span v-if="!(row.original as User).accounts?.length" class="text-xs text-gray-500">Nenhuma</span>
 					</div>
 				</template>
 
 				<!-- @ts-ignore -->
-				<template #createdAt-data="{ row }">
-					<span class="text-sm text-gray-600">{{ formatDate((row as unknown as User).createdAt) }}</span>
+				<template #createdAt-cell="{ row }">
+					<span class="text-sm text-gray-600">{{ formatDate((row.original as User).createdAt) }}</span>
 				</template>
 
 				<!-- @ts-ignore -->
-				<template #actions-data="{ row }">
+				<template #actions-cell="{ row }">
 					<div class="flex gap-2">
 						<UButton
 							icon="i-heroicons-eye"
 							size="xs"
 							color="neutral"
 							variant="ghost"
-							:to="`/admin/users/${(row as unknown as User).id}`"
+							:to="`/admin/users/${(row.original as User).id}`"
 						/>
 						<UButton
 							icon="i-heroicons-trash"

@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
-import { Database, FlaskConical, LayoutDashboard, MessageSquare, Settings, UserCircle, Users } from 'lucide-vue-next';
+import { Bell, Database, FlaskConical, LayoutDashboard, LogOut, Menu, MessageSquare, Settings, ShieldCheck, ToggleRight, UserCircle, Users, X } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 
-// Inicializa fechado para garantir consistência SSR
-// Será aberto automaticamente em desktop após hydration
 const isOpen = ref(false);
 const toggleSidebar = () => (isOpen.value = !isOpen.value);
 
-// Abrir sidebar automaticamente em desktop após hydration
 onMounted(() => {
 	if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
 		isOpen.value = true;
@@ -21,21 +18,24 @@ const authStore = useAuthStore();
 const route = useRoute();
 const { can } = useAbility();
 
-const menuItems = computed(() => {
-	const allItems = [
-		{ name: 'Dashboard', icon: LayoutDashboard, path: '/', subject: 'Analytics', action: 'read' },
-		{ name: 'Minhas Memórias', icon: Database, path: '/memories', subject: 'UserContent', action: 'read' },
-		{ name: 'Preferências', icon: Settings, path: '/preferences', subject: 'PersonalData', action: 'manage' },
-		{ name: 'Perfil', icon: UserCircle, path: '/profile', subject: 'PersonalData', action: 'manage' },
-		{ name: 'Usuários', icon: Users, path: '/admin/users', subject: 'AdminPanel', action: 'manage' },
-		{ name: 'Conversas', icon: MessageSquare, path: '/admin/conversations', subject: 'AdminPanel', action: 'manage' },
-		{ name: 'Configurações', icon: Settings, path: '/admin/settings', subject: 'AdminPanel', action: 'manage' },
-		{ name: 'Playground', icon: FlaskConical, path: '/admin/playground', subject: 'AdminPanel', action: 'manage' },
-	];
+const userItems = [
+	{ name: 'Dashboard', icon: LayoutDashboard, path: '/', subject: 'Analytics', action: 'read' },
+	{ name: 'Minhas Memórias', icon: Database, path: '/memories', subject: 'UserContent', action: 'read' },
+	{ name: 'Preferências', icon: Settings, path: '/preferences', subject: 'PersonalData', action: 'manage' },
+	{ name: 'Perfil', icon: UserCircle, path: '/profile', subject: 'PersonalData', action: 'manage' },
+];
 
-	// Filter based on CASL abilities
-	return allItems.filter((item) => can(item.action, item.subject as any));
-});
+const adminItems = [
+	{ name: 'Usuários', icon: Users, path: '/admin/users', subject: 'AdminPanel', action: 'manage' },
+	{ name: 'Conversas', icon: MessageSquare, path: '/admin/conversations', subject: 'AdminPanel', action: 'manage' },
+	{ name: 'Tools', icon: ToggleRight, path: '/admin/tools', subject: 'AdminPanel', action: 'manage' },
+	{ name: 'Configurações', icon: Settings, path: '/admin/settings', subject: 'AdminPanel', action: 'manage' },
+	{ name: 'Playground', icon: FlaskConical, path: '/admin/playground', subject: 'AdminPanel', action: 'manage' },
+];
+
+const visibleUserItems = computed(() => userItems.filter((item) => can(item.action as any, item.subject as any)));
+const visibleAdminItems = computed(() => adminItems.filter((item) => can(item.action as any, item.subject as any)));
+const hasAdminItems = computed(() => visibleAdminItems.value.length > 0);
 
 const handleLogout = async () => {
 	await authStore.logout();
@@ -66,8 +66,13 @@ const handleLogout = async () => {
 			</div>
 
 			<!-- Navigation -->
-			<nav class="flex-1 overflow-y-auto p-4 space-y-1">
-				<NuxtLink v-for="item in menuItems" :key="item.name" :to="item.path" class="block">
+			<nav class="flex-1 overflow-y-auto p-3 space-y-0.5">
+				<!-- User section -->
+				<p v-if="isOpen" class="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-widest text-surface-400 dark:text-surface-500">
+					Geral
+				</p>
+
+				<NuxtLink v-for="item in visibleUserItems" :key="item.name" :to="item.path" class="block">
 					<div
 						:class="[
 							'flex items-center px-3 py-2 rounded-lg transition-all duration-200 group relative',
@@ -76,18 +81,49 @@ const handleLogout = async () => {
 								: 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-white',
 						]"
 					>
-						<component :is="item.icon" :class="['w-5 h-5 shrink-0']" />
+						<component :is="item.icon" class="w-5 h-5 shrink-0" />
 						<span v-if="isOpen" class="ml-3 whitespace-nowrap text-sm">{{ item.name }}</span>
-
-						<!-- Tooltip for closed sidebar -->
-						<div
-							v-if="!isOpen"
-							class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl"
-						>
+						<div v-if="!isOpen" class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
 							{{ item.name }}
 						</div>
 					</div>
 				</NuxtLink>
+
+				<!-- Admin separator + section -->
+				<template v-if="hasAdminItems">
+					<div class="pt-3 pb-1">
+						<div
+							:class="[
+								'flex items-center gap-2',
+								isOpen ? 'px-3' : 'justify-center',
+							]"
+						>
+							<div class="flex-1 h-px bg-surface-200 dark:bg-surface-700" />
+							<span v-if="isOpen" class="text-[10px] font-black uppercase tracking-widest text-amber-500 dark:text-amber-400 flex items-center gap-1 shrink-0">
+								<ShieldCheck class="w-3 h-3" /> Admin
+							</span>
+							<ShieldCheck v-else class="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+							<div v-if="isOpen" class="flex-1 h-px bg-surface-200 dark:bg-surface-700" />
+						</div>
+					</div>
+
+					<NuxtLink v-for="item in visibleAdminItems" :key="item.name" :to="item.path" class="block">
+						<div
+							:class="[
+								'flex items-center px-3 py-2 rounded-lg transition-all duration-200 group relative',
+								route.path === item.path
+									? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 font-medium'
+									: 'text-surface-600 dark:text-surface-400 hover:bg-amber-50 dark:hover:bg-amber-900/10 hover:text-amber-700 dark:hover:text-amber-300',
+							]"
+						>
+							<component :is="item.icon" class="w-5 h-5 shrink-0" />
+							<span v-if="isOpen" class="ml-3 whitespace-nowrap text-sm">{{ item.name }}</span>
+							<div v-if="!isOpen" class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
+								{{ item.name }}
+							</div>
+						</div>
+					</NuxtLink>
+				</template>
 			</nav>
 
 			<!-- Footer Action -->

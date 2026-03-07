@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/api",
-	"version": "0.5.40",
+	"version": "0.5.42",
 	"description": "Assistente pessoal via WhatsApp com IA",
 	"type": "module",
 	"scripts": {
@@ -80,8 +80,6 @@
 		"vitest": "^2.1.9"
 	},
 	"pnpm": {
-		"neverBuiltDependencies": [
-			"msgpackr-extract"
-		]
+		"neverBuiltDependencies": ["msgpackr-extract"]
 	}
 }

@@ -5,8 +5,8 @@
  * Entradas validadas, saídas previsíveis, zero decisão.
  */
 
-import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessages';
 import { conversationService } from '@/services/conversation-service';
+import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessages';
 import { enrichmentService } from '@/services/enrichment';
 import { itemService } from '@/services/item-service';
 import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
@@ -143,7 +143,10 @@ export async function save_movie(
 	try {
 		// Sem tmdb_id: busca no TMDB e retorna candidatos para o usuário escolher
 		if (!params.tmdb_id) {
-			loggers.tools.info({ title: params.title, year: params.year }, '🔍 save_movie sem tmdb_id → buscando candidatos no TMDB');
+			loggers.tools.info(
+				{ title: params.title, year: params.year },
+				'🔍 save_movie sem tmdb_id → buscando candidatos no TMDB',
+			);
 			const results = await enrichmentService.searchMovies(params.title, params.year);
 
 			if (results && results.length > 0) {
@@ -182,7 +185,9 @@ export async function save_movie(
 			// Enriquecimento async — não bloqueia a resposta ao usuário
 			void enrichmentService
 				.enrich('movie', { tmdbId: params.tmdb_id })
-				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
+				.catch((err) =>
+					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
+				);
 		}
 
 		const item = await itemService.createItem({
@@ -272,7 +277,9 @@ export async function save_tv_show(
 			// Enriquecimento async — não bloqueia a resposta ao usuário
 			void enrichmentService
 				.enrich('tv_show', { tmdbId: params.tmdb_id })
-				.catch((err) => loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'));
+				.catch((err) =>
+					loggers.tools.warn({ err, tmdb_id: params.tmdb_id }, '⚠️ Enrichment async falhou (não crítico)'),
+				);
 		}
 
 		const item = await itemService.createItem({
@@ -836,7 +843,9 @@ export async function list_calendar_events(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -902,8 +911,9 @@ export async function create_calendar_event(
 	},
 ): Promise<ToolOutput> {
 	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
-			await import('@/services/integrations/google-calendar.service');
+		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
+			'@/services/integrations/google-calendar.service'
+		);
 
 		// Check if user has connected Google Calendar
 		const isConnected = await hasGoogleCalendarConnected(context.userId);
@@ -1104,7 +1114,10 @@ export async function schedule_reminder(
  * { resolved, type } para que o LLM chame enrich_movie/enrich_tv_show e acione o
  * pipeline de confirmação existente.
  */
-export async function resolve_context_reference(context: ToolContext, params: { reference_hint: string }): Promise<ToolOutput> {
+export async function resolve_context_reference(
+	context: ToolContext,
+	params: { reference_hint: string },
+): Promise<ToolOutput> {
 	const { conversationId } = context;
 	const { reference_hint } = params;
 
@@ -1158,7 +1171,10 @@ export async function resolve_context_reference(context: ToolContext, params: { 
 	// Heurística simples: pegar o primeiro candidato (mais relevante no contexto)
 	const best = candidates[0];
 
-	loggers.tools.info({ reference_hint, resolved: best.entity, candidatesCount: candidates.length }, '🔍 resolve_context_reference');
+	loggers.tools.info(
+		{ reference_hint, resolved: best.entity, candidatesCount: candidates.length },
+		'🔍 resolve_context_reference',
+	);
 
 	return {
 		success: true,

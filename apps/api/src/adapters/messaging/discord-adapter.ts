@@ -89,10 +89,70 @@ export class DiscordAdapter implements MessagingProvider {
 				await interaction.editReply({ content: '✅ Enviei um DM para você!' });
 			} catch (error) {
 				loggers.discord.error({ error }, '❌ Failed to send DM');
-				await interaction.editReply({
-					content: '❌ Não consegui enviar DM. Verifique se suas DMs estão abertas.',
-				});
+				if (interaction.deferred) {
+					await interaction.editReply({
+						content: '❌ Não consegui enviar DM. Verifique se suas DMs estão abertas.',
+					});
+				} else if (!interaction.replied) {
+					await interaction.reply({
+						content: '❌ Não consegui enviar DM. Verifique se suas DMs estão abertas.',
+						ephemeral: true,
+					});
+				}
 			}
+		});
+
+		// /help command - Show available commands
+		this.commandHandlers.set('help', async (interaction: ChatInputCommandInteraction) => {
+			await interaction.reply({
+				content:
+					'📚 **Comandos disponíveis:**\n\n' +
+					'• `/start` — Iniciar conversa privada com o NEXO AI\n' +
+					'• `/status` — Ver status da sessão atual\n' +
+					'• `/new` — Resetar conversa e começar do zero\n' +
+					'• `/memory [query]` — Buscar nas suas memórias salvas\n' +
+					'• `/profile [key] [value]` — Ver ou atualizar seu perfil\n' +
+					'• `/help` — Este menu\n\n' +
+					'💬 Ou me envie uma mensagem diretamente no privado!',
+				ephemeral: true,
+			});
+		});
+
+		// Helper: defer, send command as DM, acknowledge
+		const routeCommandToDM = async (interaction: ChatInputCommandInteraction, commandText: string) => {
+			await interaction.deferReply({ ephemeral: true });
+			try {
+				const dmChannel = await interaction.user.createDM();
+				await dmChannel.send(commandText);
+				await interaction.editReply({ content: '✅ Processando... confira suas DMs.' });
+			} catch (error) {
+				loggers.discord.error({ error }, '❌ Failed to route command to DM');
+				await interaction.editReply({ content: '❌ Não consegui enviar DM. Verifique se suas DMs estão abertas.' });
+			}
+		};
+
+		// /status command - Route to DM
+		this.commandHandlers.set('status', async (interaction: ChatInputCommandInteraction) => {
+			await routeCommandToDM(interaction, 'status');
+		});
+
+		// /new command - Reset conversation via DM
+		this.commandHandlers.set('new', async (interaction: ChatInputCommandInteraction) => {
+			const confirm = interaction.options.getBoolean('confirm');
+			await routeCommandToDM(interaction, confirm ? 'novo confirm' : 'novo');
+		});
+
+		// /memory command - Search memories via DM
+		this.commandHandlers.set('memory', async (interaction: ChatInputCommandInteraction) => {
+			const query = interaction.options.getString('query');
+			await routeCommandToDM(interaction, query ? `lembrar ${query}` : 'listar tudo');
+		});
+
+		// /profile command - View/update profile via DM
+		this.commandHandlers.set('profile', async (interaction: ChatInputCommandInteraction) => {
+			const key = interaction.options.getString('key');
+			const value = interaction.options.getString('value');
+			await routeCommandToDM(interaction, key && value ? `perfil ${key}=${value}` : 'perfil');
 		});
 	}
 
@@ -309,18 +369,24 @@ export class DiscordAdapter implements MessagingProvider {
 				await handler(interaction);
 			} catch (error) {
 				loggers.discord.error({ error, commandName }, '❌ Slash command failed');
-
-				if (interaction.replied || interaction.deferred) {
-					await interaction.followUp({ content: '❌ Erro ao executar comando.', ephemeral: true });
-				} else {
-					await interaction.reply({ content: '❌ Erro ao executar comando.', ephemeral: true });
+				try {
+					if (interaction.replied || interaction.deferred) {
+						await interaction.followUp({ content: '❌ Erro ao executar comando.', ephemeral: true });
+					} else {
+						await interaction.reply({ content: '❌ Erro ao executar comando.', ephemeral: true });
+					}
+				} catch (replyError) {
+					loggers.discord.warn({ replyError, commandName }, '⚠️ Could not send error reply to interaction');
 				}
 			}
 		} else {
 			loggers.discord.warn({ commandName }, '⚠️ Unknown slash command');
-
-			if (!interaction.replied && !interaction.deferred) {
-				await interaction.reply({ content: '❌ Comando desconhecido.', ephemeral: true });
+			try {
+				if (!interaction.replied && !interaction.deferred) {
+					await interaction.reply({ content: '❌ Comando desconhecido.', ephemeral: true });
+				}
+			} catch (replyError) {
+				loggers.discord.warn({ replyError, commandName }, '⚠️ Could not reply to unknown command interaction');
 			}
 		}
 	}
@@ -480,8 +546,9 @@ export class DiscordAdapter implements MessagingProvider {
 			}
 		}
 
-		// Build externalId (channel ID for DMs, channel ID for guilds)
-		const externalId = message.channelId;
+		// Para DMs: usa Discord user ID como externalId (mesmo ID que OAuth salva)
+		// Para guilds: usa channelId para enviar a resposta no canal correto
+		const externalId = isDM ? message.author.id : message.channelId;
 
 		// Detect linking tokens
 		let _linkingToken: string | undefined;
@@ -564,19 +631,30 @@ export class DiscordAdapter implements MessagingProvider {
 	}
 
 	/**
-	 * Send message to Discord channel
+	 * Send message to Discord channel or user DM.
+	 * recipient pode ser channelId (guilds) ou userId (DMs — mesmo ID usado como externalId)
 	 */
 	async sendMessage(recipient: string, text: string, _options?: any): Promise<void> {
 		try {
-			const channel = await client.channels.fetch(recipient);
-			if (!channel) throw new Error('Channel not found');
+			// Tenta primeiro como channel ID (guild ou DM channel existente)
+			try {
+				const channel = await client.channels.fetch(recipient);
+				if (channel?.isTextBased()) {
+					await (channel as any).send(text);
+					loggers.discord.info({ channelId: recipient, textLength: text.length }, '✅ Message sent via channel');
+					return;
+				}
+			} catch {
+				// Não é um channelId válido — tenta como userId (DM)
+			}
 
-			if (!channel.isTextBased()) throw new Error('Channel is not text-based');
-
-			await (channel as any).send(text);
-			loggers.discord.info({ channelId: recipient, textLength: text.length }, '✅ Message sent');
+			// Fallback: abre DM pelo userId
+			const user = await client.users.fetch(recipient);
+			const dmChannel = await user.createDM();
+			await dmChannel.send(text);
+			loggers.discord.info({ userId: recipient, textLength: text.length }, '✅ Message sent via DM');
 		} catch (error) {
-			loggers.discord.error({ error, channelId: recipient }, '❌ Failed to send message');
+			loggers.discord.error({ error, recipient }, '❌ Failed to send message');
 			throw error;
 		}
 	}

@@ -43,7 +43,10 @@ export function parseJSONFromLLM(text: string): any {
 			throw new Error(`Resposta não é JSON: ${cleaned.substring(0, 100)}`);
 		}
 
-		loggers.ai.warn({ preamble: cleaned.substring(0, start) }, '⚠️ LLM enviou texto antes do JSON — extraindo JSON embutido');
+		loggers.ai.warn(
+			{ preamble: cleaned.substring(0, start) },
+			'⚠️ LLM enviou texto antes do JSON — extraindo JSON embutido',
+		);
 		cleaned = cleaned.substring(start);
 	}
 
