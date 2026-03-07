@@ -7,8 +7,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
 // APP_URL is optional in schema; fallback prevents "undefined/api/auth" bug if not set in prod.
 const appBaseURL = env.APP_URL ?? `http://localhost:${env.PORT}`;
-const isSecureEnv =
-	env.NODE_ENV === 'production' || env.CORS_ORIGINS.some((o) => o.startsWith('https'));
+const isSecureEnv = env.NODE_ENV === 'production' || env.CORS_ORIGINS.some((o) => o.startsWith('https'));
 
 export const authPlugin = betterAuth({
 	secret: env.BETTER_AUTH_SECRET,
