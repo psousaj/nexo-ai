@@ -17,29 +17,30 @@ import { type ToolDefinition, getSystemTools, getToolDefinition, getUserTools, i
 
 class ToolService {
 	/**
-	 * Retorna tools globalmente habilitadas (system + user habilitadas)
+	 * Retorna tools globalmente habilitadas (system e user que estão habilitadas no DB)
 	 */
 	async getEnabledTools(): Promise<ToolDefinition[]> {
 		try {
-			// 1. System tools sempre disponíveis
-			const systemTools = getSystemTools();
-
-			// 2. Buscar user tools no banco
 			const globalToolsDb = await db.select().from(globalTools);
 
-			// 3. Se não tem no banco, inicializar com defaults
+			// Se não tem no banco, inicializar com defaults
 			if (globalToolsDb.length === 0) {
 				await this.initializeTools();
 				return this.getEnabledTools(); // Recursivo
 			}
 
-			// 4. Filtrar user tools habilitadas
+			const enabledMap = new Map(globalToolsDb.map((t) => [t.toolName, t.enabled]));
+
+			// System tools: respeitar DB, mas default enabled se não encontrada (retrocompat)
+			const enabledSystemTools = getSystemTools().filter((t) => enabledMap.get(t.name) !== false);
+
+			// User tools: verificar DB
 			const enabledUserTools = globalToolsDb
 				.filter((t) => t.enabled && t.category === 'user')
 				.map((t) => getToolDefinition(t.toolName as ToolName))
 				.filter((t): t is ToolDefinition => t !== undefined);
 
-			return [...systemTools, ...enabledUserTools];
+			return [...enabledSystemTools, ...enabledUserTools];
 		} catch (error) {
 			loggers.ai.error({ err: error }, '❌ Erro ao buscar tools globais');
 			// Fallback: retornar apenas system tools
@@ -59,12 +60,6 @@ class ToolService {
 	 * Verifica se tool está globalmente habilitada
 	 */
 	async canUseTool(toolName: ToolName): Promise<boolean> {
-		// System tools sempre disponíveis
-		if (isSystemTool(toolName)) {
-			return true;
-		}
-
-		// User tools: verificar se está habilitada globalmente
 		const enabledTools = await this.getEnabledTools();
 		return enabledTools.some((t) => t.name === toolName);
 	}
@@ -76,12 +71,20 @@ class ToolService {
 		loggers.ai.info('🔧 Inicializando tools globais');
 
 		const allUserTools = getUserTools();
+		const allSystemTools = getSystemTools();
 
-		const toolsToInsert = allUserTools.map((tool) => ({
-			toolName: tool.name,
-			enabled: true, // Todas habilitadas por padrão
-			category: tool.category,
-		}));
+		const toolsToInsert = [
+			...allSystemTools.map((tool) => ({
+				toolName: tool.name,
+				enabled: true,
+				category: 'system' as const,
+			})),
+			...allUserTools.map((tool) => ({
+				toolName: tool.name,
+				enabled: true,
+				category: tool.category,
+			})),
+		];
 
 		await db.insert(globalTools).values(toolsToInsert).onConflictDoNothing();
 
@@ -90,11 +93,11 @@ class ToolService {
 
 	/**
 	 * Atualiza tool global (admin only)
+	 * System tools podem ser desabilitadas, mas isso pode causar instabilidade.
 	 */
 	async updateTool(toolName: ToolName, enabled: boolean): Promise<void> {
-		// Não permitir alterar system tools
 		if (isSystemTool(toolName)) {
-			throw new Error('System tools não podem ser desabilitadas');
+			loggers.ai.warn({ toolName, enabled }, '⚠️ Tool de sistema sendo alterada — pode causar instabilidade');
 		}
 
 		await db.update(globalTools).set({ enabled, updatedAt: new Date() }).where(eq(globalTools.toolName, toolName));

@@ -21,6 +21,13 @@ export const webhookRoutes = new Hono()
 				return c.json({ error: 'Telegram not configured' }, 500);
 			}
 
+			// Valida autenticidade do webhook antes de processar
+			const isTelegramValid = telegramAdapter.verifyWebhook(c.req.raw);
+			if (!isTelegramValid) {
+				setAttributes({ 'webhook.status': 'unauthorized' });
+				return c.json({ error: 'Unauthorized' }, 401);
+			}
+
 			try {
 				const body = await c.req.json();
 				loggers.webhook.debug({ body }, '📦 Raw Telegram body');
@@ -102,8 +109,19 @@ export const webhookRoutes = new Hono()
 				return c.json({ error: 'WhatsApp not configured' }, 500);
 			}
 
+			// Valida assinatura HMAC SHA-256 do Meta antes de processar
+			const rawBody = await c.req.text();
+			const isWhatsAppValid = await whatsappAdapter.verifyWebhook({
+				headers: c.req.raw.headers,
+				body: rawBody,
+			});
+			if (!isWhatsAppValid) {
+				setAttributes({ 'webhook.status': 'unauthorized' });
+				return c.json({ error: 'Unauthorized' }, 401);
+			}
+
 			try {
-				const body = await c.req.json();
+				const body = JSON.parse(rawBody);
 				const message = whatsappAdapter.parseIncomingMessage(body);
 
 				if (message) {

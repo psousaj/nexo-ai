@@ -12,6 +12,14 @@ export const adminRoutes = new Hono()
 		const conversations = await adminService.getConversationSummaries();
 		return c.json(conversations);
 	})
+	.get('/conversations/:id/messages', async (c) => {
+		const { id } = c.req.param();
+		const result = await adminService.getConversationMessages(id);
+		if (!result) {
+			return c.json({ error: 'Conversa não encontrada' }, 404);
+		}
+		return c.json({ success: true, data: result });
+	})
 	// Discord Bot Installation Link
 	.get('/discord-bot-info', async (c) => {
 		return c.json({

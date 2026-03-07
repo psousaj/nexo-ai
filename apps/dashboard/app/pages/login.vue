@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LayoutGrid, Loader2, Lock, Mail } from 'lucide-vue-next';
 import api from '@/utils/api';
 import { useAuthStore } from '~/stores/auth';
 

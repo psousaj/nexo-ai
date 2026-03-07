@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Loader2, Save, X } from 'lucide-vue-next';
 import type { ItemType } from '~/types/dashboard';
 
 const props = defineProps<{
@@ -14,7 +15,7 @@ const form = ref({
 	content: '',
 });
 
-const _types = [
+const types = [
 	{ label: 'Nota', value: 'note' },
 	{ label: 'Link', value: 'link' },
 	{ label: 'Filme', value: 'movie' },
@@ -27,7 +28,7 @@ const handleClose = () => {
 	emit('close');
 };
 
-const _handleSave = () => {
+const handleSave = () => {
 	if (!form.value.title || !form.value.content) return;
 	emit('save', { ...form.value });
 };

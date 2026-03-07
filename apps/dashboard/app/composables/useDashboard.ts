@@ -1,6 +1,7 @@
 import type {
 	Account,
 	AnalyticsData,
+	ConversationAudit,
 	ConversationSummary,
 	ItemType,
 	MemoryItem,
@@ -69,14 +70,22 @@ export const useDashboard = () => {
 		const { data } = await api.get<any[]>('/admin/conversations');
 		return data.map((conv: any) => ({
 			id: conv.id,
+			userId: conv.userId,
 			userHash: conv.userHash,
-			platform: 'Telegram',
-			duration: '5m',
+			provider: conv.provider ?? 'unknown',
+			duration: '—',
 			sentiment: 'neutral',
 			messageCount: conv.messages || 0,
 			lastInteraction: conv.lastMessage,
 			highlights: [],
 		}));
+	};
+
+	const getConversationMessages = async (conversationId: string): Promise<ConversationAudit> => {
+		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(
+			`/admin/conversations/${conversationId}/messages`,
+		);
+		return data.data;
 	};
 
 	const getPreferences = async (): Promise<UserPreferences> => {
@@ -186,6 +195,7 @@ export const useDashboard = () => {
 		updateMemory,
 		deleteMemory,
 		getConversations,
+		getConversationMessages,
 		getPreferences,
 		updatePreferences,
 		getAccounts,

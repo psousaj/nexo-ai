@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Loader2, Save, X } from 'lucide-vue-next';
 import type { MemoryItem } from '~/types/dashboard';
 
 const props = defineProps<{
@@ -33,7 +34,7 @@ const handleClose = () => {
 	emit('close');
 };
 
-const _handleSave = () => {
+const handleSave = () => {
 	if (!form.value.title || !form.value.content) return;
 	emit('save', { ...form.value });
 };

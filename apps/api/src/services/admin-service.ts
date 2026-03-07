@@ -1,22 +1,18 @@
 import { db } from '@/db';
 import { authProviders, conversations, messages, users } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
-import { count, desc, eq } from 'drizzle-orm';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 
 export class AdminService {
 	/**
-	 * Lista sumário de conversas anonimizadas
+	 * Lista sumário de conversas anonimizadas (LGPD compliant).
+	 * Retorna userId hasheado + provider principal do usuário — sem nome ou e-mail.
 	 */
 	async getConversationSummaries(limit = 20) {
-		// Busca conversas recentes com o nome do usuário (para o dashboard admin ver quem é)
-		// No contrato diz userHash anonimizado, mas para admin costuma ser útil ver o nome
-		// Vamos seguir o contrato e retornar sessionId/userHash se necessário
-
 		const result = await db
 			.select({
 				id: conversations.id,
 				userId: conversations.userId,
-				userName: users.name,
 				state: conversations.state,
 				isActive: conversations.isActive,
 				updatedAt: conversations.updatedAt,
@@ -24,20 +20,88 @@ export class AdminService {
 				messageCount: count(messages.id),
 			})
 			.from(conversations)
-			.leftJoin(users, eq(conversations.userId, users.id))
 			.leftJoin(messages, eq(conversations.id, messages.conversationId))
-			.groupBy(conversations.id, users.id)
+			.groupBy(conversations.id)
 			.orderBy(desc(conversations.updatedAt))
 			.limit(limit);
 
+		// Busca o provider principal de cada userId de forma batch
+		const userIds = [...new Set(result.map((c) => c.userId))];
+		const providerRows = userIds.length
+			? await db
+					.select({ userId: authProviders.userId, provider: authProviders.provider })
+					.from(authProviders)
+					.where(inArray(authProviders.userId, userIds))
+			: [];
+
+		const providerMap = new Map<string, string>();
+		for (const row of providerRows) {
+			// Prioridade: telegram > whatsapp > discord > outros
+			const priority: Record<string, number> = { telegram: 0, whatsapp: 1, discord: 2 };
+			const existing = providerMap.get(row.userId);
+			if (!existing || (priority[row.provider] ?? 99) < (priority[existing] ?? 99)) {
+				providerMap.set(row.userId, row.provider);
+			}
+		}
+
 		return result.map((c) => ({
 			id: c.id,
-			userHash: c.userId.substring(0, 8), // Anonimizado conforme contrato
-			userName: c.userName || 'Anônimo',
+			userId: c.userId, // necessário para o front comparar com o usuário logado
+			userHash: c.userId.substring(0, 8), // Anonimizado conforme LGPD
+			provider: providerMap.get(c.userId) ?? 'unknown',
 			status: c.isActive ? 'Active' : 'Closed',
 			lastMessage: c.updatedAt,
 			messages: Number(c.messageCount),
 		}));
+	}
+
+	/**
+	 * Retorna todas as mensagens de uma conversa (auditoria)
+	 */
+	async getConversationMessages(conversationId: string) {
+		const conv = await db
+			.select({
+				id: conversations.id,
+				userId: conversations.userId,
+				userName: users.name,
+				state: conversations.state,
+				context: conversations.context,
+				isActive: conversations.isActive,
+				createdAt: conversations.createdAt,
+				updatedAt: conversations.updatedAt,
+			})
+			.from(conversations)
+			.leftJoin(users, eq(conversations.userId, users.id))
+			.where(eq(conversations.id, conversationId))
+			.limit(1);
+
+		if (!conv.length) return null;
+
+		const msgs = await db
+			.select({
+				id: messages.id,
+				role: messages.role,
+				content: messages.content,
+				provider: messages.provider,
+				createdAt: messages.createdAt,
+			})
+			.from(messages)
+			.where(eq(messages.conversationId, conversationId))
+			.orderBy(messages.createdAt);
+
+		return {
+			conversation: {
+				id: conv[0].id,
+				userId: conv[0].userId,
+				userName: conv[0].userName || 'Anônimo',
+				state: conv[0].state,
+				context: conv[0].context,
+				isActive: conv[0].isActive,
+				createdAt: conv[0].createdAt,
+				updatedAt: conv[0].updatedAt,
+			},
+			messages: msgs,
+		};
 	}
 
 	/**

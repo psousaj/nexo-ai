@@ -47,13 +47,36 @@ export interface ErrorReport {
 
 export interface ConversationSummary {
 	id: string;
+	userId: string; // necessário para comparar com usuário logado (LGPD gate)
 	userHash: string;
-	platform: string;
+	provider: 'telegram' | 'whatsapp' | 'discord' | 'unknown' | string;
 	duration: string;
 	sentiment: 'positive' | 'neutral' | 'negative';
 	messageCount: number;
 	lastInteraction: string;
 	highlights: string[];
+}
+
+export interface ConversationMessage {
+	id: string;
+	role: 'user' | 'assistant' | 'system';
+	content: string;
+	provider: string | null;
+	createdAt: string;
+}
+
+export interface ConversationAudit {
+	conversation: {
+		id: string;
+		userId: string;
+		userName: string;
+		state: string;
+		context: Record<string, any> | null;
+		isActive: boolean;
+		createdAt: string;
+		updatedAt: string;
+	};
+	messages: ConversationMessage[];
 }
 
 export interface Account {

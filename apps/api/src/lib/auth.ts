@@ -22,6 +22,7 @@ export const authPlugin = betterAuth({
 		accountLinking: {
 			enabled: true,
 			trustedProviders: ['discord', 'google', 'microsoft'],
+			allowDifferentEmails: true,
 		},
 	},
 	user: {

@@ -10,7 +10,7 @@
 
 		<!-- Alert de aviso -->
 		<UAlert
-			color="amber"
+			color="warning"
 			variant="soft"
 			icon="i-heroicons-exclamation-triangle"
 			title="Atenção: Controle Global"
@@ -53,9 +53,9 @@
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm text-gray-600 dark:text-gray-400">Sistema</p>
-						<p class="text-2xl font-bold text-blue-600">{{ stats.system }}</p>
+						<p class="text-2xl font-bold text-amber-600">{{ stats.system }}</p>
 					</div>
-					<UIcon name="i-heroicons-lock-closed" class="w-8 h-8 text-blue-400" />
+					<UIcon name="i-heroicons-shield-exclamation" class="w-8 h-8 text-amber-400" />
 				</div>
 			</UCard>
 		</div>
@@ -63,7 +63,7 @@
 		<!-- Bulk Actions -->
 		<div class="flex gap-3">
 			<UButton
-				color="green"
+				color="success"
 				variant="soft"
 				icon="i-heroicons-check-circle"
 				:loading="isEnablingAll"
@@ -73,7 +73,7 @@
 			</UButton>
 
 			<UButton
-				color="red"
+				color="error"
 				variant="soft"
 				icon="i-heroicons-x-circle"
 				:loading="isDisablingAll"
@@ -87,28 +87,56 @@
 			</UButton>
 		</div>
 
-		<!-- System Tools (Read-only) -->
+		<!-- System Tools -->
 		<UCard>
 			<template #header>
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-2">
-						<UIcon name="i-heroicons-lock-closed" class="w-5 h-5 text-blue-600" />
+						<UIcon name="i-heroicons-shield-exclamation" class="w-5 h-5 text-amber-600" />
 						<h2 class="text-xl font-semibold">Tools de Sistema</h2>
 					</div>
-					<UBadge color="blue" variant="subtle">Sempre Habilitadas</UBadge>
+					<UBadge color="warning" variant="subtle">Toggleáveis com risco</UBadge>
 				</div>
 			</template>
 
+			<UAlert
+						color="warning"
+				icon="i-heroicons-exclamation-triangle"
+				title="Atenção: Tools de Sistema"
+				description="Desabilitar tools de sistema pode causar bugs, instabilidade ou perda de funcionalidades críticas do assistente."
+				class="mb-4"
+			/>
+
 			<div class="space-y-3">
-				<div v-for="tool in systemTools" :key="tool.name" class="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-					<div class="flex items-center gap-3">
-						<span class="text-2xl">{{ tool.icon }}</span>
-						<div>
-							<p class="font-medium">{{ tool.label }}</p>
-							<p class="text-sm text-gray-600 dark:text-gray-400">{{ tool.description }}</p>
+				<div
+					v-for="tool in systemTools"
+					:key="tool.name"
+					class="rounded-lg border border-amber-200 dark:border-amber-800 overflow-hidden"
+					:class="tool.enabled ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'"
+				>
+					<div class="flex items-center justify-between p-4">
+						<div class="flex items-center gap-3">
+							<span class="text-2xl">{{ tool.icon }}</span>
+							<div>
+								<div class="flex items-center gap-2">
+									<p class="font-medium">{{ tool.label }}</p>
+									<UBadge color="warning" variant="subtle" size="xs">sistema</UBadge>
+								</div>
+								<p class="text-sm text-gray-600 dark:text-gray-400">{{ tool.description }}</p>
+							</div>
 						</div>
+
+					<USwitch
+							:model-value="tool.enabled"
+							:loading="updatingTool === tool.name"
+							@update:model-value="toggleTool(tool.name, $event)"
+						/>
 					</div>
-					<UToggle :model-value="true" disabled />
+
+					<div v-if="!tool.enabled" class="px-4 pb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
+						<UIcon name="i-heroicons-exclamation-circle" class="w-4 h-4 flex-shrink-0" />
+						<span>Esta tool de sistema está <strong>desabilitada</strong> — funcionalidades críticas podem estar indisponíveis.</span>
+					</div>
 				</div>
 			</div>
 		</UCard>
@@ -121,7 +149,7 @@
 						<UIcon name="i-heroicons-puzzle-piece" class="w-5 h-5 text-purple-600" />
 						<h2 class="text-xl font-semibold">Tools de Usuário</h2>
 					</div>
-					<UBadge color="purple" variant="subtle">Plugáveis</UBadge>
+					<UBadge color="secondary" variant="subtle">Plugáveis</UBadge>
 				</div>
 			</template>
 
@@ -140,7 +168,7 @@
 						</div>
 					</div>
 
-					<UToggle
+					<USwitch
 						:model-value="tool.enabled"
 						:loading="updatingTool === tool.name"
 						@update:model-value="toggleTool(tool.name, $event)"
@@ -155,7 +183,7 @@
 import type { ToolDefinition } from '~/types';
 
 definePageMeta({
-	middleware: ['auth', 'role'],
+	middleware: ['role'],
 	layout: 'default',
 });
 
@@ -207,7 +235,7 @@ async function loadTools() {
 	} catch (error) {
 		toast.add({
 			title: 'Erro ao carregar tools',
-			color: 'red',
+			color: 'error',
 			icon: 'i-heroicons-x-circle',
 		});
 	} finally {
@@ -239,13 +267,13 @@ async function toggleTool(toolName: string, enabled: boolean) {
 		toast.add({
 			title: enabled ? 'Tool habilitada' : 'Tool desabilitada',
 			description: `${toolName} ${enabled ? 'habilitada' : 'desabilitada'} para todos os usuários`,
-			color: enabled ? 'green' : 'orange',
+			color: enabled ? 'success' : 'warning',
 			icon: enabled ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle',
 		});
 	} catch (error) {
 		toast.add({
 			title: 'Erro ao atualizar tool',
-			color: 'red',
+			color: 'error',
 			icon: 'i-heroicons-x-circle',
 		});
 	} finally {
@@ -265,13 +293,13 @@ async function enableAllTools() {
 
 		toast.add({
 			title: 'Todas as tools habilitadas',
-			color: 'green',
+			color: 'success',
 			icon: 'i-heroicons-check-circle',
 		});
 	} catch (error) {
 		toast.add({
 			title: 'Erro ao habilitar todas as tools',
-			color: 'red',
+			color: 'error',
 			icon: 'i-heroicons-x-circle',
 		});
 	} finally {
@@ -291,13 +319,13 @@ async function disableAllTools() {
 
 		toast.add({
 			title: 'Todas as tools desabilitadas',
-			color: 'orange',
+			color: 'warning',
 			icon: 'i-heroicons-x-circle',
 		});
 	} catch (error) {
 		toast.add({
 			title: 'Erro ao desabilitar todas as tools',
-			color: 'red',
+			color: 'error',
 			icon: 'i-heroicons-x-circle',
 		});
 	} finally {
