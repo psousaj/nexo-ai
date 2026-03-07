@@ -179,7 +179,10 @@ export class UserService {
 						},
 					};
 					await cacheSet(cacheKey, result, 3600);
-					loggers.webhook.info({ provider, externalId, userId: realUser.id }, '🔗 auth_provider criado via Better Auth account');
+					loggers.webhook.info(
+						{ provider, externalId, userId: realUser.id },
+						'🔗 auth_provider criado via Better Auth account',
+					);
 					return result;
 				}
 			}

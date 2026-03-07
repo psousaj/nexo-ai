@@ -1,7 +1,11 @@
 import type { ConversationState } from '@/types';
 import type { IntentResult } from './intent-classifier';
 
-export function decideAgentAction(intent: IntentResult, state: ConversationState, conversationFreedomEnabled: boolean): string {
+export function decideAgentAction(
+	intent: IntentResult,
+	state: ConversationState,
+	conversationFreedomEnabled: boolean,
+): string {
 	// Confirmação/Negação só importam se estamos aguardando
 	if (state === 'awaiting_confirmation' || state === 'awaiting_final_confirmation') {
 		if (intent.action === 'confirm') return 'handle_confirmation';

@@ -22,7 +22,12 @@ export class AnalyticsService {
 				.where(eq(conversations.userId, userId));
 			return [
 				{ title: 'Memórias Salvas', value: this.formatValue(Number(totalMemories.value)), trend: 0, icon: 'Database' },
-				{ title: 'Mensagens Processadas', value: this.formatValue(Number(totalMessages.value)), trend: 0, icon: 'MessageSquare' },
+				{
+					title: 'Mensagens Processadas',
+					value: this.formatValue(Number(totalMessages.value)),
+					trend: 0,
+					icon: 'MessageSquare',
+				},
 			];
 		}
 
@@ -123,10 +128,7 @@ export class AnalyticsService {
 
 		// month_key é string 'YYYY-MM' — comparação e deduplicação por valor funciona corretamente
 		const allKeys = Array.from(
-			new Set([
-				...memoryTrends.map((m) => m.month_key as string),
-				...messageTrends.map((m) => m.month_key as string),
-			]),
+			new Set([...memoryTrends.map((m) => m.month_key as string), ...messageTrends.map((m) => m.month_key as string)]),
 		).sort();
 
 		if (allKeys.length === 0) {
@@ -175,7 +177,9 @@ export class AnalyticsService {
 				count: count(),
 			})
 			.from(memoryItems);
-		const result = await (userId ? query.where(eq(memoryItems.userId, userId)).groupBy(memoryItems.type) : query.groupBy(memoryItems.type));
+		const result = await (userId
+			? query.where(eq(memoryItems.userId, userId)).groupBy(memoryItems.type)
+			: query.groupBy(memoryItems.type));
 
 		return {
 			labels: result.map((r) => r.type),

@@ -1536,7 +1536,18 @@ export const NEXO_ENTITIES = {
 		},
 		{
 			value: 'tv_show',
-			synonyms: ['série', 'séries', 'series', 'show', 'programa', 'novela', 'seriado', 'seriados', 'minissérie', 'temporada'],
+			synonyms: [
+				'série',
+				'séries',
+				'series',
+				'show',
+				'programa',
+				'novela',
+				'seriado',
+				'seriados',
+				'minissérie',
+				'temporada',
+			],
 		},
 		{
 			value: 'video',
