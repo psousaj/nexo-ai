@@ -2,11 +2,9 @@ import { getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { getChannelLinkSuccessMessage } from '@/config/prompts';
 import { db } from '@/db';
-import { type AuthProvider, authProviderEnum, authProviders, accounts as betterAuthAccounts } from '@/db/schema';
+import { type MessagingChannel, messagingChannelEnum, userChannels, accounts as betterAuthAccounts } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
-import { emailService } from '@/services/email/email.service';
 import { preferencesService } from '@/services/preferences-service';
-import { userEmailService } from '@/services/user-email-service';
 import { userService } from '@/services/user-service';
 import type { AuthContext } from '@/types/hono';
 import { loggers } from '@/utils/logger';
@@ -15,9 +13,9 @@ import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-const AUTH_PROVIDER_SET = new Set<AuthProvider>(authProviderEnum.enumValues as AuthProvider[]);
-const toAuthProvider = (provider: string): AuthProvider | null => {
-	return AUTH_PROVIDER_SET.has(provider as AuthProvider) ? (provider as AuthProvider) : null;
+const MESSAGING_CHANNEL_SET = new Set<MessagingChannel>(messagingChannelEnum.enumValues as MessagingChannel[]);
+const toMessagingChannel = (provider: string): MessagingChannel | null => {
+	return MESSAGING_CHANNEL_SET.has(provider as MessagingChannel) ? (provider as MessagingChannel) : null;
 };
 
 export const userRoutes = new Hono<AuthContext>()
@@ -31,93 +29,6 @@ export const userRoutes = new Hono<AuthContext>()
 		const userState = c.get('user');
 		const accounts = await userService.getUserAccounts(userState.id);
 		return c.json({ accounts });
-	})
-	.post('/accounts/sync', async (c) => {
-		// Sincroniza accounts do Better Auth com auth_providers (útil para usuários já existentes)
-		const userState = c.get('user');
-		const userId = userState.id;
-
-		try {
-			// Buscar todos os accounts do Better Auth
-			const betterAuthAccountsList = await db
-				.select()
-				.from(betterAuthAccounts)
-				.where(eq(betterAuthAccounts.userId, userId));
-
-			console.log(
-				`🔄 [Sync] Encontrado ${betterAuthAccountsList.length} account(s) no Better Auth para usuário ${userId}`,
-			);
-
-			let synced = 0;
-			let skipped = 0;
-
-			for (const account of betterAuthAccountsList) {
-				const providerId = toAuthProvider(account.providerId); // 'discord', 'google', etc
-				const accountId = account.accountId; // ID do usuário no provider
-
-				if (!providerId) {
-					console.warn(`⚠️ [Sync] provider não suportado para auth_providers: ${account.providerId}`);
-					skipped++;
-					continue;
-				}
-
-				// Verificar se já existe na tabela auth_providers
-				const [existingUserAccount] = await db
-					.select()
-					.from(authProviders)
-					.where(
-						and(
-							eq(authProviders.userId, userId),
-							eq(authProviders.provider, providerId),
-							eq(authProviders.providerUserId, accountId),
-						),
-					)
-					.limit(1);
-
-				if (existingUserAccount) {
-					console.log(`✅ [Sync] auth_provider já existe para ${providerId}, pulando`);
-					skipped++;
-					continue;
-				}
-
-				// Buscar dados do usuário para metadata
-				const user = await userService.getUserById(userId);
-
-				// Criar metadata baseado no provider
-				const metadata: Record<string, any> = {};
-
-				if (providerId === 'discord') {
-					metadata.username = user?.name || accountId;
-					metadata.avatarUrl = user?.image || null;
-				} else if (providerId === 'google') {
-					metadata.email = user?.email || null;
-				}
-
-				// Criar registro em auth_providers
-				await db.insert(authProviders).values({
-					userId,
-					provider: providerId,
-					providerUserId: accountId,
-					providerEmail: metadata.email || null,
-					metadata: JSON.stringify(metadata),
-					linkedAt: new Date(),
-					updatedAt: new Date(),
-				});
-
-				console.log(`✅ [Sync] auth_provider criado: ${providerId} -> ${accountId}`);
-				synced++;
-			}
-
-			return c.json({
-				success: true,
-				message: `Sincronizado ${synced} conta(s), ${skipped} já existia(m)`,
-				synced,
-				skipped,
-			});
-		} catch (error) {
-			console.error('❌ [Sync] Erro ao sincronizar accounts:', error);
-			return c.json({ error: 'Erro ao sincronizar contas' }, 500);
-		}
 	})
 	.post('/link/telegram', async (c) => {
 		const userState = c.get('user');
@@ -168,7 +79,9 @@ export const userRoutes = new Hono<AuthContext>()
 		try {
 			const provider = await getProvider(linked.provider);
 			const accounts = await userService.getUserAccounts(userState.id);
-			const linkedAccount = [...accounts].reverse().find((account: any) => account.provider === linked.provider);
+			const linkedAccount = [...accounts]
+				.reverse()
+				.find((account: any) => account.type === 'channel' && account.provider === linked.provider);
 			const confirmationMessage = getChannelLinkSuccessMessage(linked.provider);
 
 			if (provider && linkedAccount?.externalId) {
@@ -210,140 +123,27 @@ export const userRoutes = new Hono<AuthContext>()
 			return c.json({ success: true });
 		},
 	)
-	// ============================================================================
-	// EMAIL MANAGEMENT ROUTES
-	// ============================================================================
-	.get('/emails', async (c) => {
-		const userState = c.get('user');
-		const emails = await userEmailService.getUserEmails(userState.id);
-		return c.json({ emails });
-	})
-	.post(
-		'/emails',
-		zValidator(
-			'json',
-			z.object({
-				email: z.string().email(),
-				provider: z.string().default('manual'),
-			}),
-		),
-		async (c) => {
-			const userState = c.get('user');
-			const { email, provider } = c.req.valid('json');
-
-			try {
-				const newEmail = await userEmailService.addEmail(userState.id, email, provider, false);
-				await emailService.sendConfirmationEmail({
-					userId: userState.id,
-					userName: userState.name || 'usuário',
-					email: newEmail.email,
-				});
-
-				return c.json({ email: newEmail, confirmationSent: true }, 201);
-			} catch (error) {
-				return c.json({ error: error instanceof Error ? error.message : 'Erro ao adicionar email' }, 400);
-			}
-		},
-	)
-	.post('/emails/resend-confirmation', async (c) => {
-		const userState = c.get('user');
-		const user = await userService.getUserById(userState.id);
-
-		if (!user || !user.email) {
-			return c.json({ error: 'Usuário sem email principal cadastrado' }, 400);
-		}
-
-		if (user.emailVerified) {
-			return c.json({ success: true, alreadyVerified: true });
-		}
-
-		const existingEmails = await userEmailService.getUserEmails(userState.id);
-		const existingPrimary = existingEmails.find((emailEntry) => emailEntry.email === user.email);
-
-		if (!existingPrimary) {
-			await userEmailService.addEmail(userState.id, user.email, 'email', false);
-		}
-
-		await emailService.sendConfirmationEmail({
-			userId: userState.id,
-			userName: userState.name || user.name || 'usuário',
-			email: user.email,
-		});
-
-		return c.json({ success: true, sentTo: user.email });
-	})
-	.post(
-		'/emails/:emailId/resend-confirmation',
-		zValidator('param', z.object({ emailId: z.string().uuid() })),
-		async (c) => {
-			const userState = c.get('user');
-			const { emailId } = c.req.valid('param');
-
-			const userEmail = await userEmailService.getEmailById(userState.id, emailId);
-			if (!userEmail) {
-				return c.json({ error: 'Email não encontrado' }, 404);
-			}
-
-			if (userEmail.verified) {
-				return c.json({ success: true, alreadyVerified: true });
-			}
-
-			await emailService.sendConfirmationEmail({
-				userId: userState.id,
-				userName: userState.name || 'usuário',
-				email: userEmail.email,
-			});
-
-			return c.json({ success: true });
-		},
-	)
-	.patch('/emails/:emailId/primary', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
-		const userState = c.get('user');
-		const { emailId } = c.req.valid('param');
-
-		try {
-			await userEmailService.setPrimaryEmail(userState.id, emailId);
-			return c.json({ success: true });
-		} catch (error) {
-			return c.json({ error: error instanceof Error ? error.message : 'Erro ao definir email primário' }, 400);
-		}
-	})
-	.delete('/emails/:emailId', zValidator('param', z.object({ emailId: z.string().uuid() })), async (c) => {
-		const userState = c.get('user');
-		const { emailId } = c.req.valid('param');
-
-		try {
-			await userEmailService.removeEmail(userState.id, emailId);
-			return c.json({ success: true });
-		} catch (error) {
-			return c.json({ error: error instanceof Error ? error.message : 'Erro ao remover email' }, 400);
-		}
-	})
 	.delete('/accounts/:provider', zValidator('param', z.object({ provider: z.string() })), async (c) => {
 		const userState = c.get('user');
 		const { provider } = c.req.valid('param');
-		const authProvider = toAuthProvider(provider);
-
-		if (!authProvider) {
-			return c.json({ error: 'Provider inválido para desvinculação' }, 400);
-		}
 
 		try {
-			// Deletar de auth_providers do nosso sistema
-			await db
-				.delete(authProviders)
-				.where(and(eq(authProviders.userId, userState.id), eq(authProviders.provider, authProvider)));
+			const channel = toMessagingChannel(provider);
 
-			// Deletar de accounts do Better Auth
-			await db
-				.delete(betterAuthAccounts)
-				.where(and(eq(betterAuthAccounts.userId, userState.id), eq(betterAuthAccounts.providerId, authProvider)));
+			if (channel) {
+				// Canal de mensageria (whatsapp/telegram/discord-bot) → remover de user_channels
+				await db.delete(userChannels).where(and(eq(userChannels.userId, userState.id), eq(userChannels.channel, channel)));
+			} else {
+				// OAuth (google, discord-oauth, etc.) → remover de accounts do Better Auth
+				await db
+					.delete(betterAuthAccounts)
+					.where(and(eq(betterAuthAccounts.userId, userState.id), eq(betterAuthAccounts.providerId, provider)));
+			}
 
-			console.log(`🗑️ [Auth] Conta ${provider} desvinculada para usuário ${userState.id}`);
-
+			loggers.webhook.info({ provider, userId: userState.id }, '🗑️ Conta desvinculada');
 			return c.json({ success: true });
 		} catch (error) {
-			console.error(`❌ [Auth] Erro ao desvincular conta ${provider}:`, error);
+			loggers.webhook.error({ error, provider, userId: userState.id }, '❌ Erro ao desvincular conta');
 			return c.json({ error: 'Erro ao desvincular conta' }, 500);
 		}
 	});

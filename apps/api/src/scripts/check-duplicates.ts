@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { authProviders, users } from '@/db/schema';
+import { userChannels, users } from '@/db/schema';
 
 async function checkDuplicates() {
 	console.log('--- Checking for Duplicate Users ---');
@@ -8,7 +8,7 @@ async function checkDuplicates() {
 	console.log(`Total Users: ${allUsers.length}`);
 
 	// Group users by phone em metadata para identificar possíveis duplicados
-	const allAccounts = await db.select().from(authProviders);
+	const allAccounts = await db.select().from(userChannels);
 	console.log(`Total Accounts: ${allAccounts.length}`);
 
 	console.log('\n--- Accounts ---');

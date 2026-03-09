@@ -1,7 +1,6 @@
 import { env } from '@/config/env';
 import { authRouter } from '@/routes/auth-better.routes';
 import { dashboardRouter } from '@/routes/dashboard';
-import { emailConfirmRoutes } from '@/routes/email-confirm.routes';
 import { healthRouter } from '@/routes/health';
 import { itemsRouter } from '@/routes/items';
 import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
@@ -203,7 +202,6 @@ app.route('/health', healthRouter);
 app.route('/webhook', webhookRouter);
 app.route('/items', itemsRouter);
 app.route('/api/auth', authRouter);
-app.route('/api/emails', emailConfirmRoutes);
 app.route('/api', dashboardRouter);
 
 // Debug route para testar Sentry (apenas em desenvolvimento)
