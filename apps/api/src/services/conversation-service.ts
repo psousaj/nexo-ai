@@ -10,7 +10,7 @@ import {
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { Language } from '@/services/message-analysis/types/analysis-result.types';
 import { instrumentService } from '@/services/service-instrumentation';
-import type { ConversationContext, ConversationState, MessageRole } from '@/types';
+import type { ConversationContext, ConversationState, MessageMetadata, MessageRole } from '@/types';
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
@@ -19,6 +19,8 @@ type MessagePersistOptions = {
 	externalId?: string;
 	providerMessageId?: string;
 	providerPayload?: Record<string, unknown>;
+	/** Metadados adicionais da mensagem (ex: trace do orquestrador para mensagens do assistente) */
+	metadata?: MessageMetadata;
 };
 
 export class ConversationService {
@@ -27,12 +29,7 @@ export class ConversationService {
 		return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
 	}
 
-	private buildMessagePersistData(
-		conversationId: string,
-		role: MessageRole,
-		content: string,
-		options?: MessagePersistOptions,
-	) {
+	private buildMessagePersistData(conversationId: string, role: MessageRole, content: string, options?: MessagePersistOptions) {
 		return {
 			conversationId,
 			role,
@@ -41,6 +38,7 @@ export class ConversationService {
 			externalId: options?.externalId,
 			providerMessageId: options?.providerMessageId,
 			providerPayload: this.normalizeProviderPayload(options?.providerPayload),
+			metadata: options?.metadata,
 		};
 	}
 
@@ -72,9 +70,11 @@ export class ConversationService {
 
 	/**
 	 * Busca ou cria conversação ativa para o usuário
-	 * Conversas 'closed' são consideradas inativas e uma nova é criada
+	 * Conversas 'closed' são consideradas inativas e uma nova é criada.
+	 * @param channel Canal de origem da mensagem (telegram, whatsapp, discord).
+	 *                Gravado na criação; se a conversa já existe mas não tem channel, atualiza.
 	 */
-	async findOrCreateConversation(userId: string) {
+	async findOrCreateConversation(userId: string, channel?: string) {
 		// Busca conversa ativa que NÃO esteja fechada
 		const [existing] = await db
 			.select()
@@ -94,6 +94,7 @@ export class ConversationService {
 				.insert(conversations)
 				.values({
 					userId,
+					channel: channel ?? null,
 					state: 'idle',
 					context: {},
 					isActive: true,
@@ -105,7 +106,12 @@ export class ConversationService {
 		}
 
 		// Se tem conversa ativa e não está closed, retorna ela
+		// Aproveita para preencher channel se ainda não estava definido
 		if (existing) {
+			if (channel && !existing.channel) {
+				await db.update(conversations).set({ channel }).where(eq(conversations.id, existing.id));
+				return { ...existing, channel };
+			}
 			return existing;
 		}
 
@@ -117,6 +123,7 @@ export class ConversationService {
 			.insert(conversations)
 			.values({
 				userId,
+				channel: channel ?? null,
 				state: 'idle',
 				context: {},
 				isActive: true,
@@ -184,10 +191,7 @@ export class ConversationService {
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
-			loggers.db.info(
-				{ reason, confidence: ambiguityResult.confidence },
-				'🔍 Ambiguidade detectada, solicitando clarificação',
-			);
+			loggers.db.info({ reason, confidence: ambiguityResult.confidence }, '🔍 Ambiguidade detectada, solicitando clarificação');
 
 			// Gera opções dinamicamente a partir de tools habilitadas (ADR-019)
 			const clarificationOptions = await getClarificationOptions(language);

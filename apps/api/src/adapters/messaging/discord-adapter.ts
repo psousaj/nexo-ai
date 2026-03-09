@@ -201,9 +201,27 @@ export class DiscordAdapter implements MessagingProvider {
 
 			try {
 				const owner = await guild.fetchOwner();
-				await owner.send(
-					`🎉 Olá! Obrigado por adicionar o NEXO AI ao servidor **${guild.name}**!\n\nVocê pode me usar em DMs ou me marcar com @${botUsername} em canais.\n\nConfigure as integrações pelo dashboard.`,
-				);
+				const ownerId = owner.id;
+
+				// Tenta auto-vincular o dono do servidor via OAuth do Dashboard
+				const { userService } = await import('@/services/user-service');
+				const oauthUserId = await userService.findUserIdByOAuthAccount('discord', ownerId);
+
+				if (oauthUserId) {
+					await userService.linkAccountToUser(oauthUserId, 'discord', ownerId, {
+						username: owner.user.username,
+					});
+					loggers.discord.info({ guildName: guild.name, ownerId, oauthUserId }, '✅ Owner auto-vinculado via OAuth');
+					await owner.send(
+						`🎉 Olá **${owner.user.username}**! Bot adicionado ao servidor **${guild.name}** com sucesso!\n\n✅ Sua conta Nexo AI foi vinculada automaticamente! Já pode me enviar mensagens aqui no privado.`,
+					);
+				} else {
+					const signupLink = `${env.DASHBOARD_URL}/profile`;
+					await owner.send(
+						`🎉 Olá! Obrigado por adicionar o NEXO AI ao servidor **${guild.name}**!\n\nPara usar o bot, conecte sua conta Discord no painel:\n🔗 ${signupLink}\n\nDepois é só me mandar mensagem no privado!`,
+					);
+				}
+
 				loggers.discord.info({ guildName: guild.name }, '✅ DM sent to guild owner');
 			} catch (error) {
 				loggers.discord.error({ error, guildName: guild.name }, '❌ Failed to send DM to guild owner');
@@ -318,9 +336,7 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Handle messageDelete event
 	 */
-	private async handleMessageDelete(
-		message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>,
-	): Promise<void> {
+	private async handleMessageDelete(message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>): Promise<void> {
 		loggers.discord.debug({ messageId: message.id }, '🗑️ Message deleted');
 
 		// Handle message deletion if needed
@@ -473,9 +489,7 @@ export class DiscordAdapter implements MessagingProvider {
 			new SlashCommandBuilder()
 				.setName('profile')
 				.setDescription('Show or update your profile')
-				.addStringOption((option) =>
-					option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false),
-				)
+				.addStringOption((option) => option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false))
 				.addStringOption((option) => option.setName('value').setDescription('New value').setRequired(false)),
 			new SlashCommandBuilder().setName('help').setDescription('Show available commands'),
 		];
@@ -586,9 +600,7 @@ export class DiscordAdapter implements MessagingProvider {
 	} {
 		const isDirectMessage = payload.guildId == null;
 		const mentions = payload.mentions?.users;
-		const botMentioned = Array.isArray(mentions)
-			? mentions.some((mention: { bot?: boolean }) => Boolean(mention?.bot))
-			: false;
+		const botMentioned = Array.isArray(mentions) ? mentions.some((mention: { bot?: boolean }) => Boolean(mention?.bot)) : false;
 		const attachments = Array.isArray(payload.attachments)
 			? payload.attachments.map((attachment: { contentType?: string | null; url: string; name?: string }) => ({
 					type:
@@ -867,6 +879,41 @@ export class DiscordAdapter implements MessagingProvider {
  * Singleton instance
  */
 export const discordAdapter = new DiscordAdapter();
+
+/**
+ * Verifica se um usuário do Discord está presente (como dono ou membro) em algum servidor onde o bot está.
+ * Primeiro checa owner (cache), depois membro em cache, depois API fetch por guild.
+ * Retorna o primeiro servidor encontrado ou null.
+ */
+export async function findGuildOwnedByUser(discordUserId: string): Promise<{ id: string; name: string } | null> {
+	if (!isReady) return null;
+
+	// Passa rápido: checa dono na cache
+	for (const [, guild] of client.guilds.cache) {
+		if (guild.ownerId === discordUserId) {
+			return { id: guild.id, name: guild.name };
+		}
+	}
+
+	// Checa memória de membros (cache-only, sem API)
+	for (const [, guild] of client.guilds.cache) {
+		if (guild.members.cache.has(discordUserId)) {
+			return { id: guild.id, name: guild.name };
+		}
+	}
+
+	// Fallback: tenta buscar membro via API (pode falhar se o usuário não está no servidor)
+	for (const [, guild] of client.guilds.cache) {
+		try {
+			const member = await guild.members.fetch(discordUserId);
+			if (member) return { id: guild.id, name: guild.name };
+		} catch {
+			// Não é membro deste servidor
+		}
+	}
+
+	return null;
+}
 
 /**
  * Legacy function to send DM

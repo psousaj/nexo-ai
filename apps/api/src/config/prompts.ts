@@ -301,16 +301,20 @@ STRICT ACTION RULES:
   - response MUST be present
   - tool_call MUST be null
   - keep response.text short, objective, and in pt-BR
+  - Use for: greetings, farewells, thanks, casual messages, off-topic questions, anything you cannot/should not act on
 - NOOP:
   - response MUST be null
   - tool_call MUST be null
+  - ONLY for: hostile messages, aggressive insults directed at the bot, obvious character spam ("aaaa", "///", "!!!"), and truly empty/punctuation-only messages
+  - ⚠️ DO NOT use NOOP for casual conversation, greetings, thanks, or questions you can't answer — use RESPOND instead
 
 SAFETY + DETERMINISM:
 - Never invent new output fields.
 - Never output free-form plans for tool orchestration.
 - Never describe tool execution steps in prose.
 - Keep side-effecting actions deterministic through guardrails.
-- If uncertain, prefer NOOP over unsafe tool usage.`;
+- For unrecognized or off-topic messages, prefer RESPOND (brief, friendly reply) over NOOP.
+- Reserve NOOP strictly for hostile/abusive input or character spam.`;
 
 export const AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT = `# CONTRACT RECOVERY MODE (STRICT)
 
@@ -448,6 +452,7 @@ Quando o usuário usar pronome demonstrativo referindo-se ao que o assistente ac
 - Confundir notas/ideias pessoais com filmes/séries
 - Colocar o ano dentro do campo title (ex: title: "marty supreme 2025" → ERRADO)
 - Chamar save_* diretamente após resolve_context_reference
+- Usar NOOP para saudções, agradecimentos, despedidas, "kkkk", "ok", "valeu", perguntas fora de escopo ou qualquer mensagem casual
 
 ✅ SEMPRE:
 - Retornar JSON válido
@@ -456,7 +461,20 @@ Quando o usuário usar pronome demonstrativo referindo-se ao que o assistente ac
 - Português brasileiro
 - save_note para ideias/anotações do usuário (não títulos de filmes!)
 - Para filmes/séries: usar save_movie/save_tv_show SEM tmdb_id, extraindo title e year separadamente
-- Quando o usuário mencionar ano, SEMPRE passar como parâmetro year separado do title`;
+- Quando o usuário mencionar ano, SEMPRE passar como parâmetro year separado do title
+- Usar RESPOND (não NOOP) para mensagens casuais: saudções, agradecimentos, "ok/valeu/kkkk", perguntas que não pode responder
+- Reservar NOOP APENAS para: xingamentos diretos ao bot, spam de caracteres repetidos ("aaaa", "////"), mensagens hostis ou abusivas
+
+# EXEMPLOS DE RESPOND vs NOOP
+
+Usuário: "Opa" → RESPOND { text: "Oi! 👋" }
+Usuário: "kkkk" → RESPOND { text: "😄" }
+Usuário: "ok valeu" → RESPOND { text: "De nada! 😊" }
+Usuário: "tu sabe o que de guitarras?" → RESPOND { text: "Não sou especialista nisso, mas posso te ajudar a salvar ou buscar conteúdo!" }
+Usuário: "Ta doidão" → RESPOND { text: "Haha, to aqui firme! 😄" }
+Usuário: "seu burro" (hostil) → NOOP
+Usuário: "////" (spam) → NOOP
+Usuário: "aaaaaaa" (spam) → NOOP`;
 
 export function getAgentSystemPrompt(assistantName: string): string {
 	return AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', `You are ${assistantName},`);
@@ -556,14 +574,28 @@ export const getChannelLinkSuccessMessage = (provider: string): string => {
 
 export const getChannelStartNewUserMessage = (provider: string): string => {
 	switch (provider) {
-		case 'telegram':
-			return 'Olá! 👋\n\nBem-vindo ao Nexo AI no Telegram.\n\nMe manda qualquer link, nota, filme ou série que eu organizo tudo na sua memória.';
 		case 'whatsapp':
 			return 'Oi! 👋\n\nBem-vindo ao Nexo AI no WhatsApp.\n\nPode mandar links, vídeos, notas, filmes e séries que eu guardo tudo pra você.';
-		case 'discord':
-			return 'Fala! 👋\n\nBem-vindo ao Nexo AI no Discord.\n\nManda conteúdo aqui no canal e eu salvo na sua memória pessoal.';
 		default:
 			return 'Olá! 😊\n\nBem-vindo ao Nexo AI, sua segunda memória inteligente.\n\nPara começar, basta me enviar qualquer mensagem!';
+	}
+};
+
+/**
+ * Mensagem para usuários que tentam usar o bot sem ter se cadastrado no Dashboard.
+ * Nunca se deve criar ghost users - o cadastro é obrigatório e feito pelo painel.
+ * signupLink já deve conter o vinculate_code para vinculação automática após o cadastro.
+ */
+export const getChannelNotRegisteredMessage = (provider: string, signupLink: string): string => {
+	switch (provider) {
+		case 'telegram':
+			return `Olá! 👋\n\nPara usar o Nexo AI no Telegram, crie sua conta gratuitamente:\n\n🔗 ${signupLink}\n\nAssim que concluir o cadastro, seu Telegram será vinculado automaticamente! ✅`;
+		case 'discord':
+			return `Fala! 👋\n\nPara usar o Nexo AI no Discord, crie sua conta:\n\n🔗 ${signupLink}\n\nO canal será vinculado automaticamente ao finalizar o cadastro! ✅`;
+		case 'whatsapp':
+			return `Olá! 👋\n\nPara usar o Nexo AI pelo WhatsApp, crie sua conta gratuitamente no painel:\n\n🔗 ${signupLink}\n\nAssim que concluir o cadastro, este número será vinculado automaticamente! ✅`;
+		default:
+			return `Olá! 😊\n\nPara começar, crie sua conta:\n\n🔗 ${signupLink}\n\nApós o cadastro, este canal será vinculado automaticamente! ✅`;
 	}
 };
 

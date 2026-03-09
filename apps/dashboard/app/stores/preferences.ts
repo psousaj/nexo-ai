@@ -39,9 +39,20 @@ export const usePreferencesStore = defineStore('preferences', () => {
 		try {
 			const data = await dashboard.getPreferences();
 			if (data) {
+				// Merge only known UserPreferences fields, ignoring null values from DB
+				// (DB can return null for optional fields; keep existing defaults in that case)
 				preferences.value = {
-					...preferences.value,
-					...data,
+					assistantName: (data.assistantName as string | null) ?? preferences.value.assistantName,
+					notificationsBrowser: (data.notificationsBrowser as boolean | null) ?? preferences.value.notificationsBrowser,
+					notificationsWhatsapp:
+						(data.notificationsWhatsapp as boolean | null) ?? preferences.value.notificationsWhatsapp,
+					notificationsEmail: (data.notificationsEmail as boolean | null) ?? preferences.value.notificationsEmail,
+					privacyShowMemoriesInSearch:
+						(data.privacyShowMemoriesInSearch as boolean | null) ?? preferences.value.privacyShowMemoriesInSearch,
+					privacyShareAnalytics:
+						(data.privacyShareAnalytics as boolean | null) ?? preferences.value.privacyShareAnalytics,
+					appearanceTheme: (data.appearanceTheme as 'light' | 'dark' | null) ?? preferences.value.appearanceTheme,
+					appearanceLanguage: (data.appearanceLanguage as string | null) ?? preferences.value.appearanceLanguage,
 				};
 
 				// Se o backend tiver um tema salvo, ele tem precedência

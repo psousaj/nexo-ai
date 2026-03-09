@@ -1,4 +1,4 @@
-import type { MessageRole } from '@/types';
+import type { MessageMetadata, MessageRole } from '@/types';
 import { relations } from 'drizzle-orm';
 import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { conversations } from './conversations';
@@ -16,6 +16,7 @@ export const messages = pgTable(
 		externalId: text('external_id'),
 		providerMessageId: text('provider_message_id'),
 		providerPayload: jsonb('provider_payload').$type<Record<string, unknown>>(),
+		metadata: jsonb('metadata').$type<MessageMetadata>(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 	},
 	(table) => ({

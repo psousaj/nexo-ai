@@ -9,6 +9,7 @@ export const conversations = pgTable('conversations', {
 	userId: text('user_id')
 		.notNull()
 		.references(() => users.id, { onDelete: 'cascade' }),
+	channel: text('channel'), // Canal de origem (telegram, whatsapp, discord)
 	state: text('state').$type<ConversationState>().default('idle').notNull(),
 	context: jsonb('context').$type<ConversationContext>(),
 	closeAt: timestamp('close_at'), // Timestamp para auto-fechamento

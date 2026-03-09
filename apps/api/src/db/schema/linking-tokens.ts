@@ -6,7 +6,7 @@ import { users } from './users';
  * Tokens temporários para vinculação de contas (Deep Linking Telegram/Discord)
  * Expira em 10 minutos por padrão.
  */
-export const linkingTokenTypeEnum = pgEnum('linking_token_type', ['link', 'signup']);
+export const linkingTokenTypeEnum = pgEnum('linking_token_type', ['link', 'signup', 'pre_signup']);
 export const linkingTokenProviderEnum = pgEnum('linking_token_provider', ['whatsapp', 'telegram', 'discord', 'google']);
 export type LinkingTokenType = (typeof linkingTokenTypeEnum.enumValues)[number];
 export type LinkingTokenProvider = (typeof linkingTokenProviderEnum.enumValues)[number];
@@ -15,9 +15,7 @@ export const linkingTokens = pgTable(
 	'linking_tokens',
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
-		userId: text('user_id')
-			.notNull()
-			.references(() => users.id, { onDelete: 'cascade' }),
+		userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
 		token: text('token').notNull().unique(),
 		tokenType: linkingTokenTypeEnum('token_type').notNull().default('link'),
 		provider: linkingTokenProviderEnum('provider'),

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
 import { useQuery } from '@tanstack/vue-query';
-import { ChevronRight, Clock, EyeOff, Loader2, MessageCircle, MessageSquare, X } from 'lucide-vue-next';
+import { Activity, ChevronRight, Clock, EyeOff, Loader2, MessageCircle, MessageSquare, X } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
-import type { ConversationAudit, ConversationSummary } from '~/types/dashboard';
+import type { ConversationAudit, ConversationMessage, ConversationSummary, OrchestratorTrace } from '~/types/dashboard';
 
 definePageMeta({
 	middleware: ['role'],
@@ -87,10 +87,10 @@ const providerConfig = {
 	},
 	unknown: {
 		label: 'Desconhecido',
-		accent: 'from-surface-400 to-surface-600',
+		accent: 'from-slate-400 to-slate-600',
 		border: 'border-surface-200 dark:border-surface-700',
-		bg: 'bg-surface-50 dark:bg-surface-850',
-		badge: 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-400',
+		bg: 'bg-surface-50 dark:bg-surface-800',
+		badge: 'bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-400',
 		bar: 'bg-surface-400',
 		icon: '🔲',
 	},
@@ -104,6 +104,70 @@ function providerCfg(provider: string) {
 function displayIdentifier(conv: ConversationSummary) {
 	if (isOwn(conv)) return authStore.user?.name ?? conv.userHash;
 	return conv.userHash;
+}
+
+// ─── Trace helpers ───────────────────────────────────────────────────────────
+
+type MessageCycle = {
+	user: ConversationMessage;
+	assistant: ConversationMessage | null;
+};
+
+const messageCycles = computed<MessageCycle[]>(() => {
+	if (!auditData.value) return [];
+	const msgs = auditData.value.messages;
+	const cycles: MessageCycle[] = [];
+	let i = 0;
+	while (i < msgs.length) {
+		const msg = msgs[i] as ConversationMessage | undefined;
+		if (!msg) {
+			i++;
+			continue;
+		}
+		if (msg.role === 'user') {
+			const next = msgs[i + 1] as ConversationMessage | undefined;
+			const assistant: ConversationMessage | null = next && next.role === 'assistant' ? next : null;
+			cycles.push({ user: msg, assistant });
+			i += assistant ? 2 : 1;
+		} else {
+			// orphan assistant message (e.g. very first onboarding reply)
+			cycles.push({ user: null as any, assistant: msg as ConversationMessage });
+			i++;
+		}
+	}
+	return cycles;
+});
+
+function llmActionBadge(action?: string) {
+	switch (action) {
+		case 'CALL_TOOL':
+			return { label: 'CALL_TOOL', class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
+		case 'RESPOND':
+			return { label: 'RESPOND', class: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' };
+		case 'NOOP':
+			return { label: 'NOOP', class: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
+		default:
+			return null;
+	}
+}
+
+function confidenceColor(c: number) {
+	if (c >= 0.85) return 'bg-emerald-400';
+	if (c >= 0.6) return 'bg-amber-400';
+	return 'bg-rose-400';
+}
+
+const selectedProviderCfg = computed(() => (selectedConv.value ? providerCfg(selectedConv.value.provider) : providerConfig.unknown));
+
+// ─── Trace modal ─────────────────────────────────────────────────────────────
+const traceModal = ref<{ cycleIdx: number; cycle: MessageCycle } | null>(null);
+
+function openTraceModal(idx: number, cycle: MessageCycle) {
+	traceModal.value = { cycleIdx: idx, cycle };
+}
+
+function closeTraceModal() {
+	traceModal.value = null;
 }
 </script>
 
@@ -146,7 +210,7 @@ function displayIdentifier(conv: ConversationSummary) {
 					@click="openAudit(conv)"
 				>
 					<!-- Accent bar top -->
-					<div :class="['h-1 w-full bg-gradient-to-r', providerCfg(conv.provider).accent]" />
+					<div :class="['h-1 w-full bg-linear-to-r', providerCfg(conv.provider).accent]" />
 
 					<div class="p-5">
 						<!-- Header row -->
@@ -155,7 +219,7 @@ function displayIdentifier(conv: ConversationSummary) {
 								<!-- Provider icon circle -->
 								<div
 									:class="[
-										'w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0 bg-gradient-to-br shadow-sm',
+										'w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0 bg-linear-to-br shadow-sm',
 										providerCfg(conv.provider).accent,
 									]"
 								>
@@ -164,28 +228,22 @@ function displayIdentifier(conv: ConversationSummary) {
 
 								<div>
 									<div class="flex items-center gap-2 flex-wrap">
-										<!-- Identifier: nome se for o próprio, hash se for outro (LGPD) -->
 										<span
 											:class="[
 												'font-black text-sm',
-												isOwn(conv)
-													? 'text-primary-600 dark:text-primary-400'
-													: 'text-surface-700 dark:text-surface-300 font-mono',
+												isOwn(conv) ? 'text-primary-600 dark:text-primary-400' : 'text-surface-700 dark:text-surface-300 font-mono',
 											]"
+											>{{ displayIdentifier(conv) }}</span
 										>
-											{{ displayIdentifier(conv) }}
-										</span>
-
-										<span v-if="isOwn(conv)" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 uppercase">
-											você
-										</span>
-
-										<!-- Provider badge -->
-										<span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold', providerCfg(conv.provider).badge]">
-											{{ providerCfg(conv.provider).label }}
-										</span>
+										<span
+											v-if="isOwn(conv)"
+											class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 uppercase"
+											>você</span
+										>
+										<span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold', providerCfg(conv.provider).badge]">{{
+											providerCfg(conv.provider).label
+										}}</span>
 									</div>
-
 									<p class="text-xs text-surface-500 dark:text-surface-400 flex items-center gap-1 mt-0.5">
 										<Clock class="w-3 h-3" />
 										{{ formatTime(conv.lastInteraction) }} · {{ conv.messageCount }} msg
@@ -203,7 +261,9 @@ function displayIdentifier(conv: ConversationSummary) {
 						<!-- Footer row -->
 						<div class="flex items-center justify-between pt-3 border-t border-surface-200/60 dark:border-surface-700/60">
 							<code class="text-[10px] text-surface-400">{{ conv.id.slice(0, 8) }}…</code>
-							<span class="flex items-center gap-1 text-xs font-bold text-surface-500 dark:text-surface-400 group-hover:text-primary-600 transition-colors">
+							<span
+								class="flex items-center gap-1 text-xs font-bold text-surface-500 dark:text-surface-400 group-hover:text-primary-600 transition-colors"
+							>
 								Inspecionar <ChevronRight class="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
 							</span>
 						</div>
@@ -220,36 +280,48 @@ function displayIdentifier(conv: ConversationSummary) {
 
 					<div class="relative w-full max-w-2xl bg-white dark:bg-surface-900 shadow-2xl flex flex-col h-full overflow-hidden">
 						<!-- Header -->
-						<div
-							:class="[
-								'flex items-center justify-between px-6 py-4 border-b border-surface-200 dark:border-surface-700',
-								providerCfg(selectedConv.provider).bg,
-							]"
-						>
+						<div :class="['flex items-center justify-between px-6 py-4 bg-linear-to-r', providerCfg(selectedConv.provider).accent]">
 							<div>
 								<div class="flex items-center gap-2 mb-0.5">
-									<span class="text-xs font-bold uppercase tracking-widest text-rose-500">Auditoria</span>
-									<span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold', providerCfg(selectedConv.provider).badge]">
+									<span class="text-xs font-bold uppercase tracking-widest text-white/80">Auditoria</span>
+									<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
 										{{ providerCfg(selectedConv.provider).label }}
 									</span>
 								</div>
-								<h3 class="text-base font-black text-surface-900 dark:text-white font-mono">
+								<h3 class="text-base font-black text-white font-mono">
 									{{ displayIdentifier(selectedConv) }}
 								</h3>
-								<p class="text-[10px] text-surface-500 font-mono">ID: {{ selectedConv.id }}</p>
+								<p class="text-[10px] text-white/60 font-mono">ID: {{ selectedConv.id }}</p>
 							</div>
-							<button class="p-2 rounded-xl hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors text-surface-500" @click="closeAudit">
+							<button class="p-2 rounded-xl hover:bg-white/10 transition-colors text-white/80" @click="closeAudit">
 								<X class="w-5 h-5" />
 							</button>
 						</div>
 
 						<!-- Conversation meta -->
-						<div v-if="auditData" class="px-6 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex flex-wrap gap-4 text-xs">
-							<span><strong>Estado:</strong> <code class="px-1.5 py-0.5 bg-white dark:bg-surface-800 rounded">{{ auditData.conversation.state }}</code></span>
-							<span><strong>Ativo:</strong> {{ auditData.conversation.isActive ? '✅' : '❌' }}</span>
-							<span><strong>Criado:</strong> {{ formatTime(auditData.conversation.createdAt) }}</span>
-							<span><strong>Atualizado:</strong> {{ formatTime(auditData.conversation.updatedAt) }}</span>
-							<span><strong>Msgs:</strong> {{ auditData.messages.length }}</span>
+						<div
+							v-if="auditData"
+							class="px-6 py-3 bg-surface-100 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700 flex flex-wrap gap-4 text-xs text-surface-600 dark:text-surface-300"
+						>
+							<span
+								><strong class="text-surface-700 dark:text-surface-200">Estado:</strong>
+								<code class="ml-1 px-1.5 py-0.5 bg-white dark:bg-surface-700 rounded font-mono">{{
+									auditData.conversation.state
+								}}</code></span
+							>
+							<span
+								><strong class="text-surface-700 dark:text-surface-200">Ativo:</strong>
+								{{ auditData.conversation.isActive ? '✅' : '❌' }}</span
+							>
+							<span
+								><strong class="text-surface-700 dark:text-surface-200">Criado:</strong>
+								{{ formatTime(auditData.conversation.createdAt) }}</span
+							>
+							<span
+								><strong class="text-surface-700 dark:text-surface-200">Atualizado:</strong>
+								{{ formatTime(auditData.conversation.updatedAt) }}</span
+							>
+							<span><strong class="text-surface-700 dark:text-surface-200">Msgs:</strong> {{ auditData.messages.length }}</span>
 						</div>
 
 						<!-- Loading -->
@@ -263,36 +335,78 @@ function displayIdentifier(conv: ConversationSummary) {
 							<UAlert color="error" variant="soft" icon="i-heroicons-exclamation-circle" :description="auditError" />
 						</div>
 
-						<!-- Messages -->
-						<div v-else-if="auditData" class="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-							<div v-if="auditData.messages.length === 0" class="text-center text-surface-400 py-12">
-								Nenhuma mensagem registrada.
-							</div>
+						<!-- Messages as request→response cycles -->
+						<div v-else-if="auditData" class="flex-1 overflow-y-auto p-4 space-y-3">
+							<div v-if="messageCycles.length === 0" class="text-center text-surface-400 py-12">Nenhuma mensagem registrada.</div>
 
 							<div
-								v-for="msg in auditData.messages"
-								:key="msg.id"
-								:class="['flex gap-3', msg.role === 'user' ? 'justify-start' : 'justify-end']"
+								v-for="(cycle, idx) in messageCycles"
+								:key="cycle.user?.id ?? cycle.assistant?.id"
+								class="rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700 shadow-sm"
 							>
-								<div v-if="msg.role === 'user'" class="max-w-[80%]">
-									<div class="flex items-center gap-2 mb-1">
-										<span class="text-[10px] font-bold text-surface-400 uppercase">Usuário</span>
-										<span class="text-[10px] text-surface-400">{{ formatTime(msg.createdAt) }}</span>
+								<!-- Cycle label -->
+								<div
+									class="flex items-center justify-between px-3 py-1.5 bg-surface-100 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700"
+								>
+									<div class="flex items-center gap-2">
+										<div :class="['w-1.5 h-1.5 rounded-full bg-linear-to-br shrink-0', selectedProviderCfg.accent]" />
+										<span class="text-[10px] font-black uppercase tracking-widest text-surface-600 dark:text-surface-300"
+											>Ciclo {{ idx + 1 }}</span
+										>
 									</div>
-									<div class="bg-surface-100 dark:bg-surface-800 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-surface-800 dark:text-surface-200">
-										{{ msg.content }}
+									<div class="flex items-center gap-2">
+										<span v-if="cycle.user" class="text-[10px] text-surface-400 dark:text-surface-500">{{
+											formatTime(cycle.user.createdAt)
+										}}</span>
+										<button
+											@click.stop="openTraceModal(idx, cycle)"
+											:class="[
+												'flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-colors',
+												cycle.assistant?.metadata?._trace
+													? 'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 hover:bg-violet-200'
+													: 'bg-surface-200 dark:bg-surface-700 text-surface-400 hover:bg-surface-300',
+											]"
+											:title="cycle.assistant?.metadata?._trace ? 'Ver trace de orquestração' : 'Sem trace disponível'"
+										>
+											<Activity class="w-3 h-3" />
+											trace
+										</button>
 									</div>
 								</div>
 
-								<div v-else class="max-w-[80%]">
-									<div class="flex items-center gap-2 justify-end mb-1">
-										<span class="text-[10px] text-surface-400">{{ formatTime(msg.createdAt) }}</span>
-										<span class="text-[10px] font-bold text-primary-500 uppercase">Assistente</span>
-										<span v-if="msg.provider" class="text-[10px] text-surface-400 font-mono">[{{ msg.provider }}]</span>
+								<!-- User message -->
+								<div v-if="cycle.user" class="px-4 py-3 bg-white dark:bg-surface-900">
+									<span class="text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest block mb-1.5"
+										>👤 Usuário</span
+									>
+									<p class="text-sm text-surface-800 dark:text-surface-100 whitespace-pre-wrap leading-relaxed">{{ cycle.user.content }}</p>
+								</div>
+
+								<!-- Assistant message -->
+								<div
+									v-if="cycle.assistant"
+									class="px-4 py-3 bg-surface-50 dark:bg-surface-800/60 border-t border-surface-200 dark:border-surface-700"
+								>
+									<div class="flex items-center gap-2 mb-1.5">
+										<span class="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest"
+											>🤖 Assistente</span
+										>
+										<span
+											v-if="cycle.assistant.provider"
+											:class="['text-[10px] font-mono px-1.5 py-0.5 rounded', selectedProviderCfg.badge]"
+											>{{ cycle.assistant.provider }}</span
+										>
+										<span class="text-[10px] text-surface-400 dark:text-surface-500 ml-auto">{{
+											formatTime(cycle.assistant.createdAt)
+										}}</span>
 									</div>
-									<div class="bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 rounded-2xl rounded-tr-none px-4 py-3 text-sm text-surface-800 dark:text-surface-200">
-										{{ msg.content }}
-									</div>
+									<p
+										v-if="cycle.assistant.content"
+										class="text-sm text-surface-800 dark:text-surface-100 whitespace-pre-wrap leading-relaxed"
+									>
+										{{ cycle.assistant.content }}
+									</p>
+									<p v-else class="text-[11px] text-surface-400 dark:text-surface-500 italic">— sem resposta (NOOP / hostil/spam)</p>
 								</div>
 							</div>
 						</div>
@@ -300,14 +414,149 @@ function displayIdentifier(conv: ConversationSummary) {
 						<!-- Context JSONB collapsible -->
 						<div v-if="auditData?.conversation.context" class="border-t border-surface-200 dark:border-surface-700">
 							<details class="group">
-								<summary class="px-6 py-3 text-xs font-bold text-surface-500 uppercase tracking-widest cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-800 flex items-center gap-2">
+								<summary
+									class="px-6 py-3 text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800 flex items-center gap-2"
+								>
 									<ChevronRight class="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
 									Contexto JSONB
 								</summary>
 								<div class="px-6 pb-4">
-									<pre class="text-xs bg-surface-50 dark:bg-surface-800 rounded-xl p-4 overflow-auto max-h-48 text-surface-700 dark:text-surface-300">{{ JSON.stringify(auditData.conversation.context, null, 2) }}</pre>
+									<pre
+										class="text-xs bg-surface-50 dark:bg-surface-800 rounded-xl p-4 overflow-auto max-h-48 text-surface-700 dark:text-surface-300"
+										>{{ JSON.stringify(auditData.conversation.context, null, 2) }}</pre
+									>
 								</div>
 							</details>
+						</div>
+					</div>
+				</div>
+			</Transition>
+		</Teleport>
+
+		<!-- Trace Modal -->
+		<Teleport to="body">
+			<Transition name="fade">
+				<div v-if="traceModal" class="fixed inset-0 z-60 flex items-center justify-center p-4">
+					<div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeTraceModal" />
+					<div class="relative w-full max-w-lg bg-white dark:bg-surface-900 rounded-2xl shadow-2xl overflow-hidden">
+						<!-- Header -->
+						<div class="flex items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-surface-700">
+							<div class="flex items-center gap-2">
+								<Activity class="w-4 h-4 text-violet-500" />
+								<span class="font-black text-sm uppercase tracking-widest">Trace — Ciclo {{ traceModal.cycleIdx + 1 }}</span>
+							</div>
+							<button @click="closeTraceModal" class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
+								<X class="w-4 h-4 text-surface-500" />
+							</button>
+						</div>
+
+						<!-- No trace -->
+						<div
+							v-if="!traceModal.cycle.assistant?.metadata?._trace"
+							class="p-6 text-center text-surface-400 dark:text-surface-500 text-sm italic"
+						>
+							Trace não disponível para este ciclo.
+						</div>
+
+						<!-- Trace content -->
+						<div v-else class="p-5 space-y-4 overflow-auto max-h-[70vh]">
+							<template v-if="traceModal.cycle.assistant.metadata._trace as any">
+								<!-- Intent -->
+								<div class="space-y-1">
+									<span class="text-[10px] font-black uppercase tracking-widest text-surface-400">Intent</span>
+									<div class="flex items-center gap-2">
+										<code class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-mono">
+											{{ (traceModal.cycle.assistant.metadata._trace as any).intent ?? '—' }}
+										</code>
+										<div
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).confidence != null"
+											class="flex items-center gap-1.5 flex-1"
+										>
+											<div class="flex-1 h-1.5 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden">
+												<div
+													:style="{ width: ((traceModal.cycle.assistant.metadata._trace as any).confidence * 100).toFixed(0) + '%' }"
+													class="h-full rounded-full bg-blue-500"
+												/>
+											</div>
+											<span class="text-[10px] text-surface-500 font-mono">
+												{{ ((traceModal.cycle.assistant.metadata._trace as any).confidence * 100).toFixed(0) }}%
+											</span>
+										</div>
+									</div>
+								</div>
+
+								<!-- Action -->
+								<div class="space-y-1">
+									<span class="text-[10px] font-black uppercase tracking-widest text-surface-400">Action</span>
+									<div class="flex gap-2 flex-wrap">
+										<code
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).action"
+											class="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-mono"
+										>
+											{{ (traceModal.cycle.assistant.metadata._trace as any).action }}
+										</code>
+										<code
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).llm_action"
+											class="px-2 py-0.5 rounded bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-mono"
+										>
+											LLM: {{ (traceModal.cycle.assistant.metadata._trace as any).llm_action }}
+										</code>
+									</div>
+								</div>
+
+								<!-- Tools used -->
+								<div v-if="(traceModal.cycle.assistant.metadata._trace as any).tools_used?.length" class="space-y-1">
+									<span class="text-[10px] font-black uppercase tracking-widest text-surface-400">Tools Used</span>
+									<div class="flex flex-wrap gap-1.5">
+										<span
+											v-for="tool in (traceModal.cycle.assistant.metadata._trace as any).tools_used"
+											:key="tool"
+											class="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-mono text-[11px]"
+											>{{ tool }}</span
+										>
+									</div>
+								</div>
+
+								<!-- Durations -->
+								<div v-if="(traceModal.cycle.assistant.metadata._trace as any).durations" class="space-y-1">
+									<span class="text-[10px] font-black uppercase tracking-widest text-surface-400">Durations</span>
+									<div class="flex flex-wrap gap-1.5 text-[11px] text-surface-500 dark:text-surface-400">
+										<span
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.intent_ms != null"
+											class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-700/60"
+										>
+											intent
+											<strong class="text-surface-700 dark:text-surface-200"
+												>{{ (traceModal.cycle.assistant.metadata._trace as any).durations.intent_ms }}ms</strong
+											>
+										</span>
+										<span
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.llm_ms != null"
+											class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-700/60"
+										>
+											llm
+											<strong class="text-surface-700 dark:text-surface-200"
+												>{{ (traceModal.cycle.assistant.metadata._trace as any).durations.llm_ms }}ms</strong
+											>
+										</span>
+										<span
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.action_ms != null"
+											class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-700/60"
+										>
+											action
+											<strong class="text-surface-700 dark:text-surface-200"
+												>{{ (traceModal.cycle.assistant.metadata._trace as any).durations.action_ms }}ms</strong
+											>
+										</span>
+										<span
+											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.total_ms != null"
+											class="px-2 py-0.5 rounded font-black bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
+										>
+											total {{ (traceModal.cycle.assistant.metadata._trace as any).durations.total_ms }}ms
+										</span>
+									</div>
+								</div>
+							</template>
 						</div>
 					</div>
 				</div>
@@ -317,12 +566,41 @@ function displayIdentifier(conv: ConversationSummary) {
 </template>
 
 <style scoped>
-.animate-fade-in { animation: fadeIn 0.5s ease-out; }
-@keyframes fadeIn {
-	from { opacity: 0; transform: translateY(20px); }
-	to   { opacity: 1; transform: translateY(0); }
+.animate-fade-in {
+	animation: fadeIn 0.5s ease-out;
 }
-.slide-enter-active, .slide-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
-.slide-enter-from, .slide-leave-to { opacity: 0; transform: translateX(100%); }
-.slide-enter-to, .slide-leave-from { opacity: 1; transform: translateX(0); }
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+.slide-enter-active,
+.slide-leave-active {
+	transition:
+		opacity 0.25s ease,
+		transform 0.25s ease;
+}
+.slide-enter-from,
+.slide-leave-to {
+	opacity: 0;
+	transform: translateX(100%);
+}
+.slide-enter-to,
+.slide-leave-from {
+	opacity: 1;
+	transform: translateX(0);
+}
+.fade-enter-active,
+.fade-leave-active {
+	transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+	opacity: 0;
+}
 </style>

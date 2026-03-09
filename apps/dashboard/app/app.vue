@@ -27,6 +27,8 @@ watch(
 	<div>
 		<NuxtLayout>
 			<NuxtPage />
+			<Analytics />
+			<SpeedInsights />
 		</NuxtLayout>
 	</div>
 </template>

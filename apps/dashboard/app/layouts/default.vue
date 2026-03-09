@@ -1,6 +1,20 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
-import { Bell, Database, FlaskConical, LayoutDashboard, LogOut, Menu, MessageSquare, Settings, ShieldCheck, ToggleRight, UserCircle, Users, X } from 'lucide-vue-next';
+import {
+	Bell,
+	Database,
+	FlaskConical,
+	LayoutDashboard,
+	LogOut,
+	Menu,
+	MessageSquare,
+	Settings,
+	ShieldCheck,
+	ToggleRight,
+	UserCircle,
+	Users,
+	X,
+} from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
@@ -83,7 +97,10 @@ const handleLogout = async () => {
 					>
 						<component :is="item.icon" class="w-5 h-5 shrink-0" />
 						<span v-if="isOpen" class="ml-3 whitespace-nowrap text-sm">{{ item.name }}</span>
-						<div v-if="!isOpen" class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
+						<div
+							v-if="!isOpen"
+							class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl"
+						>
 							{{ item.name }}
 						</div>
 					</div>
@@ -92,14 +109,12 @@ const handleLogout = async () => {
 				<!-- Admin separator + section -->
 				<template v-if="hasAdminItems">
 					<div class="pt-3 pb-1">
-						<div
-							:class="[
-								'flex items-center gap-2',
-								isOpen ? 'px-3' : 'justify-center',
-							]"
-						>
+						<div :class="['flex items-center gap-2', isOpen ? 'px-3' : 'justify-center']">
 							<div class="flex-1 h-px bg-surface-200 dark:bg-surface-700" />
-							<span v-if="isOpen" class="text-[10px] font-black uppercase tracking-widest text-amber-500 dark:text-amber-400 flex items-center gap-1 shrink-0">
+							<span
+								v-if="isOpen"
+								class="text-[10px] font-black uppercase tracking-widest text-amber-500 dark:text-amber-400 flex items-center gap-1 shrink-0"
+							>
 								<ShieldCheck class="w-3 h-3" /> Admin
 							</span>
 							<ShieldCheck v-else class="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
@@ -118,7 +133,10 @@ const handleLogout = async () => {
 						>
 							<component :is="item.icon" class="w-5 h-5 shrink-0" />
 							<span v-if="isOpen" class="ml-3 whitespace-nowrap text-sm">{{ item.name }}</span>
-							<div v-if="!isOpen" class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
+							<div
+								v-if="!isOpen"
+								class="absolute left-14 bg-surface-900 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl"
+							>
 								{{ item.name }}
 							</div>
 						</div>
@@ -172,7 +190,7 @@ const handleLogout = async () => {
 						<span class="absolute top-2 right-2 w-2 h-2 bg-primary-600 rounded-full border-2 border-white dark:border-surface-900" />
 					</button>
 
-					<div class="h-6 w-[1px] bg-surface-200 dark:bg-surface-800 mx-1" />
+					<div class="h-6 w-px bg-surface-200 dark:bg-surface-800 mx-1" />
 
 					<NuxtLink to="/profile" class="flex items-center gap-3 pl-1 group">
 						<div class="text-right hidden sm:block">
@@ -184,7 +202,7 @@ const handleLogout = async () => {
 							</p>
 						</div>
 						<div
-							class="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-600 to-blue-500 flex items-center justify-center text-white font-black ring-2 ring-white dark:ring-surface-900 shadow-lg group-hover:scale-105 transition-transform"
+							class="w-10 h-10 rounded-xl bg-linear-to-tr from-primary-600 to-blue-500 flex items-center justify-center text-white font-black ring-2 ring-white dark:ring-surface-900 shadow-lg group-hover:scale-105 transition-transform"
 						>
 							{{ authStore.user?.name?.charAt(0) }}
 						</div>
