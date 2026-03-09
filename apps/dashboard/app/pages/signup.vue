@@ -63,12 +63,6 @@ const handleSignup = async () => {
 			// Consome o token de vinculação (WhatsApp/Telegram) se presente
 			await consumeLinkingToken();
 
-			try {
-				await api.post('/user/emails/resend-confirmation');
-			} catch (emailError) {
-				console.warn('Não foi possível enviar email de confirmação automaticamente:', emailError);
-			}
-
 			router.push('/confirm-email');
 		}
 	} catch (e) {

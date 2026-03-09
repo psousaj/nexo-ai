@@ -1,12 +1,12 @@
 import { db } from '../db';
-import { authProviders, users } from '../db/schema';
+import { userChannels, users } from '../db/schema';
 import { conversations } from '../db/schema/conversations';
 
 async function listUsers() {
 	console.log('--- Listing All Users ---');
 
 	const allUsers = await db.select().from(users);
-	const allAccounts = await db.select().from(authProviders);
+	const allAccounts = await db.select().from(userChannels);
 	const allConversations = await db.select().from(conversations);
 
 	console.log(`Debug: Total Conversations in DB: ${allConversations.length}`);

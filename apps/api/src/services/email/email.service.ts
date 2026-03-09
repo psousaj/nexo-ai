@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '@/config/env';
-import { accountLinkingService } from '@/services/account-linking-service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
 import Handlebars from 'handlebars';
@@ -11,12 +10,22 @@ import { Resend } from 'resend';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-type TemplateName = 'confirm-email';
+type TemplateName = 'confirm-email' | 'change-email' | 'delete-account';
 
-interface ConfirmationEmailParams {
-	userId: string;
-	userName: string;
-	email: string;
+interface EmailVerificationParams {
+	user: { id: string; email: string; name?: string | null };
+	url: string;
+}
+
+interface ChangeEmailParams {
+	user: { id: string; email: string; name?: string | null };
+	newEmail: string;
+	url: string;
+}
+
+interface DeleteAccountParams {
+	user: { id: string; email: string; name?: string | null };
+	url: string;
 }
 
 class EmailService {
@@ -34,25 +43,25 @@ class EmailService {
 	}
 
 	private loadTemplates() {
-		const candidates = [
-			// Local dev (tsx): src/services/email/ -> src/templates/...
-			join(__dirname, '../../templates/emails/confirm-email.hbs'),
-			// Build bundle (tsup): dist/index.js -> dist/templates/...
-			join(__dirname, 'templates/emails/confirm-email.hbs'),
-			// Local executando em apps/api
-			join(process.cwd(), 'src/templates/emails/confirm-email.hbs'),
-			join(process.cwd(), 'dist/templates/emails/confirm-email.hbs'),
-			// Docker executando na raiz /app
-			join(process.cwd(), 'apps/api/dist/templates/emails/confirm-email.hbs'),
-		];
+		const templateFiles: TemplateName[] = ['confirm-email', 'change-email', 'delete-account'];
 
-		const templatePath = candidates.find((path) => existsSync(path));
-		if (!templatePath) {
-			throw new Error('Template confirm-email.hbs não encontrado em nenhum caminho conhecido.');
+		for (const name of templateFiles) {
+			const candidates = [
+				join(__dirname, `../../templates/emails/${name}.hbs`),
+				join(__dirname, `templates/emails/${name}.hbs`),
+				join(process.cwd(), `src/templates/emails/${name}.hbs`),
+				join(process.cwd(), `dist/templates/emails/${name}.hbs`),
+				join(process.cwd(), `apps/api/dist/templates/emails/${name}.hbs`),
+			];
+
+			const templatePath = candidates.find((path) => existsSync(path));
+			if (!templatePath) {
+				throw new Error(`Template ${name}.hbs não encontrado em nenhum caminho conhecido.`);
+			}
+
+			const source = readFileSync(templatePath, 'utf-8');
+			this.templates.set(name, Handlebars.compile(source));
 		}
-
-		const source = readFileSync(templatePath, 'utf-8');
-		this.templates.set('confirm-email', Handlebars.compile(source));
 	}
 
 	private renderTemplate(templateName: TemplateName, data: Record<string, any>) {
@@ -80,16 +89,30 @@ class EmailService {
 		});
 	}
 
-	async sendConfirmationEmail({ userId, userName, email }: ConfirmationEmailParams) {
-		const token = await accountLinkingService.generateLinkingToken(userId, undefined, 'email_confirm', email);
-		const dashboardUrl = env.DASHBOARD_URL || 'http://localhost:5173';
-		const confirmUrl = `${dashboardUrl}/confirm-email?token=${encodeURIComponent(token)}`;
-
-		await this.sendEmail(email, 'Confirme seu email — Nexo Assistente pessoal de memória', 'confirm-email', {
+	async sendEmailVerification({ user, url }: EmailVerificationParams) {
+		await this.sendEmail(user.email, 'Confirme seu email — Nexo Assistente pessoal de memória', 'confirm-email', {
 			appName: this.appName,
-			userName,
-			email,
-			confirmUrl,
+			userName: user.name || user.email,
+			email: user.email,
+			confirmUrl: url,
+		});
+	}
+
+	async sendChangeEmailConfirmation({ user, newEmail, url }: ChangeEmailParams) {
+		await this.sendEmail(user.email, 'Confirme seu novo e-mail — Nexo', 'change-email', {
+			appName: this.appName,
+			userName: user.name || user.email,
+			newEmail,
+			confirmUrl: url,
+		});
+	}
+
+	async sendDeleteAccountVerification({ user, url }: DeleteAccountParams) {
+		await this.sendEmail(user.email, 'Confirmação de exclusão de conta — Nexo', 'delete-account', {
+			appName: this.appName,
+			userName: user.name || user.email,
+			email: user.email,
+			confirmUrl: url,
 		});
 	}
 }

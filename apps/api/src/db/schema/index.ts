@@ -1,7 +1,6 @@
 // Export all schemas
 export * from './users';
-export * from './auth-providers';
-export * from './user-emails';
+export * from './user-channels';
 export * from './global-tools'; // global_tools table (ADR-019)
 export * from './items';
 export * from './conversations';

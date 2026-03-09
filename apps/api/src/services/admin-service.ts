@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { authProviders, conversations, messages, users } from '@/db/schema';
+import { userChannels, conversations, messages, users } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
 import { count, desc, eq, inArray } from 'drizzle-orm';
 
@@ -29,9 +29,9 @@ export class AdminService {
 		const userIds = [...new Set(result.map((c) => c.userId))];
 		const providerRows = userIds.length
 			? await db
-					.select({ userId: authProviders.userId, provider: authProviders.provider })
-					.from(authProviders)
-					.where(inArray(authProviders.userId, userIds))
+					.select({ userId: userChannels.userId, provider: userChannels.channel })
+					.from(userChannels)
+					.where(inArray(userChannels.userId, userIds))
 			: [];
 
 		const providerMap = new Map<string, string>();
@@ -126,13 +126,13 @@ export class AdminService {
 			allUsers.map(async (user) => {
 				const accounts = await db
 					.select({
-						id: authProviders.id,
-						provider: authProviders.provider,
-						externalId: authProviders.providerUserId,
-						createdAt: authProviders.linkedAt,
+						id: userChannels.id,
+						provider: userChannels.channel,
+						externalId: userChannels.channelUserId,
+						createdAt: userChannels.linkedAt,
 					})
-					.from(authProviders)
-					.where(eq(authProviders.userId, user.id));
+					.from(userChannels)
+					.where(eq(userChannels.userId, user.id));
 
 				return {
 					...user,

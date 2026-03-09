@@ -1,18 +1,11 @@
 import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
-import {
-	authProviders,
-	accounts as betterAuthAccounts,
-	conversations,
-	linkingTokens,
-	memoryItems,
-	users,
-} from '@/db/schema';
+import { userChannels, accounts as betterAuthAccounts, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
 import type { LinkingTokenProvider, LinkingTokenType } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
-import { and, eq, gte } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { userService } from './user-service';
 
 export class AccountLinkingService {
@@ -53,15 +46,11 @@ export class AccountLinkingService {
 		}
 
 		// Gera um token aleatório de 12 caracteres (base64url safe)
-		const token =
-			Math.random().toString(36).substring(2, 10).toUpperCase() +
-			Math.random().toString(36).substring(2, 6).toUpperCase();
+		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
 
 		const expiresAt = new Date();
 		if (tokenType === 'signup') {
 			expiresAt.setHours(expiresAt.getHours() + 24);
-		} else if (tokenType === 'email_confirm') {
-			expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 		} else {
 			expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 		}
@@ -130,10 +119,7 @@ export class AccountLinkingService {
 	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
 	 *   - Apenas vincula a conta do bot ao usuário do Dashboard
 	 */
-	async linkTokenAccountToUser(
-		token: string,
-		targetUserId: string,
-	): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
+	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
 		const [linkToken] = await db
 			.select()
 			.from(linkingTokens)
@@ -151,7 +137,7 @@ export class AccountLinkingService {
 		} else {
 			// Vínculo simples (link manual code)
 			const accounts = await userService.getUserAccounts(trialUserId);
-			const accountToLink = accounts.find((a: any) => a.provider === provider);
+			const accountToLink = accounts.find((a: any) => a.provider === provider && a.type === 'channel');
 			if (!accountToLink) return null;
 
 			await userService.linkAccountToUser(targetUserId, provider, accountToLink.externalId, accountToLink.metadata);
@@ -173,47 +159,35 @@ export class AccountLinkingService {
 	 * 4. Ativa o novo usuário (status → active)
 	 * 5. Invalida cache das contas migradas
 	 */
-	private async migrateTrialUserToAccount(
-		trialUserId: string,
-		targetUserId: string,
-		provider: ProviderType,
-	): Promise<void> {
+	private async migrateTrialUserToAccount(trialUserId: string, targetUserId: string, provider: ProviderType): Promise<void> {
 		if (trialUserId === targetUserId) {
-			loggers.webhook.warn(
-				{ trialUserId, targetUserId, provider },
-				'⚠️ Migração ignorada: trialUserId igual ao targetUserId',
-			);
+			loggers.webhook.warn({ trialUserId, targetUserId, provider }, '⚠️ Migração ignorada: trialUserId igual ao targetUserId');
 			return;
 		}
 
 		loggers.webhook.info({ trialUserId, targetUserId, provider }, '🔄 Iniciando migração trial → conta real');
 
-		// Busca contas do trial user antes de migrar (para invalidar cache depois)
+		// Busca canais do trial user antes de migrar (para invalidar cache depois)
 		const trialAccounts = await userService.getUserAccounts(trialUserId);
 
-		// 1. Migra authProviders: reatribui do trial para o target
-		//    Se o target já tem um registro para o mesmo provider (ex: via OAuth + linkSocial),
-		//    não podemos fazer UPDATE pois a unique constraint (userId, provider) seria violada.
-		//    Nesses casos, simplesmente removemos os auth_providers do trial (o target já tem o vínculo correto).
-		const [targetHasProvider] = await db
-			.select({ id: authProviders.id })
-			.from(authProviders)
-			.where(and(eq(authProviders.userId, targetUserId), sql`${authProviders.provider}::text = ${provider}`))
+		// 1. Migra user_channels: reatribui do trial para o target
+		//    Se o target já tem um registro para o mesmo canal,
+		//    não podemos fazer UPDATE pois a unique constraint (userId, channel) seria violada.
+		//    Nesses casos, removemos os user_channels do trial (o target já tem o vínculo correto).
+		const [targetHasChannel] = await db
+			.select({ id: userChannels.id })
+			.from(userChannels)
+			.where(and(eq(userChannels.userId, targetUserId), sql`${userChannels.channel}::text = ${provider}`))
 			.limit(1);
 
-		if (targetHasProvider) {
-			// Target já tem o provider vinculado → apenas remove os do trial para evitar conflito
-			await db.delete(authProviders).where(eq(authProviders.userId, trialUserId));
+		if (targetHasChannel) {
+			await db.delete(userChannels).where(eq(userChannels.userId, trialUserId));
 			loggers.webhook.info(
 				{ trialUserId, targetUserId, provider },
-				'🔗 Target já tem auth_provider para o provider. Removendo duplicata do trial.',
+				'🔗 Target já tem user_channel para o canal. Removendo duplicata do trial.',
 			);
 		} else {
-			// Migração normal: move auth_providers do trial para o target
-			await db
-				.update(authProviders)
-				.set({ userId: targetUserId, updatedAt: new Date() })
-				.where(eq(authProviders.userId, trialUserId));
+			await db.update(userChannels).set({ userId: targetUserId, updatedAt: new Date() }).where(eq(userChannels.userId, trialUserId));
 		}
 
 		// 2. Migra memory_items
@@ -232,10 +206,10 @@ export class AccountLinkingService {
 		}
 
 		// 6. Cleanup do usuário trial: remove se não restou vínculo
-		const [remainingAuthProvider] = await db
-			.select({ id: authProviders.id })
-			.from(authProviders)
-			.where(eq(authProviders.userId, trialUserId))
+		const [remainingChannel] = await db
+			.select({ id: userChannels.id })
+			.from(userChannels)
+			.where(eq(userChannels.userId, trialUserId))
 			.limit(1);
 
 		const [remainingBetterAuthAccount] = await db
@@ -244,14 +218,14 @@ export class AccountLinkingService {
 			.where(eq(betterAuthAccounts.userId, trialUserId))
 			.limit(1);
 
-		if (!remainingAuthProvider && !remainingBetterAuthAccount) {
+		if (!remainingChannel && !remainingBetterAuthAccount) {
 			await db.delete(users).where(and(eq(users.id, trialUserId), eq(users.status, 'trial')));
 			loggers.webhook.info({ trialUserId, targetUserId }, '🧹 Usuário trial órfão removido após migração');
 		} else {
 			loggers.webhook.warn(
 				{
 					trialUserId,
-					hasAuthProvider: !!remainingAuthProvider,
+					hasChannel: !!remainingChannel,
 					hasBetterAuthAccount: !!remainingBetterAuthAccount,
 				},
 				'⚠️ Cleanup do trial ignorado: ainda existem vínculos',

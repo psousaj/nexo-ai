@@ -6,7 +6,7 @@ import { users } from './users';
  * Tokens temporários para vinculação de contas (Deep Linking Telegram/Discord)
  * Expira em 10 minutos por padrão.
  */
-export const linkingTokenTypeEnum = pgEnum('linking_token_type', ['link', 'signup', 'email_confirm']);
+export const linkingTokenTypeEnum = pgEnum('linking_token_type', ['link', 'signup']);
 export const linkingTokenProviderEnum = pgEnum('linking_token_provider', ['whatsapp', 'telegram', 'discord', 'google']);
 export type LinkingTokenType = (typeof linkingTokenTypeEnum.enumValues)[number];
 export type LinkingTokenProvider = (typeof linkingTokenProviderEnum.enumValues)[number];

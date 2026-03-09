@@ -1,6 +1,8 @@
+import { getRedisClient } from '@/config/redis';
 import { env } from '@/config/env';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
+import { emailService } from '@/services/email/email.service';
 import { betterAuth } from 'better-auth';
 import type { BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -9,7 +11,46 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 const appBaseURL = env.APP_URL ?? `http://localhost:${env.PORT}`;
 const isSecureEnv = env.NODE_ENV === 'production' || env.CORS_ORIGINS.some((o) => o.startsWith('https'));
 
+/**
+ * Better Auth secondary storage via Redis.
+ * Falls back gracefully: if Redis is unavailable, returns null/void so BA uses DB only.
+ */
+const buildSecondaryStorage = () => ({
+	get: async (key: string) => {
+		try {
+			const client = await getRedisClient();
+			if (!client) return null;
+			return await client.get(key);
+		} catch {
+			return null;
+		}
+	},
+	set: async (key: string, value: string, ttl?: number) => {
+		try {
+			const client = await getRedisClient();
+			if (!client) return;
+			if (ttl) {
+				await client.set(key, value, 'EX', ttl);
+			} else {
+				await client.set(key, value);
+			}
+		} catch {
+			// silent — BA falls back to DB
+		}
+	},
+	delete: async (key: string) => {
+		try {
+			const client = await getRedisClient();
+			if (!client) return;
+			await client.del(key);
+		} catch {
+			// silent
+		}
+	},
+});
+
 export const authPlugin = betterAuth({
+	secondaryStorage: buildSecondaryStorage(),
 	secret: env.BETTER_AUTH_SECRET,
 	baseURL: `${appBaseURL}/api/auth`,
 	trustedOrigins: env.CORS_ORIGINS,
@@ -29,19 +70,15 @@ export const authPlugin = betterAuth({
 			allowDifferentEmails: true,
 		},
 	},
-	user: {
-		additionalFields: {
-			role: {
-				type: 'string',
-				defaultValue: 'user',
-			},
-		},
-	},
+
 	session: {
-		preserveSessionInDatabase: true,
+		expiresIn: 60 * 60 * 24 * 7, // 7 days
+		updateAge: 60 * 60 * 24, // refresh expiry every 1 day of activity
+		preserveSessionInDatabase: true, // keep sessions in DB even when Redis is primary
 		cookieCache: {
 			enabled: true,
-			maxAge: 7 * 24 * 60 * 60, // 7 days
+			maxAge: 5 * 60, // 5 min — short to ensure revoked sessions can't linger
+			strategy: 'compact' as const,
 		},
 	},
 	advanced: {
@@ -63,6 +100,33 @@ export const authPlugin = betterAuth({
 	},
 	emailAndPassword: {
 		enabled: true,
+	},
+	user: {
+		additionalFields: {
+			role: {
+				type: 'string' as const,
+				defaultValue: 'user',
+			},
+		},
+		changeEmail: {
+			enabled: true,
+			sendChangeEmailConfirmation: async ({ user, newEmail, url }: { user: any; newEmail: string; url: string }) => {
+				void emailService.sendChangeEmailConfirmation({ user, newEmail, url });
+			},
+		},
+		deleteUser: {
+			enabled: true,
+			sendDeleteAccountVerification: async ({ user, url }: { user: any; url: string }) => {
+				void emailService.sendDeleteAccountVerification({ user, url });
+			},
+		},
+	},
+	emailVerification: {
+		sendOnSignUp: true,
+		autoSignInAfterVerification: true,
+		sendVerificationEmail: async ({ user, url }) => {
+			void emailService.sendEmailVerification({ user, url });
+		},
 	},
 	socialProviders: {
 		discord: {
