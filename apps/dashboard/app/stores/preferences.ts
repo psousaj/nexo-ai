@@ -44,11 +44,13 @@ export const usePreferencesStore = defineStore('preferences', () => {
 				preferences.value = {
 					assistantName: (data.assistantName as string | null) ?? preferences.value.assistantName,
 					notificationsBrowser: (data.notificationsBrowser as boolean | null) ?? preferences.value.notificationsBrowser,
-					notificationsWhatsapp: (data.notificationsWhatsapp as boolean | null) ?? preferences.value.notificationsWhatsapp,
+					notificationsWhatsapp:
+						(data.notificationsWhatsapp as boolean | null) ?? preferences.value.notificationsWhatsapp,
 					notificationsEmail: (data.notificationsEmail as boolean | null) ?? preferences.value.notificationsEmail,
 					privacyShowMemoriesInSearch:
 						(data.privacyShowMemoriesInSearch as boolean | null) ?? preferences.value.privacyShowMemoriesInSearch,
-					privacyShareAnalytics: (data.privacyShareAnalytics as boolean | null) ?? preferences.value.privacyShareAnalytics,
+					privacyShareAnalytics:
+						(data.privacyShareAnalytics as boolean | null) ?? preferences.value.privacyShareAnalytics,
 					appearanceTheme: (data.appearanceTheme as 'light' | 'dark' | null) ?? preferences.value.appearanceTheme,
 					appearanceLanguage: (data.appearanceLanguage as string | null) ?? preferences.value.appearanceLanguage,
 				};

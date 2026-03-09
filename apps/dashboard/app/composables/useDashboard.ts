@@ -50,7 +50,10 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const updateMemory = async (id: string | number, payload: { title?: string; content?: string }): Promise<{ success: boolean }> => {
+	const updateMemory = async (
+		id: string | number,
+		payload: { title?: string; content?: string },
+	): Promise<{ success: boolean }> => {
 		const updates: Record<string, any> = {};
 		if (payload.title) updates.title = payload.title;
 		if (payload.content) updates.metadata = { full_content: payload.content };
@@ -79,7 +82,9 @@ export const useDashboard = () => {
 	};
 
 	const getConversationMessages = async (conversationId: string): Promise<ConversationAudit> => {
-		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(`/admin/conversations/${conversationId}/messages`);
+		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(
+			`/admin/conversations/${conversationId}/messages`,
+		);
 		return data.data;
 	};
 
@@ -99,7 +104,9 @@ export const useDashboard = () => {
 			'appearanceTheme',
 			'appearanceLanguage',
 		];
-		const payload = Object.fromEntries(knownKeys.filter((k) => k in updates && updates[k] != null).map((k) => [k, updates[k]]));
+		const payload = Object.fromEntries(
+			knownKeys.filter((k) => k in updates && updates[k] != null).map((k) => [k, updates[k]]),
+		);
 		await api.patch('/user/preferences', payload);
 	};
 
