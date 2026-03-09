@@ -21,8 +21,8 @@ function mergeProviderPayload(
 	};
 }
 
-function filterEnabledAttachments(attachments: MultimodalIntakePayload[]): MultimodalIntakePayload[] {
-	const flags = getPivotFeatureFlags();
+async function filterEnabledAttachments(attachments: MultimodalIntakePayload[]): Promise<MultimodalIntakePayload[]> {
+	const flags = await getPivotFeatureFlags();
 	return attachments.filter((attachment) => {
 		if (attachment.kind === 'audio') {
 			return flags.MULTIMODAL_AUDIO;
@@ -36,10 +36,7 @@ function buildMultimodalPrompt(items: { kind: 'audio' | 'image'; text: string }[
 	return `\n\nContexto multimodal detectado:\n${lines.join('\n')}`;
 }
 
-export async function applyMultimodalRuntime(
-	message: string,
-	metadata?: MessageMetadata,
-): Promise<MultimodalRuntimeOutput> {
+export async function applyMultimodalRuntime(message: string, metadata?: MessageMetadata): Promise<MultimodalRuntimeOutput> {
 	const baseProviderPayload = metadata?.providerPayload;
 	const attachments = metadata?.attachments ?? [];
 
@@ -47,7 +44,7 @@ export async function applyMultimodalRuntime(
 		return { message, providerPayload: baseProviderPayload };
 	}
 
-	const enabledAttachments = filterEnabledAttachments(attachments);
+	const enabledAttachments = await filterEnabledAttachments(attachments);
 	if (enabledAttachments.length === 0) {
 		return { message, providerPayload: baseProviderPayload };
 	}

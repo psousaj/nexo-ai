@@ -1,4 +1,5 @@
-import { env } from '@/config/env';
+import { FLAG, type FlagKey } from '@/config/feature-flag-definitions';
+import { featureFlagClient } from '@/services/feature-flag.service';
 
 export interface PivotFeatureFlags {
 	CONVERSATION_FREE: boolean;
@@ -9,13 +10,21 @@ export interface PivotFeatureFlags {
 	ELYSIA_RUNTIME: boolean;
 }
 
-export function getPivotFeatureFlags(): PivotFeatureFlags {
-	return {
-		CONVERSATION_FREE: env.CONVERSATION_FREE,
-		TOOL_SCHEMA_V2: env.TOOL_SCHEMA_V2,
-		MULTIMODAL_AUDIO: env.MULTIMODAL_AUDIO,
-		MULTIMODAL_IMAGE: env.MULTIMODAL_IMAGE,
-		PROVIDER_SPLIT: env.PROVIDER_SPLIT,
-		ELYSIA_RUNTIME: env.ELYSIA_RUNTIME,
-	};
+const PIVOT_DEFAULTS: Record<keyof PivotFeatureFlags, { key: FlagKey; default: boolean }> = {
+	CONVERSATION_FREE: { key: FLAG.CONVERSATION_FREE, default: true },
+	TOOL_SCHEMA_V2: { key: FLAG.TOOL_SCHEMA_V2, default: false },
+	MULTIMODAL_AUDIO: { key: FLAG.MULTIMODAL_AUDIO, default: false },
+	MULTIMODAL_IMAGE: { key: FLAG.MULTIMODAL_IMAGE, default: false },
+	PROVIDER_SPLIT: { key: FLAG.PROVIDER_SPLIT, default: false },
+	ELYSIA_RUNTIME: { key: FLAG.ELYSIA_RUNTIME, default: false },
+};
+
+export async function getPivotFeatureFlags(): Promise<PivotFeatureFlags> {
+	const result: PivotFeatureFlags = {} as PivotFeatureFlags;
+
+	for (const [field, { key, default: defaultValue }] of Object.entries(PIVOT_DEFAULTS)) {
+		result[field as keyof PivotFeatureFlags] = await featureFlagClient().getBooleanValue(key, defaultValue);
+	}
+
+	return result;
 }

@@ -1,37 +1,28 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-const PIVOT_FLAG_KEYS = [
-	'CONVERSATION_FREE',
-	'TOOL_SCHEMA_V2',
-	'MULTIMODAL_AUDIO',
-	'MULTIMODAL_IMAGE',
-	'PROVIDER_SPLIT',
-	'ELYSIA_RUNTIME',
-] as const;
+// Mock do featureFlagClient (OpenFeature) usando vi.mock + vi.hoisted
+const { mockGetBooleanValue } = vi.hoisted(() => ({
+	mockGetBooleanValue: vi.fn(),
+}));
 
-const originalFlagValues = Object.fromEntries(PIVOT_FLAG_KEYS.map((key) => [key, process.env[key]]));
+vi.mock('@/services/feature-flag.service', () => ({
+	featureFlagClient: vi.fn(() => ({
+		getBooleanValue: mockGetBooleanValue,
+	})),
+}));
 
 afterEach(() => {
-	for (const key of PIVOT_FLAG_KEYS) {
-		const originalValue = originalFlagValues[key];
-		if (originalValue === undefined) {
-			delete process.env[key];
-		} else {
-			process.env[key] = originalValue;
-		}
-	}
+	vi.clearAllMocks();
 	vi.resetModules();
 });
 
 describe('Pivot feature flags', () => {
-	test('defaults CONVERSATION_FREE to true and all other pivot flags to false when env vars are not set', async () => {
-		for (const key of PIVOT_FLAG_KEYS) {
-			delete process.env[key];
-		}
+	test('defaults CONVERSATION_FREE to true and all others to false when BD returns defaults', async () => {
+		// Simula BD retornando valores padrão (como se env não estivesse setada)
+		mockGetBooleanValue.mockImplementation((_key: string, defaultValue: boolean) => Promise.resolve(defaultValue));
 
-		vi.resetModules();
 		const { getPivotFeatureFlags } = await import('@/config/pivot-feature-flags');
-		const flags = getPivotFeatureFlags();
+		const flags = await getPivotFeatureFlags();
 
 		expect(flags).toEqual({
 			CONVERSATION_FREE: true,
@@ -43,17 +34,20 @@ describe('Pivot feature flags', () => {
 		});
 	});
 
-	test('reads pivot flags from env using boolean parsing', async () => {
-		process.env.CONVERSATION_FREE = 'true';
-		process.env.TOOL_SCHEMA_V2 = 'false';
-		process.env.MULTIMODAL_AUDIO = 'true';
-		process.env.MULTIMODAL_IMAGE = 'true';
-		process.env.PROVIDER_SPLIT = 'false';
-		process.env.ELYSIA_RUNTIME = 'true';
+	test('reads pivot flags from BD (overriding default)', async () => {
+		const bdValues: Record<string, boolean> = {
+			'nexo.pivot.conversation-free': true,
+			'nexo.pivot.tool-schema-v2': false,
+			'nexo.pivot.multimodal-audio': true,
+			'nexo.pivot.multimodal-image': true,
+			'nexo.pivot.provider-split': false,
+			'nexo.pivot.elysia-runtime': true,
+		};
 
-		vi.resetModules();
+		mockGetBooleanValue.mockImplementation((key: string) => Promise.resolve(bdValues[key] ?? false));
+
 		const { getPivotFeatureFlags } = await import('@/config/pivot-feature-flags');
-		const flags = getPivotFeatureFlags();
+		const flags = await getPivotFeatureFlags();
 
 		expect(flags).toEqual({
 			CONVERSATION_FREE: true,

@@ -19,3 +19,5 @@ export * from './agent-daily-logs';
 export * from './integrations';
 // WhatsApp settings
 export * from './whatsapp-settings';
+// Feature flags (pivot + channel)
+export * from './feature-flags';

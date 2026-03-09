@@ -3,6 +3,7 @@ import { env } from '@/config/env';
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { adminService } from '@/services/admin-service';
 import { embeddingService } from '@/services/ai/embedding-service';
+import { featureFlagService } from '@/services/feature-flag.service';
 import { getSystemTools } from '@/services/tools/registry';
 import { toolService } from '@/services/tools/tool.service';
 import { Hono } from 'hono';
@@ -33,7 +34,7 @@ export const adminRoutes = new Hono()
 		});
 	})
 	.get('/pivot-feature-flags', async (c) => {
-		const flags = getPivotFeatureFlags();
+		const flags = await getPivotFeatureFlags();
 		const enabled = Object.values(flags).filter(Boolean).length;
 		const total = Object.keys(flags).length;
 
@@ -199,9 +200,7 @@ export const adminRoutes = new Hono()
 
 			return c.json({
 				success: true,
-				message: newQRCode
-					? 'Sessão limpa e novo QR Code gerado com sucesso!'
-					: 'Sessão limpa. Aguarde o QR Code aparecer.',
+				message: newQRCode ? 'Sessão limpa e novo QR Code gerado com sucesso!' : 'Sessão limpa. Aguarde o QR Code aparecer.',
 				qrCode: newQRCode,
 			});
 		} catch (error) {
@@ -288,6 +287,51 @@ export const adminRoutes = new Hono()
 					error: error instanceof Error ? error.message : 'Erro ao desabilitar tools',
 				},
 				500,
+			);
+		}
+	})
+	// ========== Feature Flags (unified: pivot + channel + tool) ==========
+	.get('/feature-flags', async (c) => {
+		const { category } = c.req.query();
+		const flags = await featureFlagService.getAll(category);
+
+		const total = flags.length;
+		const enabled = flags.filter((f) => f.enabled).length;
+		const byCategory = flags.reduce(
+			(acc, f) => {
+				acc[f.category] = (acc[f.category] ?? 0) + 1;
+				return acc;
+			},
+			{} as Record<string, number>,
+		);
+
+		return c.json({
+			success: true,
+			data: {
+				flags,
+				stats: { total, enabled, disabled: total - enabled, byCategory },
+			},
+		});
+	})
+	.patch('/feature-flags/:key', async (c) => {
+		const key = decodeURIComponent(c.req.param('key'));
+		const body = await c.req.json();
+		const { enabled } = body;
+
+		if (typeof enabled !== 'boolean') {
+			return c.json({ success: false, error: '"enabled" deve ser boolean' }, 400);
+		}
+
+		try {
+			await featureFlagService.update(key, enabled);
+			return c.json({ success: true, key, enabled });
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao atualizar flag',
+				},
+				400,
 			);
 		}
 	})

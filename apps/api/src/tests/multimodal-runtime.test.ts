@@ -27,7 +27,7 @@ describe('applyMultimodalRuntime', () => {
 	beforeEach(() => {
 		vi.resetModules();
 		processAttachmentsMock.mockReset();
-		getPivotFeatureFlagsMock.mockReturnValue({
+		getPivotFeatureFlagsMock.mockResolvedValue({
 			CONVERSATION_FREE: false,
 			TOOL_SCHEMA_V2: false,
 			MULTIMODAL_AUDIO: true,
@@ -109,7 +109,7 @@ describe('applyMultimodalRuntime', () => {
 	});
 
 	it('does not call worker when modality flags are disabled', async () => {
-		getPivotFeatureFlagsMock.mockReturnValue({
+		getPivotFeatureFlagsMock.mockResolvedValue({
 			CONVERSATION_FREE: false,
 			TOOL_SCHEMA_V2: false,
 			MULTIMODAL_AUDIO: false,

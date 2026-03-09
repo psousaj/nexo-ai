@@ -252,7 +252,7 @@ export class AgentOrchestrator {
 			}
 
 			// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
-			const action = this.decideAction(intent, conversation.state);
+			const action = await this.decideAction(intent, conversation.state);
 
 			// 4. EXECUTAR AÇÃO
 			loggers.ai.info(
@@ -386,8 +386,8 @@ export class AgentOrchestrator {
 	/**
 	 * Decide qual ação tomar baseado em intenção + estado
 	 */
-	private decideAction(intent: IntentResult, state: ConversationState): string {
-		const { CONVERSATION_FREE } = getPivotFeatureFlags();
+	private async decideAction(intent: IntentResult, state: ConversationState): Promise<string> {
+		const { CONVERSATION_FREE } = await getPivotFeatureFlags();
 		return decideAgentAction(intent, state, CONVERSATION_FREE);
 	}
 
