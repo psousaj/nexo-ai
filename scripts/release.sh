@@ -99,9 +99,18 @@ if [ -n "$VERSION" ]; then
   DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
   git switch "$DEFAULT_BRANCH"
   git pull
-  git tag "$TAG"
-  git push origin "$TAG"
-  echo "✅ Tag ${TAG} criada e publicada!"
+  if git tag | grep -q "^${TAG}$"; then
+    echo "⚠️  Tag ${TAG} já existe localmente, pulando criação."
+  else
+    git tag "$TAG"
+    echo "✅ Tag ${TAG} criada localmente!"
+  fi
+  if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+    echo "⚠️  Tag ${TAG} já existe no remoto, pulando push."
+  else
+    git push origin "$TAG"
+    echo "✅ Tag ${TAG} publicada!"
+  fi
   echo ""
   echo "↩️  Voltando para '$CURRENT_BRANCH'..."
   git switch "$CURRENT_BRANCH"
