@@ -58,6 +58,7 @@
 		"@nexo/typescript-config": "workspace:*",
 		"@nuxt/eslint": "^1.13.0",
 		"@playwright/test": "^1.58.0",
+		"@vitejs/plugin-vue": "^5.2.1",
 		"@vitest/coverage-v8": "^4.0.18",
 		"@vue/test-utils": "^2.4.6",
 		"dotenv": "^17.2.3",
