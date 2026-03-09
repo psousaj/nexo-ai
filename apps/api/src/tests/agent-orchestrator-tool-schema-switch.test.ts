@@ -75,7 +75,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('uses v1 parser path when TOOL_SCHEMA_V2 is disabled', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: false });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: false });
 		mockParseJSONFromLLM.mockReturnValue({
 			schema_version: '1.0',
 			action: 'CALL_TOOL',
@@ -118,7 +118,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('retries contract parsing and succeeds on second attempt when first output is plain text', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: false });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: false });
 		mockCallLLM
 			.mockResolvedValueOnce({
 				message: "Hello! I'm NEXO, your personal AI assistant.",
@@ -167,7 +167,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('returns generic processing error after max contract retries are exhausted', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: false });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: false });
 		mockCallLLM
 			.mockResolvedValueOnce({ message: 'texto inválido 1' })
 			.mockResolvedValueOnce({ message: 'texto inválido 2' })
@@ -204,7 +204,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('uses AgentDecisionV2 path when TOOL_SCHEMA_V2 is enabled', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: true });
 		mockParseAgentDecisionV2FromLLM.mockReturnValue({
 			schema_version: '2.0',
 			action: 'CALL_TOOL',
@@ -258,7 +258,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('blocks side-effecting CALL_TOOL when deterministic_path is not true (v2 only)', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: true });
 		mockParseAgentDecisionV2FromLLM.mockReturnValue({
 			schema_version: '2.0',
 			action: 'CALL_TOOL',
@@ -304,7 +304,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('allows read-only CALL_TOOL even when deterministic_path is false (v2 only)', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: true });
 		mockParseAgentDecisionV2FromLLM.mockReturnValue({
 			schema_version: '2.0',
 			action: 'CALL_TOOL',
@@ -356,7 +356,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('handles RESPOND action in v2 without executing tools', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: true });
 		mockParseAgentDecisionV2FromLLM.mockReturnValue({
 			schema_version: '2.0',
 			action: 'RESPOND',
@@ -399,7 +399,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 	});
 
 	test('handles NOOP action in v2 with fallback response and no tools', async () => {
-		mockGetPivotFeatureFlags.mockReturnValue({ TOOL_SCHEMA_V2: true });
+		mockGetPivotFeatureFlags.mockResolvedValue({ TOOL_SCHEMA_V2: true });
 		mockParseAgentDecisionV2FromLLM.mockReturnValue({
 			schema_version: '2.0',
 			action: 'NOOP',

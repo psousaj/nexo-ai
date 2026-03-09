@@ -1,14 +1,12 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-const { mockGetPivotFeatureFlags, mockGetWhatsAppSettings, mockInvalidateCache, mockSetActiveWhatsAppApi } = vi.hoisted(
-	() => ({
-		mockGetPivotFeatureFlags: vi.fn(),
-		mockGetWhatsAppSettings: vi.fn(),
-		mockInvalidateCache: vi.fn(),
-		mockSetActiveWhatsAppApi: vi.fn(),
-	}),
-);
+const { mockGetPivotFeatureFlags, mockGetWhatsAppSettings, mockInvalidateCache, mockSetActiveWhatsAppApi } = vi.hoisted(() => ({
+	mockGetPivotFeatureFlags: vi.fn(),
+	mockGetWhatsAppSettings: vi.fn(),
+	mockInvalidateCache: vi.fn(),
+	mockSetActiveWhatsAppApi: vi.fn(),
+}));
 
 vi.mock('@/config/pivot-feature-flags', () => ({
 	getPivotFeatureFlags: mockGetPivotFeatureFlags,
@@ -28,7 +26,7 @@ describe('Admin routes - pivot feature flags', () => {
 	test('returns effective pivot feature flags and metadata', async () => {
 		const { adminRoutes } = await import('@/routes/dashboard/admin.routes');
 
-		mockGetPivotFeatureFlags.mockReturnValue({
+		mockGetPivotFeatureFlags.mockResolvedValue({
 			CONVERSATION_FREE: true,
 			TOOL_SCHEMA_V2: false,
 			MULTIMODAL_AUDIO: true,
