@@ -1,12 +1,12 @@
 import { db } from '@/db';
-import { userChannels, conversations, messages, users } from '@/db/schema';
+import { conversations, messages, userChannels, users } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
-import { count, desc, eq, inArray } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 
 export class AdminService {
 	/**
 	 * Lista sumário de conversas anonimizadas (LGPD compliant).
-	 * Retorna userId hasheado + provider principal do usuário — sem nome ou e-mail.
+	 * O channel é lido direto da coluna conversations.channel.
 	 */
 	async getConversationSummaries(limit = 20) {
 		const result = await db
@@ -17,6 +17,7 @@ export class AdminService {
 				isActive: conversations.isActive,
 				updatedAt: conversations.updatedAt,
 				createdAt: conversations.createdAt,
+				channel: conversations.channel,
 				messageCount: count(messages.id),
 			})
 			.from(conversations)
@@ -25,30 +26,11 @@ export class AdminService {
 			.orderBy(desc(conversations.updatedAt))
 			.limit(limit);
 
-		// Busca o provider principal de cada userId de forma batch
-		const userIds = [...new Set(result.map((c) => c.userId))];
-		const providerRows = userIds.length
-			? await db
-					.select({ userId: userChannels.userId, provider: userChannels.channel })
-					.from(userChannels)
-					.where(inArray(userChannels.userId, userIds))
-			: [];
-
-		const providerMap = new Map<string, string>();
-		for (const row of providerRows) {
-			// Prioridade: telegram > whatsapp > discord > outros
-			const priority: Record<string, number> = { telegram: 0, whatsapp: 1, discord: 2 };
-			const existing = providerMap.get(row.userId);
-			if (!existing || (priority[row.provider] ?? 99) < (priority[existing] ?? 99)) {
-				providerMap.set(row.userId, row.provider);
-			}
-		}
-
 		return result.map((c) => ({
 			id: c.id,
-			userId: c.userId, // necessário para o front comparar com o usuário logado
-			userHash: c.userId.substring(0, 8), // Anonimizado conforme LGPD
-			provider: providerMap.get(c.userId) ?? 'unknown',
+			userId: c.userId,
+			userHash: c.userId.substring(0, 8),
+			provider: c.channel ?? 'unknown',
 			status: c.isActive ? 'Active' : 'Closed',
 			lastMessage: c.updatedAt,
 			messages: Number(c.messageCount),
@@ -84,6 +66,7 @@ export class AdminService {
 				content: messages.content,
 				provider: messages.provider,
 				createdAt: messages.createdAt,
+				metadata: messages.metadata,
 			})
 			.from(messages)
 			.where(eq(messages.conversationId, conversationId))

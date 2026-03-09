@@ -81,6 +81,56 @@ export class AccountLinkingService {
 	}
 
 	/**
+	 * Fluxo 0: Bot -> Dashboard (Pre-Signup)
+	 * Usuário não registrado encontrado em canal não-trial (Telegram, Discord).
+	 * Gera um token sem userId que, após o signup no Dashboard, vincula automaticamente o canal.
+	 */
+	async generatePreSignupToken(externalId: string, provider: ProviderType): Promise<string> {
+		// Reutiliza token válido se já existir
+		const [existing] = await db
+			.select()
+			.from(linkingTokens)
+			.where(
+				and(
+					eq(linkingTokens.externalId, externalId),
+					sql`${linkingTokens.provider}::text = ${provider}`,
+					eq(linkingTokens.tokenType, 'pre_signup'),
+					gte(linkingTokens.expiresAt, new Date()),
+				),
+			)
+			.limit(1);
+
+		if (existing) return existing.token;
+
+		// Remove expirados do mesmo externalId/provider
+		await db
+			.delete(linkingTokens)
+			.where(
+				and(
+					eq(linkingTokens.externalId, externalId),
+					sql`${linkingTokens.provider}::text = ${provider}`,
+					eq(linkingTokens.tokenType, 'pre_signup'),
+				),
+			);
+
+		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+		const expiresAt = new Date();
+		expiresAt.setHours(expiresAt.getHours() + 24);
+
+		await db.insert(linkingTokens).values({
+			token,
+			tokenType: 'pre_signup',
+			provider: provider as any,
+			externalId,
+			expiresAt,
+		});
+
+		loggers.webhook.info({ provider, externalId }, '🔑 Token pre_signup gerado para usuário não registrado');
+		return token;
+	}
+
+	/**
 	 * Fluxo 1: Dashboard -> Bot (Deep Linking)
 	 * O usuário está logado no Dashboard, gera um token, e envia para o Bot.
 	 * O Bot recebe o token e o externalId (ex: Telegram ID).
@@ -101,6 +151,14 @@ export class AccountLinkingService {
 
 		// Vincula a conta no UserService
 		await userService.linkAccountToUser(linkToken.userId, linkToken.provider, externalId, metadata);
+
+		// Se for token de signup (trial → conta real via bot), ativa o usuário diretamente
+		// Isso cobre o caso em que o usuário toca o deep link no Telegram sem passar pelo Dashboard
+		if (linkToken.tokenType === 'signup') {
+			await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, linkToken.userId));
+			await cacheDelete(`user:account:${linkToken.provider}:${externalId}`);
+			loggers.webhook.info({ userId: linkToken.userId, provider: linkToken.provider }, '✅ Usuário ativado via deep link (signup token)');
+		}
 
 		// Remove o token após uso
 		await db.delete(linkingTokens).where(eq(linkingTokens.id, linkToken.id));
@@ -131,12 +189,18 @@ export class AccountLinkingService {
 		const trialUserId = linkToken.userId;
 		const provider = linkToken.provider;
 
-		if (linkToken.tokenType === 'signup') {
+		if (linkToken.tokenType === 'pre_signup') {
+			// Fluxo 0: não há trial user — só vincula o canal diretamente ao novo usuário Dashboard
+			if (!linkToken.externalId) return null;
+			await userService.linkAccountToUser(targetUserId, provider, linkToken.externalId, {});
+			await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, targetUserId));
+			loggers.webhook.info({ targetUserId, provider, externalId: linkToken.externalId }, '✅ Canal vinculado via pre_signup token');
+		} else if (linkToken.tokenType === 'signup') {
 			// Migração completa: trial user → conta real
-			await this.migrateTrialUserToAccount(trialUserId, targetUserId, provider);
+			await this.migrateTrialUserToAccount(trialUserId!, targetUserId, provider);
 		} else {
 			// Vínculo simples (link manual code)
-			const accounts = await userService.getUserAccounts(trialUserId);
+			const accounts = await userService.getUserAccounts(trialUserId!);
 			const accountToLink = accounts.find((a: any) => a.provider === provider && a.type === 'channel');
 			if (!accountToLink) return null;
 

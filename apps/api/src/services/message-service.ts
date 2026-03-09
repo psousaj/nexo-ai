@@ -4,6 +4,7 @@ import {
 	ERROR_MESSAGES,
 	FALLBACK_MESSAGES,
 	TIMEOUT_MESSAGE,
+	getChannelNotRegisteredMessage,
 	getChannelSignupRequiredMessage,
 	getChannelTrialExceededMessage,
 	getRandomMessage,
@@ -43,10 +44,7 @@ async function containsOffensiveContent(message: string): Promise<boolean> {
 			'offensive.is_offensive': sentiment.score < -3,
 		});
 
-		loggers.webhook.info(
-			{ score: sentiment.score, sentiment: sentiment.sentiment, message },
-			'🛡️ Sentiment Analysis (nlp.js)',
-		);
+		loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
 
 		return sentiment.score < -3;
 	});
@@ -77,11 +75,7 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 	return timeoutMinutes;
 }
 
-export async function processMessage(
-	incomingMsg: IncomingMessage,
-	provider: MessagingProvider,
-	options: ProcessMessageOptions = {},
-) {
+export async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider, options: ProcessMessageOptions = {}) {
 	const messageText = incomingMsg.text;
 
 	return Sentry.startSpan(
@@ -146,6 +140,51 @@ export async function processMessage(
 						return;
 					}
 
+					// 2. GUARDA ANTI-GHOST-USER
+					// Todos os canais exigem conta vinculada. Nunca criamos ghost users.
+					// Exceção: se o usuário já tem OAuth conectado no Dashboard, auto-vincula o canal.
+					const providerForGuard = provider.getProviderName();
+					// Para Discord em guild: externalId = channelId (para envio), userId = Discord user ID
+					// Para todos os outros: externalId == userId. Usamos identityId nos lookups.
+					const identityId = incomingMsg.userId ?? incomingMsg.externalId;
+					{
+						const existingAccount = await startSpan('user.check_registered', async () => {
+							return await userService.findAccount(incomingMsg.provider, identityId);
+						});
+						if (!existingAccount) {
+							// Tenta auto-vincular via OAuth (ex: Discord OAuth já conectado no Dashboard)
+							const oauthUserId = await userService.findUserIdByOAuthAccount(providerForGuard, identityId);
+							if (oauthUserId) {
+								await userService.linkAccountToUser(oauthUserId, incomingMsg.provider as any, identityId, {
+									username: incomingMsg.senderName,
+								});
+								const { getChannelLinkSuccessMessage } = await import('@/config/prompts');
+								await provider.sendMessage(incomingMsg.externalId, getChannelLinkSuccessMessage(providerForGuard));
+								loggers.webhook.info({ provider: providerForGuard, identityId, userId: oauthUserId }, '✅ Canal auto-vinculado via OAuth');
+								return;
+							}
+
+							setAttributes({ 'message.status': 'user_not_registered' });
+							loggers.webhook.info({ provider: providerForGuard, identityId }, '⛔ Usuário sem cadastro - nenhum ghost user criado');
+							const isLocalhost = env.DASHBOARD_URL.includes('localhost') || env.DASHBOARD_URL.includes('127.0.0.1');
+							let signupLink = `${env.DASHBOARD_URL}/signup`;
+							if (!isLocalhost) {
+								const { accountLinkingService } = await import('@/services/account-linking-service');
+								const token = await accountLinkingService.generatePreSignupToken(identityId, incomingMsg.provider);
+								signupLink = `${env.DASHBOARD_URL}/signup?vinculate_code=${token}`;
+							}
+							const notRegisteredMsg = getChannelNotRegisteredMessage(providerForGuard, signupLink);
+							if (providerForGuard === 'telegram' && !isLocalhost) {
+								const buttons = [[{ text: '🔗 Criar conta no Nexo AI', url: signupLink }]];
+								await (provider as any).sendMessageWithButtons(incomingMsg.externalId, notRegisteredMsg, buttons);
+							} else {
+								const suffix = isLocalhost ? '\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)' : '';
+								await provider.sendMessage(incomingMsg.externalId, `${notRegisteredMsg}${suffix}`);
+							}
+							return;
+						}
+					}
+
 					const startTotal = performance.now();
 					let userId: string | undefined;
 					let conversationId: string | undefined;
@@ -159,7 +198,7 @@ export async function processMessage(
 
 							const { user } = await startSpan('user.find_or_create', async () => {
 								return await userService.findOrCreateUserByAccount(
-									incomingMsg.externalId,
+									identityId,
 									incomingMsg.provider,
 									incomingMsg.senderName,
 									incomingMsg.phoneNumber,
@@ -179,7 +218,7 @@ export async function processMessage(
 						// 3. FIND OR CREATE USER
 						const { user } = await startSpan('user.find_or_create', async () => {
 							return await userService.findOrCreateUserByAccount(
-								incomingMsg.externalId,
+								identityId,
 								incomingMsg.provider,
 								incomingMsg.senderName,
 								incomingMsg.phoneNumber,
@@ -201,7 +240,7 @@ export async function processMessage(
 
 						// 4. GET OR CREATE CONVERSATION
 						const conversation = await startSpan('conversation.get_or_create', async () => {
-							return await conversationService.findOrCreateConversation(user.id);
+							return await conversationService.findOrCreateConversation(user.id, incomingMsg.provider);
 						});
 
 						conversationId = conversation.id;
@@ -245,10 +284,7 @@ export async function processMessage(
 								// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
 								// (Pode ser um erro de cache ou estado, mas evita spam de trial para usuários registrados)
 								if (user.status === 'active') {
-									loggers.webhook.warn(
-										{ userId: user.id },
-										'⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando',
-									);
+									loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando');
 									// Força update se necessário ou segue fluxo
 								} else {
 									// Verifica se o usuário tem conta vinculada no UserService
@@ -292,11 +328,7 @@ export async function processMessage(
 								const isNewUser = accounts.length <= 1;
 
 								if (isNewUser) {
-									const signupToken = await accountLinkingService.generateLinkingToken(
-										user.id,
-										providerName as any,
-										'signup',
-									);
+									const signupToken = await accountLinkingService.generateLinkingToken(user.id, providerName as any, 'signup');
 									const signupLink = `${dashboardUrl}?vinculate_code=${signupToken}`;
 									const signupRequiredMessage = getChannelSignupRequiredMessage(providerName, signupLink);
 
@@ -309,11 +341,7 @@ export async function processMessage(
 											);
 										} else {
 											const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
-											await (provider as any).sendMessageWithButtons(
-												incomingMsg.externalId,
-												signupRequiredMessage,
-												buttons,
-											);
+											await (provider as any).sendMessageWithButtons(incomingMsg.externalId, signupRequiredMessage, buttons);
 										}
 									} else {
 										await provider.sendMessage(incomingMsg.externalId, signupRequiredMessage);
@@ -373,10 +401,7 @@ export async function processMessage(
 								} catch (sendError: any) {
 									// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
 									if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-										loggers.webhook.error(
-											{ error: sendError.cause?.code },
-											'❌ Erro de rede ao enviar mensagem - não enviando fallback',
-										);
+										loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
 										throw sendError; // Re-throw para Bull não fazer retry
 									}
 									throw sendError;
@@ -394,10 +419,7 @@ export async function processMessage(
 							} catch (sendError: any) {
 								// Se erro de rede, apenas loga e retorna
 								if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-									loggers.webhook.error(
-										{ error: sendError.cause?.code },
-										'❌ Erro de rede ao enviar fallback - abortando',
-									);
+									loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar fallback - abortando');
 									throw sendError;
 								}
 								throw sendError;
@@ -410,10 +432,7 @@ export async function processMessage(
 						}
 
 						const endTotal = performance.now();
-						loggers.webhook.info(
-							{ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` },
-							'🏁 Processamento finalizado',
-						);
+						loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
 					} catch (error: any) {
 						recordException(error as Error, {
 							'user.id': userId,
@@ -426,11 +445,7 @@ export async function processMessage(
 						// Apenas tenta avisar o usuário se não for erro de conexão
 						// O Global Error Handler (via Queue) vai cuidar de logar e persistir tudo com contexto
 						const shouldNotifyUserOnProcessingError = options.shouldNotifyUserOnProcessingError ?? true;
-						if (
-							shouldNotifyUserOnProcessingError &&
-							error.cause?.code !== 'ETIMEDOUT' &&
-							error.cause?.code !== 'ECONNREFUSED'
-						) {
+						if (shouldNotifyUserOnProcessingError && error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
 							try {
 								const errorMsg = getRandomMessage(ERROR_MESSAGES);
 								await provider.sendMessage(incomingMsg.externalId, errorMsg);

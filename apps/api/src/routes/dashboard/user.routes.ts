@@ -49,6 +49,16 @@ export const userRoutes = new Hono<AuthContext>()
 
 		return c.json({ link });
 	})
+	.post('/link/discord-bot', async (c) => {
+		const userState = c.get('user');
+		const user = await userService.getUserById(userState.id);
+		if (!user) return c.json({ error: 'User not found' }, 404);
+
+		const token = await accountLinkingService.generateLinkingToken(user.id, 'discord', 'link');
+		const botUsername = env.DISCORD_BOT_USERNAME || 'NexoAssistente_bot';
+
+		return c.json({ token, botUsername });
+	})
 	.get('/link/google', async (c) => {
 		// Better Auth v1.4 usa /sign-in/<provider>
 		const callbackURL = `${env.DASHBOARD_URL}/profile?success=google`;
@@ -68,6 +78,49 @@ export const userRoutes = new Hono<AuthContext>()
 			scopes: ['bot', 'applications.commands'],
 			botUsername: 'NexoAssistente_bot',
 		});
+	})
+	// Detecta se o bot já está instalado num servidor do usuário e auto-vincula o canal se possível
+	.get('/discord-bot/status', async (c) => {
+		const userState = c.get('user');
+
+		// Canal já vinculado?
+		const [existing] = await db
+			.select()
+			.from(userChannels)
+			.where(and(eq(userChannels.userId, userState.id), eq(userChannels.channel, 'discord')))
+			.limit(1);
+
+		if (existing) {
+			return c.json({ linked: true, reason: 'already_linked' });
+		}
+
+		// Tem Discord OAuth?
+		const [oauthAccount] = await db
+			.select()
+			.from(betterAuthAccounts)
+			.where(and(eq(betterAuthAccounts.providerId, 'discord'), eq(betterAuthAccounts.userId, userState.id)))
+			.limit(1);
+
+		if (!oauthAccount) {
+			return c.json({ linked: false, reason: 'no_oauth', hasOAuth: false });
+		}
+
+		const discordUserId = oauthAccount.accountId;
+
+		// Verifica se o bot está em algum servidor que o usuário é dono
+		const { findGuildOwnedByUser } = await import('@/adapters/messaging/discord-adapter');
+		const guild = await findGuildOwnedByUser(discordUserId);
+
+		if (guild) {
+			const user = await userService.getUserById(userState.id);
+			await userService.linkAccountToUser(userState.id, 'discord' as any, discordUserId, {
+				username: user?.name || discordUserId,
+			});
+			loggers.webhook.info({ userId: userState.id, discordUserId, guildName: guild.name }, '✅ Discord bot auto-linked via status check');
+			return c.json({ linked: true, reason: 'auto_linked', guildName: guild.name });
+		}
+
+		return c.json({ linked: false, reason: 'bot_not_installed', hasOAuth: true });
 	})
 	.post('/link/consume', zValidator('json', z.object({ vinculateCode: z.string() })), async (c) => {
 		const userState = c.get('user');

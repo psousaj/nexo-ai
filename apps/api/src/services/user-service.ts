@@ -363,6 +363,19 @@ export class UserService {
 		};
 	}
 
+	/**
+	 * Busca userId a partir de uma conta OAuth (Better Auth accounts table).
+	 * Útil para auto-vincular canal de bot quando o usuário já fez OAuth no Dashboard.
+	 */
+	async findUserIdByOAuthAccount(provider: string, accountId: string): Promise<string | null> {
+		const [row] = await db
+			.select({ userId: betterAuthAccounts.userId })
+			.from(betterAuthAccounts)
+			.where(and(eq(betterAuthAccounts.providerId, provider), eq(betterAuthAccounts.accountId, accountId)))
+			.limit(1);
+		return row?.userId ?? null;
+	}
+
 	private parseMetadata(metadata?: string | null) {
 		if (!metadata) return {};
 		try {

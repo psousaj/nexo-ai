@@ -57,12 +57,30 @@ export interface ConversationSummary {
 	highlights: string[];
 }
 
+export interface OrchestratorTrace {
+	intent: string;
+	confidence: number;
+	action: string;
+	llm_action?: 'CALL_TOOL' | 'RESPOND' | 'NOOP';
+	tools_used?: string[];
+	schema_version?: string;
+	durations?: {
+		intent_ms?: number;
+		llm_ms?: number;
+		action_ms?: number;
+		total_ms?: number;
+	};
+}
+
 export interface ConversationMessage {
 	id: string;
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	provider: string | null;
 	createdAt: string;
+	metadata?: {
+		_trace?: OrchestratorTrace;
+	} | null;
 }
 
 export interface ConversationAudit {

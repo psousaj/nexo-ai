@@ -4,15 +4,7 @@ import { loggers } from '@/utils/logger';
 
 // Re-export shared types
 // Re-export shared types
-import type {
-	ItemMetadata,
-	ItemType,
-	LinkMetadata,
-	MovieMetadata,
-	NoteMetadata,
-	TVShowMetadata,
-	VideoMetadata,
-} from '@nexo/shared';
+import type { ItemMetadata, ItemType, LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@nexo/shared';
 export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
 export * from './agent-decision-v2';
 
@@ -67,10 +59,7 @@ export function validateAgentResponse(response: any): response is AgentLLMRespon
 
 	// Validar schema_version
 	if (response.schema_version !== CURRENT_SCHEMA_VERSION) {
-		loggers.ai.warn(
-			{ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION },
-			'Versão de schema incompatível',
-		);
+		loggers.ai.warn({ version: response.schema_version, expected: CURRENT_SCHEMA_VERSION }, 'Versão de schema incompatível');
 	}
 
 	if (!['CALL_TOOL', 'RESPOND', 'NOOP'].includes(response.action)) return false;
@@ -132,6 +121,43 @@ export interface ConversationContext {
 
 // Re-export AI types from ai service
 export type { AIResponse, Message, AIProvider, AIProviderType } from '@/services/ai/types';
+
+// ============================================================================
+// ORCHESTRATION TRACE TYPES
+// ============================================================================
+
+/**
+ * Trace de decisões do orquestrador, salvo no metadata da mensagem do assistente.
+ * Propagado também para spans OTEL e contexto Sentry.
+ */
+export interface OrchestratorTrace {
+	/** Intent classificado (casual_chat, save_content, unknown, etc.) */
+	intent: string;
+	/** Confiança do classificador (0 a 1) */
+	confidence: number;
+	/** Rota de ação decidida (handle_with_llm, handle_casual, handle_search, etc.) */
+	action: string;
+	/** Ação retornada pelo LLM: CALL_TOOL | RESPOND | NOOP (somente cuando LLM foi chamado) */
+	llm_action?: 'CALL_TOOL' | 'RESPOND' | 'NOOP';
+	/** Tools executadas com sucesso */
+	tools_used?: string[];
+	/** Schema version do contrato LLM */
+	schema_version?: string;
+	/** Durações das etapas em milissegundos */
+	durations?: {
+		intent_ms?: number;
+		llm_ms?: number;
+		action_ms?: number;
+		total_ms?: number;
+	};
+}
+
+/**
+ * Metadata de uma mensagem no banco — contém o trace de orquestração nas mensagens do assistente.
+ */
+export interface MessageMetadata {
+	_trace?: OrchestratorTrace;
+}
 
 // ============================================================================
 // OPENCLAW-INSPIRED TYPES

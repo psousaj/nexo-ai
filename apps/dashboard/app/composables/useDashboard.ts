@@ -50,10 +50,7 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const updateMemory = async (
-		id: string | number,
-		payload: { title?: string; content?: string },
-	): Promise<{ success: boolean }> => {
+	const updateMemory = async (id: string | number, payload: { title?: string; content?: string }): Promise<{ success: boolean }> => {
 		const updates: Record<string, any> = {};
 		if (payload.title) updates.title = payload.title;
 		if (payload.content) updates.metadata = { full_content: payload.content };
@@ -82,9 +79,7 @@ export const useDashboard = () => {
 	};
 
 	const getConversationMessages = async (conversationId: string): Promise<ConversationAudit> => {
-		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(
-			`/admin/conversations/${conversationId}/messages`,
-		);
+		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(`/admin/conversations/${conversationId}/messages`);
 		return data.data;
 	};
 
@@ -94,7 +89,18 @@ export const useDashboard = () => {
 	};
 
 	const updatePreferences = async (updates: Partial<UserPreferences>): Promise<void> => {
-		await api.patch('/user/preferences', updates);
+		const knownKeys: (keyof UserPreferences)[] = [
+			'assistantName',
+			'notificationsBrowser',
+			'notificationsWhatsapp',
+			'notificationsEmail',
+			'privacyShowMemoriesInSearch',
+			'privacyShareAnalytics',
+			'appearanceTheme',
+			'appearanceLanguage',
+		];
+		const payload = Object.fromEntries(knownKeys.filter((k) => k in updates && updates[k] != null).map((k) => [k, updates[k]]));
+		await api.patch('/user/preferences', payload);
 	};
 
 	const getAccounts = async (): Promise<Account[]> => {
@@ -119,6 +125,11 @@ export const useDashboard = () => {
 
 	const linkDiscord = async (): Promise<{ link: string }> => {
 		const { data } = await api.get('/user/link/discord');
+		return data;
+	};
+
+	const linkDiscordBot = async (): Promise<{ token: string; botUsername: string }> => {
+		const { data } = await api.post('/user/link/discord-bot');
 		return data;
 	};
 
@@ -188,6 +199,16 @@ export const useDashboard = () => {
 		return data;
 	};
 
+	const checkDiscordBotStatus = async (): Promise<{
+		linked: boolean;
+		reason: 'already_linked' | 'auto_linked' | 'no_oauth' | 'bot_not_installed';
+		guildName?: string;
+		hasOAuth?: boolean;
+	}> => {
+		const { data } = await api.get('/user/discord-bot/status');
+		return data;
+	};
+
 	return {
 		getAnalytics,
 		getMemories,
@@ -202,6 +223,7 @@ export const useDashboard = () => {
 		syncAccounts,
 		linkTelegram,
 		linkDiscord,
+		linkDiscordBot,
 		linkGoogle,
 		consumeLinkingToken,
 		unlinkAccount,
@@ -212,5 +234,6 @@ export const useDashboard = () => {
 		disconnectBaileys,
 		restartBaileys,
 		getDiscordBotInfo,
+		checkDiscordBotStatus,
 	};
 };
