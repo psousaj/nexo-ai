@@ -10,6 +10,6 @@ export default defineConfig({
 	minify: false,
 	splitting: false,
 	bundle: false,
-	dts: true,
+	dts: false,
 	platform: 'node',
 });

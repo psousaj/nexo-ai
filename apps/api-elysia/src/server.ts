@@ -15,7 +15,7 @@ import { loggers } from '@nexo/api-core/utils/logger';
 import { opentelemetry } from '@elysiajs/opentelemetry';
 import openapi from '@elysiajs/openapi';
 import { serverTiming } from '@elysiajs/server-timing';
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/bun';
 import Elysia from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { cron } from '@elysiajs/cron';
@@ -151,9 +151,6 @@ const app = new Elysia()
 		'/debug-sentry',
 		() => {
 			sentryLogger.info('User triggered test error', { action: 'test_error_endpoint' });
-			Sentry.metrics.count('debug_sentry_test_counter', 1, {
-				attributes: { route: '/debug-sentry', environment: env.NODE_ENV },
-			});
 			throw new Error('Sentry debug error - testando captura de exceção');
 		},
 		{
