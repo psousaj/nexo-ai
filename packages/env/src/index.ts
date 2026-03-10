@@ -147,7 +147,7 @@ const envSchema = z.object({
 	DISCORD_CLIENT_ID: z.string().optional(),
 	DISCORD_CLIENT_SECRET: z.string().optional(),
 	DISCORD_BOT_TOKEN: z.string().optional(),
-	DISCORD_BOT_USERNAME: z.string().optional(),
+	DISCORD_BOT_USERNAME: z.string().default('NexoAssistente_bot'),
 
 	// Better Auth
 	BETTER_AUTH_SECRET: z.string().min(32).optional(),
