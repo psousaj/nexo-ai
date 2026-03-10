@@ -35,15 +35,15 @@ import {
 	getAgentSystemPrompt,
 	getRandomMessage as getRandomResponse,
 } from '@/config/prompts';
+import { setSentryContext } from '@/sentry';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
 import type { AgentDecisionV2, ConversationState, ToolName } from '@/types';
+import type { MessageMetadata, OrchestratorTrace } from '@/types';
 import { parseAgentDecisionV2FromLLM } from '@/utils/json-parser';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
-import type { MessageMetadata, OrchestratorTrace } from '@/types';
-import { setSentryContext } from '@/sentry';
 import { decideAgentAction } from './agent-action-routing';
 import { canExecuteAgentDecisionV2Tool } from './agent-decision-v2-side-effect-gate';
 import { llmService } from './ai';
@@ -53,6 +53,7 @@ import { cancellationMessages, confirmationMessages, getRandomMessage } from './
 import { type IntentResult, intentClassifier } from './intent-classifier';
 import { itemService } from './item-service';
 import { scheduleConversationClose } from './queue-service';
+import { toolAvailabilityService } from './tool-availability.service';
 import { type ToolContext, executeTool } from './tools';
 
 export interface AgentContext {
@@ -151,8 +152,18 @@ export class AgentOrchestrator {
 					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
 					const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
-					await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
-					await conversationService.addMessage(conversation.id, 'assistant', responseMessage, this.buildMessagePersistOptions(context));
+					await conversationService.addMessage(
+						conversation.id,
+						'user',
+						context.message,
+						this.buildMessagePersistOptions(context, true),
+					);
+					await conversationService.addMessage(
+						conversation.id,
+						'assistant',
+						responseMessage,
+						this.buildMessagePersistOptions(context),
+					);
 
 					return {
 						message: responseMessage,
@@ -173,7 +184,10 @@ export class AgentOrchestrator {
 				const cb = context.callbackData;
 				const isKnownCallback = cb.startsWith('select_') || cb === 'confirm_final' || cb === 'choose_again';
 
-				if (isKnownCallback && (conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')) {
+				if (
+					isKnownCallback &&
+					(conversation.state === 'awaiting_confirmation' || conversation.state === 'awaiting_final_confirmation')
+				) {
 					loggers.ai.info({ callbackData: cb, state: conversation.state }, '🔘 Callback do Telegram detectado');
 
 					// Cria intent artificial para handleConfirmation
@@ -237,7 +251,10 @@ export class AgentOrchestrator {
 				const endAmbiguous = performance.now();
 
 				if (isAmbiguous) {
-					loggers.ai.info({ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` }, '🔍 Ambiguidade detectada');
+					loggers.ai.info(
+						{ duration: `${(endAmbiguous - startAmbiguous).toFixed(0)}*ms*` },
+						'🔍 Ambiguidade detectada',
+					);
 					return {
 						message: null as any, // Mensagem já enviada pelo conversationService
 						state: 'awaiting_context', // Estado atualizado pelo service
@@ -361,7 +378,12 @@ export class AgentOrchestrator {
 			// 6. SALVAR MENSAGENS
 			// Se a resposta for nula (ex: handleAmbiguousMessage), não salva resposta vazia
 			// Mas a mensagem do user SEMPRE deve ser salva
-			await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
+			await conversationService.addMessage(
+				conversation.id,
+				'user',
+				context.message,
+				this.buildMessagePersistOptions(context, true),
+			);
 			if (response.message) {
 				await conversationService.addMessage(
 					conversation.id,
@@ -397,7 +419,7 @@ export class AgentOrchestrator {
 	 * LLM retorna JSON seguindo AgentLLMResponse schema.
 	 * Runtime processa e decide o que fazer.
 	 */
-	private async handleWithLLM(context: AgentContext, _intent: IntentResult, conversation: any): Promise<AgentResponse> {
+	private async handleWithLLM(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
 			const MAX_CONTRACT_RETRIES = 3;
 			const toolContext: ToolContext = {
@@ -407,6 +429,58 @@ export class AgentOrchestrator {
 				externalId: context.externalId,
 			};
 
+			// Busca tools disponíveis uma vez (usada tanto no gate quanto no prompt)
+			const { tools: availableToolNames } = await toolAvailabilityService.getAvailableTools();
+
+			// 🚨 GATE PRÉ-LLM: Detecta padrão de lembrete e clarifica ANTES de chamar LLM
+			if (intent.entities?.reminderHint && conversation?.state === 'idle') {
+				const hasReminder = availableToolNames.includes('schedule_reminder');
+				const clarificationMsg = hasReminder
+					? '📝 Salvar como nota ou ⏰ agendar um lembrete?'
+					: '⏰ Lembretes precisam de integração com Google Calendar. Posso salvar como nota por enquanto. Confirma?';
+
+				const buttons = hasReminder
+					? [
+							[
+								{ text: '📝 Nota', callback_data: 'clarify_note' },
+								{ text: '⏰ Lembrete', callback_data: 'clarify_reminder' },
+							],
+						]
+					: [
+							[
+								{ text: '📝 Salvar nota', callback_data: 'clarify_note' },
+								{ text: '❌ Cancelar', callback_data: 'clarify_cancel' },
+							],
+						];
+
+				await conversationService.updateState(context.conversationId, 'awaiting_confirmation', {
+					clarification_type: 'reminder_or_note',
+					original_message: context.message,
+				});
+
+				try {
+					const { getProvider } = await import('@/adapters/messaging');
+					const provider = await getProvider(context.provider as any);
+					if (provider && 'sendMessageWithButtons' in provider) {
+						await (provider as any).sendMessageWithButtons(context.externalId, clarificationMsg, buttons);
+						return { message: '', state: 'awaiting_confirmation', toolsUsed: [] };
+					}
+				} catch {
+					// Fallback: resposta de texto simples se provider não suporta botões
+				}
+
+				return {
+					message: clarificationMsg,
+					state: 'awaiting_confirmation',
+					toolsUsed: [],
+				};
+			}
+
+			// ============================================================================
+			// OPENCLAW PATTERN: Build personalized context
+			// ============================================================================
+			let systemPrompt: string;
+
 			// Monta histórico (últimas 10 mensagens)
 			const history = await conversationService.getHistory(context.conversationId, 10);
 			const formattedHistory = history.map((m) => ({
@@ -414,16 +488,11 @@ export class AgentOrchestrator {
 				content: m.content,
 			}));
 
-			// ============================================================================
-			// OPENCLAW PATTERN: Build personalized context
-			// ============================================================================
-			let systemPrompt: string;
-
 			if (context.sessionKey) {
 				// Use context builder for personalized system prompt
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
 				const assistantName = agentContext.assistantName || 'Nexo';
-				const baseSystemPrompt = getAgentSystemPrompt(assistantName);
+				const baseSystemPrompt = getAgentSystemPrompt(assistantName, availableToolNames);
 				const personalizedContext = applyAgentDecisionV2Contract(agentContext.systemPrompt);
 				systemPrompt = `${baseSystemPrompt}
 
@@ -447,7 +516,7 @@ ${personalizedContext}`;
 				// Fallback to original method for backward compatibility
 				const user = await userService.getUserById(context.userId);
 				const assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = getAgentSystemPrompt(assistantName);
+				systemPrompt = getAgentSystemPrompt(assistantName, availableToolNames);
 			}
 			// ============================================================================
 
@@ -470,7 +539,10 @@ ${personalizedContext}`;
 					const llmResponse = await llmService.callLLM({
 						message: context.message,
 						history: formattedHistory,
-						systemPrompt: attempt === 1 ? systemPrompt : `${systemPrompt}\n\n${AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT}${repairDetails}`,
+						systemPrompt:
+							attempt === 1
+								? systemPrompt
+								: `${systemPrompt}\n\n${AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT}${repairDetails}`,
 					});
 
 					const llmDurationMs = Math.round(performance.now() - llmStart);
@@ -506,7 +578,8 @@ ${personalizedContext}`;
 									},
 									'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
 								);
-								responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
+								responseMessage =
+									'⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
 								break;
 							}
 
@@ -605,7 +678,11 @@ ${personalizedContext}`;
 	/**
 	 * Trata confirmação do usuário
 	 */
-	private async handleConfirmation(context: AgentContext, conversation: any, intent: IntentResult): Promise<AgentResponse> {
+	private async handleConfirmation(
+		context: AgentContext,
+		conversation: any,
+		intent: IntentResult,
+	): Promise<AgentResponse> {
 		// Busca contexto anterior
 		const contextData = conversation.context || {};
 
@@ -814,7 +891,10 @@ ${personalizedContext}`;
 		}
 
 		// Confirmação genérica (fallback)
-		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace('{type}', 'item');
+		const confirmMsg = confirmationMessages[Math.floor(Math.random() * confirmationMessages.length)].replace(
+			'{type}',
+			'item',
+		);
 		return {
 			message: confirmMsg,
 			state: 'idle',
@@ -953,8 +1033,12 @@ ${personalizedContext}`;
 			conversationId: context.conversationId,
 		};
 
+		// Para list_all não passar query (evita busca semântica que pode falhar)
+		const isListAll = intent.action === 'list_all';
+		const searchQuery = isListAll ? undefined : intent.entities?.query;
+
 		const result = await executeTool('search_items', toolContext, {
-			query: intent.entities?.query,
+			query: searchQuery,
 			limit: 10,
 		});
 
@@ -969,7 +1053,13 @@ ${personalizedContext}`;
 				};
 			}
 
-			const message = formatItemsList(result.data.items, totalCount);
+			// Se a busca retornou vazio mas existem itens, busca sem filtro como fallback
+			const itemsToShow =
+				result.data.items?.length > 0
+					? result.data.items
+					: ((await executeTool('search_items', toolContext, { limit: 10 })).data?.items ?? []);
+
+			const message = formatItemsList(itemsToShow, totalCount);
 
 			return {
 				message,
@@ -989,7 +1079,11 @@ ${personalizedContext}`;
 	 * Handler: Deletar TUDO (determinístico, sem LLM)
 	 * Pede confirmação antes de executar ação destrutiva irreversível
 	 */
-	private async handleDeleteAll(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
+	private async handleDeleteAll(
+		context: AgentContext,
+		intent: IntentResult,
+		conversation: any,
+	): Promise<AgentResponse> {
 		const deleteType = intent.entities?.itemType ?? undefined;
 
 		// 1. Contar itens afetados para informar o usuário
@@ -1062,7 +1156,9 @@ ${personalizedContext}`;
 
 		// Se tem selection (número ou array), busca primeiro para pegar IDs
 		if (intent.entities?.selection) {
-			const selections = Array.isArray(intent.entities.selection) ? intent.entities.selection : [intent.entities.selection];
+			const selections = Array.isArray(intent.entities.selection)
+				? intent.entities.selection
+				: [intent.entities.selection];
 
 			// Buscar lista para pegar os itens
 			const searchResult = await executeTool('search_items', toolContext, {
@@ -1075,7 +1171,9 @@ ${personalizedContext}`;
 				const notFoundSelections: number[] = [];
 
 				// Filtra por tipo se especificado (ex: "deleta o filme 1" → filtra apenas filmes)
-				const targetItems = intent.entities?.itemType ? items.filter((i: any) => i.type === intent.entities?.itemType) : items;
+				const targetItems = intent.entities?.itemType
+					? items.filter((i: any) => i.type === intent.entities?.itemType)
+					: items;
 
 				// Processar cada seleção
 				for (const selection of selections) {
@@ -1190,7 +1288,10 @@ ${personalizedContext}`;
 		if (!isNumber || Number.isNaN(choice)) {
 			try {
 				const nlpResult = await messageAnalyzer.classifyIntent(message);
-				loggers.ai.info({ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action }, '🧠 NLP Classification');
+				loggers.ai.info(
+					{ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action },
+					'🧠 NLP Classification',
+				);
 
 				// Mapeamento de intents para tipos
 				const intentToType: Record<string, string> = {
@@ -1208,7 +1309,10 @@ ${personalizedContext}`;
 						series: '📺',
 						link: '🔗',
 					};
-					loggers.ai.info({ message, detectedType, confidence: nlpResult.confidence }, `${typeEmoji[detectedType]} Tipo detectado via NLP`);
+					loggers.ai.info(
+						{ message, detectedType, confidence: nlpResult.confidence },
+						`${typeEmoji[detectedType]} Tipo detectado via NLP`,
+					);
 				}
 			} catch (error) {
 				loggers.ai.warn({ error }, '⚠️ Erro ao classificar via NLP, tentando fallback');
@@ -1250,7 +1354,10 @@ ${personalizedContext}`;
 				}
 			} else {
 				// Número fora do range — reprocessa como nova mensagem
-				loggers.ai.info({ message, choice, totalOptions: cancelIndex }, '↩️ Número fora do range - reprocessando como nova mensagem');
+				loggers.ai.info(
+					{ message, choice, totalOptions: cancelIndex },
+					'↩️ Número fora do range - reprocessando como nova mensagem',
+				);
 
 				await conversationService.updateState(conversation.id, 'idle', {
 					pendingClarification: undefined,
@@ -1411,8 +1518,18 @@ ${personalizedContext}`;
 				pendingClarification: undefined, // Limpa para não entrar em loop
 			});
 
-			await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
-			await conversationService.addMessage(conversation.id, 'assistant', offTopicMessage, this.buildMessagePersistOptions(context));
+			await conversationService.addMessage(
+				conversation.id,
+				'user',
+				context.message,
+				this.buildMessagePersistOptions(context, true),
+			);
+			await conversationService.addMessage(
+				conversation.id,
+				'assistant',
+				offTopicMessage,
+				this.buildMessagePersistOptions(context),
+			);
 
 			return {
 				message: offTopicMessage,
@@ -1424,14 +1541,28 @@ ${personalizedContext}`;
 		// Conversa livre com IA
 		loggers.ai.info({ attempts }, '💬 NLP inconclusivo, gerando resposta conversacional via IA');
 
-		const conversationalResponse = await this.getConversationalClarification(context, pendingClarification.originalMessage, attempts);
+		const conversationalResponse = await this.getConversationalClarification(
+			context,
+			pendingClarification.originalMessage,
+			attempts,
+		);
 
 		await conversationService.updateState(conversation.id, 'awaiting_context', {
 			clarificationAttempts: attempts,
 		});
 
-		await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
-		await conversationService.addMessage(conversation.id, 'assistant', conversationalResponse, this.buildMessagePersistOptions(context));
+		await conversationService.addMessage(
+			conversation.id,
+			'user',
+			context.message,
+			this.buildMessagePersistOptions(context, true),
+		);
+		await conversationService.addMessage(
+			conversation.id,
+			'assistant',
+			conversationalResponse,
+			this.buildMessagePersistOptions(context),
+		);
 
 		return {
 			message: conversationalResponse,
@@ -1443,7 +1574,11 @@ ${personalizedContext}`;
 	/**
 	 * Gera resposta conversacional durante clarificação usando LLM
 	 */
-	private async getConversationalClarification(context: AgentContext, originalMessage: string, attempt: number): Promise<string> {
+	private async getConversationalClarification(
+		context: AgentContext,
+		originalMessage: string,
+		attempt: number,
+	): Promise<string> {
 		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
 
 		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
@@ -1464,7 +1599,11 @@ ${personalizedContext}`;
 	 * Envia lista de candidatos com botões clicáveis (Telegram Inline Keyboard)
 
 	 */
-	private async sendCandidatesWithButtons(context: AgentContext, conversation: any, candidates: any[]): Promise<AgentResponse> {
+	private async sendCandidatesWithButtons(
+		context: AgentContext,
+		conversation: any,
+		candidates: any[],
+	): Promise<AgentResponse> {
 		const contextData = conversation.context || {};
 		const itemType = contextData.detected_type || 'movie';
 
