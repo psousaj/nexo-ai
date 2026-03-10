@@ -76,9 +76,9 @@
 				</template>
 
 				<div class="space-y-4">
-<UFormField label="Texto para gerar embedding" help="Mínimo 1 caractere. Textos > 2000 chars serão truncados.">
-					<UTextarea v-model="embeddingText" placeholder="Ex: Inception é um filme de ficção científica de 2010..." :rows="4" resize />
-				</UFormField>
+					<UFormField label="Texto para gerar embedding" help="Mínimo 1 caractere. Textos > 2000 chars serão truncados.">
+						<UTextarea v-model="embeddingText" placeholder="Ex: Inception é um filme de ficção científica de 2010..." :rows="4" resize />
+					</UFormField>
 
 					<div class="flex items-center gap-3">
 						<UButton
@@ -96,7 +96,7 @@
 					<!-- Resultado -->
 					<div v-if="embeddingResult" class="space-y-3">
 						<UAlert
-						:color="embeddingResult.success ? 'success' : 'error'"
+							:color="embeddingResult.success ? 'success' : 'error'"
 							:icon="embeddingResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
 							:title="embeddingResult.success ? '✅ Embedding gerado com sucesso' : '❌ Falha ao gerar embedding'"
 						/>
@@ -197,10 +197,10 @@
 							<div class="flex-1 min-w-0 space-y-1">
 								<div class="flex items-center gap-2 flex-wrap">
 									<span class="font-semibold text-sm">{{ check.target }}</span>
-								<UBadge :color="check.ok ? 'success' : 'error'" variant="subtle" size="xs">
-									{{ check.ok ? 'OK' : 'FALHOU' }}
-								</UBadge>
-								<UBadge v-if="check.status" color="neutral" variant="outline" size="xs"> HTTP {{ check.status }} </UBadge>
+									<UBadge :color="check.ok ? 'success' : 'error'" variant="subtle" size="xs">
+										{{ check.ok ? 'OK' : 'FALHOU' }}
+									</UBadge>
+									<UBadge v-if="check.status" color="neutral" variant="outline" size="xs"> HTTP {{ check.status }} </UBadge>
 									<span class="text-xs text-gray-400">{{ check.elapsedMs }}ms</span>
 								</div>
 								<p class="text-xs font-mono text-gray-500 break-all">{{ check.url }}</p>
@@ -209,6 +209,76 @@
 								</p>
 							</div>
 						</div>
+					</div>
+				</div>
+			</UCard>
+
+			<!-- Prompt Test Side-by-Side -->
+			<UCard>
+				<template #header>
+					<div class="flex items-center gap-2">
+						<UIcon name="i-heroicons-beaker" class="w-5 h-5 text-indigo-500" />
+						<h2 class="font-semibold text-lg">Teste de Prompt Side-by-Side</h2>
+					</div>
+				</template>
+
+				<div class="space-y-4">
+					<p class="text-sm text-gray-500">
+						Envia uma mensagem e visualiza o system prompt gerado (com tools selecionadas) lado a lado com a resposta do LLM.
+					</p>
+
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<!-- Esquerda: configuração -->
+						<div class="space-y-4">
+							<UFormField label="Mensagem de teste">
+								<UTextarea v-model="promptTestMsg" placeholder="Ex: Quero salvar o filme Duna" :rows="3" resize />
+							</UFormField>
+
+							<UFormField label="Tools habilitadas (overrides)">
+								<div class="flex flex-wrap gap-2 mt-1">
+									<label
+										v-for="tool in allToolNames"
+										:key="tool"
+										class="flex items-center gap-1.5 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-lg cursor-pointer select-none transition-colors"
+										:class="
+											promptTestTools.includes(tool)
+												? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-400'
+												: ''
+										"
+									>
+										<input type="checkbox" :value="tool" v-model="promptTestTools" class="sr-only" />
+										{{ tool }}
+									</label>
+								</div>
+							</UFormField>
+
+							<UButton
+								color="primary"
+								:loading="loadingPromptTest"
+								:disabled="!promptTestMsg.trim()"
+								icon="i-heroicons-play"
+								@click="runPromptTest"
+							>
+								Executar
+							</UButton>
+						</div>
+
+						<!-- Direita: resultado -->
+						<div class="space-y-3" v-if="promptTestResult">
+							<div class="space-y-2">
+								<p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resposta do LLM</p>
+								<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 font-mono text-xs overflow-auto max-h-60">
+									<pre class="whitespace-pre-wrap">{{ promptTestResult.llmResponse }}</pre>
+								</div>
+							</div>
+							<div class="space-y-2">
+								<p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">System Prompt Usado</p>
+								<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 font-mono text-xs overflow-auto max-h-60">
+									<pre class="whitespace-pre-wrap text-gray-600 dark:text-gray-400">{{ promptTestResult.systemPrompt }}</pre>
+								</div>
+							</div>
+						</div>
+						<div v-else class="flex items-center justify-center text-gray-400 text-sm italic">Execute um teste para ver o resultado.</div>
 					</div>
 				</div>
 			</UCard>
@@ -332,6 +402,50 @@ async function checkConnectivity() {
 		};
 	} finally {
 		loadingConnectivity.value = false;
+	}
+}
+
+// ─── Prompt Test Side-by-Side ────────────────────────────────────────────────
+const allToolNames = [
+	'save_note',
+	'save_movie',
+	'save_tv_show',
+	'save_video',
+	'save_link',
+	'save_memo',
+	'save_book',
+	'save_music',
+	'save_image',
+	'search_items',
+	'update_preferences',
+	'delete_item',
+	'delete_all_items',
+	'schedule_reminder',
+	'get_assistant_name',
+];
+const promptTestMsg = ref('');
+const promptTestTools = ref<string[]>(['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link', 'search_items']);
+const loadingPromptTest = ref(false);
+const promptTestResult = ref<{ llmResponse: string; systemPrompt: string } | null>(null);
+
+async function runPromptTest() {
+	if (!promptTestMsg.value.trim()) return;
+	loadingPromptTest.value = true;
+	promptTestResult.value = null;
+	try {
+		const res = await $fetch<{ success: boolean; data: typeof promptTestResult.value }>(`${apiUrl}/admin/playground/prompt-test`, {
+			method: 'POST',
+			credentials: 'include',
+			body: { message: promptTestMsg.value, tools: promptTestTools.value },
+		});
+		if (res.success) promptTestResult.value = res.data;
+	} catch (err: any) {
+		promptTestResult.value = {
+			llmResponse: err?.data?.error ?? err?.message ?? 'Erro desconhecido',
+			systemPrompt: '',
+		};
+	} finally {
+		loadingPromptTest.value = false;
 	}
 }
 
