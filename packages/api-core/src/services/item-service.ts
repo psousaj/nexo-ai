@@ -1,0 +1,828 @@
+import { createHash } from 'node:crypto';
+import { db } from '@/db';
+import { memoryItems, semanticExternalItems } from '@/db/schema';
+import { captureException } from '@/sentry';
+import type { ItemMetadata, ItemType, MovieMetadata, TVShowMetadata } from '@/types/index';
+import { loggers } from '@/utils/logger';
+import { cosineSimilarity } from 'ai';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { embeddingService } from './ai/embedding-service';
+import { expandMovieQuery } from './query-expansion';
+import { instrumentService } from './service-instrumentation';
+
+/**
+ * Resultado da verificação de duplicata
+ */
+export interface DuplicateCheckResult {
+	isDuplicate: boolean;
+	existingItem?: {
+		id: string;
+		title: string;
+		type: ItemType;
+		createdAt: Date;
+	};
+}
+
+export class ItemService {
+	/**
+	 * Verifica se memória já existe (KISS: verificação simples por externalId ou título)
+	 */
+	async checkDuplicate(params: {
+		userId: string;
+		type: ItemType;
+		externalId?: string;
+		title?: string;
+		contentHash?: string;
+		metadata?: ItemMetadata;
+	}): Promise<DuplicateCheckResult> {
+		const { userId, type, externalId, title, metadata } = params;
+
+		// Gera hash do conteúdo
+		const contentHash = this.generateContentHash({ type, title: title || '', metadata });
+
+		// 1. Verifica por contentHash (mais preciso)
+		if (contentHash) {
+			const [existing] = await db
+				.select()
+				.from(memoryItems)
+				.where(and(eq(memoryItems.userId, userId), eq(memoryItems.contentHash, contentHash)))
+				.limit(1);
+
+			if (existing) {
+				return {
+					isDuplicate: true,
+					existingItem: {
+						id: existing.id,
+						title: existing.title,
+						type: existing.type as ItemType,
+						createdAt: existing.createdAt,
+					},
+				};
+			}
+		}
+
+		// 2. Verifica por externalId (fallback)
+		if (externalId) {
+			const [existing] = await db
+				.select()
+				.from(memoryItems)
+				.where(and(eq(memoryItems.userId, userId), eq(memoryItems.type, type), eq(memoryItems.externalId, externalId)))
+				.limit(1);
+
+			if (existing) {
+				return {
+					isDuplicate: true,
+					existingItem: {
+						id: existing.id,
+						title: existing.title,
+						type: existing.type as ItemType,
+						createdAt: existing.createdAt,
+					},
+				};
+			}
+		}
+
+		// Fallback: busca por título similar (normalizado)
+		if (title) {
+			const normalizedTitle = this.normalizeTitle(title);
+			const [existing] = await db
+				.select()
+				.from(memoryItems)
+				.where(
+					and(
+						eq(memoryItems.userId, userId),
+						eq(memoryItems.type, type),
+						sql`LOWER(REGEXP_REPLACE(${memoryItems.title}, '[^a-zA-Z0-9]', '', 'g')) = ${normalizedTitle}`,
+					),
+				)
+				.limit(1);
+
+			if (existing) {
+				return {
+					isDuplicate: true,
+					existingItem: {
+						id: existing.id,
+						title: existing.title,
+						type: existing.type as ItemType,
+						createdAt: existing.createdAt,
+					},
+				};
+			}
+		}
+
+		return { isDuplicate: false };
+	}
+
+	/**
+	 * Normaliza título para comparação (remove caracteres especiais, lowercase)
+	 */
+	private normalizeTitle(title: string): string {
+		return title.toLowerCase().replace(/[^a-z0-9]/g, '');
+	}
+
+	/**
+	 * Gera hash SHA-256 do conteúdo para detectar duplicatas
+	 * Combina: tipo + título + metadata relevante
+	 */
+	private generateContentHash(params: { type: ItemType; title: string; metadata?: ItemMetadata }): string {
+		const { type, title, metadata } = params;
+
+		// Normaliza conteúdo para hash consistente
+		const normalizedTitle = title.toLowerCase().trim();
+
+		// Extrai campos relevantes do metadata baseado no tipo
+		let contentToHash = `${type}:${normalizedTitle}`;
+
+		if (metadata) {
+			switch (type) {
+				case 'movie':
+				case 'tv_show': {
+					const tmdbId = (metadata as any).tmdb_id;
+					if (tmdbId) contentToHash += `:tmdb_${tmdbId}`;
+					break;
+				}
+				case 'video': {
+					const videoId = (metadata as any).video_id;
+					if (videoId) contentToHash += `:video_${videoId}`;
+					break;
+				}
+				case 'link': {
+					const url = (metadata as any).url;
+					if (url) {
+						const normalizedUrl = url.replace(/^https?:\/\/(www\.)?/, '').toLowerCase();
+						contentToHash += `:url_${normalizedUrl}`;
+					}
+					break;
+				}
+				case 'note': {
+					const fullContent = (metadata as any).full_content;
+					if (fullContent) {
+						// Para notas, usa o conteúdo completo
+						contentToHash = `${type}:${fullContent.toLowerCase().trim()}`;
+					}
+					break;
+				}
+			}
+		}
+
+		// Gera SHA-256 hash
+		return createHash('sha256').update(contentToHash).digest('hex');
+	}
+
+	/**
+	 * Extrai externalId do metadata baseado no tipo
+	 */
+	private extractExternalId(type: ItemType, metadata?: ItemMetadata): string | undefined {
+		if (!metadata) return undefined;
+
+		switch (type) {
+			case 'movie':
+			case 'tv_show':
+				return (metadata as any).tmdb_id?.toString();
+			case 'video':
+				return (metadata as any).video_id;
+			case 'link': {
+				// Normaliza URL removendo protocolo e www
+				const url = (metadata as any).url;
+				return url?.replace(/^https?:\/\/(www\.)?/, '').toLowerCase();
+			}
+			default:
+				return undefined;
+		}
+	}
+
+	/**
+	 * 🔥 Prepara documento semântico ENRIQUECIDO para embedding
+	 *
+	 * Estratégia: Concatena campos CRÍTICOS para busca semântica
+	 * - Keywords TMDB (ouro puro)
+	 * - Overview/Sinopse (contexto rico)
+	 * - Tagline (frase de efeito)
+	 * - Gêneros
+	 * - Elenco/Diretor (contexto adicional)
+	 *
+	 * Referência: ADR-014 (Document Enrichment Strategy)
+	 */
+	private prepareTextForEmbedding(params: { type: ItemType; title: string; metadata?: ItemMetadata }): string {
+		const { type, title, metadata } = params;
+
+		// Base: tipo + título
+		let text = `Título: ${title}.`;
+
+		if (!metadata) {
+			return text;
+		}
+
+		// 🎬 FILMES E SÉRIES (usa TMDB enrichment)
+		if (type === 'movie' || type === 'tv_show') {
+			const tmdbMeta = metadata as MovieMetadata | TVShowMetadata;
+
+			// 🔥 KEYWORDS (CRÍTICO - maior peso semântico)
+			if (tmdbMeta.keywords && tmdbMeta.keywords.length > 0) {
+				text += ` Palavras-chave: ${tmdbMeta.keywords.join(', ')}.`;
+			}
+
+			// 📝 OVERVIEW (sinopse - contexto rico)
+			if (tmdbMeta.overview) {
+				text += ` Sinopse: ${tmdbMeta.overview}.`;
+			}
+
+			// 💬 TAGLINE (frase de efeito)
+			if (tmdbMeta.tagline) {
+				text += ` Tagline: ${tmdbMeta.tagline}.`;
+			}
+
+			// 🎭 GÊNEROS (importante para categorização)
+			if (tmdbMeta.genres && tmdbMeta.genres.length > 0) {
+				text += ` Gêneros: ${tmdbMeta.genres.join(', ')}.`;
+			}
+
+			// 🎬 DIRETOR/CRIADOR (contexto adicional)
+			if ('director' in tmdbMeta && tmdbMeta.director) {
+				text += ` Diretor: ${tmdbMeta.director}.`;
+			} else if ('created_by' in tmdbMeta && tmdbMeta.created_by && tmdbMeta.created_by.length > 0) {
+				text += ` Criador: ${tmdbMeta.created_by.join(', ')}.`;
+			}
+
+			// 👥 ELENCO (top 3 para não poluir)
+			if (tmdbMeta.cast && tmdbMeta.cast.length > 0) {
+				const mainCast = tmdbMeta.cast.slice(0, 3);
+				text += ` Elenco: ${mainCast.join(', ')}.`;
+			}
+		}
+		// 📺 VÍDEOS (YouTube/Vimeo)
+		else if (type === 'video') {
+			const videoMeta = metadata as any;
+			if (videoMeta.channel_name) {
+				text += ` Canal: ${videoMeta.channel_name}.`;
+			}
+		}
+		// 🔗 LINKS (OpenGraph)
+		else if (type === 'link') {
+			const linkMeta = metadata as any;
+			if (linkMeta.og_description) {
+				text += ` Descrição: ${linkMeta.og_description}.`;
+			}
+			if (linkMeta.domain) {
+				text += ` Domínio: ${linkMeta.domain}.`;
+			}
+		}
+		// 📝 NOTAS (conteúdo completo)
+		else if (type === 'note') {
+			const noteMeta = metadata as any;
+			if (noteMeta.full_content) {
+				text += ` Conteúdo: ${noteMeta.full_content}`;
+			}
+		}
+
+		loggers.db.debug(
+			{ textLength: text.length, type, hasKeywords: !!(metadata as any).keywords },
+			'📝 Documento semântico preparado',
+		);
+
+		return text;
+	}
+
+	/**
+	 * Cria nova memória (com validação de duplicata)
+	 * Retorna { item, isDuplicate, existingItem }
+	 */
+	async createItem(params: {
+		userId: string;
+		type: ItemType;
+		title: string;
+		metadata?: ItemMetadata;
+		skipDuplicateCheck?: boolean;
+	}): Promise<{
+		item: any;
+		isDuplicate: boolean;
+		existingItem?: DuplicateCheckResult['existingItem'];
+	}> {
+		const { userId, type, title, metadata, skipDuplicateCheck = false } = params;
+
+		// Extrai externalId do metadata
+		const externalId = this.extractExternalId(type, metadata);
+
+		// Gera hash do conteúdo
+		const contentHash = this.generateContentHash({ type, title, metadata });
+
+		// Valida duplicata (DRY: reutiliza checkDuplicate)
+		if (!skipDuplicateCheck) {
+			const duplicateCheck = await this.checkDuplicate({
+				userId,
+				type,
+				externalId,
+				title,
+				contentHash,
+				metadata,
+			});
+
+			if (duplicateCheck.isDuplicate) {
+				return {
+					item: null,
+					isDuplicate: true,
+					existingItem: duplicateCheck.existingItem,
+				};
+			}
+		}
+
+		// Lógica para itens globais (Movies/TV/Videos) vs Itens Pessoais
+		let semanticExternalItemId: string | null = null;
+
+		const isGlobalType = ['movie', 'tv_show', 'video'].includes(type);
+		const provider = type === 'movie' || type === 'tv_show' ? 'tmdb' : type === 'video' ? 'youtube' : null;
+
+		if (isGlobalType && externalId && provider && metadata) {
+			// 1. Tenta buscar no cache global
+			const [globalItem] = await db
+				.select()
+				.from(semanticExternalItems)
+				.where(
+					and(
+						eq(semanticExternalItems.externalId, externalId),
+						eq(semanticExternalItems.type, type),
+						eq(semanticExternalItems.provider, provider),
+					),
+				)
+				.limit(1);
+
+			if (globalItem) {
+				semanticExternalItemId = globalItem.id;
+				loggers.db.debug({ externalId, type }, '🔗 Linkado com item global existente');
+			} else {
+				// 2. FALLBACK: Cria item global inline SEM embedding (síncrono rápido)
+				// Embedding será gerado em background após retorno
+				try {
+					const [newGlobal] = await db
+						.insert(semanticExternalItems)
+						.values({
+							externalId,
+							type,
+							provider,
+							rawData: metadata,
+							embedding: null,
+						})
+						.onConflictDoNothing({
+							target: [semanticExternalItems.externalId, semanticExternalItems.type, semanticExternalItems.provider],
+						})
+						.returning();
+
+					// Pode ser undefined se race condition pegou (onConflictDoNothing)
+					if (newGlobal) {
+						semanticExternalItemId = newGlobal.id;
+						loggers.db.info({ externalId }, '🌍 Item global criado inline (sem vetor, embedding em background)');
+
+						// Gera e persiste embedding em background (fire-and-forget)
+						const globalId = newGlobal.id;
+						const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+						embeddingService
+							.generateEmbedding(textToEmbed)
+							.then((vec) =>
+								db.update(semanticExternalItems).set({ embedding: vec }).where(eq(semanticExternalItems.id, globalId)),
+							)
+							.catch((err) => loggers.db.warn({ err, externalId }, '⚠️ Falha ao gerar embedding global em background'));
+					} else {
+						// Se falhar insert por conflito, busca novamente
+						const [existing] = await db
+							.select()
+							.from(semanticExternalItems)
+							.where(
+								and(
+									eq(semanticExternalItems.externalId, externalId),
+									eq(semanticExternalItems.type, type),
+									eq(semanticExternalItems.provider, provider),
+								),
+							)
+							.limit(1);
+						if (existing) semanticExternalItemId = existing.id;
+					}
+				} catch (error) {
+					loggers.db.warn({ err: error }, '⚠️ Falha ao criar item global, salvando localmente');
+				}
+			}
+		}
+
+		// Se não linkou com global (ou falhou), agenda embedding local em background
+		// O item é salvo imediatamente sem vetor; embedding gerado depois e atualizado
+		const metadataToSave = semanticExternalItemId ? {} : metadata;
+
+		// Cria nova memória SEM embedding (rápido)
+		const [item] = await db
+			.insert(memoryItems)
+			.values({
+				userId,
+				type,
+				title,
+				externalId,
+				contentHash,
+				metadata: metadataToSave,
+				embedding: null,
+				semanticExternalItemId,
+			})
+			.returning();
+
+		// Se não tem item global, gera embedding local em background
+		if (!semanticExternalItemId) {
+			const itemId = item.id;
+			const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
+			embeddingService
+				.generateEmbedding(textToEmbed)
+				.then((vec) => db.update(memoryItems).set({ embedding: vec }).where(eq(memoryItems.id, itemId)))
+				.then(() => loggers.db.info({ itemId }, '✨ Embedding local atualizado em background'))
+				.catch((err) => loggers.db.warn({ err, itemId }, '⚠️ Falha ao gerar embedding local em background'));
+		}
+
+		return { item, isDuplicate: false };
+	}
+
+	/**
+	 * Lista memórias do usuário
+	 */
+	async listItems(params: { userId: string; type?: ItemType; limit?: number }) {
+		const { userId, type, limit = 20 } = params;
+
+		const conditions = [eq(memoryItems.userId, userId)];
+		if (type) {
+			conditions.push(eq(memoryItems.type, type));
+		}
+
+		const result = await db
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				// Coalesce metadata e embedding (prioriza global se existir)
+				metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+				embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+				createdAt: memoryItems.createdAt,
+				semanticExternalItemId: memoryItems.semanticExternalItemId,
+			})
+			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
+			.where(and(...conditions))
+			.orderBy(desc(memoryItems.createdAt))
+			.limit(limit);
+
+		return result;
+	}
+
+	/**
+	 * Busca memória por ID
+	 */
+	async getItemById(itemId: string, userId: string) {
+		const [item] = await db
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+				embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+				createdAt: memoryItems.createdAt,
+				semanticExternalItemId: memoryItems.semanticExternalItemId,
+			})
+			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
+			.where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)))
+			.limit(1);
+
+		return item;
+	}
+
+	/**
+	 * Busca semântica
+	 */
+	/**
+	 * Busca semântica (Hybrid Search: Vector + Keyword)
+	 * Usa cosineSimilarity da biblioteca 'ai' para cálculo preciso
+	 * + Query Expansion para melhorar recall
+	 */
+	async searchItems(params: { userId: string; query: string; limit?: number }) {
+		const { userId, query, limit = 10 } = params;
+		const searchPattern = `%${query}%`;
+
+		try {
+			// 🔥 QUERY EXPANSION (adiciona termos relacionados)
+			const expandedQuery = expandMovieQuery(query);
+			loggers.db.debug({ original: query, expanded: expandedQuery.substring(0, 100) }, '🔍 Query expandida');
+
+			// 1. BUSCA VETORIAL (Semântica)
+			const queryEmbedding = await embeddingService.generateEmbedding(expandedQuery);
+
+			// Busca todos os itens com embedding (Local ou Global)
+			// Coalesce garante que pegamos o embedding de onde ele estiver
+			const itemsWithEmbedding = await db
+				.select({
+					id: memoryItems.id,
+					title: memoryItems.title,
+					type: memoryItems.type,
+					metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+					embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+					createdAt: memoryItems.createdAt,
+				})
+				.from(memoryItems)
+				.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
+				.where(
+					and(
+						eq(memoryItems.userId, userId),
+						sql`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding}) IS NOT NULL`,
+					),
+				);
+
+			if (itemsWithEmbedding.length === 0) {
+				loggers.db.warn('Nenhum item com embedding encontrado');
+				throw new Error('No embeddings available');
+			}
+
+			// Calcula similaridade usando biblioteca 'ai' (battle-tested)
+			const itemsWithSimilarity = itemsWithEmbedding.map((item) => {
+				const similarity = cosineSimilarity(queryEmbedding, item.embedding as number[]);
+				return {
+					...item,
+					similarity,
+				};
+			});
+
+			// Filtra por threshold e ordena por similaridade
+			const SIMILARITY_THRESHOLD = 0.3; // 30% de similaridade mínima
+			const vectorResults = itemsWithSimilarity
+				.filter((item) => item.similarity > SIMILARITY_THRESHOLD)
+				.sort((a, b) => b.similarity - a.similarity)
+				.slice(0, limit);
+
+			if (vectorResults.length > 0) {
+				loggers.db.info(
+					{
+						count: vectorResults.length,
+						topSimilarity: vectorResults[0].similarity.toFixed(3),
+					},
+					'🔍 Busca semântica bem-sucedida',
+				);
+				return vectorResults;
+			}
+		} catch (error) {
+			captureException(error instanceof Error ? error : new Error(String(error)), {
+				provider: 'db',
+				state: 'vector_search_fallback',
+				query,
+				user_id: userId,
+			});
+
+			loggers.db.warn({ err: error }, '⚠️ Falha na busca vetorial, usando fallback literal');
+		}
+
+		// 2. FALLBACK: BUSCA KEYWORD (Literal)
+		loggers.db.info({ query }, '📜 Usando busca literal');
+		return await db
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				metadata: sql<ItemMetadata>`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`,
+				createdAt: memoryItems.createdAt,
+			})
+			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
+			.where(
+				and(
+					eq(memoryItems.userId, userId),
+					or(
+						sql`LOWER(${memoryItems.title}) LIKE LOWER(${searchPattern})`,
+						sql`CAST(COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData}) AS TEXT) ILIKE ${searchPattern}`,
+					),
+				),
+			)
+			.orderBy(desc(memoryItems.createdAt))
+			.limit(limit);
+	}
+
+	/**
+	 * Busca avançada com filtros JSONB
+	 * @param params - Filtros de busca
+	 * @param params.yearRange - Filtra por range de ano [min, max]
+	 * @param params.hasStreaming - true = apenas com streaming, false = sem streaming
+	 * @param params.minRating - Rating mínimo (0-10)
+	 * @param params.genres - Array de gêneros para filtrar
+	 * @param params.orderBy - Campo para ordenação: 'created' | 'rating' | 'year'
+	 */
+	async advancedSearch(params: {
+		userId: string;
+		query?: string;
+		type?: ItemType;
+		yearRange?: [number, number];
+		hasStreaming?: boolean;
+		minRating?: number;
+		genres?: string[];
+		orderBy?: 'created' | 'rating' | 'year';
+		limit?: number;
+	}) {
+		const { userId, query, type, yearRange, hasStreaming, minRating, genres, orderBy = 'created', limit = 20 } = params;
+
+		const conditions = [eq(memoryItems.userId, userId)];
+
+		// Filtro por tipo
+		if (type) {
+			conditions.push(eq(memoryItems.type, type));
+		}
+
+		// Filtro por query (full-text search em título)
+		if (query) {
+			conditions.push(sql`LOWER(${memoryItems.title}) LIKE LOWER(${`%${query}%`})`);
+		}
+
+		// Lógica complexa de filtro unificado (metadata local vs global)
+		// Precisamos usar sql`` para referenciar o COALESCE corretamente nas clausulas WHERE
+
+		// Helper para referenciar o metadata correto (local ou global)
+		const metadataRef = sql`COALESCE(${memoryItems.metadata}, ${semanticExternalItems.rawData})`;
+
+		// Filtro por ano (movies/tv_shows)
+		if (yearRange) {
+			const [minYear, maxYear] = yearRange;
+			conditions.push(
+				sql`(
+          (${memoryItems.type} = 'movie' AND 
+           (${metadataRef}->>'year')::int BETWEEN ${minYear} AND ${maxYear})
+          OR 
+          (${memoryItems.type} = 'tv_show' AND 
+           (${metadataRef}->>'first_air_date')::int BETWEEN ${minYear} AND ${maxYear})
+        )`,
+			);
+		}
+
+		// Filtro por streaming disponível
+		if (hasStreaming !== undefined) {
+			if (hasStreaming) {
+				conditions.push(
+					sql`${metadataRef}->'streaming' IS NOT NULL AND 
+              jsonb_array_length(${metadataRef}->'streaming') > 0`,
+				);
+			} else {
+				conditions.push(
+					sql`(${metadataRef}->'streaming' IS NULL OR 
+               jsonb_array_length(${metadataRef}->'streaming') = 0)`,
+				);
+			}
+		}
+
+		// Filtro por rating mínimo
+		if (minRating !== undefined) {
+			conditions.push(sql`(${metadataRef}->>'rating')::float >= ${minRating}`);
+		}
+
+		// Filtro por gêneros (OR: item tem pelo menos um dos gêneros)
+		if (genres && genres.length > 0) {
+			const genreConditions = genres.map((genre) => sql`${metadataRef}->'genres' @> ${JSON.stringify([genre])}`);
+			conditions.push(or(...genreConditions)!);
+		}
+
+		// Ordenação
+		let orderClause: any;
+		switch (orderBy) {
+			case 'rating':
+				orderClause = sql`(${metadataRef}->>'rating')::float DESC NULLS LAST`;
+				break;
+			case 'year':
+				orderClause = sql`COALESCE(
+          (${metadataRef}->>'year')::int,
+          (${metadataRef}->>'first_air_date')::int
+        ) DESC NULLS LAST`;
+				break;
+			default:
+				orderClause = desc(memoryItems.createdAt);
+		}
+
+		return await db
+			.select({
+				id: memoryItems.id,
+				userId: memoryItems.userId,
+				type: memoryItems.type,
+				title: memoryItems.title,
+				externalId: memoryItems.externalId,
+				contentHash: memoryItems.contentHash,
+				// Unifica metadata
+				metadata: sql<ItemMetadata>`${metadataRef}`,
+				embedding: sql<number[]>`COALESCE(${memoryItems.embedding}, ${semanticExternalItems.embedding})`,
+				createdAt: memoryItems.createdAt,
+				semanticExternalItemId: memoryItems.semanticExternalItemId,
+			})
+			.from(memoryItems)
+			.leftJoin(semanticExternalItems, eq(memoryItems.semanticExternalItemId, semanticExternalItems.id))
+			.where(and(...conditions))
+			.orderBy(orderClause)
+			.limit(limit);
+	}
+
+	/**
+	 * Wrapper para buscar memórias do usuário (compatível com tool calling)
+	 */
+	async getUserItems(userId: string, query?: string, type?: string, limit = 10) {
+		if (query) {
+			return this.searchItems({ userId, query, limit });
+		}
+
+		return this.listItems({
+			userId,
+			type: type as ItemType | undefined,
+			limit,
+		});
+	}
+
+	/**
+	 * Deleta memória
+	 */
+	async deleteItem(itemId: string, userId: string) {
+		await db.delete(memoryItems).where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)));
+	}
+
+	/**
+	 * Deleta todas as memórias do usuário, opcionalmente filtradas por tipo
+	 */
+	async countItems(userId: string, type?: string): Promise<number> {
+		const condition = type
+			? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any))
+			: eq(memoryItems.userId, userId);
+		const result = await db.select({ id: memoryItems.id }).from(memoryItems).where(condition);
+		return result.length;
+	}
+
+	async deleteAllItems(userId: string, type?: string): Promise<number> {
+		const condition = type
+			? and(eq(memoryItems.userId, userId), eq(memoryItems.type, type as any))
+			: eq(memoryItems.userId, userId);
+		const result = await db.delete(memoryItems).where(condition).returning();
+		return result.length;
+	}
+
+	/**
+	 * Deleta múltiplos itens
+	 */
+	async deleteMultipleItems(itemIds: string[], userId: string): Promise<number> {
+		if (itemIds.length === 0) return 0;
+
+		const result = await db
+			.delete(memoryItems)
+			.where(and(eq(memoryItems.userId, userId), inArray(memoryItems.id, itemIds)))
+			.returning();
+
+		return result.length;
+	}
+
+	/**
+	 * Atualiza memória existente
+	 */
+	async updateItem(itemId: string, userId: string, updates: { title?: string; metadata?: ItemMetadata }) {
+		const item = await this.getItemById(itemId, userId);
+		if (!item) return null;
+
+		const newTitle = updates.title ?? item.title;
+		const newMetadata = updates.metadata ?? (item.metadata as ItemMetadata);
+
+		// Recalcula hash se algo mudou
+		const contentHash = this.generateContentHash({
+			type: item.type as ItemType,
+			title: newTitle,
+			metadata: newMetadata,
+		});
+
+		// Gera novo embedding se o conteúdo mudou
+		let embedding = item.embedding as number[] | null;
+		if (contentHash !== item.contentHash) {
+			try {
+				const textToEmbed = this.prepareTextForEmbedding({
+					type: item.type as ItemType,
+					title: newTitle,
+					metadata: newMetadata,
+				});
+				embedding = await embeddingService.generateEmbedding(textToEmbed);
+			} catch (error) {
+				loggers.db.warn({ err: error }, '⚠️ Falha ao atualizar embedding');
+			}
+		}
+
+		const [updated] = await db
+			.update(memoryItems)
+			.set({
+				title: newTitle,
+				metadata: newMetadata,
+				contentHash,
+				embedding,
+				// itemService não tem updatedAt no schema de memoryItems, apenas createdAt.
+				// Se necessário, o schema precisaria ser alterado.
+			})
+			.where(and(eq(memoryItems.id, itemId), eq(memoryItems.userId, userId)))
+			.returning();
+
+		return updated;
+	}
+}
+
+export const itemService = instrumentService('item', new ItemService());

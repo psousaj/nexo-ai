@@ -1,0 +1,21 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": "../../packages/typescript-config/base.json",
+	"compilerOptions": {
+		"declaration": false,
+		"declarationMap": false,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*", "../../packages/api-core/src/*"],
+			"@nexo/api-core": ["../../packages/api-core/src/index.ts"],
+			"@nexo/api-core/*": ["../../packages/api-core/src/*"],
+			"@nexo/otel": ["../../packages/otel/src/index.ts"],
+			"@nexo/otel/*": ["../../packages/otel/src/*"]
+		},
+		"types": ["bun-types"]
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules"]
+}
