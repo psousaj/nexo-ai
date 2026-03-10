@@ -3,7 +3,7 @@
  * Does NOT import @sentry/profiling-node (uses uv_default_loop — incompatível com Bun).
  * O profiling é um recurso Node.js-específico e não funciona no Bun.
  */
-import { env } from '@nexo/api-core/config/env';
+import { env } from '@nexo/env';
 import { logger } from '@nexo/api-core/utils/logger';
 import * as Sentry from '@sentry/bun';
 

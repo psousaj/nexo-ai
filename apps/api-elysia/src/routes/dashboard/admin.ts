@@ -1,5 +1,5 @@
 import { getWhatsAppSettings, invalidateWhatsAppProviderCache, setActiveWhatsAppApi } from '@nexo/api-core/adapters/messaging';
-import { env } from '@nexo/api-core/config/env';
+import { env } from '@nexo/env';
 import { getPivotFeatureFlags } from '@nexo/api-core/config/pivot-feature-flags';
 import { adminService } from '@nexo/api-core/services/admin-service';
 import { embeddingService } from '@nexo/api-core/services/ai/embedding-service';
