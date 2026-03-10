@@ -1,0 +1,4 @@
+# Configure Bun runtime preloads for OpenTelemetry instrumentation
+# This ensures OTel is initialized before any service code runs
+[run]
+preload = ["@elysiajs/opentelemetry"]
