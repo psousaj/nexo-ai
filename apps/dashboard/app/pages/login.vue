@@ -90,9 +90,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 		console.log('🔗 Login social com:', provider);
 		// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
 		const callbackBase = process.client ? `${window.location.origin}/` : '/';
-		const callbackURL = linkingToken.value
-			? `${callbackBase}?vinculate_code=${linkingToken.value}`
-			: `${callbackBase}?auth=success`;
+		const callbackURL = linkingToken.value ? `${callbackBase}?vinculate_code=${linkingToken.value}` : `${callbackBase}?auth=success`;
 		await authClient.signIn.social({ provider, callbackURL });
 	} catch (e) {
 		console.error('Erro no login social:', e);
@@ -207,6 +205,14 @@ const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=
 					<NuxtLink :to="signupLink" class="text-sm font-bold text-primary-600 hover:text-primary-700">
 						Não tem uma conta? Cadastre-se agora
 					</NuxtLink>
+				</div>
+
+				<div class="pt-2 border-t border-surface-100 dark:border-surface-800 flex items-center justify-center gap-3">
+					<NuxtLink to="/privacy-policy" class="text-xs text-surface-400 hover:text-primary-600 transition-colors">
+						Política de Privacidade
+					</NuxtLink>
+					<span class="text-surface-300 dark:text-surface-600">·</span>
+					<NuxtLink to="/terms-of-use" class="text-xs text-surface-400 hover:text-primary-600 transition-colors"> Termos de Uso </NuxtLink>
 				</div>
 			</div>
 		</div>
