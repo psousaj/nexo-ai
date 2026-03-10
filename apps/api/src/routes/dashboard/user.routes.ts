@@ -55,7 +55,7 @@ export const userRoutes = new Hono<AuthContext>()
 		if (!user) return c.json({ error: 'User not found' }, 404);
 
 		const token = await accountLinkingService.generateLinkingToken(user.id, 'discord', 'link');
-		const botUsername = env.DISCORD_BOT_USERNAME || 'NexoAssistente_bot';
+		const botUsername = env.DISCORD_BOT_USERNAME;
 
 		return c.json({ token, botUsername });
 	})

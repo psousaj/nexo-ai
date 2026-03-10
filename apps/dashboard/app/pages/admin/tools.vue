@@ -19,72 +19,28 @@
 
 		<!-- Stats -->
 		<div v-if="stats" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-			<UCard>
+			<UCard v-for="stat in statCards" :key="stat.label">
 				<div class="flex items-center justify-between">
 					<div>
-						<p class="text-sm text-gray-600 dark:text-gray-400">Total</p>
-						<p class="text-2xl font-bold">{{ stats.total }}</p>
+						<p class="text-sm text-gray-600 dark:text-gray-400">{{ stat.label }}</p>
+						<p class="text-2xl font-bold" :class="stat.valueClass">{{ stats[stat.key] }}</p>
 					</div>
-					<UIcon name="i-heroicons-cog-6-tooth" class="w-8 h-8 text-gray-400" />
-				</div>
-			</UCard>
-
-			<UCard>
-				<div class="flex items-center justify-between">
-					<div>
-						<p class="text-sm text-gray-600 dark:text-gray-400">Habilitadas</p>
-						<p class="text-2xl font-bold text-green-600">{{ stats.enabled }}</p>
-					</div>
-					<UIcon name="i-heroicons-check-circle" class="w-8 h-8 text-green-400" />
-				</div>
-			</UCard>
-
-			<UCard>
-				<div class="flex items-center justify-between">
-					<div>
-						<p class="text-sm text-gray-600 dark:text-gray-400">Desabilitadas</p>
-						<p class="text-2xl font-bold text-red-600">{{ stats.disabled }}</p>
-					</div>
-					<UIcon name="i-heroicons-x-circle" class="w-8 h-8 text-red-400" />
-				</div>
-			</UCard>
-
-			<UCard>
-				<div class="flex items-center justify-between">
-					<div>
-						<p class="text-sm text-gray-600 dark:text-gray-400">Sistema</p>
-						<p class="text-2xl font-bold text-amber-600">{{ stats.system }}</p>
-					</div>
-					<UIcon name="i-heroicons-shield-exclamation" class="w-8 h-8 text-amber-400" />
+					<UIcon :name="stat.icon" class="w-8 h-8" :class="stat.iconClass" />
 				</div>
 			</UCard>
 		</div>
 
 		<!-- Bulk Actions -->
 		<div class="flex gap-3">
-			<UButton
-				color="success"
-				variant="soft"
-				icon="i-heroicons-check-circle"
-				:loading="isEnablingAll"
-				@click="enableAllTools"
-			>
+			<UButton color="success" variant="soft" icon="i-heroicons-check-circle" :loading="isEnablingAll" @click="enableAllTools">
 				Habilitar Todas
 			</UButton>
 
-			<UButton
-				color="error"
-				variant="soft"
-				icon="i-heroicons-x-circle"
-				:loading="isDisablingAll"
-				@click="disableAllTools"
-			>
+			<UButton color="error" variant="soft" icon="i-heroicons-x-circle" :loading="isDisablingAll" @click="disableAllTools">
 				Desabilitar Todas
 			</UButton>
 
-			<UButton variant="ghost" icon="i-heroicons-arrow-path" :loading="isLoading" @click="loadTools">
-				Recarregar
-			</UButton>
+			<UButton variant="ghost" icon="i-heroicons-arrow-path" :loading="isLoading" @click="loadTools"> Recarregar </UButton>
 		</div>
 
 		<!-- System Tools -->
@@ -100,7 +56,7 @@
 			</template>
 
 			<UAlert
-						color="warning"
+				color="warning"
 				icon="i-heroicons-exclamation-triangle"
 				title="Atenção: Tools de Sistema"
 				description="Desabilitar tools de sistema pode causar bugs, instabilidade ou perda de funcionalidades críticas do assistente."
@@ -126,7 +82,7 @@
 							</div>
 						</div>
 
-					<USwitch
+						<USwitch
 							:model-value="tool.enabled"
 							:loading="updatingTool === tool.name"
 							@update:model-value="toggleTool(tool.name, $event)"
@@ -134,7 +90,7 @@
 					</div>
 
 					<div v-if="!tool.enabled" class="px-4 pb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-						<UIcon name="i-heroicons-exclamation-circle" class="w-4 h-4 flex-shrink-0" />
+						<UIcon name="i-heroicons-exclamation-circle" class="w-4 h-4 shrink-0" />
 						<span>Esta tool de sistema está <strong>desabilitada</strong> — funcionalidades críticas podem estar indisponíveis.</span>
 					</div>
 				</div>
@@ -158,7 +114,11 @@
 					v-for="tool in userTools"
 					:key="tool.name"
 					class="flex items-center justify-between p-4 rounded-lg border"
-					:class="tool.enabled ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700'"
+					:class="
+						tool.enabled
+							? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+							: 'border-gray-200 dark:border-gray-700'
+					"
 				>
 					<div class="flex items-center gap-3">
 						<span class="text-2xl">{{ tool.icon }}</span>
@@ -168,11 +128,7 @@
 						</div>
 					</div>
 
-					<USwitch
-						:model-value="tool.enabled"
-						:loading="updatingTool === tool.name"
-						@update:model-value="toggleTool(tool.name, $event)"
-					/>
+					<USwitch :model-value="tool.enabled" :loading="updatingTool === tool.name" @update:model-value="toggleTool(tool.name, $event)" />
 				</div>
 			</div>
 		</UCard>
@@ -220,24 +176,45 @@ const stats = ref<ToolsResponse['data']['stats'] | null>(null);
 const systemTools = computed(() => allTools.value.filter((t) => t.category === 'system'));
 const userTools = computed(() => allTools.value.filter((t) => t.category === 'user'));
 
+const statCards = [
+	{ key: 'total' as const, label: 'Total', icon: 'i-heroicons-cog-6-tooth', iconClass: 'text-gray-400', valueClass: '' },
+	{
+		key: 'enabled' as const,
+		label: 'Habilitadas',
+		icon: 'i-heroicons-check-circle',
+		iconClass: 'text-green-400',
+		valueClass: 'text-green-600',
+	},
+	{ key: 'disabled' as const, label: 'Desabilitadas', icon: 'i-heroicons-x-circle', iconClass: 'text-red-400', valueClass: 'text-red-600' },
+	{
+		key: 'system' as const,
+		label: 'Sistema',
+		icon: 'i-heroicons-shield-exclamation',
+		iconClass: 'text-amber-400',
+		valueClass: 'text-amber-600',
+	},
+];
+
+// Helpers
+function adminFetch<T>(path: string, options?: Parameters<typeof $fetch>[1]) {
+	return $fetch<T>(`${apiUrl}${path}`, { credentials: 'include', ...options });
+}
+
+function toastError(title: string) {
+	toast.add({ title, color: 'error', icon: 'i-heroicons-x-circle' });
+}
+
 // Methods
 async function loadTools() {
 	isLoading.value = true;
 	try {
-		const response = await $fetch<ToolsResponse>(`${apiUrl}/admin/tools`, {
-			credentials: 'include',
-		});
-
+		const response = await adminFetch<ToolsResponse>('/admin/tools');
 		if (response.success) {
 			allTools.value = response.data.tools;
 			stats.value = response.data.stats;
 		}
-	} catch (error) {
-		toast.add({
-			title: 'Erro ao carregar tools',
-			color: 'error',
-			icon: 'i-heroicons-x-circle',
-		});
+	} catch {
+		toastError('Erro ao carregar tools');
 	} finally {
 		isLoading.value = false;
 	}
@@ -246,19 +223,11 @@ async function loadTools() {
 async function toggleTool(toolName: string, enabled: boolean) {
 	updatingTool.value = toolName;
 	try {
-		await $fetch(`${apiUrl}/admin/tools/${toolName}`, {
-			method: 'PATCH',
-			credentials: 'include',
-			body: { enabled },
-		});
+		await adminFetch(`/admin/tools/${toolName}`, { method: 'PATCH', body: { enabled } });
 
-		// Atualizar localmente
 		const tool = allTools.value.find((t) => t.name === toolName);
-		if (tool) {
-			tool.enabled = enabled;
-		}
+		if (tool) tool.enabled = enabled;
 
-		// Atualizar stats
 		if (stats.value) {
 			stats.value.enabled = allTools.value.filter((t) => t.enabled).length;
 			stats.value.disabled = allTools.value.filter((t) => !t.enabled).length;
@@ -270,12 +239,8 @@ async function toggleTool(toolName: string, enabled: boolean) {
 			color: enabled ? 'success' : 'warning',
 			icon: enabled ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle',
 		});
-	} catch (error) {
-		toast.add({
-			title: 'Erro ao atualizar tool',
-			color: 'error',
-			icon: 'i-heroicons-x-circle',
-		});
+	} catch {
+		toastError('Erro ao atualizar tool');
 	} finally {
 		updatingTool.value = null;
 	}
@@ -284,24 +249,11 @@ async function toggleTool(toolName: string, enabled: boolean) {
 async function enableAllTools() {
 	isEnablingAll.value = true;
 	try {
-		await $fetch(`${apiUrl}/admin/tools/enable-all`, {
-			method: 'POST',
-			credentials: 'include',
-		});
-
+		await adminFetch('/admin/tools/enable-all', { method: 'POST' });
 		await loadTools();
-
-		toast.add({
-			title: 'Todas as tools habilitadas',
-			color: 'success',
-			icon: 'i-heroicons-check-circle',
-		});
-	} catch (error) {
-		toast.add({
-			title: 'Erro ao habilitar todas as tools',
-			color: 'error',
-			icon: 'i-heroicons-x-circle',
-		});
+		toast.add({ title: 'Todas as tools habilitadas', color: 'success', icon: 'i-heroicons-check-circle' });
+	} catch {
+		toastError('Erro ao habilitar todas as tools');
 	} finally {
 		isEnablingAll.value = false;
 	}
@@ -310,24 +262,11 @@ async function enableAllTools() {
 async function disableAllTools() {
 	isDisablingAll.value = true;
 	try {
-		await $fetch(`${apiUrl}/admin/tools/disable-all`, {
-			method: 'POST',
-			credentials: 'include',
-		});
-
+		await adminFetch('/admin/tools/disable-all', { method: 'POST' });
 		await loadTools();
-
-		toast.add({
-			title: 'Todas as tools desabilitadas',
-			color: 'warning',
-			icon: 'i-heroicons-x-circle',
-		});
-	} catch (error) {
-		toast.add({
-			title: 'Erro ao desabilitar todas as tools',
-			color: 'error',
-			icon: 'i-heroicons-x-circle',
-		});
+		toast.add({ title: 'Todas as tools desabilitadas', color: 'warning', icon: 'i-heroicons-x-circle' });
+	} catch {
+		toastError('Erro ao desabilitar todas as tools');
 	} finally {
 		isDisablingAll.value = false;
 	}

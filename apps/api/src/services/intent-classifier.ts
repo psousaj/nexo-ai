@@ -58,6 +58,7 @@ export interface IntentResult {
 		target?: 'all' | 'item' | 'selection'; // Alvo da ação
 		settingType?: 'assistant_name' | 'preferences'; // Tipo de configuração
 		newValue?: string; // Novo valor para a configuração
+		reminderHint?: boolean; // true quando mensagem tem padrão de lembrete temporal
 	};
 }
 
@@ -451,6 +452,9 @@ export class IntentClassifier {
 			const refersToPrevious = saveReferencePatterns.some((pattern) => pattern.test(lowerMsg));
 			const action = refersToPrevious ? 'save_previous' : 'save';
 
+			// Detecta padrão de lembrete (camada 1 — regex; camada 2 é o guardrail no prompt)
+			const reminderHint = this.isReminderHint(lowerMsg);
+
 			const result = {
 				intent: 'save_content' as const,
 				action: action as ActionVerb,
@@ -459,6 +463,7 @@ export class IntentClassifier {
 					query: refersToPrevious ? undefined : message.trim(),
 					url: this.extractURL(message),
 					refersToPrevious,
+					...(reminderHint ? { reminderHint: true as const } : {}),
 				},
 			};
 			loggers.ai.info(
@@ -626,6 +631,16 @@ export class IntentClassifier {
 		];
 
 		return infoKeywords.some((kw) => msg.includes(kw));
+	}
+
+	/**
+	 * Detecta padrão de lembrete temporal na mensagem (camada 1 de proteção).
+	 * Camada 2 é o guardrail no prompt do agente (independente desta).
+	 */
+	private isReminderHint(msg: string): boolean {
+		return /(me lembra|me lembre|lembrar de|não esqueça|não me deixa esquecer|me avisa quando|me avisa pra|me manda mensagem quando|preciso lembrar de|vai me lembrar)/i.test(
+			msg,
+		);
 	}
 
 	/**

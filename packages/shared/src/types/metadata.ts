@@ -61,4 +61,61 @@ export interface NoteMetadata {
 	created_via?: 'chat' | 'api';
 }
 
-export type ItemMetadata = MovieMetadata | TVShowMetadata | VideoMetadata | LinkMetadata | NoteMetadata;
+export interface MemoMetadata {
+	content: string;
+	source?: string;
+	created_via?: 'chat' | 'api';
+}
+
+export interface BookMetadata {
+	title: string;
+	authors: string[];
+	year?: number;
+	publisher?: string;
+	page_count?: number;
+	genres: string[];
+	description?: string;
+	cover_url?: string;
+	isbn?: string;
+	google_books_id: string;
+}
+
+export interface MusicMetadata {
+	title: string;
+	artist: string;
+	artists: string[];
+	album: string;
+	album_cover_url?: string;
+	year?: number;
+	duration_ms: number;
+	genres: string[];
+	spotify_id: string;
+	spotify_url: string;
+	preview_url?: string;
+	popularity?: number;
+}
+
+export interface ImageMetadata {
+	url: string;
+	source_domain?: string;
+	format?: string;
+	width?: number;
+	height?: number;
+	size_bytes?: number;
+	exif_date_taken?: string;
+	exif_gps_lat?: number;
+	exif_gps_lng?: number;
+	exif_camera_model?: string;
+	description?: string;
+}
+
+export type ItemMetadata =
+	| MovieMetadata
+	| TVShowMetadata
+	| VideoMetadata
+	| LinkMetadata
+	| NoteMetadata
+	| MemoMetadata
+	| BookMetadata
+	| MusicMetadata
+	| ImageMetadata;

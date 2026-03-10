@@ -50,7 +50,7 @@ describe('CloudflareAIGatewayProvider', () => {
 		);
 	});
 
-	it('deve converter o histórico para formato TOON antes de enviar', async () => {
+	it('deve enviar o histórico como turns separados (não formato TOON)', async () => {
 		mockOpenAIInstance.chat.completions.create.mockResolvedValueOnce({
 			id: 'test-id',
 			choices: [{ message: { content: 'test response' } }],
@@ -62,11 +62,17 @@ describe('CloudflareAIGatewayProvider', () => {
 		});
 
 		const lastCall = mockOpenAIInstance.chat.completions.create.mock.calls[0][0];
-		const userMessage = lastCall.messages.find((m: any) => m.role === 'user').content;
+		const allMessages = lastCall.messages;
 
-		expect(userMessage).toContain('formato TOON');
-		expect(userMessage).toContain('pergunta anterior');
-		expect(userMessage).toContain('pergunta atual');
+		// Histórico deve ser um turn separado
+		const historyMsg = allMessages.find((m: any) => m.role === 'user' && m.content === 'pergunta anterior');
+		expect(historyMsg).toBeDefined();
+		expect(historyMsg?.content).toBe('pergunta anterior');
+
+		// Última mensagem deve ser a pergunta atual
+		const lastMsg = allMessages[allMessages.length - 1];
+		expect(lastMsg.role).toBe('user');
+		expect(lastMsg.content).toBe('pergunta atual');
 	});
 
 	it('deve permitir alterar o modelo em runtime', async () => {

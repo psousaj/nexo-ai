@@ -137,6 +137,8 @@ if (env.NODE_ENV !== 'test') {
 
 // Error Handler
 // Error Handler
+app.notFound((c) => c.json({ error: 'Route not found' }, 404));
+
 app.onError(async (error, c) => {
 	// Captura erros HTTP (4xx) - apenas loga, não envia para Sentry em produção
 	if (error instanceof HTTPException) {

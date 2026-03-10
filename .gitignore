@@ -26,7 +26,6 @@
 Thumbs.db
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -180,9 +179,6 @@ dist
 
 .tern-port
 
-# Stores VSCode versions used for testing VSCode extensions
-
-.vscode-test
 
 # yarn v2
 

@@ -1,0 +1,13 @@
+{
+	"servers": {
+		"sentry": {
+			"url": "https://mcp.sentry.dev/mcp",
+			"type": "http"
+		},
+		"supabase": {
+			"type": "http",
+			"url": "https://mcp.supabase.com/mcp?project_ref=mxdwgqcxwktscxkaixdc&read_only=false&features=docs,database,debugging,development"
+		}
+	},
+	"inputs": []
+}

@@ -1,7 +1,10 @@
 import { instrumentService } from '@/services/service-instrumentation';
 import type { ItemMetadata, ItemType } from '@/types';
 import { loggers } from '@/utils/logger';
+import { bookService } from './book-service';
+import { imageMetadataService } from './image-metadata-service';
 import { openGraphService } from './opengraph-service';
+import { spotifyService } from './spotify-service';
 import { tmdbService } from './tmdb-service';
 import { youtubeService } from './youtube-service';
 
@@ -42,6 +45,28 @@ export class EnrichmentService {
 				case 'note':
 					// Notas não precisam de enriquecimento externo
 					return data.metadata || {};
+
+				case 'memo':
+					// Memos são notas livres — sem enriquecimento externo
+					return data.metadata || {};
+
+				case 'book':
+					if (data.title) {
+						return await bookService.searchBook(data.title, data.author);
+					}
+					return null;
+
+				case 'music':
+					if (data.title) {
+						return await spotifyService.searchTrack(data.title, data.artist);
+					}
+					return null;
+
+				case 'image':
+					if (data.url) {
+						return await imageMetadataService.extractMetadata(data.url);
+					}
+					return null;
 
 				default:
 					return null;

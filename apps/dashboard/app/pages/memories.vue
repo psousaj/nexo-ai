@@ -1,29 +1,59 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Calendar, Edit3, FileText, Image as ImageIcon, Layers, Link as LinkIcon, Plus, Search, Tag, Trash2, Type } from 'lucide-vue-next';
+import {
+	BookOpen,
+	Calendar,
+	Edit3,
+	FileText,
+	Film,
+	Image as ImageIcon,
+	Layers,
+	Link as LinkIcon,
+	Music,
+	Plus,
+	Search,
+	StickyNote,
+	Tag,
+	Trash2,
+	Type,
+} from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import type { MemoryItem } from '~/types/dashboard';
 
 const dashboard = useDashboard();
 const queryClient = useQueryClient();
 const searchQuery = ref('');
+const selectedType = ref<string | undefined>(undefined);
 
 const { data: memories, isLoading } = useQuery({
-	queryKey: ['memories', searchQuery],
-	queryFn: () => dashboard.getMemories(searchQuery.value),
+	queryKey: ['memories', searchQuery, selectedType],
+	queryFn: () => dashboard.getMemories(searchQuery.value, selectedType.value),
 });
 
 const iconMap: Record<string, any> = {
-	movie: Layers,
+	movie: Film,
 	tv_show: Layers,
-	text: Type,
 	link: LinkIcon,
 	image: ImageIcon,
-	file: FileText,
-	note: Type,
+	note: StickyNote,
 	video: Layers,
-	audio: ImageIcon,
+	memo: Type,
+	book: BookOpen,
+	music: Music,
 };
+
+const categories: Array<{ label: string; value: string | undefined; icon: any }> = [
+	{ label: 'Todas', value: undefined, icon: Layers },
+	{ label: 'Filmes', value: 'movie', icon: Film },
+	{ label: 'Séries', value: 'tv_show', icon: Layers },
+	{ label: 'Vídeos', value: 'video', icon: Layers },
+	{ label: 'Links', value: 'link', icon: LinkIcon },
+	{ label: 'Notas', value: 'note', icon: StickyNote },
+	{ label: 'Memos', value: 'memo', icon: Type },
+	{ label: 'Livros', value: 'book', icon: BookOpen },
+	{ label: 'Músicas', value: 'music', icon: Music },
+	{ label: 'Imagens', value: 'image', icon: ImageIcon },
+];
 
 // Modals State
 const isAddModalOpen = ref(false);
@@ -129,16 +159,18 @@ const filteredMemories = computed(() => memories.value || []);
 		<!-- Categories -->
 		<div class="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
 			<button
-				class="px-5 py-2 bg-primary-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-primary-600/20 whitespace-nowrap"
+				v-for="cat in categories"
+				:key="cat.label"
+				@click="selectedType = cat.value"
+				:class="[
+					'px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5 transition-all',
+					selectedType === cat.value
+						? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+						: 'bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 text-surface-500 hover:border-primary-500',
+				]"
 			>
-				Todas
-			</button>
-			<button
-				v-for="cat in ['Filmes', 'Dev', 'Receitas', 'Pessoal']"
-				:key="cat"
-				class="px-5 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl text-xs font-bold text-surface-500 hover:border-primary-500 transition-all whitespace-nowrap"
-			>
-				{{ cat }}
+				<component :is="cat.icon" class="w-3.5 h-3.5" />
+				{{ cat.label }}
 			</button>
 		</div>
 

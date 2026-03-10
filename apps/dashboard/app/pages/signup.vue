@@ -220,6 +220,12 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 						Já tem uma conta? Faça login
 					</NuxtLink>
 				</div>
+
+				<div class="pt-2 border-t border-surface-100 dark:border-surface-800 flex items-center justify-center gap-3">
+					<a href="/privacy-policy" class="text-xs text-surface-400 hover:text-primary-600 transition-colors"> Política de Privacidade </a>
+					<span class="text-surface-300 dark:text-surface-600">·</span>
+					<a href="/terms-of-use" class="text-xs text-surface-400 hover:text-primary-600 transition-colors"> Termos de Uso </a>
+				</div>
 			</div>
 		</div>
 	</div>

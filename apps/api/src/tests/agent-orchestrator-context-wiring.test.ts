@@ -1,4 +1,4 @@
-import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
+import { AGENT_SYSTEM_PROMPT_V2 } from '@/config/prompts';
 import { AgentOrchestrator } from '@/services/agent-orchestrator';
 import { llmService } from '@/services/ai';
 import * as contextBuilder from '@/services/context-builder';
@@ -34,7 +34,7 @@ describe('AgentOrchestrator context wiring', () => {
 			identityContent: 'identidade',
 		});
 		const llmCallSpy = vi.spyOn(llmService, 'callLLM').mockResolvedValue({
-			message: '{"schema_version":"1.0","action":"RESPOND","message":"ok"}',
+			message: '{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"ok","tone_profile":"neutral"}}',
 			metadata: {},
 		});
 
@@ -67,7 +67,7 @@ describe('AgentOrchestrator context wiring', () => {
 			message: 'oi',
 			provider: 'telegram',
 		};
-		const expectedFallbackPrompt = AGENT_SYSTEM_PROMPT.replace('You are Nexo,', 'You are Aurora,');
+		const expectedFallbackPrompt = AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', 'You are Aurora,');
 
 		vi.spyOn(conversationService, 'getHistory').mockResolvedValue([]);
 		const buildAgentContextSpy = vi.spyOn(contextBuilder, 'buildAgentContext');
@@ -76,7 +76,7 @@ describe('AgentOrchestrator context wiring', () => {
 			assistantName: 'Aurora',
 		} as any);
 		const llmCallSpy = vi.spyOn(llmService, 'callLLM').mockResolvedValue({
-			message: '{"schema_version":"1.0","action":"RESPOND","message":"ok"}',
+			message: '{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"ok","tone_profile":"neutral"}}',
 			metadata: {},
 		});
 

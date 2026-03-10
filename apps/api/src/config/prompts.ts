@@ -331,6 +331,94 @@ Hard constraints:
 
 Return ONLY JSON.`;
 
+const TOOL_SIGNATURES: Record<string, string> = {
+	save_note:
+		'save_note(content: string) → Use APENAS para: lembretes, ideias, pensamentos, anotações, textos pessoais do usuário',
+	save_movie:
+		'save_movie(title: string, year?: number, tmdb_id?: number) → Salva filme. SEM tmdb_id: busca TMDB e mostra opções. COM tmdb_id: salva direto.',
+	save_tv_show:
+		'save_tv_show(title: string, year?: number, tmdb_id?: number) → Salva série. SEM tmdb_id: busca TMDB e mostra opções. COM tmdb_id: salva direto.',
+	save_video: 'save_video(url: string, title?: string) → Use APENAS para: links do YouTube/Vimeo',
+	save_link: 'save_link(url: string, description?: string) → Use APENAS para: URLs de sites/artigos',
+	save_memo:
+		'save_memo(content: string, source?: string) → Use para: pensamentos avulsos, quotes, ideias sem categoria definida',
+	save_book: 'save_book(title: string, author?: string, year?: number) → Salva livro com metadados do Google Books',
+	save_music: 'save_music(title: string, artist?: string) → Salva música com metadados do Spotify',
+	save_image: 'save_image(url: string, description?: string) → Salva imagem com extração de metadados EXIF',
+	search_items:
+		'search_items(query?: string, limit?: number) → ⚠️ Busca APENAS itens que o usuário já salvou no Nexo. NÃO é busca geral, NÃO serve para pesquisa externa.',
+	enrich_movie: 'enrich_movie(title: string, year?: number) → retorna opções do TMDB',
+	enrich_tv_show: 'enrich_tv_show(title: string, year?: number) → retorna opções do TMDB',
+	enrich_video: 'enrich_video(url: string) → retorna metadata YouTube',
+	update_user_settings: 'update_user_settings(assistantName?: string) → Use para: mudar nome do assistente',
+	collect_context:
+		'collect_context(message: string, detectedType: string | null) → Use para: gerar opções quando o usuário envia mensagem ambígua',
+	list_calendar_events:
+		'list_calendar_events(startDate?: string, endDate?: string, maxResults?: number) → Lista eventos do calendário',
+	create_calendar_event:
+		'create_calendar_event(title: string, startDate: string, endDate?: string, description?: string, duration?: number, location?: string) → Cria evento no calendário',
+	list_todos: 'list_todos() → Lista tarefas do Microsoft To Do',
+	create_todo: 'create_todo(title: string, description?: string, dueDate?: string) → Cria tarefa no Microsoft To Do',
+	schedule_reminder:
+		'schedule_reminder(title: string, description?: string, when: string) → Agenda lembrete para ser enviado no horário especificado',
+	delete_memory: 'delete_memory(itemId: string) → Remove item específico',
+	delete_all_memories: 'delete_all_memories() → Remove todos os itens salvos',
+	get_assistant_name: 'get_assistant_name() → Retorna nome do assistente',
+	memory_search: 'memory_search(query: string) → Busca vetorial + keywords na memória',
+	memory_get: 'memory_get(itemId: string) → Busca item específico por ID',
+	daily_log_search: 'daily_log_search(date?: string) → Busca logs de data específica',
+	resolve_context_reference:
+		'resolve_context_reference(reference_hint: string) → Resolve referência contextual ("esse", "o primeiro", etc.)',
+};
+
+/**
+ * Gera o bloco de tools disponíveis para injeção no prompt.
+ * Se `availableTools` for fornecido, lista apenas essas tools.
+ * Sem argumento, retorna o bloco completo (fallback para compatibilidade).
+ */
+export function buildAvailableToolsBlock(availableTools?: string[]): string {
+	const toolsToShow = availableTools ? availableTools.filter((t) => TOOL_SIGNATURES[t]) : Object.keys(TOOL_SIGNATURES);
+
+	const saveTools = toolsToShow.filter((t) => t.startsWith('save_'));
+	const searchTools = toolsToShow.filter(
+		(t) => t.startsWith('search_') || t.startsWith('memory_') || t.startsWith('daily_'),
+	);
+	const enrichTools = toolsToShow.filter((t) => t.startsWith('enrich_'));
+	const systemTools = toolsToShow.filter(
+		(t) =>
+			!t.startsWith('save_') &&
+			!t.startsWith('search_') &&
+			!t.startsWith('memory_') &&
+			!t.startsWith('daily_') &&
+			!t.startsWith('enrich_'),
+	);
+
+	const lines: string[] = ['# TOOLS DISPONÍVEIS\n'];
+
+	if (saveTools.length > 0) {
+		lines.push('## Save');
+		saveTools.forEach((t) => lines.push(`- ${TOOL_SIGNATURES[t]}`));
+		lines.push('');
+	}
+	if (searchTools.length > 0) {
+		lines.push('## Search / Memory');
+		searchTools.forEach((t) => lines.push(`- ${TOOL_SIGNATURES[t]}`));
+		lines.push('');
+	}
+	if (enrichTools.length > 0) {
+		lines.push('## Enrichment');
+		enrichTools.forEach((t) => lines.push(`- ${TOOL_SIGNATURES[t]}`));
+		lines.push('');
+	}
+	if (systemTools.length > 0) {
+		lines.push('## System / Integrations');
+		systemTools.forEach((t) => lines.push(`- ${TOOL_SIGNATURES[t]}`));
+		lines.push('');
+	}
+
+	return lines.join('\n');
+}
+
 export const AGENT_SYSTEM_PROMPT_V2 = `# OPERATING MODE: PLANNER
 
 You are operating in PLANNER MODE.
@@ -341,6 +429,14 @@ You ONLY select actions.
 You are Nexo, a memory assistant.
 
 ${AGENT_DECISION_V2_CONTRACT_PROMPT}
+
+🚨 GUARDRAIL ABSOLUTO — LEIA ANTES DE TUDO:
+NUNCA chame CALL_TOOL com save_* na primeira mensagem sem 100% de certeza do tipo.
+Se o usuário diz "me lembra", "me lembre", "me avisa", "não esqueça", "me manda mensagem quando" —
+  PARE: verifique se schedule_reminder está disponível nas Tools abaixo.
+  SE SIM: responda perguntando "📝 Salvo como nota ou ⏰ agendar um lembrete?"
+  SE NÃO: responda "Posso salvar isso como nota para você. Confirma?"
+NUNCA salve diretamente como nota sem perguntar quando a mensagem tiver padrão de lembrete temporal.
 
 # TOOLS DISPONÍVEIS
 
@@ -476,8 +572,14 @@ Usuário: "seu burro" (hostil) → NOOP
 Usuário: "////" (spam) → NOOP
 Usuário: "aaaaaaa" (spam) → NOOP`;
 
-export function getAgentSystemPrompt(assistantName: string): string {
-	return AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', `You are ${assistantName},`);
+export function getAgentSystemPrompt(assistantName: string, availableTools?: string[]): string {
+	let prompt = AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', `You are ${assistantName},`);
+
+	if (availableTools && availableTools.length > 0) {
+		prompt = prompt.replace(buildAvailableToolsBlock(), buildAvailableToolsBlock(availableTools));
+	}
+
+	return prompt;
 }
 
 export function applyAgentDecisionV2Contract(systemPrompt: string): string {
@@ -677,6 +779,10 @@ export const formatItemsList = (items: Array<{ title: string; type: string }>, t
 			video: '🎥',
 			link: '🔗',
 			note: '📝',
+			memo: '🗒️',
+			book: '📚',
+			music: '🎵',
+			image: '🖼️',
 		};
 
 		const emoji = typeEmoji[item.type] || '📌';
@@ -686,16 +792,21 @@ export const formatItemsList = (items: Array<{ title: string; type: string }>, t
 			video: 'Vídeos',
 			link: 'Links',
 			note: 'Notas',
+			memo: 'Memos',
+			book: 'Livros',
+			music: 'Músicas',
+			image: 'Imagens',
 		};
 
 		const type = typeName[item.type] || 'Outros';
+		const title = item.title?.trim() || '(sem título)';
 
 		if (!itemsByType[type]) {
 			itemsByType[type] = [];
 		}
 
 		const itemNumber = itemsByType[type].length + 1;
-		itemsByType[type].push(` ${itemNumber}. ${emoji} ${item.title}`);
+		itemsByType[type].push(` ${itemNumber}. ${emoji} ${title}`);
 	});
 
 	let response = '📚 Aqui tá sua coleção:\n\n';
@@ -707,6 +818,10 @@ export const formatItemsList = (items: Array<{ title: string; type: string }>, t
 			Vídeos: '🎥',
 			Links: '🔗',
 			Notas: '📝',
+			Memos: '🗒️',
+			Livros: '📚',
+			Músicas: '🎵',
+			Imagens: '🖼️',
 		};
 
 		response += `${typeEmoji[type] || '📌'} ${type}:\n${itemList.join('\n')}\n\n`;

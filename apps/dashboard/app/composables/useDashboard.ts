@@ -15,10 +15,11 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const getMemories = async (search?: string): Promise<MemoryItem[]> => {
+	const getMemories = async (search?: string, type?: string): Promise<MemoryItem[]> => {
 		const { data } = await api.get<{ items?: any[]; data?: any[] } | any[]>('/memories', {
 			params: {
 				search: search || undefined,
+				type: type || undefined,
 			},
 		});
 

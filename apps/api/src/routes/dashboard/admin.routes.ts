@@ -200,7 +200,9 @@ export const adminRoutes = new Hono()
 
 			return c.json({
 				success: true,
-				message: newQRCode ? 'Sessão limpa e novo QR Code gerado com sucesso!' : 'Sessão limpa. Aguarde o QR Code aparecer.',
+				message: newQRCode
+					? 'Sessão limpa e novo QR Code gerado com sucesso!'
+					: 'Sessão limpa. Aguarde o QR Code aparecer.',
 				qrCode: newQRCode,
 			});
 		} catch (error) {
@@ -475,4 +477,32 @@ export const adminRoutes = new Hono()
 		}
 
 		return c.json({ success: true, data: { checks } });
+	})
+	.post('/playground/prompt-test', async (c) => {
+		try {
+			const { message, tools } = await c.req.json<{ message: string; tools?: string[] }>();
+			if (!message?.trim()) {
+				return c.json({ success: false, error: 'message é obrigatório' }, 400);
+			}
+
+			const { getAgentSystemPrompt } = await import('@/config/prompts');
+			const { llmService } = await import('@/services/ai');
+
+			const systemPrompt = getAgentSystemPrompt('Nexo', tools);
+			const llmResponse = await llmService.callLLM({
+				message,
+				history: [],
+				systemPrompt,
+			});
+
+			return c.json({
+				success: true,
+				data: {
+					llmResponse: typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse, null, 2),
+					systemPrompt,
+				},
+			});
+		} catch (error: any) {
+			return c.json({ success: false, error: error?.message ?? 'Erro interno' }, 500);
+		}
 	});

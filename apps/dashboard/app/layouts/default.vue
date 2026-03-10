@@ -145,7 +145,23 @@ const handleLogout = async () => {
 			</nav>
 
 			<!-- Footer Action -->
-			<div class="p-4 border-t border-surface-200 dark:border-surface-800">
+			<div class="p-4 border-t border-surface-200 dark:border-surface-800 space-y-1">
+				<!-- Legal links (only when sidebar is open) -->
+				<div v-if="isOpen" class="flex items-center gap-3 px-3 pb-2">
+					<NuxtLink
+						to="/privacy-policy"
+						class="text-[10px] text-surface-400 dark:text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+					>
+						Privacidade
+					</NuxtLink>
+					<span class="text-surface-300 dark:text-surface-600">·</span>
+					<NuxtLink
+						to="/terms-of-use"
+						class="text-[10px] text-surface-400 dark:text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+					>
+						Termos de Uso
+					</NuxtLink>
+				</div>
 				<button
 					class="flex items-center w-full px-3 py-2 text-surface-600 dark:text-surface-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors font-medium"
 					@click="handleLogout"

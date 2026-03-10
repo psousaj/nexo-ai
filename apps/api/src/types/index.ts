@@ -4,8 +4,32 @@ import { loggers } from '@/utils/logger';
 
 // Re-export shared types
 // Re-export shared types
-import type { ItemMetadata, ItemType, LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@nexo/shared';
-export type { ItemType, ItemMetadata, MovieMetadata, TVShowMetadata, VideoMetadata, LinkMetadata, NoteMetadata };
+import type {
+	BookMetadata,
+	ImageMetadata,
+	ItemMetadata,
+	ItemType,
+	LinkMetadata,
+	MemoMetadata,
+	MovieMetadata,
+	MusicMetadata,
+	NoteMetadata,
+	TVShowMetadata,
+	VideoMetadata,
+} from '@nexo/shared';
+export type {
+	ItemType,
+	ItemMetadata,
+	MovieMetadata,
+	TVShowMetadata,
+	VideoMetadata,
+	LinkMetadata,
+	NoteMetadata,
+	MemoMetadata,
+	BookMetadata,
+	MusicMetadata,
+	ImageMetadata,
+};
 export * from './agent-decision-v2';
 
 export type ConversationState =
@@ -30,16 +54,9 @@ export type MessageRole = 'user' | 'assistant';
  */
 export type AgentAction = 'CALL_TOOL' | 'RESPOND' | 'NOOP';
 
-export type ToolName =
-	| 'save_note'
-	| 'save_movie'
-	| 'save_tv_show'
-	| 'save_video'
-	| 'save_link'
-	| 'search_items'
-	| 'enrich_movie'
-	| 'enrich_tv_show'
-	| 'enrich_video';
+// Re-export ToolName from the tools module (single source of truth)
+export type { ToolName } from '@/services/tools';
+import type { ToolName } from '@/services/tools';
 
 export interface AgentLLMResponse {
 	schema_version: string; // Versionamento para compatibilidade futura

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
 import { useQuery } from '@tanstack/vue-query';
-import { Activity, ChevronRight, Clock, EyeOff, Loader2, MessageCircle, MessageSquare, X } from 'lucide-vue-next';
+import { Activity, Check, ChevronRight, Clock, Copy, EyeOff, Loader2, MessageCircle, MessageSquare, X } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 import type { ConversationAudit, ConversationMessage, ConversationSummary, OrchestratorTrace } from '~/types/dashboard';
@@ -169,6 +169,89 @@ function openTraceModal(idx: number, cycle: MessageCycle) {
 function closeTraceModal() {
 	traceModal.value = null;
 }
+
+// ─── Copy helpers ─────────────────────────────────────────────────────────────
+function getCycleTrace(cycle: MessageCycle): OrchestratorTrace | null {
+	return (cycle.assistant?.metadata?._trace as OrchestratorTrace) ?? null;
+}
+
+function formatMs(ms: number | undefined | null): string {
+	if (ms == null) return '';
+	if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+	return `${ms}ms`;
+}
+
+function buildCycleText(idx: number, cycle: MessageCycle): string {
+	const trace = getCycleTrace(cycle);
+	const date = cycle.user ? formatTime(cycle.user.createdAt) : cycle.assistant ? formatTime(cycle.assistant.createdAt) : '—';
+	const totalMs = trace?.durations?.total_ms;
+	let text = `=== Ciclo ${idx + 1} ===\n`;
+	text += `Data: ${date}\n`;
+	if (totalMs != null) text += `Tempo total: ${formatMs(totalMs)}\n`;
+	text += '\n';
+	if (cycle.user) {
+		text += `👤 Usuário:\n${cycle.user.content}\n\n`;
+	}
+	if (cycle.assistant) {
+		text += `🤖 Assistente:\n${cycle.assistant.content || '— sem resposta (NOOP / hostil/spam)'}\n\n`;
+	}
+	if (trace) {
+		text += '📊 Trace:\n';
+		text += `  Intent: ${trace.intent ?? '—'}`;
+		if (trace.confidence != null) text += ` (${(trace.confidence * 100).toFixed(0)}%)`;
+		text += '\n';
+		if (trace.action) text += `  Action: ${trace.action}\n`;
+		if (trace.llm_action) text += `  LLM Action: ${trace.llm_action}\n`;
+		if (trace.tools_used?.length) text += `  Tools: ${trace.tools_used.join(', ')}\n`;
+		if (trace.durations) {
+			const d = trace.durations;
+			const parts: string[] = [];
+			if (d.intent_ms != null) parts.push(`intent=${d.intent_ms}ms`);
+			if (d.llm_ms != null) parts.push(`llm=${d.llm_ms}ms`);
+			if (d.action_ms != null) parts.push(`action=${d.action_ms}ms`);
+			if (d.total_ms != null) parts.push(`total=${d.total_ms}ms`);
+			if (parts.length) text += `  Durations: ${parts.join(', ')}\n`;
+		}
+	} else {
+		text += '📊 Trace: não disponível\n';
+	}
+	return text;
+}
+
+const copiedCycleIdx = ref<number | null>(null);
+const copiedAll = ref(false);
+
+async function copyCycle(idx: number, cycle: MessageCycle) {
+	const text = buildCycleText(idx, cycle);
+	await navigator.clipboard.writeText(text);
+	copiedCycleIdx.value = idx;
+	setTimeout(() => {
+		copiedCycleIdx.value = null;
+	}, 2000);
+}
+
+async function copyAllCycles() {
+	if (!auditData.value || !selectedConv.value) return;
+	const conv = auditData.value.conversation;
+	const cfg = providerCfg(selectedConv.value.provider);
+	let text = `=== CONVERSA ${selectedConv.value.id} ===\n`;
+	text += `Provider: ${cfg.label}\n`;
+	text += `Usuário: ${displayIdentifier(selectedConv.value)}\n`;
+	text += `Estado: ${conv.state}\n`;
+	text += `Ativo: ${conv.isActive ? 'Sim' : 'Não'}\n`;
+	text += `Criado: ${formatTime(conv.createdAt)}\n`;
+	text += `Atualizado: ${formatTime(conv.updatedAt)}\n`;
+	text += `Mensagens: ${auditData.value.messages.length}\n`;
+	text += '\n';
+	for (let i = 0; i < messageCycles.value.length; i++) {
+		text += buildCycleText(i, messageCycles.value[i]!) + '\n';
+	}
+	await navigator.clipboard.writeText(text);
+	copiedAll.value = true;
+	setTimeout(() => {
+		copiedAll.value = false;
+	}, 2000);
+}
 </script>
 
 <template>
@@ -293,9 +376,21 @@ function closeTraceModal() {
 								</h3>
 								<p class="text-[10px] text-white/60 font-mono">ID: {{ selectedConv.id }}</p>
 							</div>
-							<button class="p-2 rounded-xl hover:bg-white/10 transition-colors text-white/80" @click="closeAudit">
-								<X class="w-5 h-5" />
-							</button>
+							<div class="flex items-center gap-2">
+								<button
+									v-if="auditData"
+									class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-white/15 hover:bg-white/25 text-white"
+									:title="copiedAll ? 'Copiado!' : 'Copiar toda a conversa para área de transferência'"
+									@click="copyAllCycles"
+								>
+									<Check v-if="copiedAll" class="w-4 h-4 text-emerald-300" />
+									<Copy v-else class="w-4 h-4" />
+									{{ copiedAll ? 'Copiado!' : 'Copiar conversa' }}
+								</button>
+								<button class="p-2 rounded-xl hover:bg-white/10 transition-colors text-white/80" @click="closeAudit">
+									<X class="w-5 h-5" />
+								</button>
+							</div>
 						</div>
 
 						<!-- Conversation meta -->
@@ -358,6 +453,21 @@ function closeTraceModal() {
 										<span v-if="cycle.user" class="text-[10px] text-surface-400 dark:text-surface-500">{{
 											formatTime(cycle.user.createdAt)
 										}}</span>
+										<span
+											v-if="getCycleTrace(cycle)?.durations?.total_ms != null"
+											class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
+										>
+											{{ formatMs(getCycleTrace(cycle)?.durations?.total_ms) }}
+										</span>
+										<button
+											@click.stop="copyCycle(idx, cycle)"
+											class="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-colors bg-surface-200 dark:bg-surface-700 text-surface-500 hover:bg-surface-300 dark:hover:bg-surface-600"
+											title="Copiar ciclo para área de transferência"
+										>
+											<Check v-if="copiedCycleIdx === idx" class="w-3 h-3 text-emerald-500" />
+											<Copy v-else class="w-3 h-3" />
+											{{ copiedCycleIdx === idx ? 'copiado' : 'copy' }}
+										</button>
 										<button
 											@click.stop="openTraceModal(idx, cycle)"
 											:class="[
