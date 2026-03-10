@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import app from '../server';
+
+vi.mock('@/services/item-service', () => ({
+	itemService: {
+		listItems: vi.fn().mockResolvedValue([]),
+		getItemById: vi.fn().mockResolvedValue(null),
+		searchItems: vi.fn().mockResolvedValue([]),
+		saveItem: vi.fn().mockResolvedValue({ id: 'item-1' }),
+		deleteItem: vi.fn().mockResolvedValue(undefined),
+		updateItem: vi.fn().mockResolvedValue(null),
+	},
+}));
 
 describe('Health Endpoint', () => {
 	it('should return OK status', async () => {

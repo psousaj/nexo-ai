@@ -9,7 +9,32 @@
  */
 
 import { type CommandParams, chatCommands } from '@/services/chat-commands';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+
+vi.mock('@/db', () => ({
+	db: {
+		query: {
+			agentSessions: {
+				findFirst: vi.fn().mockResolvedValue(null),
+			},
+			users: {
+				findFirst: vi.fn().mockResolvedValue(null),
+			},
+		},
+		update: vi.fn().mockReturnValue({
+			set: vi.fn().mockReturnValue({
+				where: vi.fn().mockResolvedValue(undefined),
+			}),
+		}),
+		select: vi.fn().mockReturnValue({
+			from: vi.fn().mockReturnValue({
+				where: vi.fn().mockReturnValue({
+					limit: vi.fn().mockResolvedValue([]),
+				}),
+			}),
+		}),
+	},
+}));
 
 describe('Chat Commands', () => {
 	const mockParams: CommandParams = {

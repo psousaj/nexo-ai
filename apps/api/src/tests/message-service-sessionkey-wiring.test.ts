@@ -48,12 +48,28 @@ vi.mock('@/services/user-service', () => ({
 		getUserById: vi.fn().mockResolvedValue(null),
 		findOrCreateUserByAccount: vi.fn().mockResolvedValue({ user: { id: 'user-1', status: 'active', name: 'User' } }),
 		updateUserName: vi.fn().mockResolvedValue(undefined),
+		findAccount: vi.fn().mockResolvedValue({ id: 'acc-1', userId: 'user-1', provider: 'telegram', externalId: 'external-1' }),
+		findUserIdByOAuthAccount: vi.fn().mockResolvedValue(null),
+		linkAccountToUser: vi.fn().mockResolvedValue(undefined),
+		updateUserTimeout: vi.fn().mockResolvedValue(undefined),
+		getUserAccounts: vi.fn().mockResolvedValue([]),
 	},
 }));
 
 vi.mock('@/services/conversation-service', () => ({
 	conversationService: {
 		findOrCreateConversation: vi.fn().mockResolvedValue({ id: 'conv-1', state: 'idle' }),
+	},
+}));
+
+vi.mock('@/config/env', () => ({
+	env: {
+		DASHBOARD_URL: 'http://localhost:5173',
+		TELEGRAM_BOT_TOKEN: 'test-bot-token',
+		DATABASE_URL: 'postgresql://localhost/test',
+		REDIS_HOST: 'localhost',
+		REDIS_PORT: '6379',
+		NODE_ENV: 'test',
 	},
 }));
 

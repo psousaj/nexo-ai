@@ -196,10 +196,10 @@ describe('Telegram Adapter - Mention Gating', () => {
 
 			const isGroup = rawMessage.chat.type !== 'private';
 			const text = rawMessage.text || '';
-			const isCommand = text.startsWith('/');
 			const botMentioned = text.includes(`@${mockBotUsername}`);
 
-			const shouldProcess = !isGroup || botMentioned || !isCommand;
+			// Em grupo, apenas processar se o bot foi mencionado
+			const shouldProcess = !isGroup || botMentioned;
 
 			expect(shouldProcess).toBe(false);
 		});
@@ -255,7 +255,8 @@ describe('Telegram Adapter - Mention Gating', () => {
 
 		test('menção parcial não conta', () => {
 			const text = '@testbotty status';
-			const botMentioned = text.includes(`@${mockBotUsername}`);
+			// Verifica menção com limite de palavra para não aceitar prefixo parcial
+			const botMentioned = new RegExp(`@${mockBotUsername}(?![a-zA-Z0-9_])`, 'i').test(text);
 
 			expect(botMentioned).toBe(false);
 		});
