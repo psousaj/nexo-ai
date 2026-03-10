@@ -156,6 +156,12 @@ function getDefaultContext(): AgentContext {
 	return {
 		systemPrompt: 'You are NEXO, a personal AI assistant.',
 		assistantName: 'NEXO',
+		soulContent: undefined,
+		identityContent: undefined,
+		agentsContent: undefined,
+		userContent: undefined,
+		toolsContent: undefined,
+		memoryContent: undefined,
 	};
 }
 

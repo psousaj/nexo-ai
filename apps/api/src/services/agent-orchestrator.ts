@@ -548,6 +548,7 @@ ${personalizedContext}`;
 						case 'NOOP':
 							loggers.ai.info('🚫 NOOP - mensagem hostil/spam, ignorando silenciosamente');
 							responseMessage = '';
+							break;
 
 						default:
 							loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
