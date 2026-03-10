@@ -65,6 +65,9 @@ const envSchema = z.object({
 	// Enrichment APIs
 	TMDB_API_KEY: z.string(),
 	YOUTUBE_API_KEY: z.string(),
+	GOOGLE_BOOKS_API_KEY: z.string().optional(),
+	SPOTIFY_CLIENT_ID: z.string().min(1, 'SPOTIFY_CLIENT_ID é obrigatório para save_music'),
+	SPOTIFY_CLIENT_SECRET: z.string().min(1, 'SPOTIFY_CLIENT_SECRET é obrigatório para save_music'),
 
 	// Cache - Upstash Redis
 	UPSTASH_REDIS_URL: z.string().url().optional(),
