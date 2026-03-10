@@ -90,7 +90,7 @@
 					</div>
 
 					<div v-if="!tool.enabled" class="px-4 pb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-						<UIcon name="i-heroicons-exclamation-circle" class="w-4 h-4 flex-shrink-0" />
+						<UIcon name="i-heroicons-exclamation-circle" class="w-4 h-4 shrink-0" />
 						<span>Esta tool de sistema está <strong>desabilitada</strong> — funcionalidades críticas podem estar indisponíveis.</span>
 					</div>
 				</div>
