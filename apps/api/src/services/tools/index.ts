@@ -1229,6 +1229,27 @@ export const AVAILABLE_TOOLS = {
 
 	// Context resolution
 	resolve_context_reference,
+
+	// Novos tipos (stubs — serão implementados na Fase 9)
+	save_memo: async (_ctx: ToolContext, _params: { content: string; source?: string }): Promise<ToolOutput> => ({
+		success: false,
+		error: 'Esta ferramenta ainda não está disponível',
+	}),
+	save_book: async (
+		_ctx: ToolContext,
+		_params: { title: string; author?: string; year?: number },
+	): Promise<ToolOutput> => ({
+		success: false,
+		error: 'Esta ferramenta ainda não está disponível',
+	}),
+	save_music: async (_ctx: ToolContext, _params: { title: string; artist?: string }): Promise<ToolOutput> => ({
+		success: false,
+		error: 'Esta ferramenta ainda não está disponível',
+	}),
+	save_image: async (_ctx: ToolContext, _params: { url: string; description?: string }): Promise<ToolOutput> => ({
+		success: false,
+		error: 'Esta ferramenta ainda não está disponível',
+	}),
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;

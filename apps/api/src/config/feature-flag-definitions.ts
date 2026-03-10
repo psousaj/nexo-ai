@@ -102,7 +102,7 @@ const channelFlagDefinitions: FeatureFlagDefinition[] = [
 ];
 
 // ============================================================================
-// Tool flags (21) — todos enabled por padrão, gerados do registry
+// Tool flags — gerados do registry; respeitam defaultEnabled de cada tool
 // ============================================================================
 function buildToolFlagDefinitions(): FeatureFlagDefinition[] {
 	return getAllTools().map((tool) => ({
@@ -110,7 +110,7 @@ function buildToolFlagDefinitions(): FeatureFlagDefinition[] {
 		label: tool.label,
 		description: tool.description,
 		category: 'tool' as FlagCategory,
-		defaultEnabled: true,
+		defaultEnabled: tool.defaultEnabled ?? true,
 	}));
 }
 

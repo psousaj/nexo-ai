@@ -7,7 +7,7 @@ export interface ToolDefinition {
 	icon: string;
 	category: 'system' | 'user';
 }
-export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'text' | 'image' | 'audio';
+export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memo' | 'book' | 'music' | 'image';
 
 export interface User {
 	id: string;
@@ -46,7 +46,7 @@ export interface MemoryItem {
 	id: string | number;
 	title: string;
 	content: string;
-	type: 'link' | 'text' | 'image' | 'video' | 'audio' | 'movie';
+	type: ItemType;
 	category: string;
 	platform: 'WhatsApp' | 'Telegram' | 'Discord' | 'Web';
 	createdAt: string;

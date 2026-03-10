@@ -13,6 +13,8 @@ export interface ToolDefinition {
 	description: string; // Descrição curta
 	icon: string; // Emoji para o dashboard
 	category: 'system' | 'user'; // system = sempre habilitada, user = plugável
+	defaultEnabled?: boolean; // undefined = true; false = desabilitada por padrão (Em breve)
+	oauthRequired?: 'google' | 'microsoft'; // preparação futura para gate por OAuth
 }
 
 // Mapeamento completo de todas as 21 tools com descrições e ícones
@@ -212,28 +214,83 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		icon: '⏰',
 		category: 'system',
 	},
+
+	resolve_context_reference: {
+		name: 'resolve_context_reference',
+		label: 'Resolver Referência',
+		description: 'Resolve referências de contexto em mensagens',
+		icon: '🔍',
+		category: 'system',
+	},
+
+	// ============================================================================
+	// NOVOS TIPOS DE CONTEÚDO — defaultEnabled: true para memo, false para demais
+	// ============================================================================
+
+	save_memo: {
+		name: 'save_memo',
+		label: 'Salvar Memo',
+		description: 'Salva memória avulsa sem categoria (pensamento, quote, ideia)',
+		icon: '🗒️',
+		category: 'user',
+		// defaultEnabled omitido = true por padrão
+	},
+
+	save_book: {
+		name: 'save_book',
+		label: 'Salvar Livro',
+		description: 'Salva livro com metadados do Google Books',
+		icon: '📚',
+		category: 'user',
+		defaultEnabled: false,
+	},
+
+	save_music: {
+		name: 'save_music',
+		label: 'Salvar Música',
+		description: 'Salva música com metadados do Spotify',
+		icon: '🎵',
+		category: 'user',
+		defaultEnabled: false,
+	},
+
+	save_image: {
+		name: 'save_image',
+		label: 'Salvar Imagem',
+		description: 'Salva imagem com extração de metadados EXIF',
+		icon: '🖼️',
+		category: 'user',
+		defaultEnabled: false,
+	},
 };
 
 /**
  * Retorna TODAS as tools de sistema (sempre habilitadas)
  * System tools são todas exceto as 5 tools de salvamento (user tools)
  */
-export function getSystemTools(): ToolDefinition[] {
-	const userToolNames: ToolName[] = ['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link'];
+const USER_TOOL_NAMES: ToolName[] = [
+	'save_note',
+	'save_movie',
+	'save_tv_show',
+	'save_video',
+	'save_link',
+	'save_memo',
+	'save_book',
+	'save_music',
+	'save_image',
+];
 
+export function getSystemTools(): ToolDefinition[] {
 	return Object.entries(TOOL_DEFINITIONS)
-		.filter(([name]) => !userToolNames.includes(name as ToolName))
+		.filter(([name]) => !USER_TOOL_NAMES.includes(name as ToolName))
 		.map(([, def]) => def);
 }
 
 /**
  * Retorna tools de usuário (plugáveis, podem ser desabilitadas)
- * User tools são as 5 ferramentas de salvamento
  */
 export function getUserTools(): ToolDefinition[] {
-	const userToolNames: ToolName[] = ['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link'];
-
-	return userToolNames.map((name) => TOOL_DEFINITIONS[name]);
+	return USER_TOOL_NAMES.map((name) => TOOL_DEFINITIONS[name]);
 }
 
 /**
@@ -247,8 +304,7 @@ export function getToolDefinition(name: ToolName): ToolDefinition | undefined {
  * Verifica se é system tool (sempre habilitada)
  */
 export function isSystemTool(name: ToolName): boolean {
-	const userToolNames: ToolName[] = ['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link'];
-	return !userToolNames.includes(name);
+	return !USER_TOOL_NAMES.includes(name);
 }
 
 /**

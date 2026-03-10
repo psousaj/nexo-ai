@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'user';
-export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'text' | 'image' | 'audio';
+export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memo' | 'book' | 'music' | 'image';
 
 export interface KPIMetric {
 	title: string;

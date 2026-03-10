@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const itemTypeSchema = z.enum(['movie', 'tv_show', 'video', 'link', 'note']);
+export const itemTypeSchema = z.enum(['movie', 'tv_show', 'video', 'link', 'note', 'memo', 'book', 'music', 'image']);
 
 export const listItemsQuerySchema = z.object({
 	userId: z.string().uuid(),
