@@ -1,5 +1,5 @@
 import { closeConversationQueue, enrichmentQueue, messageQueue, responseQueue } from '@nexo/api-core/services/queue-service';
-import { BullAdapter } from '@bull-board/api/bullAdapter';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { createBullBoard } from '@bull-board/api';
 import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from 'hono/bun';
@@ -14,10 +14,10 @@ function createBullBoardApp() {
 
 	createBullBoard({
 		queues: [
-			new BullAdapter(messageQueue),
-			new BullAdapter(closeConversationQueue),
-			new BullAdapter(responseQueue),
-			new BullAdapter(enrichmentQueue),
+			new BullMQAdapter(messageQueue),
+			new BullMQAdapter(closeConversationQueue),
+			new BullMQAdapter(responseQueue),
+			new BullMQAdapter(enrichmentQueue),
 		],
 		serverAdapter,
 	});

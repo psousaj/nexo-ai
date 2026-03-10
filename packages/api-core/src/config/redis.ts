@@ -41,8 +41,8 @@ function getSharedSubscriber(): Redis {
 }
 
 /**
- * Configuração Bull com conexões compartilhadas.
- * Usar em TODAS as filas para minimizar conexões abertas ao Redis.
+ * Configuração Bull (v4 legado) com conexões compartilhadas.
+ * @deprecated Use `BULLMQ_CONNECTION` para novos usos com bullmq.
  */
 export function createBullConfig() {
 	return {
@@ -61,6 +61,19 @@ export function createBullConfig() {
 		},
 	};
 }
+
+/**
+ * Configuração de conexão para BullMQ.
+ * BullMQ gerencia internamente as conexões ioredis; basta passar as opções base.
+ * Compatível com Bun e Node.js.
+ */
+export const BULLMQ_CONNECTION = {
+	host: env.REDIS_HOST || '',
+	port: env.REDIS_PORT || 6379,
+	password: env.REDIS_PASSWORD || '',
+	username: env.REDIS_USER || undefined,
+	...(env.REDIS_TLS ? { tls: {} } : {}),
+} as const;
 
 export async function getRedisClient(): Promise<Redis | null> {
 	if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {

@@ -15,7 +15,7 @@ import {
 	runConversationCloseCron,
 } from '@/services/queue-service';
 import { createBullBoard } from '@bull-board/api';
-import { BullAdapter } from '@bull-board/api/bullAdapter';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { swaggerUI } from '@hono/swagger-ui';
@@ -86,10 +86,10 @@ const serverAdapter = new HonoAdapter(serveStatic);
 // Criar Bull Board com as filas
 createBullBoard({
 	queues: [
-		new BullAdapter(messageQueue),
-		new BullAdapter(closeConversationQueue),
-		new BullAdapter(responseQueue),
-		new BullAdapter(enrichmentQueue),
+		new BullMQAdapter(messageQueue),
+		new BullMQAdapter(closeConversationQueue),
+		new BullMQAdapter(responseQueue),
+		new BullMQAdapter(enrichmentQueue),
 	],
 	serverAdapter,
 });

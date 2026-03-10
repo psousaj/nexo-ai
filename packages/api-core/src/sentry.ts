@@ -1,72 +1,12 @@
-import { env } from '@/config/env';
 import { logger } from '@/utils/logger';
-import * as Sentry from '@sentry/node';
-import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import * as Sentry from '@sentry/core';
+
+// Sentry é inicializado por cada app individualmente:
+//   - apps/api: uses @sentry/node (apps/api/src/sentry.ts)
+//   - apps/api-elysia: uses @sentry/bun (apps/api-elysia/src/init/sentry.ts)
+// api-core only uses @sentry/core for platform-agnostic capture helpers.
 
 const sentryLog = logger.child({ context: 'SENTRY' });
-
-export function initializeSentry() {
-	if (!env.SENTRY_DSN) {
-		sentryLog.warn('SENTRY_DSN não configurado - Sentry desativado');
-		return;
-	}
-
-	Sentry.init({
-		dsn: env.SENTRY_DSN,
-		environment: env.NODE_ENV,
-
-		// Tracing - Captura 100% em dev, 10% em prod
-		tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE || (env.NODE_ENV === 'development' ? 1.0 : 0.1),
-
-		// Sentry Logs (v10+) — envia logs estruturados para o dashboard
-		enableLogs: true,
-
-		// Integrações — Sentry v10 + Profiling
-		integrations: [
-			nodeProfilingIntegration(),
-			Sentry.linkedErrorsIntegration(),
-			Sentry.requestDataIntegration(),
-			// consoleLoggingIntegration removido — criava loop de logs com pino
-		],
-
-		// Profiling - Captura profiling automaticamente durante traces ativos
-		profileSessionSampleRate: env.NODE_ENV === 'development' ? 1.0 : 0.0,
-		profileLifecycle: 'trace',
-
-		// Breadcrumbs automáticos
-		beforeBreadcrumb(breadcrumb) {
-			if (breadcrumb.category === 'http' && breadcrumb.data?.url) {
-				delete breadcrumb.data.headers;
-			}
-			return breadcrumb;
-		},
-
-		// Filtro para dados sensíveis em transactions
-		beforeSendTransaction(event) {
-			if (event.request) {
-				delete event.request.cookies;
-				delete event.request.headers?.authorization;
-			}
-			return event;
-		},
-
-		beforeSend(event) {
-			if (event.request) {
-				delete event.request.cookies;
-				delete event.request.headers?.authorization;
-			}
-			return event;
-		},
-
-		// debug interno do Sentry desativado — muito verbose
-		debug: false,
-	});
-
-	sentryLog.info('✅ Sentry inicializado');
-}
-
-// Auto-inicializa ao importar (compatível com `import "./sentry"` em index.ts)
-initializeSentry();
 
 export function captureException(
 	error: Error,
