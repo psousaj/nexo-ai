@@ -1,8 +1,8 @@
-import '@nexo/api-core/otel'; // OpenTelemetry must be imported first
-import '@nexo/api-core/sentry'; // Sentry error tracking
+// OTel é gerenciado pelo plugin @elysiajs/opentelemetry no server.ts (Bun-compat)
+import '@/init/sentry'; // Sentry sem profiling-node (Bun-compat)
 import { startDiscordBot } from '@nexo/api-core/adapters/messaging/discord-adapter';
 import { env } from '@nexo/api-core/config/env';
-import { shutdownSentry } from '@nexo/api-core/sentry';
+import { shutdownSentry } from '@/init/sentry';
 import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
 import { initializeLangfuse, shutdownLangfuse } from '@nexo/api-core/services/langfuse';
