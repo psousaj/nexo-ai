@@ -6,6 +6,8 @@
  * ADR-019: Pluggable Tools System with CASL Protection
  */
 
+import { toolAvailabilityService } from '@/services/tool-availability.service';
+import { getAllTools } from '@/services/tools/registry';
 import { toolService } from '@/services/tools/tool.service';
 import { loggers } from '@/utils/logger';
 import { Hono } from 'hono';
@@ -24,17 +26,24 @@ const updateToolSchema = z.object({
 toolsRoutes.get('/', async (c) => {
 	try {
 		const allTools = await toolService.getAllTools();
+		const registryTools = getAllTools();
+		const registryMap = new Map(registryTools.map((t) => [t.name, t]));
+
+		const toolsWithMeta = allTools.map((t) => ({
+			...t,
+			comingSoon: registryMap.get(t.name)?.defaultEnabled === false,
+		}));
 
 		return c.json({
 			success: true,
 			data: {
-				tools: allTools,
+				tools: toolsWithMeta,
 				stats: {
-					total: allTools.length,
-					enabled: allTools.filter((t) => t.enabled).length,
-					disabled: allTools.filter((t) => !t.enabled).length,
-					system: allTools.filter((t) => t.category === 'system').length,
-					user: allTools.filter((t) => t.category === 'user').length,
+					total: toolsWithMeta.length,
+					enabled: toolsWithMeta.filter((t) => t.enabled).length,
+					disabled: toolsWithMeta.filter((t) => !t.enabled).length,
+					system: toolsWithMeta.filter((t) => t.category === 'system').length,
+					user: toolsWithMeta.filter((t) => t.category === 'user').length,
 				},
 			},
 		});
@@ -63,6 +72,7 @@ toolsRoutes.patch('/:toolName', async (c) => {
 		const { enabled } = result.data;
 
 		await toolService.updateTool(toolName as any, enabled);
+		await toolAvailabilityService.invalidateCache();
 
 		loggers.api.info({ toolName, enabled }, '✅ Tool global atualizada');
 
@@ -83,6 +93,7 @@ toolsRoutes.patch('/:toolName', async (c) => {
 toolsRoutes.post('/enable-all', async (c) => {
 	try {
 		await toolService.enableAllTools();
+		await toolAvailabilityService.invalidateCache();
 
 		loggers.api.info('✅ Todas as tools habilitadas');
 
@@ -103,6 +114,7 @@ toolsRoutes.post('/enable-all', async (c) => {
 toolsRoutes.post('/disable-all', async (c) => {
 	try {
 		await toolService.disableAllTools();
+		await toolAvailabilityService.invalidateCache();
 
 		loggers.api.info('❌ Todas as tools desabilitadas');
 
