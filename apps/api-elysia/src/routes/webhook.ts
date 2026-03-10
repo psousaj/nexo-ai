@@ -1,5 +1,5 @@
 import { telegramAdapter, whatsappAdapter } from '@nexo/api-core/adapters/messaging';
-import { env } from '@nexo/api-core/config/env';
+import { env } from '@nexo/env';
 import { messageQueue } from '@nexo/api-core/services/queue-service';
 import { logError, loggers } from '@nexo/api-core/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';

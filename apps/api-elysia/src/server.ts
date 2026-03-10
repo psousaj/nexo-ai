@@ -1,6 +1,6 @@
 import { bullBoardApp } from '@/plugins/bull-board';
 import { betterAuthPlugin } from '@/plugins/better-auth';
-import { env } from '@nexo/api-core/config/env';
+import { env } from '@nexo/env';
 import { sentryLogger } from '@nexo/api-core/sentry';
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
 import {

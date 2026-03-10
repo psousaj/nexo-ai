@@ -1,5 +1,5 @@
 import { getProvider } from '@nexo/api-core/adapters/messaging';
-import { env } from '@nexo/api-core/config/env';
+import { env } from '@nexo/env';
 import { getChannelLinkSuccessMessage } from '@nexo/api-core/config/prompts';
 import { db } from '@nexo/api-core/db';
 import { type MessagingChannel, messagingChannelEnum, userChannels, accounts as betterAuthAccounts } from '@nexo/api-core/db/schema';
