@@ -21,7 +21,7 @@ import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { startObservation } from '@langfuse/tracing';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/core';
 
 export const userTimeouts = new Map<string, number>();
 
