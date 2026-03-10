@@ -36,8 +36,18 @@ class BookService {
 		if (cached) return cached;
 
 		try {
-			const q = author ? `intitle:${title}+inauthor:${author}` : `intitle:${title}`;
-			const url = `${this.baseUrl}/volumes?q=${encodeURIComponent(q)}&maxResults=1&key=${this.apiKey}`;
+			// Aspas são necessárias para títulos/autores com múltiplas palavras
+			// (sem aspas, apenas a primeira palavra seria escopo do qualificador intitle:/inauthor:)
+			const q = author
+				? `intitle:"${title}" inauthor:"${author}"`
+				: `intitle:"${title}"`;
+			const params = new URLSearchParams({
+				q,
+				maxResults: '1',
+				printType: 'books', // exclui revistas
+				key: this.apiKey,
+			});
+			const url = `${this.baseUrl}/volumes?${params}`;
 
 			const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
 			if (!res.ok) {

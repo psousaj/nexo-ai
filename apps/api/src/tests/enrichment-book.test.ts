@@ -112,18 +112,21 @@ describe('BookService', () => {
 		expect(result?.cover_url).toMatch(/^https:/);
 	});
 
-	test('inclui autor na query quando fornecido', async () => {
+	test('inclui autor na query com aspas para multi-palavra', async () => {
 		mockFetch.mockResolvedValueOnce({
 			ok: true,
 			json: async () => BOOK_API_RESPONSE,
 		});
 
-		await service.searchBook('O Senhor dos Anéis', 'Tolkien');
+		await service.searchBook('O Senhor dos Anéis', 'J.R.R. Tolkien');
 
 		expect(mockFetch).toHaveBeenCalledOnce();
 		const url = mockFetch.mock.calls[0][0] as string;
-		expect(url).toContain('inauthor');
-		expect(url).toContain('Tolkien');
+		// query deve conter intitle:"..." inauthor:"..." com aspas para suportar multi-palavra
+		expect(url).toContain('intitle%3A%22');
+		expect(url).toContain('inauthor%3A%22');
+		// printType=books obrigatório para excluir revistas
+		expect(url).toContain('printType=books');
 	});
 
 	test('retorna null quando API retorna erro HTTP', async () => {
