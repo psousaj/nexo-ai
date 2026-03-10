@@ -176,11 +176,10 @@ const lastUpdate = '10 de Março de 2026';
 				</p>
 				<ul class="list-disc list-outside ml-5 space-y-2 text-surface-700 dark:text-surface-300">
 					<li>Criptografia de dados em trânsito (HTTPS/TLS) e em repouso</li>
-					<li>Controles de acesso rigorosos por função (CASL + Better Auth)</li>
+					<li>Controles de acesso rigorosos por função</li>
 					<li>Autenticação segura com provedores OAuth (Google, Discord)</li>
 					<li>Monitoramento contínuo de erros e falhas de segurança</li>
-					<li>Processamento assíncrono de mensagens via filas protegidas (Bull + Redis)</li>
-					<li>Banco de dados gerenciado com backups automáticos (Supabase PostgreSQL)</li>
+					<li>Banco de dados gerenciado com backups automáticos</li>
 				</ul>
 			</section>
 
@@ -234,8 +233,8 @@ const lastUpdate = '10 de Março de 2026';
 					<li>Exercer direitos em processos judiciais ou administrativos</li>
 				</ul>
 				<p class="text-surface-700 dark:text-surface-300 mt-4">
-					Após o período necessário, os dados serão excluídos ou anonimizados. O histórico de conversas inativas é automaticamente encerrado
-					após período de inatividade determinado pelo sistema.
+					Após o período necessário, os dados serão excluídos. O histórico de conversas inativas é automaticamente encerrado após período de
+					inatividade determinado pelo sistema.
 				</p>
 			</section>
 
@@ -258,7 +257,7 @@ const lastUpdate = '10 de Março de 2026';
 						<p class="font-semibold text-surface-800 dark:text-surface-200 mb-2">Busca Semântica:</p>
 						<ul class="list-disc list-outside ml-5 space-y-1 text-surface-700 dark:text-surface-300">
 							<li>Geração de vetores de embeddings (384 dimensões) para os conteúdos salvos</li>
-							<li>Busca por similaridade semântica usando pgvector no banco de dados</li>
+							<li>Busca por similaridade semântica</li>
 							<li>Os vetores são armazenados associados à sua conta e não são compartilhados</li>
 						</ul>
 					</div>
@@ -293,7 +292,10 @@ const lastUpdate = '10 de Março de 2026';
 							Telegram
 						</h3>
 						<ul class="list-disc list-outside ml-5 space-y-1 text-surface-700 dark:text-surface-300 text-sm">
-							<li>Recebemos mensagens enviadas diretamente ao bot (@NexoAI) ou em grupos autorizados</li>
+							<li>
+								Recebemos mensagens enviadas diretamente ao bot
+								<a href="https://t.me/NexoAssistent_bot" target="_blank" class="underline">(@NexoAssistent_bot)</a> ou em grupos autorizados
+							</li>
 							<li>Coletamos: ID do usuário Telegram, nome de exibição e conteúdo das mensagens</li>
 							<li>Você pode desvincular o Telegram a qualquer momento via <strong>Perfil → Contas conectadas</strong></li>
 						</ul>
@@ -306,7 +308,7 @@ const lastUpdate = '10 de Março de 2026';
 							WhatsApp
 						</h3>
 						<ul class="list-disc list-outside ml-5 space-y-1 text-surface-700 dark:text-surface-300 text-sm">
-							<li>Processamos mensagens recebidas via WhatsApp Business API (Meta) ou via conexão direta (Baileys)</li>
+							<li>Processamos mensagens recebidas via WhatsApp Business API</li>
 							<li>Coletamos: número de telefone (ID externo), nome e conteúdo das mensagens</li>
 							<li>Você pode desvincular o WhatsApp a qualquer momento via <strong>Perfil → Contas conectadas</strong></li>
 						</ul>
@@ -332,9 +334,8 @@ const lastUpdate = '10 de Março de 2026';
 			<section class="mb-10">
 				<h2 class="section-title">12. Transferência Internacional</h2>
 				<p class="text-surface-700 dark:text-surface-300">
-					Alguns dados podem ser transferidos para servidores fora do Brasil em razão dos provedores de infraestrutura utilizados (ex:
-					Supabase, Cloudflare, Upstash Redis), sempre observando os requisitos legais aplicáveis e adotando medidas de segurança adequadas
-					conforme a LGPD.
+					Alguns dados podem ser transferidos para servidores fora do Brasil em razão dos provedores de infraestrutura utilizados, sempre
+					observando os requisitos legais aplicáveis e adotando medidas de segurança adequadas conforme a LGPD.
 				</p>
 			</section>
 
@@ -355,19 +356,19 @@ const lastUpdate = '10 de Março de 2026';
 				</p>
 				<ul class="list-disc list-outside ml-5 space-y-2 text-surface-700 dark:text-surface-300">
 					<li><strong>E-mail:</strong> jose@pinheirodev.com.br</li>
-					<li><strong>Encarregado de Proteção de Dados (DPO):</strong> Equipe Nexo AI</li>
-					<li><strong>Prazo de resposta:</strong> até 15 (quinze) dias úteis</li>
+					<li><strong>Encarregado de Proteção de Dados (DPO):</strong> José Pinheiro</li>
+					<li><strong>Prazo de resposta:</strong> até 5 (cinco) dias úteis</li>
 				</ul>
 			</section>
 
-			<!-- Section 15 -->
+			<!-- Section 15
 			<section class="mb-10">
 				<h2 class="section-title">15. Foro</h2>
 				<p class="text-surface-700 dark:text-surface-300">
 					Fica eleito o foro da comarca do domicílio do usuário, no Brasil, como competente para dirimir quaisquer controvérsias decorrentes
 					desta Política de Privacidade, nos termos do Código de Defesa do Consumidor.
 				</p>
-			</section>
+			</section> -->
 
 			<!-- Footer -->
 			<div class="border-t border-surface-200 dark:border-surface-800 pt-8 mt-8">
@@ -391,6 +392,8 @@ const lastUpdate = '10 de Março de 2026';
 </template>
 
 <style scoped>
+@reference "~/assets/css/main.css";
+
 .section-title {
 	@apply text-xl font-bold text-surface-900 dark:text-white mb-4 pb-2 border-b border-surface-200 dark:border-surface-800;
 }

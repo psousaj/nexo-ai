@@ -347,6 +347,8 @@ const lastUpdate = '10 de Março de 2026';
 </template>
 
 <style scoped>
+@reference "~/assets/css/main.css";
+
 .section-title {
 	@apply text-xl font-bold text-surface-900 dark:text-white mb-4 pb-2 border-b border-surface-200 dark:border-surface-800;
 }
