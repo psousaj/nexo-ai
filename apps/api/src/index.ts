@@ -3,9 +3,9 @@ import './sentry'; // Sentry error tracking
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
 import { env } from '@/config/env';
 import { shutdownSentry } from '@/sentry';
-import { featureFlagService } from '@/services/feature-flag.service';
 import app from '@/server';
 import { globalErrorHandler } from '@/services/error/error.service';
+import { featureFlagService } from '@/services/feature-flag.service';
 import { initializeLangfuse, shutdownLangfuse } from '@/services/langfuse'; // Langfuse AI observability
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';

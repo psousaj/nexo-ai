@@ -81,9 +81,9 @@ describe('ImageMetadataService', () => {
 			await service.extractMetadata('https://cdn.example.com/img.png');
 
 			expect(mockFetch).toHaveBeenCalledWith(
-			'https://cdn.example.com/img.png',
-			expect.objectContaining({ method: 'HEAD' }),
-		);
+				'https://cdn.example.com/img.png',
+				expect.objectContaining({ method: 'HEAD' }),
+			);
 		});
 
 		test('mapeia image/png → png', async () => {
@@ -111,17 +111,13 @@ describe('ImageMetadataService', () => {
 		});
 
 		test('retorna format undefined para MIME type desconhecido', async () => {
-			mockFetch.mockResolvedValueOnce(
-				makeFetchResponse({ contentType: 'application/octet-stream' }),
-			);
+			mockFetch.mockResolvedValueOnce(makeFetchResponse({ contentType: 'application/octet-stream' }));
 			const result = await service.extractMetadata('https://example.com/file.bin');
 			expect(result?.format).toBeUndefined();
 		});
 
 		test('size_bytes é undefined quando content-length não está presente', async () => {
-			mockFetch.mockResolvedValueOnce(
-				makeFetchResponse({ contentType: 'image/jpeg', contentLength: undefined }),
-			);
+			mockFetch.mockResolvedValueOnce(makeFetchResponse({ contentType: 'image/jpeg', contentLength: undefined }));
 			const result = await service.extractMetadata('https://example.com/photo.jpg');
 			expect(result?.size_bytes).toBeUndefined();
 		});

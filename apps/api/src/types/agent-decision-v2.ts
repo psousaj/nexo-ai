@@ -50,13 +50,21 @@ export const AgentDecisionV2Schema = z
 			if (!data.tool_call)
 				ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'tool_call required for CALL_TOOL', path: ['tool_call'] });
 			if (data.response != null)
-				ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'response must be null for CALL_TOOL', path: ['response'] });
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'response must be null for CALL_TOOL',
+					path: ['response'],
+				});
 		}
 		if (data.action === 'RESPOND') {
 			if (!data.response)
 				ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'response required for RESPOND', path: ['response'] });
 			if (data.tool_call != null)
-				ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'tool_call must be null for RESPOND', path: ['tool_call'] });
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'tool_call must be null for RESPOND',
+					path: ['tool_call'],
+				});
 		}
 		if (data.action === 'NOOP') {
 			if (data.response != null)

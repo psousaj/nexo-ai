@@ -3,10 +3,10 @@ import { boolean, integer, pgEnum, pgTable, text, timestamp, varchar } from 'dri
 import { agentDailyLogs } from './agent-daily-logs';
 import { agentMemoryProfiles } from './agent-memory-profiles';
 import { agentSessions } from './agent-sessions';
-import { userChannels } from './user-channels';
 import { conversations } from './conversations';
 import { items } from './items';
 import { userPermissions } from './permissions';
+import { userChannels } from './user-channels';
 import { userPreferences } from './user-preferences';
 
 /**

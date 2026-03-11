@@ -1,8 +1,8 @@
 import { sentryMetrics } from '@/sentry';
 import {
-	type AgentDecisionV2,
 	AgentDecisionCategorySchema,
 	AgentDecisionTriggerSchema,
+	type AgentDecisionV2,
 	AgentDecisionV2Schema,
 } from '@/types/agent-decision-v2';
 import { loggers } from '@/utils/logger';
@@ -137,7 +137,10 @@ const LenientAgentDecisionV2Schema = z
 		reasoning_intent: z
 			.object({
 				category: AgentDecisionCategorySchema.catch('conversation'),
-				confidence: z.coerce.number().transform((v) => Math.min(1, Math.max(0, v))).catch(0.5),
+				confidence: z.coerce
+					.number()
+					.transform((v) => Math.min(1, Math.max(0, v)))
+					.catch(0.5),
 				trigger: AgentDecisionTriggerSchema.catch('natural_language'),
 			})
 			.catch(reasoningIntentFallback),

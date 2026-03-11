@@ -227,11 +227,11 @@ export function buildAvailableToolsBlock(availableTools?: string[]): string {
 
 	const saveTools = toolsToShow.filter((t) => t.startsWith('save_'));
 	const searchTools = toolsToShow.filter(
-(t) => t.startsWith('search_') || t.startsWith('memory_') || t.startsWith('daily_'),
+		(t) => t.startsWith('search_') || t.startsWith('memory_') || t.startsWith('daily_'),
 	);
 	const enrichTools = toolsToShow.filter((t) => t.startsWith('enrich_'));
 	const systemTools = toolsToShow.filter(
-(t) =>
+		(t) =>
 			!t.startsWith('save_') &&
 			!t.startsWith('search_') &&
 			!t.startsWith('memory_') &&

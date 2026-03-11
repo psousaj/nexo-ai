@@ -36,7 +36,10 @@ function buildMultimodalPrompt(items: { kind: 'audio' | 'image'; text: string }[
 	return `\n\nContexto multimodal detectado:\n${lines.join('\n')}`;
 }
 
-export async function applyMultimodalRuntime(message: string, metadata?: MessageMetadata): Promise<MultimodalRuntimeOutput> {
+export async function applyMultimodalRuntime(
+	message: string,
+	metadata?: MessageMetadata,
+): Promise<MultimodalRuntimeOutput> {
 	const baseProviderPayload = metadata?.providerPayload;
 	const attachments = metadata?.attachments ?? [];
 
