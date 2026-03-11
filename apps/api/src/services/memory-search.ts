@@ -71,7 +71,11 @@ function reciprocalRankFusion(rank1: number, rank2: number, k = 60): number {
  * Merge hybrid results from vector and keyword search
  * Supports multiple merge strategies
  */
-export function mergeHybridResults(params: { vector: any[]; keyword: any[]; config: HybridSearchConfig }): MemorySearchResult[] {
+export function mergeHybridResults(params: {
+	vector: any[];
+	keyword: any[];
+	config: HybridSearchConfig;
+}): MemorySearchResult[] {
 	const { vector, keyword, config } = params;
 	const { vectorWeight, textWeight, mergeStrategy } = config;
 
@@ -138,7 +142,9 @@ export function mergeHybridResults(params: { vector: any[]; keyword: any[]; conf
 /**
  * Search memory items using hybrid search (vector + keyword)
  */
-export async function searchMemory(options: MemorySearchOptions & { config?: Partial<HybridSearchConfig> }): Promise<MemorySearchResult[]> {
+export async function searchMemory(
+	options: MemorySearchOptions & { config?: Partial<HybridSearchConfig> },
+): Promise<MemorySearchResult[]> {
 	const {
 		query,
 		userId,

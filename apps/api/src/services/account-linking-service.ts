@@ -1,7 +1,14 @@
 import type { ProviderType } from '@/adapters/messaging';
 import { cacheDelete } from '@/config/redis';
 import { db } from '@/db';
-import { userChannels, accounts as betterAuthAccounts, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
+import {
+	accounts as betterAuthAccounts,
+	conversations,
+	linkingTokens,
+	memoryItems,
+	userChannels,
+	users,
+} from '@/db/schema';
 import type { LinkingTokenProvider, LinkingTokenType } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
@@ -46,7 +53,9 @@ export class AccountLinkingService {
 		}
 
 		// Gera um token aleatório de 12 caracteres (base64url safe)
-		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+		const token =
+			Math.random().toString(36).substring(2, 10).toUpperCase() +
+			Math.random().toString(36).substring(2, 6).toUpperCase();
 
 		const expiresAt = new Date();
 		if (tokenType === 'signup') {
@@ -113,7 +122,9 @@ export class AccountLinkingService {
 				),
 			);
 
-		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+		const token =
+			Math.random().toString(36).substring(2, 10).toUpperCase() +
+			Math.random().toString(36).substring(2, 6).toUpperCase();
 
 		const expiresAt = new Date();
 		expiresAt.setHours(expiresAt.getHours() + 24);
@@ -157,7 +168,10 @@ export class AccountLinkingService {
 		if (linkToken.tokenType === 'signup') {
 			await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, linkToken.userId));
 			await cacheDelete(`user:account:${linkToken.provider}:${externalId}`);
-			loggers.webhook.info({ userId: linkToken.userId, provider: linkToken.provider }, '✅ Usuário ativado via deep link (signup token)');
+			loggers.webhook.info(
+				{ userId: linkToken.userId, provider: linkToken.provider },
+				'✅ Usuário ativado via deep link (signup token)',
+			);
 		}
 
 		// Remove o token após uso
@@ -177,7 +191,10 @@ export class AccountLinkingService {
 	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
 	 *   - Apenas vincula a conta do bot ao usuário do Dashboard
 	 */
-	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
+	async linkTokenAccountToUser(
+		token: string,
+		targetUserId: string,
+	): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
 		const [linkToken] = await db
 			.select()
 			.from(linkingTokens)
@@ -194,7 +211,10 @@ export class AccountLinkingService {
 			if (!linkToken.externalId) return null;
 			await userService.linkAccountToUser(targetUserId, provider, linkToken.externalId, {});
 			await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, targetUserId));
-			loggers.webhook.info({ targetUserId, provider, externalId: linkToken.externalId }, '✅ Canal vinculado via pre_signup token');
+			loggers.webhook.info(
+				{ targetUserId, provider, externalId: linkToken.externalId },
+				'✅ Canal vinculado via pre_signup token',
+			);
 		} else if (linkToken.tokenType === 'signup') {
 			// Migração completa: trial user → conta real
 			await this.migrateTrialUserToAccount(trialUserId!, targetUserId, provider);
@@ -223,9 +243,16 @@ export class AccountLinkingService {
 	 * 4. Ativa o novo usuário (status → active)
 	 * 5. Invalida cache das contas migradas
 	 */
-	private async migrateTrialUserToAccount(trialUserId: string, targetUserId: string, provider: ProviderType): Promise<void> {
+	private async migrateTrialUserToAccount(
+		trialUserId: string,
+		targetUserId: string,
+		provider: ProviderType,
+	): Promise<void> {
 		if (trialUserId === targetUserId) {
-			loggers.webhook.warn({ trialUserId, targetUserId, provider }, '⚠️ Migração ignorada: trialUserId igual ao targetUserId');
+			loggers.webhook.warn(
+				{ trialUserId, targetUserId, provider },
+				'⚠️ Migração ignorada: trialUserId igual ao targetUserId',
+			);
 			return;
 		}
 
@@ -251,7 +278,10 @@ export class AccountLinkingService {
 				'🔗 Target já tem user_channel para o canal. Removendo duplicata do trial.',
 			);
 		} else {
-			await db.update(userChannels).set({ userId: targetUserId, updatedAt: new Date() }).where(eq(userChannels.userId, trialUserId));
+			await db
+				.update(userChannels)
+				.set({ userId: targetUserId, updatedAt: new Date() })
+				.where(eq(userChannels.userId, trialUserId));
 		}
 
 		// 2. Migra memory_items

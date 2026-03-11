@@ -66,9 +66,7 @@ const BOOK_API_RESPONSE = {
 				imageLinks: {
 					thumbnail: 'http://books.google.com/thumbnail.jpg',
 				},
-				industryIdentifiers: [
-					{ type: 'ISBN_13', identifier: '9780618640157' },
-				],
+				industryIdentifiers: [{ type: 'ISBN_13', identifier: '9780618640157' }],
 			},
 		},
 	],

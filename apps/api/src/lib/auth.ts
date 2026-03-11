@@ -1,5 +1,5 @@
-import { getRedisClient } from '@/config/redis';
 import { env } from '@/config/env';
+import { getRedisClient } from '@/config/redis';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import { emailService } from '@/services/email/email.service';

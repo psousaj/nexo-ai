@@ -2,7 +2,7 @@ import { getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
 import { getChannelLinkSuccessMessage } from '@/config/prompts';
 import { db } from '@/db';
-import { type MessagingChannel, messagingChannelEnum, userChannels, accounts as betterAuthAccounts } from '@/db/schema';
+import { type MessagingChannel, accounts as betterAuthAccounts, messagingChannelEnum, userChannels } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { preferencesService } from '@/services/preferences-service';
 import { userService } from '@/services/user-service';
@@ -116,7 +116,10 @@ export const userRoutes = new Hono<AuthContext>()
 			await userService.linkAccountToUser(userState.id, 'discord' as any, discordUserId, {
 				username: user?.name || discordUserId,
 			});
-			loggers.webhook.info({ userId: userState.id, discordUserId, guildName: guild.name }, '✅ Discord bot auto-linked via status check');
+			loggers.webhook.info(
+				{ userId: userState.id, discordUserId, guildName: guild.name },
+				'✅ Discord bot auto-linked via status check',
+			);
 			return c.json({ linked: true, reason: 'auto_linked', guildName: guild.name });
 		}
 
@@ -185,7 +188,9 @@ export const userRoutes = new Hono<AuthContext>()
 
 			if (channel) {
 				// Canal de mensageria (whatsapp/telegram/discord-bot) → remover de user_channels
-				await db.delete(userChannels).where(and(eq(userChannels.userId, userState.id), eq(userChannels.channel, channel)));
+				await db
+					.delete(userChannels)
+					.where(and(eq(userChannels.userId, userState.id), eq(userChannels.channel, channel)));
 			} else {
 				// OAuth (google, discord-oauth, etc.) → remover de accounts do Better Auth
 				await db

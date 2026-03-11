@@ -134,7 +134,8 @@ describe('AgentOrchestrator tool schema switch', () => {
 				message: "Hello! I'm NEXO, your personal AI assistant.",
 			})
 			.mockResolvedValueOnce({
-				message: '{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"Oi!","tone_profile":"neutral"}}',
+				message:
+					'{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"Oi!","tone_profile":"neutral"}}',
 			});
 		mockParseAgentDecisionV2FromLLM
 			.mockImplementationOnce(() => {

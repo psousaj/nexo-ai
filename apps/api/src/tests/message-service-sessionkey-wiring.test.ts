@@ -48,7 +48,9 @@ vi.mock('@/services/user-service', () => ({
 		getUserById: vi.fn().mockResolvedValue(null),
 		findOrCreateUserByAccount: vi.fn().mockResolvedValue({ user: { id: 'user-1', status: 'active', name: 'User' } }),
 		updateUserName: vi.fn().mockResolvedValue(undefined),
-		findAccount: vi.fn().mockResolvedValue({ id: 'acc-1', userId: 'user-1', provider: 'telegram', externalId: 'external-1' }),
+		findAccount: vi
+			.fn()
+			.mockResolvedValue({ id: 'acc-1', userId: 'user-1', provider: 'telegram', externalId: 'external-1' }),
 		findUserIdByOAuthAccount: vi.fn().mockResolvedValue(null),
 		linkAccountToUser: vi.fn().mockResolvedValue(undefined),
 		updateUserTimeout: vi.fn().mockResolvedValue(undefined),
