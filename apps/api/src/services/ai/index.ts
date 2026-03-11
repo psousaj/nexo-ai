@@ -18,7 +18,7 @@ import type { AIResponse, Message } from './types';
 export class AIService {
 	private provider: CloudflareAIGatewayProvider;
 
-	constructor(accountId: string, gatewayId: string, cfApiToken: string, defaultModel = 'dynamic/cloudflare') {
+	constructor(accountId: string, gatewayId: string, cfApiToken: string, defaultModel = 'dynamic/nexo') {
 		this.provider = new CloudflareAIGatewayProvider(accountId, gatewayId, cfApiToken, defaultModel);
 		loggers.ai.info('🤖 AI Service inicializado com AI Gateway');
 	}

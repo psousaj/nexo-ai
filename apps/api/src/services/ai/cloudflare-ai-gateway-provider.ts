@@ -73,7 +73,10 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 						},
 					});
 
-					const completion = await this.client.chat.completions.create(payload);
+					const completion = await this.client.chat.completions.create({
+						...payload,
+						max_tokens: 1024,
+					});
 
 					updateActiveObservation({
 						metadata: {
@@ -98,7 +101,9 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 				messages,
 			});
 			const duration = Date.now() - startTime;
-			const rawContent = response.choices[0]?.message?.content;
+			const choice = response.choices[0]?.message;
+			const rawContent = choice?.content;
+			const finishReason = response.choices[0]?.finish_reason;
 
 			// Log estruturado
 			loggers.ai.info(
@@ -121,8 +126,12 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 			}
 
 			if (!text || text.trim().length === 0) {
-				loggers.ai.error({ rawContent }, '⚠️ Resposta vazia do AI Gateway');
-				throw new Error('AI Gateway returned empty response');
+				loggers.ai.error({ rawContent, finishReason, usage: response.usage }, '⚠️ Resposta vazia do AI Gateway');
+				const reason =
+					finishReason === 'length'
+						? 'AI Gateway cut response due to token limit (finish_reason: length)'
+						: `AI Gateway returned empty response (finish_reason: ${finishReason ?? 'unknown'})`;
+				throw new Error(reason);
 			}
 
 			return {
