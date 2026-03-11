@@ -1,0 +1,310 @@
+import type { ProviderType } from '@/adapters/messaging';
+import { cacheDelete } from '@/config/redis';
+import { db } from '@/db';
+import { userChannels, accounts as betterAuthAccounts, conversations, linkingTokens, memoryItems, users } from '@/db/schema';
+import type { LinkingTokenProvider, LinkingTokenType } from '@/db/schema';
+import { instrumentService } from '@/services/service-instrumentation';
+import { loggers } from '@/utils/logger';
+import { and, eq, gte, sql } from 'drizzle-orm';
+import { userService } from './user-service';
+
+export class AccountLinkingService {
+	/**
+	 * Gera um token único para vinculação de conta ou cadastro
+	 * Link: Expira em 10 minutos
+	 * Signup: Expira em 24 horas
+	 */
+	async generateLinkingToken(
+		userId: string,
+		provider?: ProviderType,
+		tokenType: LinkingTokenType = 'link',
+		externalId?: string,
+	): Promise<string> {
+		const tokenFilters = [
+			eq(linkingTokens.userId, userId),
+			eq(linkingTokens.tokenType, tokenType),
+			gte(linkingTokens.expiresAt, new Date()),
+		];
+
+		if (provider) {
+			tokenFilters.push(eq(linkingTokens.provider, provider));
+		}
+
+		if (externalId) {
+			tokenFilters.push(eq(linkingTokens.externalId, externalId));
+		}
+
+		// Verifica se já existe um token válido (não expirado) para reutilizar
+		const existingToken = await db
+			.select()
+			.from(linkingTokens)
+			.where(and(...tokenFilters))
+			.limit(1);
+
+		if (existingToken.length > 0) {
+			return existingToken[0].token;
+		}
+
+		// Gera um token aleatório de 12 caracteres (base64url safe)
+		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+		const expiresAt = new Date();
+		if (tokenType === 'signup') {
+			expiresAt.setHours(expiresAt.getHours() + 24);
+		} else {
+			expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+		}
+
+		const cleanupFilters = [eq(linkingTokens.userId, userId), eq(linkingTokens.tokenType, tokenType)];
+
+		if (provider) {
+			cleanupFilters.push(eq(linkingTokens.provider, provider));
+		}
+
+		if (externalId) {
+			cleanupFilters.push(eq(linkingTokens.externalId, externalId));
+		}
+
+		// Remove tokens expirados do mesmo user/provider/type para limpar
+		await db.delete(linkingTokens).where(and(...cleanupFilters));
+
+		await db.insert(linkingTokens).values({
+			userId,
+			token,
+			tokenType,
+			provider,
+			externalId,
+			expiresAt,
+		});
+
+		return token;
+	}
+
+	/**
+	 * Fluxo 0: Bot -> Dashboard (Pre-Signup)
+	 * Usuário não registrado encontrado em canal não-trial (Telegram, Discord).
+	 * Gera um token sem userId que, após o signup no Dashboard, vincula automaticamente o canal.
+	 */
+	async generatePreSignupToken(externalId: string, provider: ProviderType): Promise<string> {
+		// Reutiliza token válido se já existir
+		const [existing] = await db
+			.select()
+			.from(linkingTokens)
+			.where(
+				and(
+					eq(linkingTokens.externalId, externalId),
+					sql`${linkingTokens.provider}::text = ${provider}`,
+					eq(linkingTokens.tokenType, 'pre_signup'),
+					gte(linkingTokens.expiresAt, new Date()),
+				),
+			)
+			.limit(1);
+
+		if (existing) return existing.token;
+
+		// Remove expirados do mesmo externalId/provider
+		await db
+			.delete(linkingTokens)
+			.where(
+				and(
+					eq(linkingTokens.externalId, externalId),
+					sql`${linkingTokens.provider}::text = ${provider}`,
+					eq(linkingTokens.tokenType, 'pre_signup'),
+				),
+			);
+
+		const token = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+		const expiresAt = new Date();
+		expiresAt.setHours(expiresAt.getHours() + 24);
+
+		await db.insert(linkingTokens).values({
+			token,
+			tokenType: 'pre_signup',
+			provider: provider as any,
+			externalId,
+			expiresAt,
+		});
+
+		loggers.webhook.info({ provider, externalId }, '🔑 Token pre_signup gerado para usuário não registrado');
+		return token;
+	}
+
+	/**
+	 * Fluxo 1: Dashboard -> Bot (Deep Linking)
+	 * O usuário está logado no Dashboard, gera um token, e envia para o Bot.
+	 * O Bot recebe o token e o externalId (ex: Telegram ID).
+	 * Vinculamos o externalId ao userId contido no token.
+	 */
+	async linkExternalAccountByToken(
+		token: string,
+		externalId: string,
+		metadata?: any,
+	): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
+		const [linkToken] = await db
+			.select()
+			.from(linkingTokens)
+			.where(and(eq(linkingTokens.token, token), gte(linkingTokens.expiresAt, new Date())))
+			.limit(1);
+
+		if (!linkToken || !linkToken.provider || !linkToken.userId) return null;
+
+		// Vincula a conta no UserService
+		await userService.linkAccountToUser(linkToken.userId, linkToken.provider, externalId, metadata);
+
+		// Se for token de signup (trial → conta real via bot), ativa o usuário diretamente
+		// Isso cobre o caso em que o usuário toca o deep link no Telegram sem passar pelo Dashboard
+		if (linkToken.tokenType === 'signup') {
+			await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, linkToken.userId));
+			await cacheDelete(`user:account:${linkToken.provider}:${externalId}`);
+			loggers.webhook.info({ userId: linkToken.userId, provider: linkToken.provider }, '✅ Usuário ativado via deep link (signup token)');
+		}
+
+		// Remove o token após uso
+		await db.delete(linkingTokens).where(eq(linkingTokens.id, linkToken.id));
+
+		return { userId: linkToken.userId, provider: linkToken.provider };
+	}
+
+	/**
+	 * Fluxo 2: Bot -> Dashboard (signup ou link)
+	 *
+	 * Para tokenType = 'signup' (fluxo WhatsApp/Telegram trial → conta real):
+	 *   - Migra TODOS os dados do usuário trial para o novo usuário Better Auth
+	 *   - authProviders, memory_items e conversations são reatribuídos
+	 *   - Novo usuário recebe status 'active'
+	 *
+	 * Para tokenType = 'link' (usuário já autenticado quer vincular bot):
+	 *   - Apenas vincula a conta do bot ao usuário do Dashboard
+	 */
+	async linkTokenAccountToUser(token: string, targetUserId: string): Promise<{ userId: string; provider: LinkingTokenProvider } | null> {
+		const [linkToken] = await db
+			.select()
+			.from(linkingTokens)
+			.where(and(eq(linkingTokens.token, token), gte(linkingTokens.expiresAt, new Date())))
+			.limit(1);
+
+		if (!linkToken || !linkToken.provider) return null;
+
+		const trialUserId = linkToken.userId;
+		const provider = linkToken.provider;
+
+		if (linkToken.tokenType === 'pre_signup') {
+			// Fluxo 0: não há trial user — só vincula o canal diretamente ao novo usuário Dashboard
+			if (!linkToken.externalId) return null;
+			await userService.linkAccountToUser(targetUserId, provider, linkToken.externalId, {});
+			await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, targetUserId));
+			loggers.webhook.info({ targetUserId, provider, externalId: linkToken.externalId }, '✅ Canal vinculado via pre_signup token');
+		} else if (linkToken.tokenType === 'signup') {
+			// Migração completa: trial user → conta real
+			await this.migrateTrialUserToAccount(trialUserId!, targetUserId, provider);
+		} else {
+			// Vínculo simples (link manual code)
+			const accounts = await userService.getUserAccounts(trialUserId!);
+			const accountToLink = accounts.find((a: any) => a.provider === provider && a.type === 'channel');
+			if (!accountToLink) return null;
+
+			await userService.linkAccountToUser(targetUserId, provider, accountToLink.externalId, accountToLink.metadata);
+		}
+
+		// Remove o token após uso
+		await db.delete(linkingTokens).where(eq(linkingTokens.id, linkToken.id));
+
+		return { userId: targetUserId, provider };
+	}
+
+	/**
+	 * Migra TODOS os dados de um usuário trial para um usuário Better Auth recém-criado.
+	 *
+	 * Executa:
+	 * 1. Reatribui authProviders (provider accounts do bot)
+	 * 2. Migra memory_items (itens salvos durante o trial)
+	 * 3. Migra conversations (histórico)
+	 * 4. Ativa o novo usuário (status → active)
+	 * 5. Invalida cache das contas migradas
+	 */
+	private async migrateTrialUserToAccount(trialUserId: string, targetUserId: string, provider: ProviderType): Promise<void> {
+		if (trialUserId === targetUserId) {
+			loggers.webhook.warn({ trialUserId, targetUserId, provider }, '⚠️ Migração ignorada: trialUserId igual ao targetUserId');
+			return;
+		}
+
+		loggers.webhook.info({ trialUserId, targetUserId, provider }, '🔄 Iniciando migração trial → conta real');
+
+		// Busca canais do trial user antes de migrar (para invalidar cache depois)
+		const trialAccounts = await userService.getUserAccounts(trialUserId);
+
+		// 1. Migra user_channels: reatribui do trial para o target
+		//    Se o target já tem um registro para o mesmo canal,
+		//    não podemos fazer UPDATE pois a unique constraint (userId, channel) seria violada.
+		//    Nesses casos, removemos os user_channels do trial (o target já tem o vínculo correto).
+		const [targetHasChannel] = await db
+			.select({ id: userChannels.id })
+			.from(userChannels)
+			.where(and(eq(userChannels.userId, targetUserId), sql`${userChannels.channel}::text = ${provider}`))
+			.limit(1);
+
+		if (targetHasChannel) {
+			await db.delete(userChannels).where(eq(userChannels.userId, trialUserId));
+			loggers.webhook.info(
+				{ trialUserId, targetUserId, provider },
+				'🔗 Target já tem user_channel para o canal. Removendo duplicata do trial.',
+			);
+		} else {
+			await db.update(userChannels).set({ userId: targetUserId, updatedAt: new Date() }).where(eq(userChannels.userId, trialUserId));
+		}
+
+		// 2. Migra memory_items
+		await db.update(memoryItems).set({ userId: targetUserId }).where(eq(memoryItems.userId, trialUserId));
+
+		// 3. Migra conversations
+		await db.update(conversations).set({ userId: targetUserId }).where(eq(conversations.userId, trialUserId));
+
+		// 4. Ativa o novo usuário
+		await db.update(users).set({ status: 'active', updatedAt: new Date() }).where(eq(users.id, targetUserId));
+
+		// 5. Invalida cache de todas as contas migradas
+		for (const account of trialAccounts) {
+			const cacheKey = `user:account:${account.provider}:${account.externalId}`;
+			await cacheDelete(cacheKey);
+		}
+
+		// 6. Cleanup do usuário trial: remove se não restou vínculo
+		const [remainingChannel] = await db
+			.select({ id: userChannels.id })
+			.from(userChannels)
+			.where(eq(userChannels.userId, trialUserId))
+			.limit(1);
+
+		const [remainingBetterAuthAccount] = await db
+			.select({ id: betterAuthAccounts.id })
+			.from(betterAuthAccounts)
+			.where(eq(betterAuthAccounts.userId, trialUserId))
+			.limit(1);
+
+		if (!remainingChannel && !remainingBetterAuthAccount) {
+			await db.delete(users).where(and(eq(users.id, trialUserId), eq(users.status, 'trial')));
+			loggers.webhook.info({ trialUserId, targetUserId }, '🧹 Usuário trial órfão removido após migração');
+		} else {
+			loggers.webhook.warn(
+				{
+					trialUserId,
+					hasChannel: !!remainingChannel,
+					hasBetterAuthAccount: !!remainingBetterAuthAccount,
+				},
+				'⚠️ Cleanup do trial ignorado: ainda existem vínculos',
+			);
+		}
+
+		loggers.webhook.info(
+			{
+				trialUserId,
+				targetUserId,
+				migratedAccounts: trialAccounts.length,
+			},
+			'✅ Migração concluída: trial → conta real',
+		);
+	}
+}
+
+export const accountLinkingService = instrumentService('accountLinking', new AccountLinkingService());
