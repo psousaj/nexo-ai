@@ -1,5 +1,5 @@
 import { env } from '@/config/env';
-import { AGENT_SYSTEM_PROMPT } from '@/config/prompts';
+import { getAgentSystemPrompt } from '@/config/prompts';
 import { getLangfuse } from '@/services/langfuse';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
@@ -30,7 +30,7 @@ export class AIService {
 	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
 		return startSpan('llm.call', async (_span) => {
 			const { systemPrompt, ...rest } = params;
-			const prompt = systemPrompt || AGENT_SYSTEM_PROMPT;
+			const prompt = systemPrompt || getAgentSystemPrompt('Nexo');
 
 			setAttributes({
 				'llm.message_length': params.message.length,

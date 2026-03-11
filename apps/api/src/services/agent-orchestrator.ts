@@ -394,7 +394,7 @@ export class AgentOrchestrator {
 			}
 
 			// 7. AGENDAR FECHAMENTO SE A AÇÃO FINALIZOU
-			// Fecha conversa em 3min se estado voltar para 'open' (idle)
+			// Fecha conversa em 15min se estado voltar para 'open' (idle)
 			if (response.state === 'idle' && action !== 'handle_casual') {
 				await scheduleConversationClose(conversation.id);
 				loggers.ai.info({ conversationId: conversation.id }, '📅 Fechamento agendado');

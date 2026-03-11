@@ -42,7 +42,7 @@ export type ConversationState =
 	| 'enriching' // Buscando informações adicionais
 	| 'saving' // Salvando o conteúdo
 	| 'error' // Estado de erro
-	| 'waiting_close' // Ação finalizada, timer de 3min agendado
+	| 'waiting_close' // Ação finalizada, timer de 15min agendado
 	| 'closed'; // Conversa encerrada, contexto limpo
 
 export type MessageRole = 'user' | 'assistant';

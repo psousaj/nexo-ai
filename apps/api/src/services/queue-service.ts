@@ -579,11 +579,11 @@ enrichmentQueue.process('bulk-enrich-candidates', 2, async (job) => {
 // ============================================================================
 
 /**
- * Agenda fechamento de conversa em 3 minutos
+ * Agenda fechamento de conversa em 15 minutos
  */
 export async function scheduleConversationClose(conversationId: string): Promise<void> {
 	try {
-		const closeAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutos
+		const closeAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
 		const jobId = `close:${conversationId}`; // JobId determinístico para cancelamento O(1)
 
 		await db
@@ -605,7 +605,7 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			'close-conversation',
 			{ conversationId },
 			{
-				delay: 3 * 60 * 1000,
+				delay: 15 * 60 * 1000,
 				jobId,
 				attempts: 3,
 				backoff: { type: 'exponential', delay: 5000 },
