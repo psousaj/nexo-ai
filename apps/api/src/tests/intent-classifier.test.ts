@@ -194,6 +194,10 @@ describe('IntentClassifier', () => {
 				'Aplicativo over screen que conecta no spotify e permite adicionar a musica atual a várias playlists',
 			);
 			expect(result2.intent).toBe('save_content');
+
+			// "Me mostra aí uns carrinhos" é recomendação externa — NÃO busca de itens salvos
+			const result3 = await classifier.classify('Me mostra aí macho uns carrinhos maneiros até 30k pra família pequena com 1 filho');
+			expect(result3.intent).not.toBe('search_content');
 		});
 	});
 

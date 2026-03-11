@@ -18,9 +18,9 @@
 		"format:check": "biome format .",
 		"lint:biome": "biome check .",
 		"lint:biome:fix": "biome check --fix .",
-		"train:nexo": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
-		"train:nexo:bert": "tsx -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
-		"set-admin": "tsx scripts/set-admin.ts"
+		"train:nexo": "tsx --env-file=../../.env -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
+		"train:nexo:bert": "tsx --env-file=../../.env -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
+		"set-admin": "tsx --env-file=../../.env scripts/set-admin.ts"
 	},
 	"dependencies": {
 		"@bull-board/api": "^6.16.4",
@@ -81,6 +81,8 @@
 		"vitest": "^2.1.9"
 	},
 	"pnpm": {
-		"neverBuiltDependencies": ["msgpackr-extract"]
+		"neverBuiltDependencies": [
+			"msgpackr-extract"
+		]
 	}
 }

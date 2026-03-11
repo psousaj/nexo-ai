@@ -128,7 +128,7 @@ Return ONLY this contract:
     "tone_profile": "string"
   } | null,
   "tool_call": {
-    "name": "save_note" | "save_movie" | "save_tv_show" | "save_video" | "save_link" | "search_items" | "enrich_movie" | "enrich_tv_show" | "enrich_video" | "delete_memory" | "delete_all_memories" | "update_user_settings" | "get_assistant_name" | "memory_search" | "memory_get" | "daily_log_search" | "list_calendar_events" | "create_calendar_event" | "list_todos" | "create_todo" | "schedule_reminder" | "collect_context" | "resolve_context_reference",
+    "name": "save_note" | "save_movie" | "save_tv_show" | "save_video" | "save_link" | "save_memo" | "save_book" | "save_music" | "save_image" | "web_search" | "analyze_url" | "search_items" | "enrich_movie" | "enrich_tv_show" | "enrich_video" | "delete_memory" | "delete_all_memories" | "update_user_settings" | "get_assistant_name" | "memory_search" | "memory_get" | "daily_log_search" | "list_calendar_events" | "create_calendar_event" | "list_todos" | "create_todo" | "schedule_reminder" | "collect_context" | "resolve_context_reference",
     "arguments": { ... },
     "idempotency_key": "string (optional)"
   } | null,
@@ -146,8 +146,8 @@ STRICT ACTION RULES:
 - RESPOND:
   - response MUST be present
   - tool_call MUST be null
-  - keep response.text short, objective, and in pt-BR
-  - Use for: greetings, farewells, thanks, casual messages, off-topic questions, anything you cannot/should not act on
+  - response.text in pt-BR, conversational and natural (max 1-2 short paragraphs for open chat; 1 sentence for simple acks)
+  - Use for: greetings, farewells, thanks, casual messages, off-topic questions, general conversation, anything that doesn't require a tool
 - NOOP:
   - response MUST be null
   - tool_call MUST be null
@@ -178,19 +178,24 @@ Hard constraints:
 Return ONLY JSON.`;
 
 const TOOL_SIGNATURES: Record<string, string> = {
-	save_note:
-		'save_note(content: string) → Use ONLY for: reminders, ideas, thoughts, notes, and personal text authored by the user',
+	save_note: 'save_note(content: string) → Use ONLY for: reminders, ideas, thoughts, notes, and personal text authored by the user',
 	save_movie:
 		'save_movie(title: string, year?: number, tmdb_id?: number) → Saves a film. WITHOUT tmdb_id: searches TMDB and shows options. WITH tmdb_id: saves directly.',
 	save_tv_show:
 		'save_tv_show(title: string, year?: number, tmdb_id?: number) → Saves a TV series. WITHOUT tmdb_id: searches TMDB and shows options. WITH tmdb_id: saves directly.',
 	save_video: 'save_video(url: string, title?: string) → Use ONLY for: YouTube/Vimeo links',
-	save_link: 'save_link(url: string, description?: string) → Use ONLY for: website/article URLs',
-	save_memo:
-		'save_memo(content: string, source?: string) → Use for: miscellaneous thoughts, quotes, ideas without a defined category',
-	save_book: 'save_book(title: string, author?: string, year?: number) → Saves a book with Google Books metadata',
-	save_music: 'save_music(title: string, artist?: string) → Saves a song with Spotify metadata',
-	save_image: 'save_image(url: string, description?: string) → Saves an image with EXIF metadata extraction',
+	save_link:
+		'save_link(url: string, description?: string) → Use ONLY for: website/article URLs that were NOT detected by analyze_url as a richer type',
+	save_memo: 'save_memo(content: string, source?: string) → Use for: miscellaneous thoughts, quotes, ideas without a defined category',
+	save_book:
+		'save_book(title: string, author?: string, year?: number) → Saves a book with Google Books metadata. Returns candidates for user to confirm.',
+	save_music:
+		'save_music(title: string, artist?: string) → Saves a song/album with Spotify metadata. Returns candidates for user to confirm.',
+	save_image: 'save_image(url: string, description?: string) → Saves an image URL with metadata. Returns preview for user to confirm.',
+	web_search:
+		'web_search(query: string, count?: number) → Searches the web via Brave Search. Use ONLY when you cannot answer from your own knowledge or when the user asks for current/external information. Returns results for you to summarize.',
+	analyze_url:
+		'analyze_url(url: string) → Detects the content type of a URL (movie, tv_show, music, video, book, image, or link). Use when user sends a bare URL without context. After calling this, present the detected type to the user and confirm before saving.',
 	search_items:
 		'search_items(query?: string, limit?: number) → ⚠️ Searches ONLY items the user has already saved in Nexo. NOT a general search, NOT for external queries.',
 	enrich_movie: 'enrich_movie(title: string, year?: number) → returns TMDB options',
@@ -199,8 +204,7 @@ const TOOL_SIGNATURES: Record<string, string> = {
 	update_user_settings: 'update_user_settings(assistantName?: string) → Use for: changing the assistant name',
 	collect_context:
 		'collect_context(message: string, detectedType: string | null) → Use for: generating options when the user sends an ambiguous message',
-	list_calendar_events:
-		'list_calendar_events(startDate?: string, endDate?: string, maxResults?: number) → Lists calendar events',
+	list_calendar_events: 'list_calendar_events(startDate?: string, endDate?: string, maxResults?: number) → Lists calendar events',
 	create_calendar_event:
 		'create_calendar_event(title: string, startDate: string, endDate?: string, description?: string, duration?: number, location?: string) → Creates a calendar event',
 	list_todos: 'list_todos() → Lists Microsoft To Do tasks',
@@ -218,6 +222,15 @@ const TOOL_SIGNATURES: Record<string, string> = {
 };
 
 /**
+ * Gera a union type string de nomes de tools para uso no contrato JSON.
+ * Gerado dinamicamente a partir de TOOL_SIGNATURES para evitar dessincronia.
+ */
+export function buildToolNameEnum(availableTools?: string[]): string {
+	const tools = availableTools ? availableTools.filter((t) => TOOL_SIGNATURES[t]) : Object.keys(TOOL_SIGNATURES);
+	return tools.map((t) => `"${t}"`).join(' | ');
+}
+
+/**
  * Gera o bloco de tools disponíveis para injeção no prompt.
  * Se `availableTools` for fornecido, lista apenas essas tools.
  * Sem argumento, retorna o bloco completo (fallback para compatibilidade).
@@ -226,24 +239,33 @@ export function buildAvailableToolsBlock(availableTools?: string[]): string {
 	const toolsToShow = availableTools ? availableTools.filter((t) => TOOL_SIGNATURES[t]) : Object.keys(TOOL_SIGNATURES);
 
 	const saveTools = toolsToShow.filter((t) => t.startsWith('save_'));
-	const searchTools = toolsToShow.filter(
-		(t) => t.startsWith('search_') || t.startsWith('memory_') || t.startsWith('daily_'),
-	);
+	const searchTools = toolsToShow.filter((t) => t.startsWith('search_') || t.startsWith('memory_') || t.startsWith('daily_'));
 	const enrichTools = toolsToShow.filter((t) => t.startsWith('enrich_'));
+	const webTools = toolsToShow.filter((t) => t === 'web_search' || t === 'analyze_url');
 	const systemTools = toolsToShow.filter(
 		(t) =>
 			!t.startsWith('save_') &&
 			!t.startsWith('search_') &&
 			!t.startsWith('memory_') &&
 			!t.startsWith('daily_') &&
-			!t.startsWith('enrich_'),
+			!t.startsWith('enrich_') &&
+			t !== 'web_search' &&
+			t !== 'analyze_url',
 	);
 
 	const lines: string[] = ['# AVAILABLE TOOLS\n'];
+	lines.push(
+		'⚠️ The tools listed below are the ONLY tools you may call. NEVER mention, suggest, or call any tool not listed here. If a capability is not listed, treat it as if it does not exist.\n',
+	);
 
 	if (saveTools.length > 0) {
 		lines.push('## Save');
 		saveTools.forEach((t) => lines.push(`- ${TOOL_SIGNATURES[t]}`));
+		lines.push('');
+	}
+	if (webTools.length > 0) {
+		lines.push('## Web / URL');
+		webTools.forEach((t) => lines.push(`- ${TOOL_SIGNATURES[t]}`));
 		lines.push('');
 	}
 	if (searchTools.length > 0) {
@@ -265,14 +287,7 @@ export function buildAvailableToolsBlock(availableTools?: string[]): string {
 	return lines.join('\n');
 }
 
-export const AGENT_SYSTEM_PROMPT_V2 = `# OPERATING MODE: PLANNER
-
-You are operating in PLANNER MODE.
-You do NOT chat.
-You do NOT explain.
-You ONLY select actions.
-
-You are Nexo, a memory assistant.
+export const AGENT_SYSTEM_PROMPT_V2 = `You are Nexo, a free conversational companion and personal memory assistant.
 
 ${AGENT_DECISION_V2_CONTRACT_PROMPT}
 
@@ -331,6 +346,20 @@ Example: "the last of us que começou em 2023" → save_tv_show(title: "the last
 
 YouTube link → save_video
 Example: "https://youtube.com/watch?v=abc" → save_video
+
+**Bare URL without context → analyze_url:**
+- User sends only a URL without explaining what it is → analyze_url({ url: "..." })
+- analyze_url detects the content type (movie, music, book, video, image, link)
+- Then present the detected type to the user and ask for confirmation before saving
+- NEVER auto-save a URL without calling analyze_url first when context is missing
+- Example: "https://open.spotify.com/track/xxx" → analyze_url → detected 'music' → ask user if they want to save it
+
+**Web search (when you lack knowledge or current info) → web_search:**
+- User asks for recommendations, current facts, prices, or external info you don't know → web_search
+- web_search is read-only: it NEVER saves anything, it returns results for you to summarize
+- After calling web_search, respond naturally using the results (second turn handled by system)
+- Example: "me recomenda carros compactos" → web_search({ query: "melhores carros compactos 2025 Brasil" })
+- Example: "qual o endereço do museu do ipiranga?" → web_search({ query: "endereço museu do ipiranga São Paulo" })
 
 # PLOT DESCRIPTION WITHOUT TITLE (CRITICAL PATTERN)
 
@@ -392,11 +421,29 @@ When the user uses a demonstrative pronoun referring to what the assistant just 
 User: "Opa" → RESPOND { text: "Oi! 👋" }
 User: "kkkk" → RESPOND { text: "😄" }
 User: "ok valeu" → RESPOND { text: "De nada! 😊" }
-User: "tu sabe o que de guitarras?" → RESPOND { text: "Não sou especialista nisso, mas posso te ajudar a salvar ou buscar conteúdo!" }
+User: "tu sabe o que de guitarras?" → RESPOND { text: "Sei o básico! Guitarras se dividem em acústicas e elétricas — o que você quer saber?" }
 User: "Ta doidão" → RESPOND { text: "Haha, to aqui firme! 😄" }
+User: "me recomenda carros até 30k" → web_search({ query: "melhores carros até 30 mil reais 2025" })
 User: "seu burro" (hostile) → NOOP
 User: "////" (spam) → NOOP
-User: "aaaaaaa" (spam) → NOOP`;
+User: "aaaaaaa" (spam) → NOOP
+
+# TOOL CLASSIFICATION EXAMPLES
+
+- "salva o livro Sapiens do Yuval" → save_book({ title: "Sapiens", author: "Yuval Noah Harari" })
+- "quero salvar a música Bohemian Rhapsody do Queen" → save_music({ title: "Bohemian Rhapsody", artist: "Queen" })
+- "guarda essa imagem https://example.com/foto.jpg" → save_image({ url: "https://example.com/foto.jpg" })
+- "salva esse pensamento: carpe diem" → save_memo({ content: "carpe diem" })
+- User sends bare URL "https://open.spotify.com/track/xxx" → analyze_url({ url: "https://open.spotify.com/track/xxx" })
+- "me recomenda filmes de ficção científica" → web_search({ query: "melhores filmes de ficção científica" })
+
+# TYPE CATEGORY SYSTEM
+
+Content types belong to one of two categories:
+- **enrichable**: movie, tv_show, music, book, video — require external API enrichment
+- **text**: note, memo, link, image — plain text/URL content, no enrichment needed
+
+If the user overrides your classification (e.g., you detected "link" but user says "save as note"), ALWAYS respect their choice. Reclassify and proceed accordingly.`;
 
 export function getAgentSystemPrompt(assistantName: string, availableTools?: string[]): string {
 	let prompt = AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', `You are ${assistantName},`);
