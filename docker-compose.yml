@@ -2,25 +2,44 @@ version: "3.8"
 
 services:
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/jaeger:2.16.0
     container_name: nexo-jaeger
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - ./docker/jaeger/config.yaml:/etc/jaeger/config.yaml
+      - ./docker/jaeger/ui-config.json:/etc/jaeger/ui-config.json
+      - jaeger-badger:/badger
     ports:
-      - "5775:5775/udp" # accept zipkin.thrift over compact thrift protocol
-      - "6831:6831/udp" # accept jaeger.thrift over compact thrift protocol
-      - "6832:6832/udp" # accept jaeger.thrift over binary thrift protocol
-      - "5778:5778" # serve configs
-      - "16686:16686" # serve frontend (Jaeger UI)
-      - "14268:14268" # accept jaeger.thrift directly from clients
-      - "14250:14250" # accept model.proto
-      - "4317:4317" # OTLP gRPC receiver (used by OTLPTraceExporter)
-      - "4318:4318" # OTLP HTTP receiver
-      - "9411:9411" # Zipkin compatible endpoint
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-      - SPAN_STORAGE_TYPE=memory
+      - "16686:16686" # Jaeger UI
+      - "4317:4317" # OTLP gRPC (traces de entrada)
+      - "4318:4318" # OTLP HTTP
+      - "8888:8888" # Telemetria interna do Jaeger (métricas metricstore)
+      - "8889:8889" # SpanMetrics expostos para o Prometheus scrape
+    depends_on:
+      - prometheus
     restart: unless-stopped
     networks:
       - nexo-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexo-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090" # Prometheus UI + PromQL endpoint (usado pelo Jaeger SPM)
+    restart: unless-stopped
+    networks:
+      - nexo-network
+
+volumes:
+  prometheus-data:
+  jaeger-badger:
 
 networks:
   nexo-network:
