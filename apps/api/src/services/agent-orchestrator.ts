@@ -111,6 +111,8 @@ export class AgentOrchestrator {
 				'agent.conversation_id': context.conversationId,
 				'agent.has_callback': !!context.callbackData,
 				'agent.message_length': context.message?.length || 0,
+				// Langfuse trace input — popula preview e avaliações no Langfuse UI
+				'langfuse.trace.input': JSON.stringify({ message: context.message ?? '' }),
 			});
 
 			loggers.ai.info({ message: context.message }, '🎯 Processando mensagem');
@@ -338,6 +340,8 @@ export class AgentOrchestrator {
 				'orchestrator.llm_action': trace.llm_action ?? 'none',
 				'orchestrator.tools_used': (trace.tools_used ?? []).join(','),
 				'orchestrator.total_ms': totalMs,
+				// Langfuse trace output — popula preview e avaliações no Langfuse UI
+				'langfuse.trace.output': JSON.stringify({ response: response.message ?? '' }),
 			});
 
 			try {

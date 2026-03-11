@@ -1,1263 +1,501 @@
-# AGENTS.md - Agent Guide for Nexo AI
+# AGENTS.md — Nexo AI Agent Onboarding Guide
 
-## Project Overview
+> Lê este arquivo antes de escrever qualquer código.
+> Monorepo v0.5.48 — atualizado: 2026-03-11
 
-**Nexo AI** is a personal AI assistant via Telegram/WhatsApp/Discord that organizes content (movies, TV shows, videos, links, notes) using AI.
+---
 
-**Architecture v0.3.0**: Deterministic Runtime Control - LLM **never** manages state or decides flow. LLM **only** analyzes, plans, and selects tools.
+## 1. ARQUITETURA
 
-### Monorepo Structure
+**Nexo AI** é um assistente pessoal via Telegram / WhatsApp (Baileys + Meta Cloud API) / Discord que salva, organiza e busca conteúdo (filmes, séries, vídeos, links, notas, livros, músicas, imagens).
+
+### Princípio Fundador — ADR-011: Deterministic Runtime Control
+
+```
+CÓDIGO controla:               LLM controla:
+✓ Estado da conversação        ✓ Análise da mensagem
+✓ Fluxo de execução            ✓ Escolha da tool (lista fixa)
+✓ Chamada de tools             ✓ Redação de respostas
+✓ Transições de estado         ✗ Nada mais
+✓ Orquestração
+```
+
+### Fluxo End-to-End
+
+```
+Webhook → responde 200 OK imediatamente
+    ↓
+Bull messageQueue (job)
+    ↓
+messageProcessor worker
+    ├─ IntentClassifier (Neural NLP.js ≥85%) → ação determinística
+    └─ LLM fallback → AgentOrchestrator → parseAgentDecisionV2FromLLM()
+         ↓
+    ToolExecutor → validação → dedup → persistência → enrichmentQueue (async)
+         ↓
+    responseQueue → envia ao usuário
+```
+
+### Monorepo
 
 ```
 nexo-ai/
 ├── apps/
-│   ├── api/           # Main backend (Hono + Drizzle + PostgreSQL)
-│   ├── dashboard/      # Web dashboard (Nuxt 4 + Vue 3)
-│   ├── landing/        # Landing page (Vite)
-│   └── old-dashboard/  # Legacy dashboard (deprecated)
-└── packages/
-    ├── shared/         # Shared types and schemas
-    ├── auth/           # Better Auth client
-    ├── typescript-config/
-    ├── eslint-config/
-    └── prettier-config/
-```
-
-### Tech Stack
-
-| Category | Technology |
-|----------|------------|
-| **Runtime** | Bun (primary), Node.js |
-| **Package Manager** | pnpm (workspaces) + Turbo |
-| **API Framework** | Hono (migrated from Elysia) |
-| **Database** | PostgreSQL (Supabase) + Drizzle ORM |
-| **Frontend** | Nuxt 4 + Vue 3 + Nuxt UI |
-| **AI Providers** | Google Gemini (default), Cloudflare Workers AI (fallback) |
-| **Messaging** | Telegram Bot API, Meta WhatsApp API, Discord.js |
-| **Auth** | Better Auth (Discord OAuth, Google OAuth) |
-| **Queue** | Bull + Redis (Upstash) |
-| **Testing** | Vitest (API), Playwright (E2E) |
-| **Observability** | New Relic (optional), Pino logger |
-| **Deployment** | Cloudflare Workers, Docker, Railway |
-
----
-
-## Essential Commands
-
-### Root Level (Turbo)
-
-```bash
-# Development
-pnpm dev                    # Run all apps (api, dashboard, landing)
-pnpm dev:api               # Run API only
-pnpm dev:dashboard         # Run Dashboard only
-pnpm dev:landing           # Run Landing only
-
-# Build
-pnpm build                 # Build all apps
-pnpm build:api             # Build API only
-pnpm build:dashboard       # Build Dashboard only
-pnpm build:landing         # Build Landing only
-
-# Quality
-pnpm lint                  # Lint all apps
-pnpm typecheck             # Typecheck all apps
-pnpm test                  # Test all apps
-pnpm format                # Format code (Biome)
-
-# Database (routes to API)
-pnpm db:generate           # Generate Drizzle migrations
-pnpm db:push               # Apply migrations to database
-pnpm db:studio             # Open Drizzle Studio UI
-```
-
-### API (`apps/api/`)
-
-```bash
-# Development
-pnpm run dev               # Start Hono server with tsx watch
-
-# Build & Run
-pnpm run build             # Build with tsup
-pnpm run start             # Start production with New Relic
-pnpm run start:no-newrelic # Start without New Relic
-./server                   # Run binary build
-
-# Database
-pnpm run db:generate       # Generate Drizzle migrations
-pnpm run db:push           # Apply migrations to database
-pnpm run db:studio         # Open Drizzle Studio (http://localhost:4983)
-
-# Testing
-pnpm test                  # Run all Vitest tests
-pnpm test:watch            # Watch mode
-pnpm test:ui               # Vitest UI
-
-# Code Quality
-pnpm run biome:check       # Check formatting with Biome
-pnpm run biome:fix         # Fix formatting
-
-# Utils
-pnpm run train:nexo        # Train NLP classifier
-pnpm run set-admin         # Set user as admin (admin dashboard)
-```
-
-### Dashboard (`apps/dashboard/`)
-
-```bash
-# Development
-pnpm run dev               # Start Nuxt dev server
-
-# Build & Preview
-pnpm run build             # Build for production
-pnpm run preview           # Preview production build
-
-# Testing
-pnpm test                  # Run all tests
-pnpm test:watch            # Watch mode
-pnpm test:coverage         # Coverage report
-pnpm test:unit             # Unit tests only
-pnpm test:nuxt             # Nuxt-specific tests
-pnpm test:e2e              # Playwright E2E tests
-pnpm test:e2e:ui           # Playwright UI
-
-# Quality
-pnpm run lint              # ESLint check
-pnpm run typecheck         # TypeScript type checking
+│   ├── api/            # Hono + Drizzle + PostgreSQL (porta 3002)
+│   ├── dashboard/      # Nuxt 4 + Vue 3 (porta 5173)
+│   ├── intake-worker/  # Microserviço multimodal (áudio, imagem)
+│   └── landing/        # Vite (porta 3005)
+├── packages/
+│   ├── env/            # @nexo/env — Zod env validation
+│   ├── shared/         # @nexo/shared — tipos compartilhados
+│   ├── otel/           # @nexo/otel — OpenTelemetry + Langfuse
+│   └── auth/           # @nexo/auth — Better Auth client
+└── docs/adr/           # 21 Architecture Decision Records
 ```
 
 ---
 
-## Architecture & Critical Patterns
+## 2. STACK
 
-### 1. Deterministic Runtime Control (CRITICAL)
-
-**ADR-011**: LLM **never** manages state, decides flow, or executes logic.
-
-**LLM ONLY:**
-- Analyzes user input
-- Plans action
-- Chooses tools
-- Drafts responses
-
-**CODE ONLY:**
-- Manages conversation state
-- Decides when to call LLM
-- Executes tools
-- Controls flow
-
-### 2. AgentLLMResponse Schema (MANDATORY)
-
-All LLM responses must follow this exact JSON schema:
-
-```typescript
-// apps/api/src/types/index.ts
-interface AgentLLMResponse {
-  schema_version: "1.0";
-  action: "CALL_TOOL" | "RESPOND" | "NOOP";
-  tool?: ToolName;           // Required if action=CALL_TOOL
-  args?: Record<string, any>;
-  message?: string;          // Max 200 chars if action=RESPOND
-}
-```
-
-**Validation**:
-- `action=CALL_TOOL` → `tool` required
-- `action=RESPOND` → `message` required, max 200 chars
-- `action=NOOP` → `message` must be null
-
-**Parse with**:
-```typescript
-import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
-
-const response = parseJSONFromLLM(llmOutput);
-if (!isValidAgentResponse(response)) {
-  throw new Error('Invalid AgentLLMResponse');
-}
-```
-
-### 3. Tools with Strong Contracts
-
-Each tool does ONE specific thing with validated inputs.
-
-**Location**: `apps/api/src/services/tools/index.ts`
-
-**Available Tools**:
-```typescript
-// Save tools (strongly typed per item type)
-save_note(content: string)
-save_movie(title: string, year?: number, tmdb_id?: number)
-save_tv_show(title: string, year?: number, tmdb_id?: number)
-save_video(url: string, title?: string)
-save_link(url: string, description?: string)
-
-// Search tools
-search_items(query?: string, type?: ItemType)
-
-// Enrichment tools
-enrich_movie(title: string)
-enrich_tv_show(title: string)
-enrich_video(url: string)
-```
-
-**Tool Output Schema**:
-```typescript
-interface ToolOutput {
-  success: boolean;
-  message?: string;
-  data?: any;
-  error?: string;
-}
-```
-
-### 4. Intent Classification (Deterministic)
-
-**Location**: `apps/api/src/services/intent-classifier.ts`
-
-Process:
-1. Intent classifier runs FIRST (before LLM)
-2. Uses regex patterns or lightweight LLM
-3. Returns `IntentResult` with confidence score
-
-**Detected Intents**:
-```typescript
-type UserIntent =
-  | 'save_content'      // Save items
-  | 'search_content'    // Search/list items
-  | 'delete_content'    // Delete items
-  | 'update_content'    // Update settings
-  | 'get_info'          // Get info
-  | 'confirm'           // Yes/OK/Numbers
-  | 'deny'              // No/Cancel
-  | 'casual_chat'       // Greetings, thanks
-  | 'unknown';
-```
-
-**Deterministic Actions** (no LLM needed):
-```typescript
-switch (intent.action) {
-  case 'delete_all':
-    return handleDeleteAll();  // Direct execution
-  case 'list_all':
-    return handleListAll();    // Direct execution
-  case 'cancel':
-    return handleCancel();     // Clear context
-  default:
-    return handleWithLLM();    // Only here LLM is called
-}
-```
-
-### 5. State Machine
-
-**Location**: `apps/api/src/services/conversation-service.ts`
-
-**Conversation States**:
-```typescript
-type ConversationState =
-  | 'idle'                    // Ready for commands
-  | 'processing'              // Action in progress
-  | 'awaiting_context'        // Waiting for user input
-  | 'off_topic_chat'          // User in parallel conversation
-  | 'awaiting_confirmation'   // Waiting for user selection
-  | 'awaiting_final_confirmation'  // Final confirmation with image
-  | 'enriching'               // Fetching metadata
-  | 'saving'                  // Saving to database
-  | 'error'                   // Error state
-  | 'waiting_close'           // Timer running (3 min)
-  | 'closed';                 // Conversation closed, context cleared
-```
-
-**State Transitions**:
-- Managed by `conversationService` (code, not LLM)
-- Context persisted in `conversations.context` (JSONB)
-- Auto-close after 3 min inactivity via Bull queue
-
-### 6. Database Schema (Drizzle)
-
-**Location**: `apps/api/src/db/schema/`
-
-**Key Tables**:
-- `users` - User accounts (name, email, assistantName, timeoutUntil)
-- `user_accounts` - Multi-provider accounts (telegram, whatsapp, discord)
-- `user_emails` - Email addresses (for linking)
-- `user_preferences` - User preferences (one-to-one)
-- `conversations` - State machine (state, context JSONB, closeAt, isActive)
-- `messages` - Message history (role: user|assistant)
-- `memory_items` - Saved items (type, metadata JSONB, embedding vector, externalId)
-- `semantic_external_items` - Global cache for movies/TV/videos (normalization)
-- `error_reports` - Error tracking
-- `linking_tokens` - Account linking tokens
-- `auth` - Better Auth tables
-- `permissions` - User permissions
-
-**Important Patterns**:
-- JSONB for flexible metadata (typed by item type in `types/index.ts`)
-- Vector embeddings (384 dims) for semantic search
-- Unique constraints to prevent duplicates (externalId+type, contentHash)
-- Cascade deletes for referential integrity
-
-**Relations**:
-- `users` 1:N `userAccounts`
-- `users` 1:N `userEmails`
-- `users` 1:N `conversations`
-- `users` 1:N `memoryItems`
-- `conversations` 1:N `messages`
-- `memoryItems` N:1 `semanticExternalItems` (for movies/TV/videos)
-
-### 7. Messaging Adapters
-
-**Location**: `apps/api/src/adapters/messaging/`
-
-**Pattern**: Unified interface, provider-specific implementation
-
-**Adapters**:
-- `telegram-adapter.ts` - Telegram Bot API
-- `whatsapp-adapter.ts` - Meta Cloud API
-- `discord-adapter.ts` - Discord.js
-
-**Flow**:
-```
-Webhook → Adapter → MessageQueue → AgentOrchestrator → Tools
-```
-
-**Queue**: All messages processed asynchronously via Bull queue
-- Prevents webhook timeouts
-- Retry with exponential backoff
-- Monitorable via Bull Board (`/admin/queues`)
-
-### 8. AI Provider Multi-Fallback
-
-**Location**: `apps/api/src/services/ai/`
-
-**Providers**:
-- Google Gemini (default, faster & cheaper)
-- Cloudflare Workers AI (fallback)
-
-**Usage**:
-```typescript
-import { llmService } from '@/services/ai';
-
-const response = await llmService.generate({
-  messages: [...],
-  system: AGENT_SYSTEM_PROMPT,
-});
-```
-
-**LLM calls happen ONLY**:
-- After intent classification
-- For complex actions requiring planning
-- When tools need AI-generated text
+| Categoria | Tecnologia | Versão |
+|-----------|-----------|--------|
+| Runtime | Node.js + tsx | ^4.21.0 |
+| Package Manager | pnpm + Turbo | 9.15.4 / ^2.5.4 |
+| API Framework | Hono + @hono/node-server | ^4.11.5 |
+| Database | PostgreSQL (Supabase) + Drizzle ORM | ^0.45.1 |
+| Frontend | Nuxt 4 + Vue 3 + @nuxt/ui | ^4.3.0 |
+| AI Gateway | Cloudflare AI Gateway | — |
+| LLM | Google Gemini (primário) + Cloudflare Workers AI (fallback) | — |
+| Embeddings | BGE Small 384-dim via Cloudflare | OpenAI compat. |
+| Messaging | Telegram Bot API / Baileys WS / Meta Cloud API / Discord.js | — |
+| Auth | Better Auth + Redis session | ^1.4.17 |
+| Queue | Bull + ioredis | ^4.16.5 |
+| Vector Search | pgvector HNSW cosine 384-dim | built-in PG |
+| NLP | node-nlp 5.0.0-alpha.5 | local trained |
+| Observability | OTEL + Jaeger 2.16.0 + Prometheus + Langfuse + Sentry | — |
+| Testing | Vitest | ^2.1.9 |
+| Build | tsup | — |
+| Deploy API | Railway (Docker) | — |
+| Deploy Dashboard | Vercel | — |
 
 ---
 
-## Code Organization
+## 3. COMANDOS
 
-### API (`apps/api/src/`)
+```bash
+# Monorepo
+pnpm dev             # todos os apps via Turbo
+pnpm dev:api         # API apenas
+pnpm dev:dash        # Dashboard apenas
+pnpm build           # build all
+pnpm lint && pnpm typecheck && pnpm test
 
-```
-src/
-├── adapters/messaging/     # Telegram, WhatsApp, Discord adapters
-│   ├── telegram-adapter.ts
-│   ├── whatsapp-adapter.ts
-│   ├── discord-adapter.ts
-│   ├── index.ts
-│   └── types.ts
-├── config/                 # Configuration
-│   ├── env.ts              # Environment validation (Zod)
-│   ├── prompts.ts          # ⭐ All prompts centralized
-│   └── redis.ts
-├── db/
-│   ├── schema/             # Drizzle schemas (11 tables)
-│   │   ├── users.ts
-│   │   ├── user-accounts.ts
-│   │   ├── user-emails.ts
-│   │   ├── conversations.ts
-│   │   ├── messages.ts
-│   │   ├── items.ts (memory_items)
-│   │   ├── semantic-external-items.ts
-│   │   ├── error-reports.ts
-│   │   ├── linking-tokens.ts
-│   │   ├── auth.ts
-│   │   └── permissions.ts
-│   └── index.ts            # DB connection
-├── lib/
-│   └── auth.ts             # Better Auth configuration
-├── middlewares/
-│   └── auth.middleware.ts  # Auth middleware for routes
-├── routes/                 # HTTP routes
-│   ├── health.ts
-│   ├── webhook-new.ts      # Telegram/WhatsApp webhooks
-│   ├── items.ts            # API routes for items
-│   ├── dashboard/
-│   │   ├── admin.routes.ts
-│   │   ├── analytics.routes.ts
-│   │   ├── index.ts
-│   │   ├── memories.routes.ts
-│   │   └── user.routes.ts
-│   └── auth-better.routes.ts
-├── scripts/                # Utility scripts
-├── services/               # Business logic
-│   ├── agent-orchestrator.ts    # ⭐ Main orchestrator
-│   ├── intent-classifier.ts     # ⭐ Intent classification
-│   ├── conversation-service.ts  # State machine
-│   ├── item-service.ts          # Item CRUD operations
-│   ├── user-service.ts          # User operations
-│   ├── queue-service.ts         # Bull queue setup
-│   ├── message-analysis/        # NLP-based message analysis
-│   │   ├── message-analyzer.service.ts
-│   │   ├── analyzers/            # Individual analyzers
-│   │   │   ├── base-analyzer.ts
-│   │   │   ├── profanity-analyzer.ts
-│   │   │   ├── spam-analyzer.ts
-│   │   │   ├── tone-analyzer.ts
-│   │   │   └── ambiguity-analyzer.ts
-│   │   └── training/             # NLP model training
-│   ├── tools/                   # ⭐ Tool implementations
-│   │   └── index.ts              # 11 tools with strong contracts
-│   ├── enrichment/              # External API integrations
-│   │   ├── index.ts
-│   │   ├── tmdb-service.ts      # TMDB (movies/TV)
-│   │   ├── youtube-service.ts    # YouTube API
-│   │   └── opengraph-service.ts  # OpenGraph scraper
-│   ├── ai/                      # AI integration
-│   │   ├── index.ts
-│   │   ├── embedding-service.ts  # Vector embeddings
-│   │   ├── tool-executor.ts      # Tool execution
-│   │   ├── tools.ts
-│   │   └── types.ts
-│   └── conversation/
-│       ├── logMessages.ts
-│       └── messageTemplates.ts
-├── tests/                  # Vitest tests
-│   ├── setup.ts
-│   ├── intent-classifier.test.ts
-│   ├── ai-fallback.test.ts
-│   ├── api.test.ts
-│   ├── clarification-flow.test.ts
-│   ├── embedding-service.test.ts
-│   ├── test-enrichment-flow.ts
-│   ├── test-semantic-enrichment.ts
-│   └── test-semantic-search-e2e.ts
-├── types/
-│   └── index.ts            # ⭐ AgentLLMResponse, types, interfaces
-├── utils/
-│   ├── json-parser.ts      # LLM JSON parsing
-│   ├── logger.ts           # Pino logger
-│   └── retry.ts            # Retry logic
-├── index.ts                # Entry point
-└── server.ts               # Hono app setup
+# Banco de dados
+pnpm db:generate     # gera migrations Drizzle
+pnpm db:push         # aplica ao banco
+pnpm db:studio       # UI → http://localhost:4983
+
+# API (apps/api/)
+pnpm run train:nexo  # re-treina modelo NLP.js
+pnpm run set-admin   # marca user como admin
+pnpm test -- src/tests/intent-classifier.test.ts  # arquivo específico
+pnpm test:watch      # modo watch
+
+# ⚠️ Verificar antes de reiniciar
+lsof -ti:3002 > /dev/null 2>&1 && echo "API já rodando" || pnpm dev:api
 ```
 
-### Dashboard (`apps/dashboard/app/`)
+**Portas:** API `3002` | Dashboard `5173` | Landing `3005` | Drizzle Studio `4983` | Jaeger UI `16686` | Prometheus `9090`
+
+---
+
+## 4. VARIÁVEIS DE AMBIENTE
+
+> Fonte canônica: `packages/env/src/index.ts`. Após alterar, rebuild: `cd packages/env && npx tsup`.
+
+### Obrigatórias
+
+| Var | Descrição |
+|-----|-----------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `TELEGRAM_BOT_TOKEN` | Token do bot |
+| `TELEGRAM_WEBHOOK_SECRET` | Secret do webhook |
+| `TMDB_API_KEY` | TMDB API key |
+| `YOUTUBE_API_KEY` | YouTube Data API key |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID |
+| `CLOUDFLARE_API_TOKEN` | API token |
+| `REDIS_HOST` / `REDIS_USER` / `REDIS_PASSWORD` | Redis (Bull) |
+| `BETTER_AUTH_SECRET` | Min 32 chars |
+| `APP_URL` / `DASHBOARD_URL` | URLs públicas |
+
+### Opcionais Relevantes
+
+| Var | Default | Descrição |
+|-----|---------|-----------|
+| `SPOTIFY_CLIENT_ID/SECRET` | — | Para save_music |
+| `BRAVE_SEARCH_API_KEY` | — | Para web_search |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | Jaeger gRPC |
+| `LANGFUSE_PUBLIC_KEY/SECRET_KEY` | — | AI tracing |
+| `LANGFUSE_BASE_URL` | `https://cloud.langfuse.com` | URL do Langfuse |
+| `SENTRY_DSN` | — | Error tracking |
+| `PORT` | `3002` | Porta da API |
+| `LOG_LEVEL` | `info` | Pino log level |
+| `CORS_ORIGINS` | — | CSV de origens permitidas |
+| `JAEGER_UI_URL` | — | Logado no boot se configurado |
+
+### Feature Flags
+
+| Var | Default | Descrição |
+|-----|---------|-----------|
+| `CONVERSATION_FREE` | `true` | Fluxo conversacional livre |
+| `TOOL_SCHEMA_V2` | `false` | AgentDecisionV2 schema |
+| `MULTIMODAL_AUDIO` | `false` | Áudio via intake-worker |
+| `MULTIMODAL_IMAGE` | `false` | Imagem via intake-worker |
+
+---
+
+## 5. ESTRUTURA DE ARQUIVOS CHAVE
 
 ```
-app/
-├── assets/
-│   └── css/main.css
-├── components/             # Vue components
-│   ├── AddMemoryModal.vue
-│   ├── EditMemoryModal.vue
-│   ├── dashboard/
-│   │   ├── ChartCard.vue
-│   │   └── KPICard.vue
-│   └── ...
-├── composables/
-│   └── useDashboard.ts
+apps/api/src/
+├── adapters/messaging/         # telegram, baileys, whatsapp, discord adapters
+│   ├── telegram-adapter.ts     # Bot API + inline keyboards
+│   ├── baileys-adapter.ts      # WebSocket WA (Baileys)
+│   ├── whatsapp-adapter.ts     # Meta Cloud API
+│   └── discord-adapter.ts      # Discord.js
 ├── config/
-│   └── env.ts
-├── layouts/
-│   └── default.vue
-├── middleware/
-│   ├── auth.global.ts      # Auth middleware
-│   └── role.ts             # Role-based access
-├── pages/
-│   ├── index.vue
-│   ├── login.vue
-│   ├── signup.vue
-│   ├── memories.vue
-│   ├── preferences.vue
-│   ├── profile.vue
-│   └── admin/
-│       ├── conversations.vue
-│       └── errors.vue
-├── plugins/
-│   ├── casl.ts             # Authorization
-│   └── vue-query.ts        # TanStack Query
-├── stores/
-│   ├── auth.ts             # Pinia auth store
-│   └── preferences.ts      # Pinia preferences store
-├── types/
-│   └── index.ts
-├── utils/
-│   ├── api.ts
-│   ├── auth-client.ts
-│   └── cn.ts               # Class name utility
-├── app.config.ts           # Nuxt app config
-├── app.vue                 # Root component
-└── nuxt.config.ts          # Nuxt config
+│   ├── env.ts                  # Re-exporta @nexo/env
+│   └── prompts.ts              # ⭐ TODOS os prompts centralizados (2000+ linhas)
+├── db/
+│   └── schema/                 # 21 tabelas Drizzle (index.ts exporta tudo)
+├── services/
+│   ├── agent-orchestrator.ts   # ⭐ Orquestrador principal
+│   ├── intent-classifier.ts    # ⭐ Neural NLP.js + LLM fallback
+│   ├── conversation-service.ts # ⭐ State machine
+│   ├── item-service.ts         # CRUD + dedup + embeddings
+│   ├── queue-service.ts        # 4 filas Bull + cron jobs
+│   ├── memory-search.ts        # Hybrid search (70% vector + 30% FTS)
+│   ├── langfuse.ts             # Langfuse SDK (complementar ao OTEL)
+│   ├── ai/
+│   │   ├── ai-service.ts       # Gemini + Cloudflare WA fallback
+│   │   ├── embedding-service.ts # BGE Small 384-dim
+│   │   └── tool-executor.ts    # Executa tools validadas
+│   ├── enrichment/
+│   │   ├── tmdb-service.ts     # Filmes e séries
+│   │   ├── youtube-service.ts  # Vídeos
+│   │   ├── opengraph-service.ts # Links/URLs
+│   │   ├── books-service.ts    # Google Books
+│   │   └── spotify-service.ts  # Músicas
+│   └── tools/index.ts          # ⭐ 20+ tools implementadas
+├── types/index.ts              # AgentDecisionV2, ConversationState, etc
+├── otel.ts                     # Bootstrap OTEL (importado primeiro em index.ts)
+└── utils/
+    ├── json-parser.ts          # parseAgentDecisionV2FromLLM
+    └── logger.ts               # Pino loggers por categoria
 ```
 
 ---
 
-## Coding Conventions
+## 6. DATABASE (21 Tabelas)
 
-### 1. Prompts Centralization
+| Tabela | Descrição |
+|--------|-----------|
+| `users` | Usuários. Campos OpenClaw: `assistantName`, `assistantEmoji`, `assistantTone`. Status: `trial/pending_signup/active` |
+| `user_channels` | Vínculo `(channel, channelUserId) → userId`. UNIQUE(channel, channelUserId) |
+| `conversations` | State machine + `context JSONB`. `closeAt`, `closeJobId`, `isActive` |
+| `messages` | Histórico. `metadata JSONB` com `_trace: OrchestratorTrace` |
+| `memory_items` | `type`, `metadata JSONB`, `embedding vector(384)`, `contentHash SHA-256`. HNSW index |
+| `semantic_external_items` | Cache global TMDB/YouTube. UNIQUE `(type, externalId)` |
+| `global_tools` | Feature flags por tool. UNIQUE `toolName` |
+| `agent_memory_profiles` | SOUL/IDENTITY/USER/TOOLS/MEMORY content (OpenClaw ADR-017) |
+| `auth_providers` / `sessions` / `accounts` | Better Auth tables |
 
-**CRITICAL**: All prompts in ONE file - `apps/api/src/config/prompts.ts`
+**ItemType:** `movie` | `tv_show` | `video` | `link` | `note` | `memo` | `book` | `music` | `image`
 
-**Never hardcode prompts** in service files.
+**Padrão de dedup:** `contentHash = SHA-256(userId + type + title/url + externalId)` como UNIQUE constraint.
 
-**Prompts defined**:
-- `INTENT_CLASSIFIER_PROMPT` - Intent classification
-- `AGENT_SYSTEM_PROMPT` - Main agent (LLM as planner/writer)
-- Various message templates and error messages
+---
 
-### 2. Path Aliases
+## 7. SERVIÇOS, FILAS E TOOLS
 
-**API** (`apps/api/tsconfig.json`):
-```json
-{
-  "paths": {
-    "@/*": ["./src/*"]
-  }
+### Bull Queues (4 filas)
+
+| Fila | Job | Retry |
+|------|-----|-------|
+| `messageQueue` | Processa mensagens recebidas | 3x exp. backoff |
+| `responseQueue` | Envia respostas ao usuário | auto |
+| `enrichmentQueue` | Enriquecimento async em batch (TMDB, YouTube, etc) | auto |
+| `closeConversationQueue` | Fecha conversas inativas | — |
+
+**Cron:** `* * * * *` — fecha conversas idle 15min | `*/5 * * * *` — timeout `awaiting_confirmation`
+
+**Bull Board:** `http://localhost:3002/admin/queues` — monitoramento das filas em tempo real.
+
+### Tools (20+)
+
+**Save:** `save_note`, `save_memo`, `save_movie`, `save_tv_show`, `save_video`, `save_link`, `save_book`, `save_music`, `save_image`
+
+**Search:** `search_items`, `memory_search`, `memory_get`
+
+**Enriquecimento:** `enrich_movie`, `enrich_tv_show`, `enrich_video`
+
+**Delete:** `delete_memory`, `delete_all_memories`
+
+**Sistema:** `get_assistant_name`, `update_user_settings`, `collect_context`, `resolve_context_reference`
+
+**Web:** `web_search` (Brave), `analyze_url`
+
+### CASL Tools Gate
+
+LLM só recebe a **lista de tools ativas** para aquele usuário (filtrado via `global_tools` + CASL). Tools desativadas na tabela `global_tools` não aparecem no prompt.
+
+---
+
+## 8. TIPOS PRINCIPAIS
+
+```typescript
+// LLM DEVE retornar este schema (OBRIGATÓRIO)
+interface AgentLLMResponse {
+  schema_version: '1.0' | '2.0';
+  action: 'CALL_TOOL' | 'RESPOND' | 'NOOP';
+  tool?: ToolName | null;
+  args?: Record<string, any> | null;
+  message?: string | null; // max 700 chars, required se action=RESPOND
+}
+
+// Parse sempre com esta função — trata markdown fences, trailing text, JSON com comentários
+import { parseAgentDecisionV2FromLLM } from '@/utils/json-parser';
+const decision = parseAgentDecisionV2FromLLM(llmOutput);
+```
+
+```typescript
+// Conversation State Machine (11 estados)
+type ConversationState =
+  | 'idle'                      // pronto para novos comandos
+  | 'processing'                // ação em andamento
+  | 'awaiting_context'          // aguardando clarificação do usuário
+  | 'off_topic_chat'            // fora do escopo (chat paralelo)
+  | 'awaiting_confirmation'     // aguardando seleção de botão
+  | 'awaiting_final_confirmation' // confirmação final com imagem
+  | 'enriching'                 // buscando metadados externos
+  | 'saving'                    // persistindo no banco
+  | 'error'                     // estado de erro
+  | 'waiting_close'             // timer de 15min rodando
+  | 'closed';                   // conversa fechada, contexto limpo
+```
+
+```typescript
+// OpenClaw Session Key — identifica inequivocamente usuário + canal + peer
+// formato: agent:<agentId>:<channel>:<peerKind>:<peerId>
+// exemplo: "agent:main:telegram:direct:+5511999999999"
+
+// OrchestratorTrace (persistido em messages.metadata._trace)
+interface OrchestratorTrace {
+  intent: string;
+  confidence: number;
+  action: string;
+  tools_used?: string[];
+  durations?: { intent_ms: number; llm_ms?: number; action_ms: number; total_ms: number };
 }
 ```
 
-**Dashboard** (`apps/dashboard/nuxt.config.ts`):
-```typescript
-{
-  "alias": {
-    "@/*": "./app/*"
-  }
-}
+---
+
+## 9. OBSERVABILIDADE
+
+### Stack
+
+```
+API → OTLP gRPC :4317 → Jaeger 2.16.0
+    ├─ traces → BadgerDB (TTL 72h)
+    ├─ SpanMetrics Connector → :8889 → Prometheus :9090
+    └─ Monitor/SPM UI → :16686
+Langfuse (cloud) → spans com gen_ai.* attrs (chamadas LLM)
+Sentry → erros de runtime não tratados
 ```
 
-**Always use**:
-```typescript
-import { env } from '@/config/env';
-import { logger } from '@/utils/logger';
-import type { AgentLLMResponse } from '@/types';
-```
+### Atributos para Langfuse (OTEL)
 
-**Never use**:
-```typescript
-import { env } from '../config/env';
-import { logger } from '../../utils/logger';
-```
+Para que apareçam input/output no Langfuse, os spans de AI devem ter:
 
-### 3. Metadata Typing
+| Campo Langfuse | Atributo OTEL usado |
+|----------------|---------------------|
+| `input` | `langfuse.trace.input` ou `input.value` ou `gen_ai.prompt` |
+| `output` | `langfuse.trace.output` ou `output.value` ou `gen_ai.completion` |
 
-**All item metadata typed** in `apps/api/src/types/index.ts` and `packages/shared/src/types/metadata.ts`:
+O span raiz do orquestrador (`agent.orchestrator.process`) define `langfuse.trace.input` com a mensagem do usuário e `langfuse.trace.output` com a resposta gerada.
 
-```typescript
-export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note';
-
-export interface MovieMetadata {
-  tmdb_id: number;
-  title: string;
-  year: number;
-  poster_path: string;
-  overview: string;
-  vote_average: number;
-  genres: string[];
-  // ... etc
-}
-
-export interface NoteMetadata {
-  full_content: string;
-  created_via: string;
-  // ... etc
-}
-```
-
-**Database**: Metadata stored as JSONB, but typed in TypeScript
-
-### 4. Service Singleton Pattern
-
-**Services exported as singleton instances**:
-
-```typescript
-// apps/api/src/services/conversation-service.ts
-
-class ConversationService {
-  // ... implementation
-}
-
-export const conversationService = new ConversationService();
-```
-
-**Usage**:
-```typescript
-import { conversationService } from '@/services/conversation-service';
-
-await conversationService.findOrCreateConversation(userId);
-```
-
-### 5. Error Handling
-
-**Centralized error handling** in `apps/api/src/services/error/error.service.ts`
-
-**Use**:
-```typescript
-import { logError } from '@/utils/logger';
-
-try {
-  // ... code
-} catch (error) {
-  logError(error, { context: 'WEBHOOK', provider: 'telegram' });
-  return c.json({ error: 'Internal error' }, 500);
-}
-```
-
-**Error reporting**: Optional email reporting via Resend (`ADMIN_EMAIL`, `RESEND_API_KEY`)
-
-### 6. Logging
-
-**Pino logger** (`apps/api/src/utils/logger.ts`):
+### Logger Categories (Pino)
 
 ```typescript
 import { loggers } from '@/utils/logger';
 
-loggers.app.info('Server started');
-loggers.ai.info({ message }, 'Processing');
-loggers.webhook.warn({ body }, 'Message ignored');
-loggers.ai.error({ err: error }, 'Failed to parse');
+loggers.app       // uso geral
+loggers.ai        // orquestrador, LLM
+loggers.webhook   // adapters de mensageria
+loggers.enrichment // TMDB, YouTube, etc
+loggers.tools     // execução de tools
+loggers.queue     // Bull jobs e cron
 ```
 
-**Log levels**: debug, info, warn, error (controlled by `LOG_LEVEL` env var)
+**Nunca usar `console.log`.** Sempre um dos `loggers.*`.
 
-### 7. Validation
-
-**Zod schemas** for environment validation in `apps/api/src/config/env.ts`:
-
-```typescript
-const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  TELEGRAM_BOT_TOKEN: z.string(),
-  // ... etc
-});
-
-export const env = envSchema.parse(process.env);
-```
-
-**Run-time validation**: App fails fast if env vars missing/invalid
-
-### 8. JSON Parsing from LLM
-
-**Use utility** in `apps/api/src/utils/json-parser.ts`:
-
-```typescript
-import { parseJSONFromLLM, isValidAgentResponse } from '@/utils/json-parser';
-
-// Handles markdown code blocks, error messages, invalid JSON
-const response = parseJSONFromLLM(llmOutput);
-
-if (!isValidAgentResponse(response)) {
-  throw new Error('Invalid response format');
-}
-```
-
-### 9. Type Safety
-
-**Strict TypeScript enabled**:
-
-```json
-{
-  "compilerOptions": {
-    "strict": true
-  }
-}
-```
-
-**Always prefer type safety**:
-```typescript
-// Good
-const tool: ToolName = 'save_movie';
-
-// Bad
-const tool = 'save_movie';
-```
-
-### 10. Async/Await
-
-**Use async/await consistently**:
-```typescript
-// Good
-const result = await itemService.createItem({...});
-
-// Bad (mixed)
-const result = itemService.createItem({...}).then(r => r);
-```
-
----
-
-## Testing
-
-### API (Vitest)
-
-**Location**: `apps/api/src/tests/`
-
-**Test pattern**:
-```typescript
-import { describe, test, expect } from 'vitest';
-
-describe('IntentClassifier', () => {
-  test('detects "sim" as confirm', async () => {
-    const result = await classifier.classify('sim');
-    expect(result.intent).toBe('confirm');
-    expect(result.confidence).toBeGreaterThan(0.9);
-  });
-});
-```
-
-**Run tests**:
-```bash
-cd apps/api
-pnpm test                     # All tests
-pnpm test:watch              # Watch mode
-pnpm test:ui                 # UI mode
-pnpm test src/tests/intent-classifier.test.ts  # Specific file
-```
-
-### Dashboard (Vitest + Playwright)
-
-**Unit tests** (`apps/dashboard/test/unit/`):
-```typescript
-import { describe, test, expect } from 'vitest';
-
-describe('useDashboard', () => {
-  test('fetches memories', async () => {
-    // ... test
-  });
-});
-```
-
-**E2E tests** (Playwright):
-```typescript
-import { expect, test } from '@nuxt/test-utils/playwright'
-
-test('home page loads', async ({ page, goto }) => {
-  await goto('/', { waitUntil: 'hydration' })
-  await expect(page).toHaveTitle(/Nexo/)
-})
-```
-
-**Run tests**:
-```bash
-cd apps/dashboard
-pnpm test                    # All tests
-pnpm test:watch              # Watch mode
-pnpm test:unit               # Unit tests only
-pnpm test:e2e                # Playwright E2E
-pnpm test:e2e:ui             # Playwright UI
-```
-
----
-
-## Environment Configuration
-
-### Required Environment Variables
-
-**Copy example**:
-```bash
-cp apps/api/.env.example .env
-```
-
-**Minimum required**:
-```bash
-# Database
-DATABASE_URL=postgresql://...
-
-# Telegram (required)
-TELEGRAM_BOT_TOKEN=your-bot-token
-
-# Cloudflare AI (required)
-CLOUDFLARE_ACCOUNT_ID=your-account-id
-CLOUDFLARE_API_TOKEN=your-api-token
-
-# Enrichment APIs
-TMDB_API_KEY=your-tmdb-key
-YOUTUBE_API_KEY=your-youtube-key
-
-# Redis (required for Bull queue)
-REDIS_HOST=your-redis-host
-REDIS_PORT=6379
-REDIS_USER=your-redis-user
-REDIS_PASSWORD=your-redis-password
-
-# Better Auth
-BETTER_AUTH_SECRET=at-least-32-chars
-BETTER_AUTH_URL=http://localhost:3001
-DASHBOARD_URL=http://localhost:5173
-```
-
-**Optional**:
-```bash
-# WhatsApp
-META_WHATSAPP_TOKEN=...
-META_PHONE_NUMBER_ID=...
-META_VERIFY_TOKEN=...
-
-# Discord
-DISCORD_CLIENT_ID=...
-DISCORD_CLIENT_SECRET=...
-DISCORD_BOT_TOKEN=...
-
-# Google AI (fallback)
-GOOGLE_API_KEY=...
-
-# New Relic (observability)
-NEW_RELIC_LICENSE_KEY=...
-NEW_RELIC_ENABLED=true
-
-# Email reporting
-RESEND_API_KEY=...
-ADMIN_EMAIL=...
-```
-
-### Dashboard Environment
-
-**Location**: `apps/dashboard/app/config/env.ts`
-
-**Runtime config** in `nuxt.config.ts`:
-```typescript
-runtimeConfig: {
-  public: {
-    apiUrl: env.NUXT_PUBLIC_API_URL,
-    authBaseUrl: env.NUXT_PUBLIC_AUTH_BASE_URL,
-  },
-}
-```
-
----
-
-## Adding New Item Type
-
-**Example**: Adding "podcast" type
-
-### 1. Add Type & Metadata
-
-`apps/api/src/types/index.ts`:
-```typescript
-export type ItemType = 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'podcast';
-
-export interface PodcastMetadata {
-  episode: string;
-  duration: number;
-  host: string;
-  // ... other fields
-}
-```
-
-`packages/shared/src/types/metadata.ts`:
-```typescript
-export interface PodcastMetadata {
-  episode: string;
-  duration: number;
-  host: string;
-}
-```
-
-### 2. Create Tool
-
-`apps/api/src/services/tools/index.ts`:
-```typescript
-export async function save_podcast(
-  context: ToolContext,
-  params: { url: string; episode?: string }
-): Promise<ToolOutput> {
-  // ... implementation
-}
-```
-
-### 3. Update Prompts
-
-`apps/api/src/config/prompts.ts`:
-```typescript
-// Add to INTENT_CLASSIFIER_PROMPT
-const INTENT_CLASSIFIER_PROMPT = `
-...
-System Capabilities:
-- Save: movies, TV shows, videos, links, notes, podcasts
-...
-`;
-
-// Add to AGENT_SYSTEM_PROMPT
-const AGENT_SYSTEM_PROMPT = `
-...
-Tools:
-- save_podcast(url, episode?)
-...
-`;
-```
-
-### 4. Update Type Lists
-
-Update `ToolName` type and tool registry if needed.
-
-### 5. Database Migration
+### Docker local
 
 ```bash
-cd apps/api
-pnpm run db:generate   # Generate migration
-pnpm run db:push       # Apply to database
+docker compose up -d  # sobe Jaeger 2.16.0 + Prometheus
 ```
 
-### 6. Create Enrichment Service (Optional)
-
-If external API integration needed:
-`apps/api/src/services/enrichment/podcast-service.ts`
+Configuração em `docker/jaeger/config.yaml` (OTel Collector format) e `docker/prometheus/prometheus.yml`.
 
 ---
 
-## Important Gotchas
+## 10. PADRÕES CRÍTICOS
 
-### 1. Never Let LLM Manage State
+### 1. LLM nunca gerencia estado (ADR-011)
 
-**BAD**:
 ```typescript
-// LLM decides when to save, what to save
-const shouldSave = await askLLM("Should I save this?");
+// ✅ Correto — código executa ações determinísticas
+if (intent.action === 'delete_all') return handleDeleteAll();
+
+// ✅ Correto — LLM apenas planeja, código executa
+const decision = parseAgentDecisionV2FromLLM(await llmService.call(...));
+await toolExecutor.execute(decision.tool, decision.args);
+
+// ❌ Errado — nunca deixar LLM chamar função ou gerenciar estado diretamente
 ```
 
-**GOOD**:
+### 2. Prompts centralizados
+
+Nunca hardcode prompt fora de `config/prompts.ts`. Todos os prompts do sistema, incluindo system prompt, exemplos de few-shot e mensagens de erro, vivem nesse arquivo. Manutenção em um só lugar.
+
+### 3. Path aliases
+
+Sempre `@/` na API e no Dashboard. Nunca relative paths (`../../`). Configurado em `tsconfig.json` de cada app.
+
+### 4. State via service
+
 ```typescript
-// Code decides, LLM only plans
-const intent = await intentClassifier.classify(message);
-if (intent.action === 'save') {
-  const plan = await llmService.generate({...});
-  // Execute plan deterministically
-}
+// ✅ Correto
+await conversationService.updateState(conversation.id, 'processing', { lastIntent: intent.intent });
+
+// ❌ Errado — nunca update direto no DB
+await db.update(conversations).set({ state: 'processing' }).where(...);
 ```
 
-### 2. LLM Response Must Be JSON
+### 5. Webhooks assíncronos
 
-**Always use** `parseJSONFromLLM` to handle:
-- Markdown code blocks (````json ... ````)
-- Plain JSON
-- Error messages from LLM
-- Invalid JSON
+Responda HTTP 200 imediatamente, processe via Bull `messageQueue`. Nunca processar mensagem dentro do handler do webhook — risco de timeout e re-delivery duplicado.
 
-### 3. Queue All Messages
+### 6. Singletons
 
-**Never process webhooks synchronously** - always queue via Bull:
 ```typescript
-await messageQueue.add('message-processing', {
-  incomingMsg: message,
-  providerName: 'telegram'
-}, {
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 2000 }
-});
+// ✅ Padrão do projeto
+export const myService = new MyService();
+// importar e reutilizar, nunca new MyService() no ponto de uso
 ```
 
-### 4. Use Strong Tool Contracts
+### 7. Enriquecimento async
 
-**BAD**:
-```typescript
-save_memory(type: 'movie'|'note', content: string)  // Ambiguous
-```
+`save_*` tools persistem com metadata mínima e retornam ao usuário imediatamente. `enrichmentQueue` cuida de TMDB/YouTube/etc em background. Nunca bloquear o fluxo principal esperando API externa.
 
-**GOOD**:
-```typescript
-save_movie(title: string, year?: number, tmdb_id?: number)  // Specific
-save_note(content: string)
-```
+### 8. Fail-fast env
 
-### 5. Duplicate Detection
+App falha no boot se variável obrigatória ausente (`packages/env/src/index.ts` com Zod). Nunca verificar env em runtime dentro de serviços.
 
-**Automatic** via `contentHash` and `externalId`:
-- Same user can't save duplicate item
-- Returns `isDuplicate: true` with `existingItem`
+### 9. Dedup automático
 
-### 6. Conversation Auto-Close
+`contentHash = SHA-256(userId + type + title/url + externalId)` como UNIQUE constraint em `memory_items`. Evita duplicatas silenciosamente sem precisar checar antes do insert.
 
-**Auto-close after 3 min inactivity**:
-- State transitions to `waiting_close`
-- Timer scheduled via Bull queue
-- Context cleared on `closed`
+### 10. CASL Tools Gate
 
-**Do not** manually close conversations unless needed.
-
-### 7. Vector Embeddings
-
-**384-dim vectors** (BGE Small model):
-- Stored in `memory_items.embedding`
-- Used for semantic search
-- For movies/TV/videos: prefer `semanticExternalItems` cache
-
-### 8. Biome is Disabled
-
-**Biome formatter/linter disabled** in `biome.json`:
-```json
-{
-  "formatter": { "enabled": false },
-  "linter": { "enabled": false }
-}
-```
-
-**Use** standard formatting conventions manually.
-
-### 9. Path Alias Imports
-
-**API**: Use `@/` for imports
-**Dashboard**: Nuxt auto-imports, but prefer `~/` for components
-
-### 10. State Machine Transitions
-
-**Always use** `conversationService.updateState()`:
-```typescript
-await conversationService.updateState(conversationId, 'processing');
-```
-
-**Never** manually update state in DB.
+LLM só recebe lista das tools **ativas** para o usuário. Consulta `global_tools` antes de montar o prompt. Tools desativadas são invisíveis ao LLM.
 
 ---
 
-## Common Workflows
+## 11. PROBLEMAS COMUNS
 
-### Adding a New Message Analyzer
-
-1. Create `apps/api/src/services/message-analysis/analyzers/your-analyzer.ts`
-2. Extend `BaseAnalyzer` class
-3. Implement `analyze()` method
-4. Add to `message-analyzer.service.ts` registry
-
-### Adding New Dashboard Page
-
-1. Create `apps/dashboard/app/pages/your-page.vue`
-2. Add route (auto-registered by Nuxt)
-3. Add auth middleware if needed
-4. Update nav menu
-
-### Adding New API Route
-
-1. Create route in `apps/api/src/routes/your-route.ts`
-2. Register in `apps/api/src/server.ts`
-3. Add auth middleware if needed
-4. Update OpenAPI docs if public
-
-### Database Schema Change
-
-1. Modify `apps/api/src/db/schema/your-table.ts`
-2. Run `pnpm run db:generate`
-3. Review migration in `apps/api/drizzle/`
-4. Run `pnpm run db:push`
-5. Update TypeScript types if needed
+| Problema | Solução |
+|---------|---------|
+| LLM retorna JSON com markdown fences | `parseAgentDecisionV2FromLLM()` — trata fences, trailing text e JSON com comentários automaticamente |
+| `@nexo/env` TypeScript error após adicionar var | `cd packages/env && npx tsup` |
+| Baileys 405 do WhatsApp | `pnpm install` aplica patch automaticamente (ADR-020) |
+| False positive em `search_content` | Guard: se msg >60 chars sem palavras de memória → `unknown` → LLM |
+| Conversa não fecha | Checar Redis + Bull Board `http://localhost:3002/admin/queues` |
+| Embedding dimensão errada | Manter BGE Small 384-dim. Trocar modelo exige rebuild do HNSW index |
+| `EADDRINUSE :3002` | `kill -9 $(lsof -t -i:3002)` |
+| Turbo cache stale | `pnpm turbo clean && pnpm install && pnpm build` |
+| Tests falhando (vitest cache) | `rm -rf apps/api/node_modules/.vitest && pnpm test --run` |
+| Schema desincronizado | `pnpm db:push` |
+| CORS bloqueando Dashboard | Adicionar URL em `CORS_ORIGINS` no `.env` |
+| Langfuse input/output vazio | Spans AI devem ter `langfuse.trace.input`/`langfuse.trace.output`. Ver seção 9. |
+| `@nexo/otel` mudou mas dist está velha | `cd packages/otel && npx tsup && pnpm dev:api` |
 
 ---
 
-## Architecture Decision Records (ADRs)
+## 12. ADRs
 
-Key ADRs to understand:
+| # | ADR | Status |
+|---|-----|--------|
+| 011 | **Deterministic Runtime Control** | ⭐ CRÍTICO |
+| 004/008 | State Machine conversacional (11 estados) | Ativo |
+| 010 | Enrichment Assíncrono via Bull Queues | Ativo |
+| 012 | Vitest como framework de testes | Ativo |
+| 013 | Conversational Anamnesis | Em impl. |
+| 014 | Query Expansion (hybrid search) | Em impl. |
+| 015 | Railway como plataforma de deploy | Ativo |
+| 016 | Session Key Architecture (OpenClaw) | Ativo |
+| 017 | Agent Profile System (SOUL/IDENTITY) | Ativo |
+| 018 | Hybrid Memory Search (70/30) | Ativo |
+| 019 | Pluggable Tools + CASL | Ativo |
+| 020 | Baileys 405 Platform Fix | Ativo |
+| 021 | Canonical Auth Providers | Ativo |
 
-**📐 Complete ADR List**: [docs/adr/README.md](docs/adr/README.md)
-
-| ADR | Topic | Location |
-|-----|-------|----------|
-| ADR-001 | Cloudflare Workers | [docs/adr/001-message-analysis-architecture.md](docs/adr/001-message-analysis-architecture.md) |
-| ADR-002 | Supabase PostgreSQL | [docs/adr/002-supabase-postgres.md](docs/adr/002-supabase-postgres.md) |
-| ADR-003 | JSONB Metadata | [docs/adr/003-jsonb-metadata.md](docs/adr/003-jsonb-metadata.md) |
-| ADR-004 | State Machine | [docs/adr/004-state-machine.md](docs/adr/004-state-machine.md) |
-| ADR-005 | AI-Agnostic | [docs/adr/005-ai-agnostic.md](docs/adr/005-ai-agnostic.md) |
-| ADR-007 | Multi-Provider Messaging | [docs/adr/007-multi-provider-support.md](docs/adr/007-multi-provider-support.md) |
-| ADR-011 | **Deterministic Runtime Control** | [docs/adr/011-deterministic-runtime-control.md](docs/adr/011-deterministic-runtime-control.md) ⭐ |
-| ADR-012 | Bun Test Framework | [docs/adr/012-bun-test-framework.md](docs/adr/012-bun-test-framework.md) |
-
-**ADR-011 is most critical** - defines the core architecture principle.
-
----
-
-## Debugging Tips
-
-### View Queue Status
-
-**Bull Board**: `http://localhost:3001/admin/queues`
-
-### View Database
-
-**Drizzle Studio**: `pnpm run db:studio` → `http://localhost:4983`
-
-### Check Logs
-
-**Pino logger** outputs JSON logs. Use `pino-pretty`:
-```bash
-pnpm run dev | pino-pretty
-```
-
-### Test Locally
-
-**Telegram**: Use your bot in Telegram Desktop
-**WhatsApp**: Requires Meta Business Account setup
-**Dashboard**: `http://localhost:5173`
-
-### API Docs
-
-**Scalar UI**: `http://localhost:3001/reference`
+ADRs completos em `docs/adr/`.
 
 ---
 
-## Performance Considerations
+## 13. REGRAS ABSOLUTAS
 
-### Async Enrichment
-
-**Movies/TV/Videos**: Bulk async enrichment via `enrichmentQueue`
-- Queue all candidates as single job
-- Worker processes batch
-- Results cached in `semantic_external_items`
-
-### Duplicate Detection
-
-**Fast check via contentHash**:
-- Prevents duplicate saves
-- Returns existing item if found
-
-### Vector Search
-
-**Semantic search** via pgvector:
-- HNSW index for fast approximate search
-- Cosine similarity
-- Cache external items to avoid re-embedding
-
-### Queue Backpressure
-
-**Message processing** via Bull queue:
-- Prevents webhook timeouts
-- Retry on failure
-- Monitor queue depth
+1. LLM nunca gerencia estado, decide fluxo ou executa código (ADR-011)
+2. Sempre usar `AgentDecisionV2` schema para output do LLM
+3. Enfileirar TODO processamento de webhook via Bull
+4. Centralizar todos os prompts em `config/prompts.ts`
+5. Usar path aliases (`@/`) sempre — nunca `../../`
+6. Exportar services como singletons
+7. Rodar testes após mudanças: `pnpm test`
+8. Verificar se servidor já está rodando antes de reiniciar
+9. Workflow: **feature → testes verdes → commit → próxima feature**
+10. Após mudar `packages/env/src/index.ts` → `cd packages/env && npx tsup`
+11. Após mudar `packages/otel/src/` → `cd packages/otel && npx tsup`
+12. Nunca usar `console.log` — use `loggers.*` (Pino)
+13. Documentação primeiro: checar `docs/` antes de criar solução
+14. Nunca bloquear o webhook handler — tudo via queues
 
 ---
 
-## Deployment
+## 14. LINKS
 
-### Railway (API)
+| URL | Serviço |
+|-----|---------|
+| http://localhost:3002 | API |
+| http://localhost:3002/admin/queues | Bull Board |
+| http://localhost:3002/reference | API Docs (Scalar) |
+| http://localhost:4983 | Drizzle Studio |
+| http://localhost:5173 | Dashboard |
+| http://localhost:16686 | Jaeger UI (traces + SPM) |
+| http://localhost:9090 | Prometheus |
 
-1. Connect GitHub repo
-2. Set environment variables
-3. Deploy from `development` branch
-4. Railway assigns `PORT` automatically
-
-### Vercel (Dashboard)
-
-1. Connect GitHub repo
-2. Configure build command: `pnpm run build`
-3. Set environment variables
-4. Deploy from `development` branch
-
-
----
-
-## Resources
-
-### Documentation (New BMAD-Style Structure)
-
-**📚 Main Documentation**: `docs/README.md`
-
-- **📖 Tutorials** - Step-by-step guides
-  - [Getting Started](docs/tutorials/getting-started.md)
-  - [Setup Environment](docs/tutorials/setup-environment.md)
-- **🛠️ How-To** - Practical guides
-  - [Advanced Search](docs/how-to/advanced-search.md)
-  - [Semantic Search](docs/how-to/semantic-search.md)
-- **💡 Concepts** - Architecture understanding
-  - [Architecture Overview](docs/concepts/architecture-overview.md)
-  - [Deterministic Runtime](docs/concepts/deterministic-runtime.md)
-  - [State Machine](docs/concepts/state-machine.md)
-- **📋 Reference** - Technical reference
-  - [BMAD Agents](docs/reference/agents.md) - BMAD methodology
-  - [Implementation Checklist](docs/reference/implementation-checklist.md)
-  - [Roadmap](docs/reference/roadmap.md)
-- **📐 ADRs** - Architecture decisions
-  - [All ADRs](docs/adr/README.md)
-  - [ADR-011: Deterministic Runtime](docs/adr/011-deterministic-runtime-control.md) - **Critical!**
-
-**Legacy** (being migrated):
-- Architecture: `apps/api/docs/ARQUITETURA-v0.3.0.md`
-- ADR List: `apps/api/docs/adr/README.md`
-- Copilot Instructions: `.github/copilot-instructions.md`
-- Implementation Plan: `implementation_plan.md`
-
-### External Docs
-
-- [Hono](https://hono.dev/)
-- [Drizzle ORM](https://orm.drizzle.team/)
-- [Better Auth](https://www.better-auth.com/)
-- [Nuxt 4](https://nuxt.com/)
-- [Vitest](https://vitest.dev/)
-- [Playwright](https://playwright.dev/)
-- [Bull](https://docs.bullmq.io/)
-
-### Key Files to Understand
-
-1. `apps/api/src/services/agent-orchestrator.ts` - Main orchestration
-2. `apps/api/src/services/intent-classifier.ts` - Intent detection
-3. `apps/api/src/types/index.ts` - Core types
-4. `apps/api/src/config/prompts.ts` - All prompts
-5. `apps/api/src/services/tools/index.ts` - Tool implementations
-6. `apps/api/src/services/conversation-service.ts` - State management
+**Arquivos chave:**
+- `apps/api/src/services/agent-orchestrator.ts` — orquestração principal
+- `apps/api/src/services/intent-classifier.ts` — detecção de intenção neural
+- `apps/api/src/config/prompts.ts` — todos os prompts (2000+ linhas)
+- `apps/api/src/services/tools/index.ts` — implementação das 20+ tools
+- `apps/api/src/types/index.ts` — tipos core (AgentLLMResponse, ConversationState...)
+- `apps/api/src/services/conversation-service.ts` — state machine
+- `packages/otel/src/` — OTEL + Langfuse span processor
+- `docs/adr/011-deterministic-runtime-control.md` — ADR mais crítico
 
 ---
 
-## Summary for Agents
-
-**When working in this codebase**:
-
-1. **Never let LLM manage state or control flow**
-2. **Always use `AgentLLMResponse` schema for LLM outputs**
-3. **Use strong tool contracts - one tool, one purpose**
-4. **Queue all webhook processing via Bull**
-5. **Centralize all prompts in `config/prompts.ts`**
-6. **Use path aliases (`@/`) for imports**
-7. **Follow singleton pattern for services**
-8. **Run tests after changes**
-9. **Read ADR-011 for architecture principles** ([docs/adr/011-deterministic-runtime-control.md](docs/adr/011-deterministic-runtime-control.md))
-10. **Check existing patterns before creating new ones**
-11. **ALWAYS check if servers are already running before restarting** (see below)
-12. **Mandatory workflow for every feature**: `feature -> tests -> green -> next`
-13. **Do not start next feature with failing tests**
-14. **Work in loop until all planned milestones/features are done**
-15. **Commit each completed feature/iteration**
-16. **Use dedicated refactor branch + keep PR updated for review**
-
-### 🔁 Mandatory Delivery Loop (Pivot/Refactors)
-
-For major refactors (like conversational-memory pivot), execution must follow this loop:
-
-1. pick next ready feature
-2. implement in isolated branch/worktree
-3. run relevant tests until green
-4. commit feature
-5. update/open PR
-6. repeat until all milestones are complete
-
-### 🌿 Branch & PR Policy (Pivot/Refactors)
-
-- Branch name pattern: `refactor/<initiative-name>`
-- Recommended for current pivot: `refactor/conversational-memory-pivot`
-- Keep one active PR for reviewer visibility; update it incrementally after each green feature commit.
-
-### ⚠️ Server Management (CRITICAL)
-
-**BEFORE killing or restarting any server, ALWAYS check if it's already running first.**
-The dev server is often already up. Killing it just to restart wastes time and breaks tunnels (zrok/ngrok).
-
-```bash
-# ✅ CORRECT: Check first, only start if not running
-lsof -ti:3001 > /dev/null 2>&1 && echo "API already running" || pnpm dev:api
-lsof -ti:5173 > /dev/null 2>&1 && echo "Dashboard already running" || pnpm dev:dash
-
-# ❌ WRONG: Blindly killing and restarting
-pkill -f "turbo.*api" && pnpm dev:api
-```
-
-**When to restart**: Only restart if you changed server startup code (server.ts, index.ts, env config).
-For most code changes, tsx watch mode auto-reloads — no restart needed.
-
-**Ports**:
-- API: `3001`
-- Dashboard: `5173`
-- Landing: `3005`
-
-**Documentation First**: Always check the new [docs/](docs/) folder when unsure about architecture or patterns.
-
-**Golden Rule**: Code controls flow, LLM only plans. State is managed deterministically.
+**Golden Rule**: Código controla fluxo. LLM apenas planeja. Estado é gerenciado deterministicamente.
