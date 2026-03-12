@@ -457,7 +457,6 @@ ADRs completos em `docs/adr/`.
 
 ## 13. REGRAS ABSOLUTAS
 
-1. LLM nunca gerencia estado, decide fluxo ou executa código (ADR-011)
 2. Sempre usar `AgentDecisionV2` schema para output do LLM
 3. Enfileirar TODO processamento de webhook via Bull
 4. Centralizar todos os prompts em `config/prompts.ts`
