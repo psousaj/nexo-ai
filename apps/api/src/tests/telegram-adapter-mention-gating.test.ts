@@ -7,7 +7,7 @@
  * - Comandos em grupos requerem menção
  */
 
-import { TelegramAdapter } from '@/adapters/messaging/telegram-adapter';
+import { TelegramAdapter } from '@nexo/api-core/adapters/messaging/telegram-adapter';
 import { describe, expect, test } from 'vitest';
 
 describe('Telegram Adapter - Mention Gating', () => {

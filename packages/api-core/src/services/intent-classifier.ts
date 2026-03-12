@@ -246,12 +246,49 @@ export class IntentClassifier {
 		// Extrair query limpa se for busca ou info
 		let query = neural.entities?.query || originalMessage.trim();
 		if (intent === 'search_content') {
+			// Guard contra falsos positivos em mensagens longas sem contexto de memória.
+			// "Me mostra aí uns carrinhos até 30k" bate no neural ("mostra aí então")
+			// mas não é uma busca de itens salvos.
+			// Mensagens curtas ("busca terror", 12 chars) e com keywords de memória são legítimas.
+			const lowerOriginal = originalMessage.toLowerCase();
+			const memoryContextWords = [
+				'salvei',
+				'guardei',
+				'tenho',
+				'meus',
+				'minhas',
+				'minha',
+				'salvos',
+				'salvas',
+				'filmes',
+				'séries',
+				'notas',
+				'links',
+				'videos',
+				'vídeos',
+				'itens',
+				'coleção',
+				'lista',
+			];
+			const hasMemoryContext = memoryContextWords.some((kw) => lowerOriginal.includes(kw));
+			const isLong = originalMessage.length > 60;
+
+			if (isLong && !hasMemoryContext) {
+				loggers.ai.info(
+					{ neural_intent: neural.intent, neural_confidence: neural.confidence, msg_length: originalMessage.length },
+					'⚠️ Falso positivo search_content: mensagem longa sem contexto de memória, encaminhando para LLM',
+				);
+				return {
+					intent: 'unknown',
+					action: 'unknown',
+					confidence: 0.5,
+					entities: { query: originalMessage.trim() },
+				};
+			}
+
 			// Se o NLP já decidiu que é "listar tudo" (search.all), confiar nessa decisão
 			// em vez de tentar extrair query do texto (o que causa "então" virar query)
-			query =
-				neural.action === 'search.all'
-					? undefined
-					: (neural.entities?.query ?? this.extractSearchQuery(originalMessage));
+			query = neural.action === 'search.all' ? undefined : (neural.entities?.query ?? this.extractSearchQuery(originalMessage));
 		} else if (intent === 'get_info') {
 			query = this.extractInfoQuery(originalMessage) || query;
 		} else if (action === 'delete_item') {
@@ -369,10 +406,7 @@ export class IntentClassifier {
 					selection: this.extractSelection(message),
 				},
 			};
-			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
@@ -405,19 +439,13 @@ export class IntentClassifier {
 				confidence: 0.9,
 				entities: { query },
 			};
-			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
 		// 4. PERGUNTAR NOME DO ASSISTENTE (antes de info request genérico)
 		if (this.isAskingAssistantName(lowerMsg)) {
-			loggers.ai.info(
-				{ intent: 'get_info', action: 'get_assistant_name', confidence: 0.95 },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: 'get_info', action: 'get_assistant_name', confidence: 0.95 }, '🎯 Intenção detectada (regex)');
 			return {
 				intent: 'get_info',
 				action: 'get_assistant_name',
@@ -466,10 +494,7 @@ export class IntentClassifier {
 					...(reminderHint ? { reminderHint: true as const } : {}),
 				},
 			};
-			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
-				'🎯 Intenção detectada (regex)',
-			);
+			loggers.ai.info({ intent: result.intent, action: result.action, confidence: result.confidence }, '🎯 Intenção detectada (regex)');
 			return result;
 		}
 
@@ -530,18 +555,7 @@ export class IntentClassifier {
 
 		// Se contém qualquer seleção numérica E é uma mensagem curta de confirmação, é confirmação
 		// Mas não para mensagens que são comandos (como "exclui a nota 3")
-		const deleteKeywords = [
-			'deleta',
-			'deletar',
-			'apaga',
-			'apagar',
-			'remove',
-			'remover',
-			'limpa',
-			'limpar',
-			'exclui',
-			'excluir',
-		];
+		const deleteKeywords = ['deleta', 'deletar', 'apaga', 'apagar', 'remove', 'remover', 'limpa', 'limpar', 'exclui', 'excluir'];
 		const hasSelection = this.extractSelection(msg);
 		if (hasSelection && normalized.length < 20 && !deleteKeywords.some((kw: string) => msg.includes(kw))) {
 			return true;
@@ -554,12 +568,7 @@ export class IntentClassifier {
 	 * Verifica se é negação
 	 */
 	private isDenial(msg: string): boolean {
-		const denyPatterns = [
-			/^(não|nao|no|n)$/i,
-			/^(cancela|cancelar)$/i,
-			/^(deixa pra lá|deixa|esquece)$/i,
-			/^(outro|outra)$/i,
-		];
+		const denyPatterns = [/^(não|nao|no|n)$/i, /^(cancela|cancelar)$/i, /^(deixa pra lá|deixa|esquece)$/i, /^(outro|outra)$/i];
 
 		return denyPatterns.some((pattern) => pattern.test(msg));
 	}
@@ -575,12 +584,8 @@ export class IntentClassifier {
 
 		const searchKeywords = [
 			'o que eu salvei',
-			'o que tenho',
-			'mostra',
-			'lista',
-			'busca',
-			'procura',
-			'encontra',
+			'o que tenho salvo',
+			'o que tenho guardado',
 			'filmes salvos',
 			'séries salvas',
 			'meus filmes',
@@ -588,9 +593,38 @@ export class IntentClassifier {
 			'ver lista',
 			'minha lista',
 			'que eu guardei',
+			'que eu salvei',
 		];
 
-		return searchKeywords.some((kw) => msg.includes(kw));
+		// Palavras-chave que só viram busca quando combinadas com contexto de memória salva
+		const searchWithMemoryContext = ['mostra', 'lista', 'busca', 'procura', 'encontra'];
+
+		const memoryContextKeywords = [
+			'salvei',
+			'guardei',
+			'tenho',
+			'meus',
+			'minhas',
+			'minha',
+			'salvos',
+			'salvas',
+			'filmes',
+			'séries',
+			'notas',
+			'links',
+			'videos',
+			'vídeos',
+			'itens',
+		];
+
+		if (searchKeywords.some((kw) => msg.includes(kw))) {
+			return true;
+		}
+
+		// "mostra/busca/lista/procura" só dispara busca se houver contexto de memória salva
+		const hasSearchVerb = searchWithMemoryContext.some((kw) => msg.includes(kw));
+		const hasMemoryContext = memoryContextKeywords.some((kw) => msg.includes(kw));
+		return hasSearchVerb && hasMemoryContext;
 	}
 
 	/**
@@ -696,11 +730,7 @@ export class IntentClassifier {
 		// Se mensagem não é pergunta e menciona conteúdo explicitamente
 		const isNotQuestion = !msg.startsWith('o que') && !msg.startsWith('qual') && !msg.includes('?');
 		const mentionsContent =
-			msg.includes('filme') ||
-			msg.includes('série') ||
-			msg.includes('video') ||
-			msg.includes('aplicativo') ||
-			msg.includes('ideia');
+			msg.includes('filme') || msg.includes('série') || msg.includes('video') || msg.includes('aplicativo') || msg.includes('ideia');
 
 		// Se é mensagem longa descritiva OU tem streaming + conteúdo
 		return isLongDescription || (isNotQuestion && hasStreaming && mentionsContent);
@@ -769,25 +799,13 @@ export class IntentClassifier {
 	 * Detecta pedido de deletar
 	 */
 	private isDeleteRequest(msg: string): IntentResult | null {
-		const deleteKeywords = [
-			'deleta',
-			'deletar',
-			'apaga',
-			'apagar',
-			'remove',
-			'remover',
-			'limpa',
-			'limpar',
-			'exclui',
-			'excluir',
-		];
+		const deleteKeywords = ['deleta', 'deletar', 'apaga', 'apagar', 'remove', 'remover', 'limpa', 'limpar', 'exclui', 'excluir'];
 
 		const hasDeleteKeyword = deleteKeywords.some((kw) => msg.includes(kw));
 		if (!hasDeleteKeyword) return null;
 
 		// Detectar alvo: tudo, item específico, ou seleção
-		const hasAllKeyword =
-			msg.includes('tudo') || msg.includes('tudo mesmo') || msg.includes('todos') || msg.includes('todas');
+		const hasAllKeyword = msg.includes('tudo') || msg.includes('tudo mesmo') || msg.includes('todos') || msg.includes('todas');
 		if (hasAllKeyword) {
 			// Se "todas as notas", "apaga todos os filmes", etc → delete_all filtrado por tipo
 			const itemType = this.extractItemType(msg);

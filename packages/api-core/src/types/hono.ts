@@ -1,24 +1,25 @@
-/**
- * Framework-agnostic type representing authenticated user data
- * Used to document the shape of user/session injected by auth middleware
- */
-export type AuthUser = {
-	id: string;
-	name: string;
-	email: string;
-	role?: string;
-};
-
-export type AuthSession = {
-	id: string;
-	userId: string;
-	expiresAt: Date;
-};
+import type { Context } from 'hono';
 
 /**
- * Context variable shape injected by auth middleware (framework-agnostic)
+ * Estende o Context do Hono para incluir variáveis customizadas
+ * definidas pelo authMiddleware
  */
 export type AuthContext = {
-	user: AuthUser;
-	session: AuthSession;
+	Variables: {
+		user: {
+			id: string;
+			name: string;
+			email: string;
+		};
+		session: {
+			id: string;
+			userId: string;
+			expiresAt: Date;
+		};
+	};
 };
+
+/**
+ * Helper type para usar em rotas com autenticação
+ */
+export type AuthenticatedContext = Context<AuthContext>;

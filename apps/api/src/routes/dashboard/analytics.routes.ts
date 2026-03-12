@@ -1,4 +1,4 @@
-import { analyticsService } from '@/services/analytics-service';
+import { analyticsService } from '@nexo/api-core/services/analytics-service';
 import { Hono } from 'hono';
 
 export const analyticsRoutes = new Hono().get('/', async (c) => {

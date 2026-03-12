@@ -22,33 +22,33 @@ const { mockCacheGet, mockCacheSet, mockCacheDelete, mockGetEnabledTools } = vi.
 	};
 });
 
-vi.mock('@/config/redis', () => ({
+vi.mock('@nexo/api-core/config/redis', () => ({
 	cacheGet: mockCacheGet,
 	cacheSet: mockCacheSet,
 	cacheDelete: mockCacheDelete,
 }));
 
-vi.mock('@/services/tools/tool.service', () => ({
+vi.mock('@nexo/api-core/services/tools/tool.service', () => ({
 	toolService: {
 		getEnabledTools: mockGetEnabledTools,
 	},
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@nexo/api-core/utils/logger', () => ({
 	loggers: {
 		ai: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 		app: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 	},
 }));
 
-vi.mock('@/services/service-instrumentation', () => ({
+vi.mock('@nexo/api-core/services/service-instrumentation', () => ({
 	instrumentService: (_name: string, service: unknown) => service,
 }));
 
 // ============================================================================
 // Import após mocks
 // ============================================================================
-const { toolAvailabilityService: service } = await import('@/services/tool-availability.service');
+const { toolAvailabilityService: service } = await import('@nexo/api-core/services/tool-availability.service');
 
 describe('ToolAvailabilityService', () => {
 	beforeEach(() => {

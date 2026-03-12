@@ -1,5 +1,5 @@
-import { sentryMetrics } from '@/sentry';
-import { isValidAgentDecisionV2Response, parseAgentDecisionV2FromLLM, parseJSONFromLLM } from '@/utils/json-parser';
+import { sentryMetrics } from '@nexo/api-core/sentry';
+import { isValidAgentDecisionV2Response, parseAgentDecisionV2FromLLM, parseJSONFromLLM } from '@nexo/api-core/utils/json-parser';
 import { describe, expect, test, vi } from 'vitest';
 
 describe('json-parser AgentDecisionV2 helpers', () => {

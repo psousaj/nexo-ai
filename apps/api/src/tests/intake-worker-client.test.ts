@@ -7,7 +7,7 @@ const mockEnv = {
 	INTAKE_WORKER_TOKEN: undefined as string | undefined,
 };
 
-vi.mock('@/config/env', () => ({
+vi.mock('@nexo/api-core/config/env', () => ({
 	env: mockEnv,
 }));
 
@@ -28,7 +28,7 @@ describe('IntakeWorkerClient', () => {
 		});
 		vi.stubGlobal('fetch', fetchMock);
 
-		const { IntakeWorkerClient } = await import('@/services/intake-worker-client');
+		const { IntakeWorkerClient } = await import('@nexo/api-core/services/intake-worker-client');
 		const client = new IntakeWorkerClient();
 
 		const attachments: MultimodalIntakePayload[] = [
@@ -60,7 +60,7 @@ describe('IntakeWorkerClient', () => {
 		});
 		vi.stubGlobal('fetch', fetchMock);
 
-		const { IntakeWorkerClient } = await import('@/services/intake-worker-client');
+		const { IntakeWorkerClient } = await import('@nexo/api-core/services/intake-worker-client');
 		const client = new IntakeWorkerClient();
 
 		await client.processAttachments([
@@ -85,7 +85,7 @@ describe('IntakeWorkerClient', () => {
 		const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
 		vi.stubGlobal('fetch', fetchMock);
 
-		const { IntakeWorkerClient } = await import('@/services/intake-worker-client');
+		const { IntakeWorkerClient } = await import('@nexo/api-core/services/intake-worker-client');
 		const client = new IntakeWorkerClient();
 
 		await expect(

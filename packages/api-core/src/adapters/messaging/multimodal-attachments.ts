@@ -30,7 +30,7 @@ export function mapDiscordAttachmentsToMetadata(params: {
 	timestamp: Date;
 }): MultimodalIntakePayload[] {
 	return params.attachments
-		.map((attachment): MultimodalIntakePayload | null => {
+		.map((attachment) => {
 			const kind = mapDiscordAttachmentKind(attachment.contentType ?? undefined);
 			if (!kind) {
 				return null;

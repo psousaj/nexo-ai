@@ -336,7 +336,9 @@ export class DiscordAdapter implements MessagingProvider {
 	/**
 	 * Handle messageDelete event
 	 */
-	private async handleMessageDelete(message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>): Promise<void> {
+	private async handleMessageDelete(
+		message: DiscordMessage<boolean> | Partial<DiscordMessage<boolean>>,
+	): Promise<void> {
 		loggers.discord.debug({ messageId: message.id }, '🗑️ Message deleted');
 
 		// Handle message deletion if needed
@@ -489,7 +491,9 @@ export class DiscordAdapter implements MessagingProvider {
 			new SlashCommandBuilder()
 				.setName('profile')
 				.setDescription('Show or update your profile')
-				.addStringOption((option) => option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false))
+				.addStringOption((option) =>
+					option.setName('key').setDescription('Profile key (name, assistant, tone)').setRequired(false),
+				)
 				.addStringOption((option) => option.setName('value').setDescription('New value').setRequired(false)),
 			new SlashCommandBuilder().setName('help').setDescription('Show available commands'),
 		];
@@ -600,7 +604,9 @@ export class DiscordAdapter implements MessagingProvider {
 	} {
 		const isDirectMessage = payload.guildId == null;
 		const mentions = payload.mentions?.users;
-		const botMentioned = Array.isArray(mentions) ? mentions.some((mention: { bot?: boolean }) => Boolean(mention?.bot)) : false;
+		const botMentioned = Array.isArray(mentions)
+			? mentions.some((mention: { bot?: boolean }) => Boolean(mention?.bot))
+			: false;
 		const attachments = Array.isArray(payload.attachments)
 			? payload.attachments.map((attachment: { contentType?: string | null; url: string; name?: string }) => ({
 					type:

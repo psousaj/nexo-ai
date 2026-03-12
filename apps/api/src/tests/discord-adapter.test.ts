@@ -8,7 +8,7 @@
  * - Componentes: Buttons e select menus
  */
 
-import { DiscordAdapter } from '@/adapters/messaging/discord-adapter';
+import { DiscordAdapter } from '@nexo/api-core/adapters/messaging/discord-adapter';
 import { describe, expect, test } from 'vitest';
 
 describe('Discord Adapter', () => {

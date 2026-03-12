@@ -1,7 +1,7 @@
-import { telegramAdapter, whatsappAdapter } from '@/adapters/messaging';
-import { env } from '@/config/env';
-import { messageQueue } from '@/services/queue-service';
-import { logError, loggers } from '@/utils/logger';
+import { telegramAdapter, whatsappAdapter } from '@nexo/api-core/adapters/messaging';
+import { env } from '@nexo/api-core/config/env';
+import { messageQueue } from '@nexo/api-core/services/queue-service';
+import { logError, loggers } from '@nexo/api-core/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Hono } from 'hono';
 

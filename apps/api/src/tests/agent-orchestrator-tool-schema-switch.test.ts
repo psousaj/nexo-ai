@@ -20,43 +20,58 @@ const {
 	mockParseAgentDecisionV2FromLLM: vi.fn(),
 }));
 
-vi.mock('@/config/pivot-feature-flags', () => ({
+vi.mock('@nexo/api-core/config/pivot-feature-flags', () => ({
 	getPivotFeatureFlags: mockGetPivotFeatureFlags,
 }));
 
-vi.mock('@/services/conversation-service', () => ({
+vi.mock('@nexo/api-core/services/conversation-service', () => ({
 	conversationService: {
 		getHistory: mockGetHistory,
 	},
 }));
 
-vi.mock('@/services/user-service', () => ({
+vi.mock('@nexo/api-core/services/user-service', () => ({
 	userService: {
 		getUserById: mockGetUserById,
 	},
 }));
 
-vi.mock('@/services/ai', () => ({
+vi.mock('@nexo/api-core/services/ai', () => ({
 	llmService: {
 		callLLM: mockCallLLM,
 	},
 }));
 
-vi.mock('@/services/tools', () => ({
+vi.mock('@nexo/api-core/services/tools', () => ({
 	executeTool: mockExecuteTool,
 }));
 
-vi.mock('@/services/queue-service', () => ({
+vi.mock('@nexo/api-core/services/queue-service', () => ({
 	scheduleConversationClose: vi.fn(),
 }));
 
-vi.mock('@/utils/json-parser', () => ({
+vi.mock('@nexo/api-core/services/tool-availability.service', () => ({
+	toolAvailabilityService: {
+		getAvailableTools: vi.fn().mockResolvedValue({ tools: ['save_note', 'save_memo', 'search_items'] }),
+	},
+}));
+
+vi.mock('@nexo/api-core/config/redis', () => ({
+	REDIS_BASE_OPTIONS: {},
+	getBullMQConnection: vi.fn(),
+	getRedisClient: vi.fn().mockResolvedValue(null),
+	cacheGet: vi.fn().mockResolvedValue(null),
+	cacheSet: vi.fn().mockResolvedValue(undefined),
+	cacheDelete: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@nexo/api-core/utils/json-parser', () => ({
 	parseJSONFromLLM: mockParseJSONFromLLM,
 	isValidAgentResponse: mockIsValidAgentResponse,
 	parseAgentDecisionV2FromLLM: mockParseAgentDecisionV2FromLLM,
 }));
 
-vi.mock('@/services/service-instrumentation', () => ({
+vi.mock('@nexo/api-core/services/service-instrumentation', () => ({
 	instrumentService: (_name: string, instance: unknown) => instance,
 }));
 
@@ -94,7 +109,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			},
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -111,13 +126,9 @@ describe('AgentOrchestrator tool schema switch', () => {
 
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
 		expect(mockParseJSONFromLLM).not.toHaveBeenCalled();
-		expect(mockExecuteTool).toHaveBeenCalledWith(
-			'save_note',
-			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
-			{
-				content: 'hello',
-			},
-		);
+		expect(mockExecuteTool).toHaveBeenCalledWith('save_note', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
+			content: 'hello',
+		});
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -153,7 +164,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 				tool_call: null,
 			}));
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -191,7 +202,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			throw new Error('Resposta não é JSON');
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -239,7 +250,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			},
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -257,13 +268,9 @@ describe('AgentOrchestrator tool schema switch', () => {
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
 		expect(mockParseJSONFromLLM).not.toHaveBeenCalled();
 		expect(mockIsValidAgentResponse).not.toHaveBeenCalled();
-		expect(mockExecuteTool).toHaveBeenCalledWith(
-			'save_movie',
-			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
-			{
-				title: 'Inception',
-			},
-		);
+		expect(mockExecuteTool).toHaveBeenCalledWith('save_movie', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
+			title: 'Inception',
+		});
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -293,7 +300,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			},
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -339,7 +346,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			},
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -355,13 +362,9 @@ describe('AgentOrchestrator tool schema switch', () => {
 		);
 
 		expect(mockParseAgentDecisionV2FromLLM).toHaveBeenCalledTimes(1);
-		expect(mockExecuteTool).toHaveBeenCalledWith(
-			'search_items',
-			expect.objectContaining({ userId: 'u1', conversationId: 'c1' }),
-			{
-				query: 'inception',
-			},
-		);
+		expect(mockExecuteTool).toHaveBeenCalledWith('search_items', expect.objectContaining({ userId: 'u1', conversationId: 'c1' }), {
+			query: 'inception',
+		});
 		expect(response).toEqual(
 			expect.objectContaining({
 				message: 'ok',
@@ -388,7 +391,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			tool_call: null,
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -428,7 +431,7 @@ describe('AgentOrchestrator tool schema switch', () => {
 			tool_call: null,
 		});
 
-		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(

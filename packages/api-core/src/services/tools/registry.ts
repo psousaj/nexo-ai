@@ -224,6 +224,26 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 	},
 
 	// ============================================================================
+	// WEB SEARCH + URL ANALYSIS (System Tools — sempre habilitadas)
+	// ============================================================================
+
+	web_search: {
+		name: 'web_search',
+		label: 'Busca na Web',
+		description: 'Busca na internet via Brave Search (read-only)',
+		icon: '🌐',
+		category: 'system',
+	},
+
+	analyze_url: {
+		name: 'analyze_url',
+		label: 'Analisar URL',
+		description: 'Detecta tipo de conteúdo de uma URL (ferramenta interna)',
+		icon: '🔗',
+		category: 'system',
+	},
+
+	// ============================================================================
 	// NOVOS TIPOS DE CONTEÚDO — defaultEnabled: true para memo, false para demais
 	// ============================================================================
 
@@ -242,7 +262,6 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Salva livro com metadados do Google Books',
 		icon: '📚',
 		category: 'user',
-		defaultEnabled: false,
 	},
 
 	save_music: {
@@ -251,7 +270,6 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Salva música com metadados do Spotify',
 		icon: '🎵',
 		category: 'user',
-		defaultEnabled: false,
 	},
 
 	save_image: {
@@ -260,7 +278,6 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Salva imagem com extração de metadados EXIF',
 		icon: '🖼️',
 		category: 'user',
-		defaultEnabled: false,
 	},
 };
 

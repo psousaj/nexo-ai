@@ -1,4 +1,4 @@
-import { mapDiscordAttachmentsToMetadata } from '@/adapters/messaging/multimodal-attachments';
+import { mapDiscordAttachmentsToMetadata } from '@nexo/api-core/adapters/messaging/multimodal-attachments';
 import { describe, expect, it } from 'vitest';
 
 describe('mapDiscordAttachmentsToMetadata', () => {

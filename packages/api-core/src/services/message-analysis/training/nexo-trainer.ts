@@ -16,7 +16,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loggers } from '@/utils/logger';
-// @ts-ignore — node-nlp has no type declarations
 import { NlpManager } from 'node-nlp';
 import { NEXO_ENTITIES, NEXO_RESPONSES, NEXO_TRAINING_DATA } from './training-data.js';
 

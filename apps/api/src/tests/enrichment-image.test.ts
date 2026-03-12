@@ -15,13 +15,13 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 // ============================================================================
 // Mocks
 // ============================================================================
-vi.mock('@/utils/logger', () => ({
+vi.mock('@nexo/api-core/utils/logger', () => ({
 	loggers: {
 		app: { warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 	},
 }));
 
-vi.mock('@/services/service-instrumentation', () => ({
+vi.mock('@nexo/api-core/services/service-instrumentation', () => ({
 	instrumentService: (_name: string, service: unknown) => service,
 }));
 
@@ -31,7 +31,7 @@ global.fetch = mockFetch;
 // ============================================================================
 // Import após mocks
 // ============================================================================
-const { imageMetadataService: service } = await import('@/services/enrichment/image-metadata-service');
+const { imageMetadataService: service } = await import('@nexo/api-core/services/enrichment/image-metadata-service');
 
 function makeFetchResponse(opts: {
 	ok?: boolean;

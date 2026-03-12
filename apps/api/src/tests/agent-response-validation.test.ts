@@ -1,4 +1,4 @@
-import { validateAgentResponse } from '@/types';
+import { validateAgentResponse } from '@nexo/api-core/types';
 import { describe, expect, test } from 'vitest';
 
 describe('validateAgentResponse RESPOND truncation', () => {

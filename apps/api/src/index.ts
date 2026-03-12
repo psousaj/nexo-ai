@@ -1,13 +1,13 @@
 import './otel'; // OpenTelemetry must be imported first
 import './sentry'; // Sentry error tracking
-import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
-import { env } from '@/config/env';
+import { startDiscordBot } from '@nexo/api-core/adapters/messaging/discord-adapter';
+import { env } from '@nexo/api-core/config/env';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
-import { globalErrorHandler } from '@/services/error/error.service';
-import { featureFlagService } from '@/services/feature-flag.service';
-import { initializeLangfuse, shutdownLangfuse } from '@/services/langfuse'; // Langfuse AI observability
-import { logger } from '@/utils/logger';
+import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
+import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
+import { initializeLangfuse, shutdownLangfuse } from '@nexo/api-core/services/langfuse'; // Langfuse AI observability
+import { logger } from '@nexo/api-core/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 
@@ -89,13 +89,13 @@ process.on('beforeExit', async () => {
  */
 async function initializeBaileysIfActive(): Promise<void> {
 	try {
-		const { getWhatsAppSettings } = await import('@/adapters/messaging');
+		const { getWhatsAppSettings } = await import('@nexo/api-core/adapters/messaging');
 		const settings = await getWhatsAppSettings();
 
 		if (settings.activeApi === 'baileys') {
 			logger.info('📱 Baileys é a API ativa, inicializando...');
 
-			const { getBaileysService } = await import('@/services/baileys-service');
+			const { getBaileysService } = await import('@nexo/api-core/services/baileys-service');
 			await getBaileysService();
 
 			logger.info('✅ Baileys inicializado e pronto para receber mensagens');

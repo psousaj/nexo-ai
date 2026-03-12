@@ -1,7 +1,7 @@
 import { bullBoardApp } from '@/plugins/bull-board';
 import { betterAuthPlugin } from '@/plugins/better-auth';
 import { env } from '@nexo/env';
-import { sentryLogger } from '@nexo/api-core/sentry';
+
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
 import {
 	closeConversationQueue,
@@ -150,7 +150,7 @@ const app = new Elysia()
 	.get(
 		'/debug-sentry',
 		() => {
-			sentryLogger.info('User triggered test error', { action: 'test_error_endpoint' });
+			Sentry.logger.info('User triggered test error', { action: 'test_error_endpoint' });
 			throw new Error('Sentry debug error - testando captura de exceção');
 		},
 		{

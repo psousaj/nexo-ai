@@ -8,10 +8,10 @@
  * 4. Verificar resultados
  */
 
-import { db } from '@/db';
-import { authProviders, memoryItems, users } from '@/db/schema';
-import { itemService } from '@/services/item-service';
-import { loggers } from '@/utils/logger';
+import { db } from '@nexo/api-core/db';
+import { authProviders, memoryItems, users } from '@nexo/api-core/db/schema';
+import { itemService } from '@nexo/api-core/services/item-service';
+import { loggers } from '@nexo/api-core/utils/logger';
 import { eq } from 'drizzle-orm';
 
 async function testSemanticSearchE2E() {

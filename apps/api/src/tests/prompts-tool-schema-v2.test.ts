@@ -3,7 +3,7 @@ import {
 	AGENT_SYSTEM_PROMPT_V2,
 	applyAgentDecisionV2Contract,
 	getAgentSystemPrompt,
-} from '@/config/prompts';
+} from '@nexo/api-core/config/prompts';
 import { describe, expect, test } from 'vitest';
 
 describe('prompt contract V2 (TOOL_SCHEMA_V2 hardcoded)', () => {

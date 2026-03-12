@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import app from '../server';
 
-vi.mock('@/services/item-service', () => ({
+vi.mock('@nexo/api-core/services/item-service', () => ({
 	itemService: {
 		listItems: vi.fn().mockResolvedValue([]),
 		getItemById: vi.fn().mockResolvedValue(null),

@@ -8,10 +8,10 @@
  * - Permissões (DM vs grupo)
  */
 
-import { type CommandParams, chatCommands } from '@/services/chat-commands';
+import { type CommandParams, chatCommands } from '@nexo/api-core/services/chat-commands';
 import { describe, expect, test, vi } from 'vitest';
 
-vi.mock('@/db', () => ({
+vi.mock('@nexo/api-core/db', () => ({
 	db: {
 		query: {
 			agentSessions: {

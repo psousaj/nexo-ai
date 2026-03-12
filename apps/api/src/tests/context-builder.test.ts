@@ -7,11 +7,11 @@
  * - Privacidade: USER.md apenas em DMs
  */
 
-import { buildAgentContext } from '@/services/context-builder';
+import { buildAgentContext } from '@nexo/api-core/services/context-builder';
 import { describe, expect, test, vi } from 'vitest';
 
 // Mock do banco de dados
-vi.mock('@/db', () => ({
+vi.mock('@nexo/api-core/db', () => ({
 	db: {
 		query: {
 			agentMemoryProfiles: {

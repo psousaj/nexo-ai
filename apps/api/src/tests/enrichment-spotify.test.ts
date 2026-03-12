@@ -26,22 +26,22 @@ const { mockCacheGet, mockCacheSet, mockEnv } = vi.hoisted(() => ({
 	},
 }));
 
-vi.mock('@/config/redis', () => ({
+vi.mock('@nexo/api-core/config/redis', () => ({
 	cacheGet: mockCacheGet,
 	cacheSet: mockCacheSet,
 }));
 
-vi.mock('@/config/env', () => ({
+vi.mock('@nexo/api-core/config/env', () => ({
 	env: mockEnv,
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@nexo/api-core/utils/logger', () => ({
 	loggers: {
 		app: { warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 	},
 }));
 
-vi.mock('@/services/service-instrumentation', () => ({
+vi.mock('@nexo/api-core/services/service-instrumentation', () => ({
 	instrumentService: (_name: string, service: unknown) => service,
 }));
 
@@ -51,7 +51,7 @@ global.fetch = mockFetch;
 // ============================================================================
 // Import após mocks
 // ============================================================================
-const { spotifyService: service } = await import('@/services/enrichment/spotify-service');
+const { spotifyService: service } = await import('@nexo/api-core/services/enrichment/spotify-service');
 
 const TRACK_RESPONSE = {
 	tracks: {

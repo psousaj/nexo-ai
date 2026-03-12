@@ -1,6 +1,6 @@
 import { type IncomingMessage, type ProviderType, getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import { BULLMQ_CONNECTION } from '@/config/redis';
+import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
 import { embeddingService } from '@/services/ai/embedding-service';
@@ -87,16 +87,11 @@ queueLogger.info(
 	'🔧 Configuração do Redis (BullMQ)',
 );
 
-// ============================================================================
-// QUEUES — apenas produtores (adicionar jobs); workers são instâncias separadas
-// ============================================================================
-
 /**
  * Queue para fechamento de conversas
  */
 export const closeConversationQueue = new Queue<{ conversationId: string }>('close-conversation', {
-	connection: BULLMQ_CONNECTION,
-	defaultJobOptions: { removeOnComplete: { count: 500 }, removeOnFail: { count: 1000 } },
+	connection: REDIS_BASE_OPTIONS,
 });
 
 queueLogger.info('✅ Queue "close-conversation" criada');
@@ -108,40 +103,52 @@ export const messageQueue = new Queue<{
 	incomingMsg: IncomingMessage;
 	providerName: ProviderType;
 	providerApi?: 'meta' | 'baileys';
-}>('message-processing', {
-	connection: BULLMQ_CONNECTION,
-	defaultJobOptions: { removeOnComplete: true, removeOnFail: { count: 1000 } },
-});
+}>('message-processing', { connection: REDIS_BASE_OPTIONS });
 
 queueLogger.info('✅ Queue "message-processing" criada');
 
 /**
  * Queue para envio de respostas com retry automático
  */
-export const responseQueue = new Queue<ResponseJob>('response-sending', {
-	connection: BULLMQ_CONNECTION,
-	defaultJobOptions: { removeOnComplete: { count: 1000 }, removeOnFail: true },
-});
+export const responseQueue = new Queue<ResponseJob>('response-sending', { connection: REDIS_BASE_OPTIONS });
 
 queueLogger.info('✅ Queue "response-sending" criada');
 
 /**
  * Queue para enriquecimento de dados em background (Bulk Async Enrichment)
  */
-export const enrichmentQueue = new Queue<EnrichmentJob>('enrichment-processing', {
-	connection: BULLMQ_CONNECTION,
-	defaultJobOptions: { removeOnComplete: { count: 500 }, removeOnFail: { count: 1000 } },
-});
+export const enrichmentQueue = new Queue<EnrichmentJob>('enrichment-processing', { connection: REDIS_BASE_OPTIONS });
 
 queueLogger.info('✅ Queue "enrichment-processing" criada');
+
 queueLogger.info(`🎯 BullMQ configurado com sucesso (${env.REDIS_HOST})`);
 
 // ============================================================================
-// EVENT LISTENERS - Debug de conexão
+// EVENT LISTENERS - Erros nas queues
 // ============================================================================
 
+closeConversationQueue.on('error', (error) => {
+	queueLogger.error({ err: error }, '❌ [close-conversation] Erro na queue');
+	reportQueueError(error, { queue: 'close-conversation' });
+});
+
+messageQueue.on('error', (error) => {
+	queueLogger.error({ err: error }, '❌ [message-processing] Erro na queue');
+	reportQueueError(error, { queue: 'message-processing' });
+});
+
+responseQueue.on('error', (error) => {
+	queueLogger.error({ err: error }, '❌ [response-sending] Erro na queue');
+	reportQueueError(error, { queue: 'response-sending' });
+});
+
+enrichmentQueue.on('error', (error) => {
+	queueLogger.error({ err: error }, '❌ [enrichment-processing] Erro na queue');
+	reportQueueError(error, { queue: 'enrichment-processing' });
+});
+
 // ============================================================================
-// WORKERS — processam jobs das queues acima
+// WORKERS - BullMQ processa jobs via Worker separado
 // ============================================================================
 
 /**
@@ -162,7 +169,6 @@ export const closeConversationWorker = new Worker<{ conversationId: string }>(
 			try {
 				queueLogger.info({ conversationId }, '🔄 Processando fechamento');
 
-				// UPDATE CONDICIONAL - previne race condition
 				const result = await db
 					.update(conversations)
 					.set({
@@ -187,28 +193,25 @@ export const closeConversationWorker = new Worker<{ conversationId: string }>(
 			} catch (error) {
 				recordException(error as Error, { 'queue.status': 'error' });
 				queueLogger.error({ conversationId, err: error }, '❌ Erro ao fechar conversa');
-				throw error; // BullMQ vai fazer retry
+				throw error;
 			}
 		});
 	},
-	{ connection: BULLMQ_CONNECTION, concurrency: 1 },
+	{ connection: REDIS_BASE_OPTIONS },
 );
 
-closeConversationWorker.on('ready', () => queueLogger.info('✅ [close-conversation] Worker pronto'));
-closeConversationWorker.on('error', (error) => {
-	queueLogger.error({ err: error }, '❌ [close-conversation] Erro no worker');
-	reportQueueError(error, { queue: 'close-conversation' });
-});
 closeConversationWorker.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [close-conversation] Job ativo');
 });
+
 closeConversationWorker.on('failed', (job, error) => {
-	queueLogger.error({ jobId: job?.id, err: error }, '❌ [close-conversation] Job falhou');
+	if (!job) return;
+	queueLogger.error({ jobId: job.id, err: error }, '❌ [close-conversation] Job falhou');
 	reportQueueError(error, {
 		queue: 'close-conversation',
 		state: 'background_job',
-		conversationId: job?.data.conversationId,
-		extra: { jobId: job?.id },
+		conversationId: job.data.conversationId,
+		extra: { jobId: job.id },
 	});
 });
 
@@ -256,7 +259,7 @@ export const messageWorker = new Worker<{
 					throw new Error(`Provider ${providerName} não encontrado para o job`);
 				}
 
-				const maxAttempts = job.opts.attempts ?? 1;
+				const maxAttempts = job.opts.attempts || 1;
 				const isLastAttempt = job.attemptsMade >= maxAttempts - 1;
 
 				await processMessage(incomingMsg, provider, {
@@ -288,37 +291,35 @@ export const messageWorker = new Worker<{
 			}
 		});
 	},
-	{ connection: BULLMQ_CONNECTION, concurrency: 1 },
+	{ connection: REDIS_BASE_OPTIONS },
 );
 
-messageWorker.on('ready', () => queueLogger.info('✅ [message-processing] Worker pronto'));
-messageWorker.on('error', (error) => {
-	queueLogger.error({ err: error }, '❌ [message-processing] Erro no worker');
-	reportQueueError(error, { queue: 'message-processing' });
-});
 messageWorker.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [message-processing] Job ativo');
 });
-messageWorker.on('failed', (job, error: any) => {
-	queueLogger.error({ jobId: job?.id, err: error }, '❌ [message-processing] Job falhou');
 
-	const conversationId = error?.conversationId;
-	const userId = error?.userId;
+messageWorker.on('failed', (job, error) => {
+	if (!job) return;
+	queueLogger.error({ jobId: job.id, err: error }, '❌ [message-processing] Job falhou');
+
+	const conversationId = (error as any).conversationId;
+	const userId = (error as any).userId;
+
 	reportQueueError(error, {
 		queue: 'message-processing',
-		provider: job?.data.providerName,
+		provider: job.data.providerName,
 		state: 'background_job',
 		conversationId,
 		userId,
 		extra: {
-			jobId: job?.id,
-			externalId: job?.data.incomingMsg.externalId,
+			jobId: job.id,
+			externalId: job.data.incomingMsg.externalId,
 		},
 	});
 });
 
 /**
- * Worker: Processa envio de respostas (concorrência 2)
+ * Worker: Processa envio de respostas
  */
 export const responseWorker = new Worker<ResponseJob>(
 	'response-sending',
@@ -360,8 +361,7 @@ export const responseWorker = new Worker<ResponseJob>(
 				return { success: true };
 			} catch (error: any) {
 				recordException(error as Error, { 'queue.status': 'failed' });
-				const maxAttempts = job.opts.attempts ?? 1;
-				const isLastAttempt = job.attemptsMade >= maxAttempts - 1;
+				const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 1) - 1;
 
 				queueLogger.error(
 					{
@@ -369,38 +369,49 @@ export const responseWorker = new Worker<ResponseJob>(
 						provider: providerName,
 						error: error.message,
 						attempt: job.attemptsMade + 1,
-						maxAttempts,
+						maxAttempts: job.opts.attempts,
 						isLastAttempt,
 					},
 					'❌ Erro ao enviar resposta',
 				);
+
+				if (error.cause?.code === 'ETIMEDOUT' || error.cause?.code === 'ECONNREFUSED') {
+					throw error;
+				}
+
 				throw error;
 			}
 		});
 	},
-	{ connection: BULLMQ_CONNECTION, concurrency: 2 },
+	{ connection: REDIS_BASE_OPTIONS, concurrency: 2 },
 );
 
-responseWorker.on('ready', () => queueLogger.info('✅ [response-sending] Worker pronto'));
-responseWorker.on('error', (error) => {
-	queueLogger.error({ err: error }, '❌ [response-sending] Erro no worker');
-	reportQueueError(error, { queue: 'response-sending' });
-});
 responseWorker.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [response-sending] Job ativo');
 });
+
 responseWorker.on('failed', (job, error) => {
 	if (!job) return;
 	queueLogger.error(
-		{ jobId: job.id, externalId: job.data.externalId, error: error.message, attempts: job.attemptsMade },
+		{
+			jobId: job.id,
+			externalId: job.data.externalId,
+			error: error.message,
+			attempts: job.attemptsMade,
+		},
 		'❌ [response-sending] Job falhou',
 	);
+
 	reportQueueError(error, {
 		queue: 'response-sending',
 		state: 'background_job',
 		conversationId: job.data.metadata?.conversationId,
 		userId: job.data.metadata?.userId,
-		extra: { jobId: job.id, externalId: job.data.externalId, attempts: job.attemptsMade },
+		extra: {
+			jobId: job.id,
+			externalId: job.data.externalId,
+			attempts: job.attemptsMade,
+		},
 	});
 });
 
@@ -430,10 +441,8 @@ export const enrichmentWorker = new Worker<EnrichmentJob>(
 
 				queueLogger.info({ provider, type, count: candidates.length, jobId: job.id }, '🚀 [Worker] Iniciando bulk enrichment');
 
-				// 1. Extrair IDs
 				const externalIds = candidates.map((c) => String(c.id));
 
-				// 2. Verificar existentes
 				const existingItems = await db
 					.select({ externalId: semanticExternalItems.externalId })
 					.from(semanticExternalItems)
@@ -447,7 +456,6 @@ export const enrichmentWorker = new Worker<EnrichmentJob>(
 
 				const existingIds = new Set(existingItems.map((i) => i.externalId));
 
-				// 3. Filtrar novos
 				const newCandidates = candidates.filter((c) => !existingIds.has(String(c.id)));
 
 				if (newCandidates.length === 0) {
@@ -530,20 +538,18 @@ export const enrichmentWorker = new Worker<EnrichmentJob>(
 			}
 		});
 	},
-	{ connection: BULLMQ_CONNECTION, concurrency: 2 },
+	{ connection: REDIS_BASE_OPTIONS, concurrency: 2 },
 );
 
-enrichmentWorker.on('ready', () => queueLogger.info('✅ [enrichment-processing] Worker pronto'));
-enrichmentWorker.on('error', (error) => {
-	queueLogger.error({ err: error }, '❌ [enrichment-processing] Erro no worker');
-	reportQueueError(error, { queue: 'enrichment-processing' });
-});
 enrichmentWorker.on('active', (job) => {
 	queueLogger.debug({ jobId: job.id }, '🔄 [enrichment-processing] Job ativo');
 });
+
 enrichmentWorker.on('failed', (job, error) => {
 	if (!job) return;
+
 	queueLogger.error({ jobId: job.id, err: error }, '❌ [enrichment-processing] Job falhou');
+
 	reportQueueError(error, {
 		queue: 'enrichment-processing',
 		state: 'background_job',
@@ -561,11 +567,11 @@ enrichmentWorker.on('failed', (job, error) => {
 // ============================================================================
 
 /**
- * Agenda fechamento de conversa em 3 minutos
+ * Agenda fechamento de conversa em 15 minutos
  */
 export async function scheduleConversationClose(conversationId: string): Promise<void> {
 	try {
-		const closeAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutos
+		const closeAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
 		const jobId = `close:${conversationId}`; // JobId determinístico para cancelamento O(1)
 
 		await db
@@ -584,7 +590,7 @@ export async function scheduleConversationClose(conversationId: string): Promise
 			'close-conversation',
 			{ conversationId },
 			{
-				delay: 3 * 60 * 1000,
+				delay: 15 * 60 * 1000,
 				jobId,
 				attempts: 3,
 				backoff: { type: 'exponential', delay: 5000 },
@@ -715,27 +721,25 @@ export async function queueResponse(data: ResponseJob): Promise<void> {
 // GRACEFUL SHUTDOWN
 // ============================================================================
 
-async function closeAll() {
+async function shutdownQueues() {
 	await Promise.all([
-		// Queues (produtores)
-		closeConversationQueue.close(),
-		messageQueue.close(),
-		responseQueue.close(),
-		enrichmentQueue.close(),
-		// Workers (consumidores)
 		closeConversationWorker.close(),
 		messageWorker.close(),
 		responseWorker.close(),
 		enrichmentWorker.close(),
+		closeConversationQueue.close(),
+		messageQueue.close(),
+		responseQueue.close(),
+		enrichmentQueue.close(),
 	]);
 }
 
 process.on('SIGTERM', async () => {
 	queueLogger.info('🛑 Recebido SIGTERM, fechando queues e workers...');
-	await closeAll();
+	await shutdownQueues();
 });
 
 process.on('SIGINT', async () => {
 	queueLogger.info('🛑 Recebido SIGINT, fechando queues e workers...');
-	await closeAll();
+	await shutdownQueues();
 });

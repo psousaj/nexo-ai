@@ -1,11 +1,11 @@
-import { getWhatsAppSettings, invalidateWhatsAppProviderCache, setActiveWhatsAppApi } from '@/adapters/messaging';
-import { env } from '@/config/env';
-import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
-import { adminService } from '@/services/admin-service';
-import { embeddingService } from '@/services/ai/embedding-service';
-import { featureFlagService } from '@/services/feature-flag.service';
-import { getSystemTools } from '@/services/tools/registry';
-import { toolService } from '@/services/tools/tool.service';
+import { getWhatsAppSettings, invalidateWhatsAppProviderCache, setActiveWhatsAppApi } from '@nexo/api-core/adapters/messaging';
+import { env } from '@nexo/api-core/config/env';
+import { getPivotFeatureFlags } from '@nexo/api-core/config/pivot-feature-flags';
+import { adminService } from '@nexo/api-core/services/admin-service';
+import { embeddingService } from '@nexo/api-core/services/ai/embedding-service';
+import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
+import { getSystemTools } from '@nexo/api-core/services/tools/registry';
+import { toolService } from '@nexo/api-core/services/tools/tool.service';
 import { Hono } from 'hono';
 
 export const adminRoutes = new Hono()
@@ -61,7 +61,7 @@ export const adminRoutes = new Hono()
 		try {
 			// Se está mudando para Baileys, inicializar
 			if (api === 'baileys') {
-				const { getBaileysService } = await import('@/services/baileys-service');
+				const { getBaileysService } = await import('@nexo/api-core/services/baileys-service');
 
 				// Atualizar configuração no banco
 				await setActiveWhatsAppApi(api);
@@ -81,7 +81,7 @@ export const adminRoutes = new Hono()
 
 			// Se está mudando para Meta, desconectar Baileys
 			if (api === 'meta') {
-				const { resetBaileysService } = await import('@/services/baileys-service');
+				const { resetBaileysService } = await import('@nexo/api-core/services/baileys-service');
 
 				// Atualizar configuração no banco
 				await setActiveWhatsAppApi(api);
@@ -126,7 +126,7 @@ export const adminRoutes = new Hono()
 	// Disconnect Baileys session
 	.post('/whatsapp-settings/baileys/disconnect', async (c) => {
 		try {
-			const { resetBaileysService } = await import('@/services/baileys-service');
+			const { resetBaileysService } = await import('@nexo/api-core/services/baileys-service');
 
 			// Reset the service (clears session and deletes auth files)
 			await resetBaileysService();
@@ -151,7 +151,7 @@ export const adminRoutes = new Hono()
 	// Get Baileys QR Code
 	.get('/whatsapp-settings/qr-code', async (c) => {
 		try {
-			const { getBaileysService } = await import('@/services/baileys-service');
+			const { getBaileysService } = await import('@nexo/api-core/services/baileys-service');
 			const baileys = await getBaileysService();
 			const qrCode = await baileys.getQRCode();
 			const connectionStatus = baileys.getConnectionStatus();
@@ -173,7 +173,7 @@ export const adminRoutes = new Hono()
 	// Clear Baileys session and restart with new QR Code
 	.post('/whatsapp-settings/baileys/restart', async (c) => {
 		try {
-			const { getBaileysService, resetBaileysService } = await import('@/services/baileys-service');
+			const { getBaileysService, resetBaileysService } = await import('@nexo/api-core/services/baileys-service');
 
 			// 1. Limpar sessão e resetar (isso deleta os arquivos de auth)
 			await resetBaileysService();
@@ -485,8 +485,8 @@ export const adminRoutes = new Hono()
 				return c.json({ success: false, error: 'message é obrigatório' }, 400);
 			}
 
-			const { getAgentSystemPrompt } = await import('@/config/prompts');
-			const { llmService } = await import('@/services/ai');
+			const { getAgentSystemPrompt } = await import('@nexo/api-core/config/prompts');
+			const { llmService } = await import('@nexo/api-core/services/ai');
 
 			const systemPrompt = getAgentSystemPrompt('Nexo', tools);
 			const llmResponse = await llmService.callLLM({

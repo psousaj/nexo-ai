@@ -4,8 +4,19 @@
     "description": "Framework-agnostic business logic for Nexo AI (shared between Hono and Elysia apps)",
     "type": "module",
     "exports": {
+        ".": "./src/index.ts",
         "./*": "./src/*.ts",
-        "./*/index": "./src/*/index.ts"
+        "./*/*": "./src/*/*.ts",
+        "./*/*/*": "./src/*/*/*.ts",
+        "./adapters/messaging": "./src/adapters/messaging/index.ts",
+        "./db": "./src/db/index.ts",
+        "./db/schema": "./src/db/schema/index.ts",
+        "./schemas": "./src/schemas/index.ts",
+        "./services/ai": "./src/services/ai/index.ts",
+        "./services/enrichment": "./src/services/enrichment/index.ts",
+        "./services/tools": "./src/services/tools/index.ts",
+        "./services/whatsapp": "./src/services/whatsapp/index.ts",
+        "./types": "./src/types/index.ts"
     },
     "typesVersions": {
         "*": {

@@ -1,6 +1,10 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import { getChannelLinkSuccessMessage, getChannelNotRegisteredMessage, getChannelStartReturningMessage } from '@/config/prompts';
+import {
+	getChannelLinkSuccessMessage,
+	getChannelNotRegisteredMessage,
+	getChannelStartReturningMessage,
+} from '@/config/prompts';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
@@ -85,7 +89,7 @@ export class CommandHandlerService {
 		const providerName = provider.getProviderName();
 
 		if (!isNewUser) {
-			await provider.sendMessage(message.externalId, getChannelStartReturningMessage(providerName, env.DASHBOARD_URL ?? ''));
+			await provider.sendMessage(message.externalId, getChannelStartReturningMessage(providerName, env.DASHBOARD_URL));
 			return true;
 		}
 
@@ -126,7 +130,10 @@ export class CommandHandlerService {
 		if (linked) {
 			await provider.sendMessage(message.externalId, getChannelLinkSuccessMessage(provider.getProviderName()));
 		} else {
-			await provider.sendMessage(message.externalId, '❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.');
+			await provider.sendMessage(
+				message.externalId,
+				'❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.',
+			);
 		}
 
 		return true; // Mensagem foi consumida pelo fluxo de vinculação
@@ -139,13 +146,12 @@ export class CommandHandlerService {
 	}
 
 	private async buildPreSignupLink(externalId: string, provider: string, providerName: string): Promise<string> {
-		const dashboardUrl = env.DASHBOARD_URL ?? '';
-		const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
+		const isLocalhost = env.DASHBOARD_URL.includes('localhost') || env.DASHBOARD_URL.includes('127.0.0.1');
 		if (isLocalhost) {
-			return `${dashboardUrl}/signup`;
+			return `${env.DASHBOARD_URL}/signup`;
 		}
 		const token = await accountLinkingService.generatePreSignupToken(externalId, provider as any);
-		return `${dashboardUrl}/signup?vinculate_code=${token}`;
+		return `${env.DASHBOARD_URL}/signup?vinculate_code=${token}`;
 	}
 }
 

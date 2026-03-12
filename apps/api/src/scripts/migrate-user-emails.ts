@@ -1,5 +1,5 @@
-import { db } from '@/db';
-import { userEmails, users } from '@/db/schema';
+import { db } from '@nexo/api-core/db';
+import { userEmails, users } from '@nexo/api-core/db/schema';
 import { eq, isNotNull } from 'drizzle-orm';
 
 /**

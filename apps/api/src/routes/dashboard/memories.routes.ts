@@ -1,5 +1,5 @@
-import { itemService } from '@/services/item-service';
-import type { AuthContext } from '@/types/hono';
+import { itemService } from '@nexo/api-core/services/item-service';
+import type { AuthContext } from '@nexo/api-core/types/hono';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';

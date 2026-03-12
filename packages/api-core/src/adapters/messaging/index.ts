@@ -3,9 +3,9 @@ export * from './whatsapp-adapter';
 export * from './telegram-adapter';
 export * from './discord-adapter';
 
+import { FLAG } from '@/config/feature-flag-definitions';
 import { db } from '@/db';
 import { whatsappSettings } from '@/db/schema';
-import { FLAG } from '@/config/feature-flag-definitions';
 import { loggers } from '@/utils/logger';
 import { OpenFeature } from '@openfeature/server-sdk';
 import { discordAdapter } from './discord-adapter';

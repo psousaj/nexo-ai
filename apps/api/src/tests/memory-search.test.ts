@@ -12,11 +12,11 @@ import {
 	type MemorySearchOptions,
 	mergeHybridResults,
 	searchMemory,
-} from '@/services/memory-search';
+} from '@nexo/api-core/services/memory-search';
 import { describe, expect, test, vi } from 'vitest';
 
 // Mock do banco de dados
-vi.mock('@/db', () => ({
+vi.mock('@nexo/api-core/db', () => ({
 	db: {
 		execute: vi.fn().mockResolvedValue([]),
 		query: {
@@ -28,7 +28,7 @@ vi.mock('@/db', () => ({
 }));
 
 // Mock do serviço de embedding (importado dinamicamente em getEmbedding)
-vi.mock('@/services/ai/embedding-service', () => ({
+vi.mock('@nexo/api-core/services/ai/embedding-service', () => ({
 	embeddingService: {
 		generateEmbedding: vi.fn().mockResolvedValue(new Array(384).fill(0)),
 	},

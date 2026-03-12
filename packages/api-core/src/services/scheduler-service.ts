@@ -6,7 +6,7 @@
  */
 
 import { type ProviderType, getProvider } from '@/adapters/messaging';
-import { BULLMQ_CONNECTION } from '@/config/redis';
+import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { scheduledReminders } from '@/db/schema';
 import { loggers } from '@/utils/logger';
@@ -18,8 +18,6 @@ const schedulerLogger = loggers.scheduler;
 // ============================================================================
 // QUEUE SETUP
 // ============================================================================
-
-// Usa conexão BullMQ (compatível com Bun e Node.js)
 
 /**
  * Reminder Queue Job Interface
@@ -36,12 +34,17 @@ export interface ReminderJob {
 /**
  * Queue para processamento de lembretes
  */
-export const reminderQueue = new Queue<ReminderJob>('reminder-processing', {
-	connection: BULLMQ_CONNECTION,
-	defaultJobOptions: { removeOnComplete: false, removeOnFail: false },
-});
+export const reminderQueue = new Queue<ReminderJob>('reminder-processing', { connection: REDIS_BASE_OPTIONS });
 
 schedulerLogger.info('✅ Queue "reminder-processing" criada');
+
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
+reminderQueue.on('error', (error) => {
+	schedulerLogger.error({ err: error }, '❌ [reminder-processing] Erro na queue');
+});
 
 // ============================================================================
 // WORKER - Processa envio de lembretes
@@ -55,7 +58,6 @@ export const reminderWorker = new Worker<ReminderJob>(
 		try {
 			schedulerLogger.info({ reminderId, userId, provider: providerName, externalId }, '🔔 [Worker] Enviando lembrete');
 
-			// Check if reminder is still pending
 			const [reminder] = await db.select().from(scheduledReminders).where(eq(scheduledReminders.id, reminderId)).limit(1);
 
 			if (!reminder) {
@@ -68,10 +70,8 @@ export const reminderWorker = new Worker<ReminderJob>(
 				return { success: false, reason: 'not_pending' };
 			}
 
-			// Build reminder message
 			const message = `🔔 **Lembrete**\n\n**${title}**${description ? `\n\n${description}` : ''}`;
 
-			// Get provider and send message
 			const providerInstance = await getProvider(providerName);
 			if (!providerInstance) {
 				throw new Error(`Provider ${providerName} não encontrado`);
@@ -79,8 +79,13 @@ export const reminderWorker = new Worker<ReminderJob>(
 
 			await providerInstance.sendMessage(externalId, message);
 
-			// Mark as sent
-			await db.update(scheduledReminders).set({ status: 'sent', updatedAt: new Date() }).where(eq(scheduledReminders.id, reminderId));
+			await db
+				.update(scheduledReminders)
+				.set({
+					status: 'sent',
+					updatedAt: new Date(),
+				})
+				.where(eq(scheduledReminders.id, reminderId));
 
 			schedulerLogger.info({ reminderId }, '✅ Lembrete marcado como enviado');
 			return { success: true };
@@ -89,20 +94,8 @@ export const reminderWorker = new Worker<ReminderJob>(
 			throw error;
 		}
 	},
-	{ connection: BULLMQ_CONNECTION, concurrency: 5 },
+	{ connection: REDIS_BASE_OPTIONS, concurrency: 5 },
 );
-
-// ============================================================================
-// EVENT LISTENERS
-// ============================================================================
-
-reminderWorker.on('error', (error) => {
-	schedulerLogger.error({ err: error }, '❌ [reminder-processing] Erro no worker');
-});
-
-reminderWorker.on('ready', () => {
-	schedulerLogger.info('✅ [reminder-processing] Worker pronto');
-});
 
 reminderWorker.on('active', (job) => {
 	schedulerLogger.debug({ jobId: job.id, reminderId: job.data.reminderId }, '🔄 [reminder-processing] Job ativo');
@@ -115,12 +108,14 @@ reminderWorker.on('completed', (job) => {
 reminderWorker.on('failed', async (job, error) => {
 	schedulerLogger.error({ jobId: job?.id, reminderId: job?.data.reminderId, err: error }, '❌ [reminder-processing] Job falhou');
 
-	// Mark reminder as failed in database
 	if (job?.data.reminderId) {
 		try {
 			await db
 				.update(scheduledReminders)
-				.set({ status: 'cancelled', updatedAt: new Date() })
+				.set({
+					status: 'cancelled',
+					updatedAt: new Date(),
+				})
 				.where(eq(scheduledReminders.id, job.data.reminderId));
 		} catch (dbError) {
 			schedulerLogger.error({ err: dbError }, '❌ Erro ao atualizar status do lembrete');
@@ -296,11 +291,11 @@ export async function listUpcomingReminders(
 // ============================================================================
 
 process.on('SIGTERM', async () => {
-	schedulerLogger.info('🛑 Recebido SIGTERM, fechando reminder queue...');
-	await reminderQueue.close();
+	schedulerLogger.info('🛑 Recebido SIGTERM, fechando reminder queue e worker...');
+	await Promise.all([reminderWorker.close(), reminderQueue.close()]);
 });
 
 process.on('SIGINT', async () => {
-	schedulerLogger.info('🛑 Recebido SIGINT, fechando reminder queue...');
-	await reminderQueue.close();
+	schedulerLogger.info('🛑 Recebido SIGINT, fechando reminder queue e worker...');
+	await Promise.all([reminderWorker.close(), reminderQueue.close()]);
 });

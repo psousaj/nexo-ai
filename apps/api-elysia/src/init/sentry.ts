@@ -4,14 +4,11 @@
  * O profiling é um recurso Node.js-específico e não funciona no Bun.
  */
 import { env } from '@nexo/env';
-import { logger } from '@nexo/api-core/utils/logger';
 import * as Sentry from '@sentry/bun';
-
-const sentryLog = logger.child({ context: 'SENTRY' });
 
 export function initializeSentry() {
 	if (!env.SENTRY_DSN) {
-		sentryLog.warn('SENTRY_DSN não configurado - Sentry desativado');
+		console.warn('[SENTRY] SENTRY_DSN não configurado - Sentry desativado');
 		return;
 	}
 
@@ -53,7 +50,7 @@ export function initializeSentry() {
 		debug: false,
 	});
 
-	sentryLog.info('✅ Sentry inicializado (Bun-compat, sem profiling)');
+	console.info('[SENTRY] ✅ Sentry inicializado (Bun-compat, sem profiling)');
 }
 
 export function shutdownSentry() {

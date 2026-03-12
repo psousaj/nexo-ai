@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
-import { users } from '../db/schema';
-import { authPlugin } from '../lib/auth';
+import { db } from '@nexo/api-core/db';
+import { users } from '@nexo/api-core/db/schema';
+import { authPlugin } from '@nexo/api-core/lib/auth';
 
 async function createTestUser() {
 	const email = 'teste@crudbox.tech';

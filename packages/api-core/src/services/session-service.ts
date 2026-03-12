@@ -207,9 +207,17 @@ export async function getUserSessions(userId: string): Promise<AgentSession[]> {
 /**
  * Get active session for a specific channel and peer
  */
-export async function getActiveSession(channel: string, peerKind: string, peerId: string): Promise<AgentSession | null> {
+export async function getActiveSession(
+	channel: string,
+	peerKind: string,
+	peerId: string,
+): Promise<AgentSession | null> {
 	const session = await db.query.agentSessions.findFirst({
-		where: and(eq(agentSessions.channel, channel), eq(agentSessions.peerKind, peerKind), eq(agentSessions.peerId, peerId)),
+		where: and(
+			eq(agentSessions.channel, channel),
+			eq(agentSessions.peerKind, peerKind),
+			eq(agentSessions.peerId, peerId),
+		),
 		orderBy: [desc(agentSessions.lastActivityAt)],
 	});
 
@@ -231,7 +239,10 @@ export async function cleanupOldSessions(daysOld = 30): Promise<number> {
 	const cutoffDate = new Date();
 	cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
-	const result = await db.delete(agentSessions).where(lt(agentSessions.lastActivityAt, cutoffDate)).returning({ id: agentSessions.id });
+	const result = await db
+		.delete(agentSessions)
+		.where(lt(agentSessions.lastActivityAt, cutoffDate))
+		.returning({ id: agentSessions.id });
 
 	loggers.session.info({ count: result.length, daysOld }, '🧹 Old sessions cleaned up');
 

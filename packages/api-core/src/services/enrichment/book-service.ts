@@ -38,9 +38,7 @@ class BookService {
 		try {
 			// Aspas são necessárias para títulos/autores com múltiplas palavras
 			// (sem aspas, apenas a primeira palavra seria escopo do qualificador intitle:/inauthor:)
-			const q = author
-				? `intitle:"${title}" inauthor:"${author}"`
-				: `intitle:"${title}"`;
+			const q = author ? `intitle:"${title}" inauthor:"${author}"` : `intitle:"${title}"`;
 			const params = new URLSearchParams({
 				q,
 				maxResults: '1',

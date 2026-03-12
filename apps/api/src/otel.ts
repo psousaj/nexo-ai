@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { env } from '@nexo/api-core/config/env';
 import { initializeOtel } from '@nexo/otel';
 
 // Initialize OpenTelemetry

@@ -10,11 +10,11 @@ const { mockGetPivotFeatureFlags, mockGetWhatsAppSettings, mockInvalidateCache, 
 	}),
 );
 
-vi.mock('@/config/pivot-feature-flags', () => ({
+vi.mock('@nexo/api-core/config/pivot-feature-flags', () => ({
 	getPivotFeatureFlags: mockGetPivotFeatureFlags,
 }));
 
-vi.mock('@/adapters/messaging', () => ({
+vi.mock('@nexo/api-core/adapters/messaging', () => ({
 	getWhatsAppSettings: mockGetWhatsAppSettings,
 	invalidateWhatsAppProviderCache: mockInvalidateCache,
 	setActiveWhatsAppApi: mockSetActiveWhatsAppApi,

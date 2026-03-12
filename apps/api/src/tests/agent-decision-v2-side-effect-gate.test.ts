@@ -1,5 +1,5 @@
-import { canExecuteAgentDecisionV2Tool } from '@/services/agent-decision-v2-side-effect-gate';
-import type { AgentDecisionV2 } from '@/types';
+import { canExecuteAgentDecisionV2Tool } from '@nexo/api-core/services/agent-decision-v2-side-effect-gate';
+import type { AgentDecisionV2 } from '@nexo/api-core/types';
 import { describe, expect, test } from 'vitest';
 
 const baseDecision: Omit<AgentDecisionV2, 'tool_call'> = {

@@ -5,10 +5,9 @@ import { env } from './env';
 let redis: any = null;
 
 // ============================================================================
-// SHARED BULL CONNECTIONS
-// Cada fila Bull cria 3 conexões por padrão (client, subscriber, bclient).
-// Compartilhar client + subscriber reduz drásticamente o número de conexões.
-// bclient DEVE ser uma nova conexão por worker (usado para BLPOP bloqueante).
+// SHARED BULLMQ CONNECTION
+// BullMQ usa uma única conexão IORedis por Queue/Worker.
+// Compartilhar a mesma instância para minimizar conexões abertas ao Redis.
 // ============================================================================
 
 export const REDIS_BASE_OPTIONS = {
@@ -21,59 +20,28 @@ export const REDIS_BASE_OPTIONS = {
 	...(env.REDIS_TLS ? { tls: {} } : {}),
 };
 
-let _sharedClient: Redis | null = null;
-let _sharedSubscriber: Redis | null = null;
+let _sharedConnection: Redis | null = null;
 
-function getSharedClient(): Redis {
-	if (!_sharedClient) {
-		_sharedClient = new Redis(REDIS_BASE_OPTIONS);
-		_sharedClient.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared-client] error'));
+function getSharedConnection(): Redis {
+	if (!_sharedConnection) {
+		_sharedConnection = new Redis(REDIS_BASE_OPTIONS);
+		_sharedConnection.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared] error'));
 	}
-	return _sharedClient;
-}
-
-function getSharedSubscriber(): Redis {
-	if (!_sharedSubscriber) {
-		_sharedSubscriber = new Redis(REDIS_BASE_OPTIONS);
-		_sharedSubscriber.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared-subscriber] error'));
-	}
-	return _sharedSubscriber;
+	return _sharedConnection;
 }
 
 /**
- * Configuração Bull (v4 legado) com conexões compartilhadas.
- * @deprecated Use `BULLMQ_CONNECTION` para novos usos com bullmq.
+ * Retorna conexão IORedis compartilhada para BullMQ.
+ * Usar em TODAS as filas/workers para minimizar conexões abertas ao Redis.
  */
+export function getBullMQConnection(): Redis {
+	return getSharedConnection();
+}
+
+/** @deprecated Use getBullMQConnection() — mantido para compatibilidade transitória */
 export function createBullConfig() {
-	return {
-		createClient(type: 'client' | 'subscriber' | 'bclient') {
-			switch (type) {
-				case 'client':
-					return getSharedClient();
-				case 'subscriber':
-					return getSharedSubscriber();
-				case 'bclient':
-					// bclient não pode ser compartilhado — é bloqueante (BLPOP)
-					return new Redis(REDIS_BASE_OPTIONS);
-				default:
-					return getSharedClient();
-			}
-		},
-	};
+	return getBullMQConnection();
 }
-
-/**
- * Configuração de conexão para BullMQ.
- * BullMQ gerencia internamente as conexões ioredis; basta passar as opções base.
- * Compatível com Bun e Node.js.
- */
-export const BULLMQ_CONNECTION = {
-	host: env.REDIS_HOST || '',
-	port: env.REDIS_PORT || 6379,
-	password: env.REDIS_PASSWORD || '',
-	username: env.REDIS_USER || undefined,
-	...(env.REDIS_TLS ? { tls: {} } : {}),
-} as const;
 
 export async function getRedisClient(): Promise<Redis | null> {
 	if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {
