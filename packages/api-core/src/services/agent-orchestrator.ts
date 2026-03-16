@@ -31,7 +31,6 @@ import {
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
 	formatItemsList,
-	getAgentSystemPrompt,
 	getRandomMessage as getRandomResponse,
 } from '@/config/prompts';
 import { setSentryContext } from '@/sentry';
