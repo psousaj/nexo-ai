@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { loggers } from '@/utils/logger';
-import { createOpenAI } from '@ai-sdk/openai';
+import { createAiGateway } from 'ai-gateway-provider';
+import { createUnified } from 'ai-gateway-provider/providers/unified';
 
 /**
  * AI SDK provider usando Cloudflare AI Gateway (OpenAI-compatible endpoint).
@@ -13,21 +14,27 @@ import { createOpenAI } from '@ai-sdk/openai';
 
 const DEFAULT_MODEL = 'dynamic/nexo';
 
-let _provider: ReturnType<typeof createOpenAI> | null = null;
+let _provider: ReturnType<typeof createAiGateway> | null = null;
+let _unified: ReturnType<typeof createUnified> | null = null;
 
 function getProvider() {
 	if (_provider) return _provider;
-
-	const baseURL = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`;
-
-	_provider = createOpenAI({
-		baseURL,
+	_provider = createAiGateway({
+		accountId: env.CLOUDFLARE_ACCOUNT_ID,
+		gateway: env.CLOUDFLARE_GATEWAY_ID,
 		apiKey: env.CLOUDFLARE_API_TOKEN,
-		compatibility: 'compatible',
 	});
 
-	loggers.ai.info(`✅ AI SDK provider configurado: ${baseURL}`);
+	loggers.ai.info(
+		`✅ AI Gateway provider configurado: ${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}`,
+	);
 	return _provider;
+}
+
+function getUnifiedProvider() {
+	if (_unified) return _unified;
+	_unified = createUnified();
+	return _unified;
 }
 
 /**
@@ -35,5 +42,5 @@ function getProvider() {
  * @param modelId - ID do modelo (default: 'dynamic/nexo')
  */
 export function getModel(modelId: string = DEFAULT_MODEL) {
-	return getProvider()(modelId);
+	return getProvider()(getUnifiedProvider()(modelId));
 }
