@@ -31,6 +31,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
+        "@ai-sdk/openai": "^3.0.41",
         "@bull-board/api": "^6.16.4",
         "@google/generative-ai": "^0.24.1",
         "@langfuse/openai": "^4.6.1",
@@ -52,6 +53,7 @@
         "googleapis": "^171.4.0",
         "handlebars": "^4.7.8",
         "ioredis": "^5.9.2",
+        "js-yaml": "^4.1.1",
         "langfuse": "^3.0.0",
         "node-nlp": "5.0.0-alpha.5",
         "openai": "^6.16.0",
@@ -64,6 +66,7 @@
     },
     "devDependencies": {
         "@nexo/typescript-config": "workspace:*",
+        "@types/js-yaml": "^4.0.9",
         "@types/node": "^20.19.30",
         "@types/pg": "^8.16.0",
         "tsup": "^8.5.1",

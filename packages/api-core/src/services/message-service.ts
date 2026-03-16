@@ -9,6 +9,7 @@ import {
 	getChannelTrialExceededMessage,
 	getRandomMessage,
 } from '@/config/prompts';
+import { splitMessage } from '@/utils/message-splitter';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { commandHandlerService } from '@/services/command-handler.service';
 import { conversationService } from '@/services/conversation-service';
@@ -44,10 +45,7 @@ async function containsOffensiveContent(message: string): Promise<boolean> {
 			'offensive.is_offensive': sentiment.score < -3,
 		});
 
-		loggers.webhook.info(
-			{ score: sentiment.score, sentiment: sentiment.sentiment, message },
-			'🛡️ Sentiment Analysis (nlp.js)',
-		);
+		loggers.webhook.info({ score: sentiment.score, sentiment: sentiment.sentiment, message }, '🛡️ Sentiment Analysis (nlp.js)');
 
 		return sentiment.score < -3;
 	});
@@ -78,11 +76,7 @@ async function applyTimeout(userId: string, externalId: string): Promise<number>
 	return timeoutMinutes;
 }
 
-export async function processMessage(
-	incomingMsg: IncomingMessage,
-	provider: MessagingProvider,
-	options: ProcessMessageOptions = {},
-) {
+export async function processMessage(incomingMsg: IncomingMessage, provider: MessagingProvider, options: ProcessMessageOptions = {}) {
 	const messageText = incomingMsg.text;
 
 	return Sentry.startSpan(
@@ -167,18 +161,12 @@ export async function processMessage(
 								});
 								const { getChannelLinkSuccessMessage } = await import('@/config/prompts');
 								await provider.sendMessage(incomingMsg.externalId, getChannelLinkSuccessMessage(providerForGuard));
-								loggers.webhook.info(
-									{ provider: providerForGuard, identityId, userId: oauthUserId },
-									'✅ Canal auto-vinculado via OAuth',
-								);
+								loggers.webhook.info({ provider: providerForGuard, identityId, userId: oauthUserId }, '✅ Canal auto-vinculado via OAuth');
 								return;
 							}
 
 							setAttributes({ 'message.status': 'user_not_registered' });
-							loggers.webhook.info(
-								{ provider: providerForGuard, identityId },
-								'⛔ Usuário sem cadastro - nenhum ghost user criado',
-							);
+							loggers.webhook.info({ provider: providerForGuard, identityId }, '⛔ Usuário sem cadastro - nenhum ghost user criado');
 							const isLocalhost = env.DASHBOARD_URL.includes('localhost') || env.DASHBOARD_URL.includes('127.0.0.1');
 							let signupLink = `${env.DASHBOARD_URL}/signup`;
 							if (!isLocalhost) {
@@ -297,10 +285,7 @@ export async function processMessage(
 								// Se tiver conta vinculada, considera como falha de estado mas não bloqueia com mensagem de trial
 								// (Pode ser um erro de cache ou estado, mas evita spam de trial para usuários registrados)
 								if (user.status === 'active') {
-									loggers.webhook.warn(
-										{ userId: user.id },
-										'⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando',
-									);
+									loggers.webhook.warn({ userId: user.id }, '⚠️ Usuário ativo recebeu trial_exceeded - corrigindo estado ou ignorando');
 									// Força update se necessário ou segue fluxo
 								} else {
 									// Verifica se o usuário tem conta vinculada no UserService
@@ -344,11 +329,7 @@ export async function processMessage(
 								const isNewUser = accounts.length <= 1;
 
 								if (isNewUser) {
-									const signupToken = await accountLinkingService.generateLinkingToken(
-										user.id,
-										providerName as any,
-										'signup',
-									);
+									const signupToken = await accountLinkingService.generateLinkingToken(user.id, providerName as any, 'signup');
 									const signupLink = `${dashboardUrl}?vinculate_code=${signupToken}`;
 									const signupRequiredMessage = getChannelSignupRequiredMessage(providerName, signupLink);
 
@@ -361,11 +342,7 @@ export async function processMessage(
 											);
 										} else {
 											const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
-											await (provider as any).sendMessageWithButtons(
-												incomingMsg.externalId,
-												signupRequiredMessage,
-												buttons,
-											);
+											await (provider as any).sendMessageWithButtons(incomingMsg.externalId, signupRequiredMessage, buttons);
 										}
 									} else {
 										await provider.sendMessage(incomingMsg.externalId, signupRequiredMessage);
@@ -410,7 +387,7 @@ export async function processMessage(
 							});
 						});
 
-						// 7. ENVIA RESPOSTA
+						// 7. ENVIA RESPOSTA (com auto-split para mensagens longas)
 						if (agentResponse.message && agentResponse.message.trim().length > 0) {
 							await startSpan('messaging.send', async () => {
 								setAttributes({
@@ -420,15 +397,18 @@ export async function processMessage(
 								});
 
 								try {
-									await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-									loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+									const maxLen = provider.getMaxMessageLength?.() ?? 4096;
+									const parts = splitMessage(agentResponse.message, maxLen);
+
+									for (const part of parts) {
+										await provider.sendMessage(incomingMsg.externalId, part);
+									}
+
+									loggers.webhook.info({ charCount: agentResponse.message.length, parts: parts.length }, '📤 Resposta enviada');
 								} catch (sendError: any) {
 									// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
 									if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-										loggers.webhook.error(
-											{ error: sendError.cause?.code },
-											'❌ Erro de rede ao enviar mensagem - não enviando fallback',
-										);
+										loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar mensagem - não enviando fallback');
 										throw sendError; // Re-throw para Bull não fazer retry
 									}
 									throw sendError;
@@ -446,10 +426,7 @@ export async function processMessage(
 							} catch (sendError: any) {
 								// Se erro de rede, apenas loga e retorna
 								if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
-									loggers.webhook.error(
-										{ error: sendError.cause?.code },
-										'❌ Erro de rede ao enviar fallback - abortando',
-									);
+									loggers.webhook.error({ error: sendError.cause?.code }, '❌ Erro de rede ao enviar fallback - abortando');
 									throw sendError;
 								}
 								throw sendError;
@@ -462,10 +439,7 @@ export async function processMessage(
 						}
 
 						const endTotal = performance.now();
-						loggers.webhook.info(
-							{ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` },
-							'🏁 Processamento finalizado',
-						);
+						loggers.webhook.info({ duration: `${(endTotal - startTotal).toFixed(0)}*ms*` }, '🏁 Processamento finalizado');
 					} catch (error: any) {
 						recordException(error as Error, {
 							'user.id': userId,
@@ -478,11 +452,7 @@ export async function processMessage(
 						// Apenas tenta avisar o usuário se não for erro de conexão
 						// O Global Error Handler (via Queue) vai cuidar de logar e persistir tudo com contexto
 						const shouldNotifyUserOnProcessingError = options.shouldNotifyUserOnProcessingError ?? true;
-						if (
-							shouldNotifyUserOnProcessingError &&
-							error.cause?.code !== 'ETIMEDOUT' &&
-							error.cause?.code !== 'ECONNREFUSED'
-						) {
+						if (shouldNotifyUserOnProcessingError && error.cause?.code !== 'ETIMEDOUT' && error.cause?.code !== 'ECONNREFUSED') {
 							try {
 								const errorMsg = getRandomMessage(ERROR_MESSAGES);
 								await provider.sendMessage(incomingMsg.externalId, errorMsg);

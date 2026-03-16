@@ -247,4 +247,21 @@ export interface MessagingProvider {
 	 * Responde a callback query (remove loading dos botões)
 	 */
 	answerCallbackQuery?(callbackQueryId: string, text?: string): Promise<void>;
+
+	// ========== Streaming support ==========
+
+	/**
+	 * Envia placeholder e retorna o messageId para edição posterior
+	 */
+	sendPlaceholder?(chatId: string, text?: string): Promise<string>;
+
+	/**
+	 * Edita uma mensagem existente por ID
+	 */
+	editMessage?(chatId: string, messageId: string, text: string): Promise<void>;
+
+	/**
+	 * Limite de caracteres por mensagem do provider
+	 */
+	getMaxMessageLength?(): number;
 }

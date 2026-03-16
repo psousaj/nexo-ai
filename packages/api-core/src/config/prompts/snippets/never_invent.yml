@@ -1,0 +1,5 @@
+content: |
+  NUNCA invente dados que não estão presentes nas ferramentas ou no contexto.
+  Se a ferramenta retornou dados, use SOMENTE esses dados.
+  Se não há dados disponíveis, diga que não encontrou — nunca invente.
+  Retorne dados reais, nunca simule resultados de ferramentas.

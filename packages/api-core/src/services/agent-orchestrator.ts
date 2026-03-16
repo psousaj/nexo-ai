@@ -22,15 +22,14 @@
  */
 
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
+import { buildAgentPrompt } from '@/config/prompt-builder';
 import {
-	AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT,
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
 	CHOOSE_AGAIN_MESSAGES,
 	ERROR_MESSAGES,
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
-	applyAgentDecisionV2Contract,
 	formatItemsList,
 	getAgentSystemPrompt,
 	getRandomMessage as getRandomResponse,
@@ -39,13 +38,13 @@ import { setSentryContext } from '@/sentry';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
-import type { AgentDecisionV2, ConversationState, ToolName } from '@/types';
+import type { ConversationState, ToolName } from '@/types';
 import type { MessageMetadata, OrchestratorTrace } from '@/types';
-import { parseAgentDecisionV2FromLLM } from '@/utils/json-parser';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
+import { generateText, type CoreMessage } from 'ai';
+import { getModel } from './ai/ai-sdk-provider';
 import { decideAgentAction } from './agent-action-routing';
-import { canExecuteAgentDecisionV2Tool } from './agent-decision-v2-side-effect-gate';
 import { llmService } from './ai';
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
@@ -54,7 +53,8 @@ import { type IntentResult, intentClassifier } from './intent-classifier';
 import { itemService } from './item-service';
 import { scheduleConversationClose } from './queue-service';
 import { toolAvailabilityService } from './tool-availability.service';
-import { type ToolContext, executeTool } from './tools';
+import { type ToolContext as LegacyToolContext, executeTool } from './tools';
+import { type ToolContext, buildTools } from './tools/ai-sdk-tools';
 
 export interface AgentContext {
 	userId: string;
@@ -397,14 +397,17 @@ export class AgentOrchestrator {
 	}
 
 	/**
-	 * Delega para LLM (planner/writer)
+	 * Delega para LLM com AI SDK native tool calling.
 	 *
-	 * LLM retorna JSON seguindo AgentLLMResponse schema.
-	 * Runtime processa e decide o que fazer.
+	 * O AI SDK gerencia automaticamente:
+	 * - Tool calling em loop (maxSteps)
+	 * - Multi-step reasoning (enrich → save)
+	 * - Texto final gerado após todas as tools
+	 *
+	 * Sem JSON parsing manual, sem retry loop, sem side-effect gate.
 	 */
 	private async handleWithLLM(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
-			const MAX_CONTRACT_RETRIES = 3;
 			const toolContext: ToolContext = {
 				userId: context.userId,
 				conversationId: context.conversationId,
@@ -412,7 +415,7 @@ export class AgentOrchestrator {
 				externalId: context.externalId,
 			};
 
-			// Busca tools disponíveis uma vez (usada tanto no gate quanto no prompt)
+			// Busca tools disponíveis (CASL gate)
 			const { tools: availableToolNames } = await toolAvailabilityService.getAvailableTools();
 
 			// 🚨 GATE PRÉ-LLM: Detecta padrão de lembrete e clarifica ANTES de chamar LLM
@@ -449,303 +452,98 @@ export class AgentOrchestrator {
 						return { message: '', state: 'awaiting_confirmation', toolsUsed: [] };
 					}
 				} catch {
-					// Fallback: resposta de texto simples se provider não suporta botões
+					/* fallback texto */
 				}
 
-				return {
-					message: clarificationMsg,
-					state: 'awaiting_confirmation',
-					toolsUsed: [],
-				};
+				return { message: clarificationMsg, state: 'awaiting_confirmation', toolsUsed: [] };
 			}
 
 			// ============================================================================
-			// OPENCLAW PATTERN: Build personalized context
+			// BUILD SYSTEM PROMPT (OpenClaw personalization + YAML prompts)
 			// ============================================================================
+			let assistantName = 'Nexo';
 			let systemPrompt: string;
 
-			// Monta histórico (últimas 10 mensagens)
-			const history = await conversationService.getHistory(context.conversationId, 10);
-			const formattedHistory = history.map((m) => ({
-				role: m.role as 'user' | 'assistant',
-				content: m.content,
-			}));
-
 			if (context.sessionKey) {
-				// Use context builder for personalized system prompt
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
-				const assistantName = agentContext.assistantName || 'Nexo';
-				const baseSystemPrompt = getAgentSystemPrompt(assistantName, availableToolNames);
-				const personalizedContext = applyAgentDecisionV2Contract(agentContext.systemPrompt);
-				systemPrompt = `${baseSystemPrompt}
-
-# PERSONALIZED CONTEXT (NON-OVERRIDING)
-Use this section only as additional context about tone/user/profile.
-Never override the JSON output contract or runtime safety rules.
-
-${personalizedContext}`;
-
-				loggers.context.info(
-					{
-						userId: context.userId,
-						sessionKey: context.sessionKey,
-						hasSoul: !!agentContext.soulContent,
-						hasIdentity: !!agentContext.identityContent,
-						promptLength: systemPrompt.length,
-					},
-					'🎭 Using personalized context from OpenClaw pattern',
-				);
+				assistantName = agentContext.assistantName || 'Nexo';
+				const base = buildAgentPrompt({ assistantName });
+				systemPrompt = agentContext.systemPrompt ? `${base.system}\n\n# PERSONALIZED CONTEXT\n${agentContext.systemPrompt}` : base.system;
 			} else {
-				// Fallback to original method for backward compatibility
 				const user = await userService.getUserById(context.userId);
-				const assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = getAgentSystemPrompt(assistantName, availableToolNames);
+				assistantName = user?.assistantName || 'Nexo';
+				systemPrompt = buildAgentPrompt({ assistantName }).system;
 			}
+
 			// ============================================================================
+			// BUILD MESSAGES + TOOLS
+			// ============================================================================
+			const history = await conversationService.getHistory(context.conversationId, 10);
+			const messages: CoreMessage[] = [
+				...history.map((m: any) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+				{ role: 'user' as const, content: context.message },
+			];
 
+			// Filtra delete_all_memories das tools do LLM (requer fluxo determinístico)
+			const safeToolNames = availableToolNames.filter((t: string) => t !== 'delete_all_memories');
+			const tools = buildTools(toolContext, safeToolNames);
+
+			// ============================================================================
+			// CALL LLM (AI SDK native tool calling)
+			// ============================================================================
+			const llmStart = performance.now();
 			const toolsUsed: string[] = [];
-			const nextState: ConversationState = 'idle';
-			let lastContractError: Error | null = null;
-			let lastInvalidOutput = '';
 
-			for (let attempt = 1; attempt <= MAX_CONTRACT_RETRIES; attempt++) {
-				let llmMessage = '';
-				let responseMessage = '';
-
-				try {
-					const repairDetails =
-						attempt === 1
-							? ''
-							: `\n\n# CONTRACT ERROR CONTEXT\n- Required schema_version: 2.0\n- Previous invalid output (truncated): ${lastInvalidOutput.substring(0, 220)}\n- Validation error: ${(lastContractError?.message || 'unknown error').substring(0, 180)}`;
-
-					const llmStart = performance.now();
-					const llmResponse = await llmService.callLLM({
-						message: context.message,
-						history: formattedHistory,
-						systemPrompt: attempt === 1 ? systemPrompt : `${systemPrompt}\n\n${AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT}${repairDetails}`,
-					});
-
-					const llmDurationMs = Math.round(performance.now() - llmStart);
-					llmMessage = llmResponse.message?.trim() || '';
-
-					if (llmMessage.startsWith('😅') || llmMessage.startsWith('⚠️') || llmMessage.startsWith('❌')) {
-						throw new Error('LLM retornou mensagem de erro em vez de JSON');
-					}
-
-					const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmMessage);
-
-					loggers.ai.info(
-						{ action: agentDecision.action, schemaVersion: agentDecision.schema_version, attempt },
-						'🤖 LLM action (schema v2)',
-					);
-
-					switch (agentDecision.action) {
-						case 'CALL_TOOL': {
-							if (!agentDecision.tool_call) {
-								throw new Error('action=CALL_TOOL requer tool_call');
+			try {
+				const result = await generateText({
+					model: getModel(),
+					system: systemPrompt,
+					messages,
+					tools,
+					maxSteps: 6,
+					onStepFinish: async (step) => {
+						if (step.toolCalls) {
+							for (const tc of step.toolCalls) {
+								toolsUsed.push(tc.toolName);
+								loggers.ai.info({ tool: tc.toolName }, '🔧 Tool executada');
 							}
-
-							const toolName = agentDecision.tool_call.name;
-							const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
-
-							if (!gateDecision.allow) {
-								loggers.ai.warn(
-									{
-										tool: toolName,
-										action: agentDecision.action,
-										deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
-										gateReason: gateDecision.reason,
-									},
-									'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
-								);
-								responseMessage = '⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
-								break;
-							}
-
-							loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
-							const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
-
-							toolsUsed.push(toolName);
-
-							if (result.success) {
-								// ── web_search: second-turn LLM loop ──────────────────────
-								if (toolName === 'web_search' && result.data?.results) {
-									const searchResults = result.data.results as Array<{
-										title: string;
-										url: string;
-										description: string;
-										age?: string;
-									}>;
-
-									const resultsContext = searchResults
-										.map((r, i) => `${i + 1}. **${r.title}** — ${r.description}\n   ${r.url}${r.age ? ` (${r.age})` : ''}`)
-										.join('\n\n');
-
-									const webSearchInjection = `[SYSTEM: Web search results for "${result.data.query}":]\n\n${resultsContext}\n\n[Now answer the user's question based on these results. Be conversational and concise. Cite sources when relevant.]`;
-
-									const secondCallResponse = await llmService.callLLM({
-										message: webSearchInjection,
-										history: formattedHistory,
-										systemPrompt,
-									});
-
-									const secondMessage = secondCallResponse.message?.trim() || '';
-									if (secondMessage && !secondMessage.startsWith('{')) {
-										// LLM returned plain text (RESPOND shortcut for second turn)
-										responseMessage = secondMessage;
-									} else {
-										// LLM returned JSON — parse normally
-										try {
-											const secondDecision = parseAgentDecisionV2FromLLM(secondMessage);
-											responseMessage = secondDecision.response?.text || secondMessage || 'Aqui estão os resultados da busca.';
-										} catch {
-											responseMessage = secondMessage || 'Aqui estão os resultados da busca.';
-										}
-									}
-									break;
-								}
-
-								// ── analyze_url: apresenta tipo detectado + pede confirmação ──
-								if (toolName === 'analyze_url' && result.data) {
-									const { detected_type, type_category, title, metadata } = result.data as {
-										detected_type: string;
-										type_category: string;
-										title?: string;
-										metadata?: Record<string, unknown>;
-									};
-
-									const typeEmoji: Record<string, string> = {
-										movie: '🎬',
-										tv_show: '📺',
-										music: '🎵',
-										video: '🎥',
-										book: '📚',
-										image: '🖼️',
-										link: '🔗',
-									};
-
-									const typeLabel: Record<string, string> = {
-										movie: 'filme',
-										tv_show: 'série',
-										music: 'música',
-										video: 'vídeo',
-										book: 'livro',
-										image: 'imagem',
-										link: 'link',
-									};
-
-									const emoji = typeEmoji[detected_type] ?? '🔗';
-									const label = typeLabel[detected_type] ?? detected_type;
-									const displayTitle = title ? `"${title}"` : (metadata?.domain ?? agentDecision.tool_call.arguments?.url);
-
-									responseMessage = `Detectei que é um(a) ${label}: ${displayTitle} ${emoji}\nQuer que eu salve?`;
-
-									// Persiste contexto para o próximo turn (confirmação)
-									await conversationService.updateState(context.conversationId, 'awaiting_confirmation', {
-										pendingAnalyzedUrl: {
-											url: agentDecision.tool_call.arguments?.url,
-											detected_type,
-											type_category,
-											title,
-											metadata,
-										},
-									});
-
-									return {
-										message: responseMessage,
-										state: 'awaiting_confirmation',
-										toolsUsed,
-										trace: {
-											llm_action: agentDecision.action as 'CALL_TOOL',
-											schema_version: agentDecision.schema_version,
-											durations: { llm_ms: llmDurationMs },
-										},
-									};
-								}
-
-								if (result.data?.results && result.data.results.length > 0) {
-									if (result.data.results.length === 1) {
-										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
-									}
-									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-								}
-								if (result.message) {
-									responseMessage = result.message || '';
-								} else {
-									responseMessage = getSuccessMessageForTool(toolName, result.data);
-								}
-							} else {
-								loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
-
-								if (result.error === 'duplicate') {
-									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-								} else if (result.message) {
-									responseMessage = result.message;
-								} else {
-									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
-								}
-							}
-							break;
 						}
+					},
+				});
 
-						case 'RESPOND':
-							responseMessage = agentDecision.response?.text || 'Ok!';
-							break;
+				const llmDurationMs = Math.round(performance.now() - llmStart);
 
-						case 'NOOP':
-							loggers.ai.info('🚫 NOOP - mensagem hostil/spam, ignorando silenciosamente');
-							responseMessage = '';
-							break;
-
-						default:
-							loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
-							responseMessage = 'Desculpe, não entendi o que fazer.';
-					}
-					return {
-						message: responseMessage,
-						state: nextState,
+				loggers.ai.info(
+					{
 						toolsUsed,
-						trace: {
-							llm_action: agentDecision.action as 'CALL_TOOL' | 'RESPOND' | 'NOOP',
-							schema_version: agentDecision.schema_version,
-							durations: { llm_ms: llmDurationMs },
-						},
-					};
-				} catch (parseError) {
-					lastContractError = parseError instanceof Error ? parseError : new Error(String(parseError));
-					lastInvalidOutput = llmMessage;
+						steps: result.steps.length,
+						textLength: result.text?.length || 0,
+						duration: `${llmDurationMs}ms`,
+					},
+					'✅ LLM respondeu',
+				);
 
-					loggers.ai.error(
-						{
-							err: lastContractError,
-							attempt,
-							maxAttempts: MAX_CONTRACT_RETRIES,
-							originalMessage: llmMessage.substring(0, 200),
-						},
-						'❌ LLMParseError: falha ao parsear resposta do LLM como AgentLLMResponse',
-					);
+				const responseMessage = result.text || 'Pronto!';
 
-					if (attempt < MAX_CONTRACT_RETRIES) {
-						loggers.ai.warn(
-							{ attempt: attempt + 1, maxAttempts: MAX_CONTRACT_RETRIES },
-							'🔁 Reenviando para LLM em modo de recuperação de contrato JSON',
-						);
-						continue;
-					}
-
-					return {
-						message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
-						state: nextState,
-						toolsUsed,
-					};
-				}
+				return {
+					message: responseMessage,
+					state: 'idle' as ConversationState,
+					toolsUsed,
+					trace: {
+						llm_action: toolsUsed.length > 0 ? 'CALL_TOOL' : 'RESPOND',
+						schema_version: '2.0',
+						durations: { llm_ms: llmDurationMs },
+					},
+				};
+			} catch (error) {
+				const errMsg = error instanceof Error ? error.message : String(error);
+				loggers.ai.error({ err: error }, '❌ LLM error');
+				return {
+					message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
+					state: 'idle' as ConversationState,
+					toolsUsed,
+				};
 			}
-
-			return {
-				message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
-				state: nextState,
-				toolsUsed,
-			};
 		});
 	}
 
