@@ -1,16 +1,16 @@
 /**
- * AI SDK Tool Definitions — Native Tool Calling
+ * AI SDK Tool Definitions - Native Tool Calling
  *
- * Tools PURAS: mesma entrada → mesma saída, sem branching interno.
+ * Tools PURAS: mesma entrada -> mesma saida, sem branching interno.
  * Cada tool faz UMA coisa:
- *   - save_* → SEMPRE salva (requer metadata completa ou parcial)
- *   - search_*/enrich_* → SEMPRE busca (retorna candidatos)
+ *   - save_* -> SEMPRE salva (requer metadata completa ou parcial)
+ *   - search_\*enrich_\* -> SEMPRE busca (retorna candidatos)
  *   - Parameter clamping silencioso (Math.min/max)
  *   - Input normalization (.trim(), normalize URLs)
  *   - Null vs Zero: null para indisponível, 0 para valor real
  *
  * Fluxo LLM para enrichables:
- *   1. LLM chama enrich_movie/search_book/search_music → candidatos
+ *   1. LLM chama enrich_movie/search_book/search_music -> candidatos
  *   2. LLM apresenta candidatos ao usuário
  *   3. LLM chama save_movie/save_book/save_music com dados completos
  */
@@ -129,7 +129,7 @@ export function buildTools(context: ToolContext, enabledTools?: string[]) {
 function buildAllTools(context: ToolContext) {
 	return {
 		// ====================================================================
-		// SAVE TOOLS — PURAS: SEMPRE salvam, nunca buscam
+		// SAVE TOOLS - PURAS: SEMPRE salvam, nunca buscam
 		// ====================================================================
 
 		save_note: tool({
@@ -403,7 +403,7 @@ function buildAllTools(context: ToolContext) {
 		}),
 
 		// ====================================================================
-		// SEARCH TOOLS — PURAS: SEMPRE buscam, nunca salvam
+		// SEARCH TOOLS - PURAS: SEMPRE buscam, nunca salvam
 		// ====================================================================
 
 		search_items: tool({
@@ -482,7 +482,7 @@ function buildAllTools(context: ToolContext) {
 		}),
 
 		// ====================================================================
-		// ENRICHMENT/SEARCH TOOLS — PURAS: SEMPRE buscam metadata, nunca salvam
+		// ENRICHMENT/SEARCH TOOLS - PURAS: SEMPRE buscam metadata, nunca salvam
 		// ====================================================================
 
 		enrich_movie: tool({
@@ -666,7 +666,7 @@ function buildAllTools(context: ToolContext) {
 		}),
 
 		// ====================================================================
-		// INTEGRATION TOOLS — Calendar, Todo, Reminders
+		// INTEGRATION TOOLS - Calendar, Todo, Reminders
 		// ====================================================================
 
 		list_calendar_events: tool({

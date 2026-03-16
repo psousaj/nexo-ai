@@ -170,7 +170,7 @@ export async function scheduleReminder(params: {
 	schedulerLogger.info({ reminderId, userId, scheduledFor: scheduledFor.toISOString(), delay }, '📅 Criando lembrete no banco de dados');
 
 	// Schedule job
-	const jobId = `reminder:${reminderId}`;
+	const jobId = `reminder_${reminderId}`;
 
 	await reminderQueue.add(
 		'send-reminder',

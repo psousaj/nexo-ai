@@ -500,6 +500,7 @@ export class AgentOrchestrator {
 					messages,
 					tools,
 					maxSteps: 6,
+					maxRetries: 1,
 					onStepFinish: async (step) => {
 						if (step.toolCalls) {
 							for (const tc of step.toolCalls) {
@@ -536,6 +537,21 @@ export class AgentOrchestrator {
 				};
 			} catch (error) {
 				const errMsg = error instanceof Error ? error.message : String(error);
+				const isGatewayUnavailable =
+					errMsg.includes('Internal Server Error') ||
+					errMsg.includes('AI_APICallError') ||
+					errMsg.includes('maxRetriesExceeded');
+
+				if (isGatewayUnavailable) {
+					loggers.ai.warn({ err: error }, '⚠️ LLM gateway indisponivel');
+					return {
+						message:
+							'Estou com instabilidade temporaria no servico de IA. Tenta novamente em instantes ou me mande um comando mais especifico (ex: "buscar X" ou "salvar nota Y").',
+						state: 'idle' as ConversationState,
+						toolsUsed,
+					};
+				}
+
 				loggers.ai.error({ err: error }, '❌ LLM error');
 				return {
 					message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',

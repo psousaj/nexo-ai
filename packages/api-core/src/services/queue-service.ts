@@ -572,7 +572,7 @@ enrichmentWorker.on('failed', (job, error) => {
 export async function scheduleConversationClose(conversationId: string): Promise<void> {
 	try {
 		const closeAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
-		const jobId = `close:${conversationId}`; // JobId determinístico para cancelamento O(1)
+		const jobId = `close_${conversationId}`; // BullMQ nao aceita ':' em custom jobId
 
 		await db
 			.update(conversations)
