@@ -523,6 +523,24 @@ export class AgentOrchestrator {
 					'✅ LLM respondeu',
 				);
 
+				if (!result.text || result.text.trim().length === 0) {
+					loggers.ai.error(
+						{
+							toolsUsed,
+							steps: result.steps.length,
+							lastStepFinishReason: (result.steps.at(-1) as any)?.finishReason,
+							providerMetadata: result.providerMetadata,
+						},
+						'❌ LLM retornou resposta vazia (content null/empty)',
+					);
+
+					return {
+						message: 'O modelo retornou uma resposta vazia. Tente novamente em instantes.',
+						state: 'idle' as ConversationState,
+						toolsUsed,
+					};
+				}
+
 				const responseMessage = result.text || 'Pronto!';
 
 				return {
@@ -536,14 +554,38 @@ export class AgentOrchestrator {
 					},
 				};
 			} catch (error) {
+				const err = error as any;
+				const responseHeaders = (err?.responseHeaders || {}) as Record<string, string>;
+				const cfAigModel = responseHeaders['cf-aig-model'];
+				const cfAigProvider = responseHeaders['cf-aig-provider'];
+				const cfAigLogId = responseHeaders['cf-aig-log-id'];
+				const cfAigEventId = responseHeaders['cf-aig-event-id'];
+				const cfAiReqId = responseHeaders['cf-ai-req-id'];
+
 				const errMsg = error instanceof Error ? error.message : String(error);
+				const errName = (error as any)?.name ? String((error as any).name) : '';
 				const isGatewayUnavailable =
+					errMsg.includes('Bad Request') ||
 					errMsg.includes('Internal Server Error') ||
 					errMsg.includes('AI_APICallError') ||
+					errName.includes('APICallError') ||
 					errMsg.includes('maxRetriesExceeded');
 
 				if (isGatewayUnavailable) {
-					loggers.ai.warn({ err: error }, '⚠️ LLM gateway indisponivel');
+					loggers.ai.warn(
+						{
+							err: error,
+							statusCode: err?.statusCode,
+							url: err?.url,
+							responseBody: err?.responseBody,
+							cfAigModel,
+							cfAigProvider,
+							cfAigLogId,
+							cfAigEventId,
+							cfAiReqId,
+						},
+						'⚠️ LLM gateway indisponivel',
+					);
 					return {
 						message:
 							'Estou com instabilidade temporaria no servico de IA. Tenta novamente em instantes ou me mande um comando mais especifico (ex: "buscar X" ou "salvar nota Y").',
@@ -552,7 +594,20 @@ export class AgentOrchestrator {
 					};
 				}
 
-				loggers.ai.error({ err: error }, '❌ LLM error');
+				loggers.ai.error(
+					{
+						err: error,
+						statusCode: err?.statusCode,
+						url: err?.url,
+						responseBody: err?.responseBody,
+						cfAigModel,
+						cfAigProvider,
+						cfAigLogId,
+						cfAigEventId,
+						cfAiReqId,
+					},
+					'❌ LLM error',
+				);
 				return {
 					message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
 					state: 'idle' as ConversationState,

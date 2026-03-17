@@ -23,6 +23,15 @@ function getProvider() {
 		accountId: env.CLOUDFLARE_ACCOUNT_ID,
 		gateway: env.CLOUDFLARE_GATEWAY_ID,
 		apiKey: env.CLOUDFLARE_API_TOKEN,
+		options: {
+			collectLog: true,
+			requestTimeoutMs: 25000,
+			retries: {
+				maxAttempts: 3,
+				retryDelayMs: 500,
+				backoff: 'exponential',
+			},
+		},
 	});
 
 	loggers.ai.info(
