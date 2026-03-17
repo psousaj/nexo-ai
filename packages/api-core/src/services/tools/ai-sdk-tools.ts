@@ -1,17 +1,18 @@
 /**
  * AI SDK Tool Definitions - Native Tool Calling
+ * AI SDK Tool Definitions - Native Tool Calling
  *
- * Tools PURAS: mesma entrada -> mesma saida, sem branching interno.
+ * Tools PURAS: mesma entrada, mesma saida, sem branching interno.
  * Cada tool faz UMA coisa:
- *   - save_* -> SEMPRE salva (requer metadata completa ou parcial)
- *   - search_\*enrich_\* -> SEMPRE busca (retorna candidatos)
+ *   - save_ tools: SEMPRE salva (requer metadata completa ou parcial)
+ *   - search/enrich tools: SEMPRE busca (retorna candidatos)
  *   - Parameter clamping silencioso (Math.min/max)
  *   - Input normalization (.trim(), normalize URLs)
- *   - Null vs Zero: null para indisponível, 0 para valor real
+ *   - Null vs Zero: null para indisponivel, 0 para valor real
  *
  * Fluxo LLM para enrichables:
- *   1. LLM chama enrich_movie/search_book/search_music -> candidatos
- *   2. LLM apresenta candidatos ao usuário
+ *   1. LLM chama enrich_movie/search_book/search_music (candidatos)
+ *   2. LLM apresenta candidatos ao usuario
  *   3. LLM chama save_movie/save_book/save_music com dados completos
  */
 
@@ -186,7 +187,10 @@ function buildAllTools(context: ToolContext) {
 				}
 
 				const result = await itemService.createItem({
-					userId: context.userId, type: 'movie', title: normalizedTitle, metadata,
+					userId: context.userId,
+					type: 'movie',
+					title: normalizedTitle,
+					metadata,
 				});
 				if (result.isDuplicate) {
 					return { success: false, error: 'duplicate', message: 'Este filme já foi salvo.' };
@@ -231,7 +235,10 @@ function buildAllTools(context: ToolContext) {
 				}
 
 				const result = await itemService.createItem({
-					userId: context.userId, type: 'tv_show', title: normalizedTitle, metadata,
+					userId: context.userId,
+					type: 'tv_show',
+					title: normalizedTitle,
+					metadata,
 				});
 				if (result.isDuplicate) {
 					return { success: false, error: 'duplicate', message: 'Esta série já foi salva.' };
@@ -312,7 +319,10 @@ function buildAllTools(context: ToolContext) {
 				} as BookMetadata;
 
 				const result = await itemService.createItem({
-					userId: context.userId, type: 'book', title: normalizedTitle, metadata,
+					userId: context.userId,
+					type: 'book',
+					title: normalizedTitle,
+					metadata,
 				});
 				if (result.isDuplicate) {
 					return { success: false, error: 'duplicate', message: 'Este livro já foi salvo.' };
@@ -352,7 +362,10 @@ function buildAllTools(context: ToolContext) {
 				} as MusicMetadata;
 
 				const result = await itemService.createItem({
-					userId: context.userId, type: 'music', title: normalizedTitle, metadata,
+					userId: context.userId,
+					type: 'music',
+					title: normalizedTitle,
+					metadata,
 				});
 				if (result.isDuplicate) {
 					return { success: false, error: 'duplicate', message: 'Esta música já foi salva.' };
@@ -441,13 +454,20 @@ function buildAllTools(context: ToolContext) {
 				const safeMax = maxResults ? clamp(maxResults, 1, 50) : 10;
 				const { searchMemory } = await import('@/services/memory-search');
 				const results = await searchMemory({
-					query: query.trim(), userId: context.userId, maxResults: safeMax, types,
+					query: query.trim(),
+					userId: context.userId,
+					maxResults: safeMax,
+					types,
 				});
 				return {
 					success: true,
 					data: {
 						results: results.map((r: any) => ({
-							id: r.id, type: r.type, title: r.title, metadata: r.metadata, score: r.score,
+							id: r.id,
+							type: r.type,
+							title: r.title,
+							metadata: r.metadata,
+							score: r.score,
 						})),
 						count: results.length,
 					},
@@ -564,19 +584,21 @@ function buildAllTools(context: ToolContext) {
 				return {
 					success: true,
 					data: {
-						results: [{
-							type: 'book' as const,
-							title: found.title,
-							author: found.authors?.[0],
-							year: found.year,
-							cover_url: found.cover_url,
-							description: found.description,
-							google_books_id: found.google_books_id,
-							isbn: found.isbn,
-							publisher: found.publisher,
-							page_count: found.page_count,
-							genres: found.genres,
-						}],
+						results: [
+							{
+								type: 'book' as const,
+								title: found.title,
+								author: found.authors?.[0],
+								year: found.year,
+								cover_url: found.cover_url,
+								description: found.description,
+								google_books_id: found.google_books_id,
+								isbn: found.isbn,
+								publisher: found.publisher,
+								page_count: found.page_count,
+								genres: found.genres,
+							},
+						],
 					},
 				};
 			},
@@ -594,17 +616,19 @@ function buildAllTools(context: ToolContext) {
 				return {
 					success: true,
 					data: {
-						results: [{
-							type: 'music' as const,
-							title: found.title,
-							artist: found.artist,
-							album: found.album,
-							album_cover_url: found.album_cover_url,
-							year: found.year,
-							duration_ms: found.duration_ms,
-							spotify_id: found.spotify_id,
-							spotify_url: found.spotify_url,
-						}],
+						results: [
+							{
+								type: 'music' as const,
+								title: found.title,
+								artist: found.artist,
+								album: found.album,
+								album_cover_url: found.album_cover_url,
+								year: found.year,
+								duration_ms: found.duration_ms,
+								spotify_id: found.spotify_id,
+								spotify_url: found.spotify_url,
+							},
+						],
 					},
 				};
 			},
@@ -628,7 +652,10 @@ function buildAllTools(context: ToolContext) {
 		delete_all_memories: tool({
 			description: 'Deleta TODOS os itens da memória. Pode filtrar por tipo. Operação irreversível.',
 			parameters: z.object({
-				type: z.string().optional().describe('Tipo para filtrar: movie, tv_show, video, link, note, memo, book, music, image. Se omitido, deleta tudo.'),
+				type: z
+					.string()
+					.optional()
+					.describe('Tipo para filtrar: movie, tv_show, video, link, note, memo, book, music, image. Se omitido, deleta tudo.'),
 			}),
 			execute: async ({ type }) => {
 				const deleted_count = await itemService.deleteAllItems(context.userId, type?.trim());
@@ -678,7 +705,8 @@ function buildAllTools(context: ToolContext) {
 			}),
 			execute: async ({ startDate, endDate, maxResults }) => {
 				const safeMax = maxResults ? clamp(maxResults, 1, 50) : 10;
-				const { hasGoogleCalendarConnected, listCalendarEvents: listEvents } = await import('@/services/integrations/google-calendar.service');
+				const { hasGoogleCalendarConnected, listCalendarEvents: listEvents } =
+					await import('@/services/integrations/google-calendar.service');
 				const isConnected = await hasGoogleCalendarConnected(context.userId);
 				if (!isConnected) return { success: false, error: 'Conecte sua conta Google primeiro pelo dashboard.' };
 
@@ -698,8 +726,12 @@ function buildAllTools(context: ToolContext) {
 					success: true,
 					data: {
 						events: events.map((e: any) => ({
-							id: e.id, title: e.title, description: e.description,
-							start: e.start.toISOString(), end: e.end?.toISOString(), location: e.location,
+							id: e.id,
+							title: e.title,
+							description: e.description,
+							start: e.start.toISOString(),
+							end: e.end?.toISOString(),
+							location: e.location,
 						})),
 						count: events.length,
 					},
@@ -719,7 +751,8 @@ function buildAllTools(context: ToolContext) {
 			}),
 			execute: async ({ title, startDate, endDate, description, duration, location }) => {
 				const safeDuration = duration ? clamp(duration, 1, 1440) : undefined;
-				const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import('@/services/integrations/google-calendar.service');
+				const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } =
+					await import('@/services/integrations/google-calendar.service');
 				const isConnected = await hasGoogleCalendarConnected(context.userId);
 				if (!isConnected) return { success: false, error: 'Conecte sua conta Google primeiro pelo dashboard.' };
 
@@ -735,7 +768,11 @@ function buildAllTools(context: ToolContext) {
 				}
 
 				const eventId = await createEvent(context.userId, {
-					title: title.trim(), description: description?.trim(), startDate: start, endDate: end, location: location?.trim(),
+					title: title.trim(),
+					description: description?.trim(),
+					startDate: start,
+					endDate: end,
+					location: location?.trim(),
 				});
 				return { success: true, message: `Evento "${title.trim()}" criado para ${start.toLocaleString('pt-BR')}`, data: { eventId } };
 			},
@@ -753,8 +790,11 @@ function buildAllTools(context: ToolContext) {
 					success: true,
 					data: {
 						tasks: tasks.map((t: any) => ({
-							id: t.id, title: t.title, description: t.description,
-							dueDateTime: t.dueDateTime?.toISOString(), isCompleted: t.isCompleted,
+							id: t.id,
+							title: t.title,
+							description: t.description,
+							dueDateTime: t.dueDateTime?.toISOString(),
+							isCompleted: t.isCompleted,
 						})),
 						count: tasks.length,
 					},
@@ -799,10 +839,18 @@ function buildAllTools(context: ToolContext) {
 				const scheduledFor = await parseNaturalDate(when.trim());
 				const { scheduleReminder } = await import('@/services/scheduler-service');
 				const reminderId = await scheduleReminder({
-					userId: context.userId, title: title.trim(), description: description?.trim(),
-					scheduledFor, provider: context.provider, externalId: context.externalId,
+					userId: context.userId,
+					title: title.trim(),
+					description: description?.trim(),
+					scheduledFor,
+					provider: context.provider,
+					externalId: context.externalId,
 				});
-				return { success: true, message: `Lembrete agendado para ${scheduledFor.toLocaleString('pt-BR')}`, data: { reminderId, scheduledFor: scheduledFor.toISOString() } };
+				return {
+					success: true,
+					message: `Lembrete agendado para ${scheduledFor.toLocaleString('pt-BR')}`,
+					data: { reminderId, scheduledFor: scheduledFor.toISOString() },
+				};
 			},
 		}),
 
@@ -839,7 +887,10 @@ function buildAllTools(context: ToolContext) {
 				}
 				if (candidates.length === 0) return { success: false, error: 'Não consegui identificar o item referenciado.' };
 				const best = candidates[0];
-				return { success: true, data: { resolved: best.entity, confidence: candidates.length === 1 ? 0.9 : 0.7, source_message: best.source } };
+				return {
+					success: true,
+					data: { resolved: best.entity, confidence: candidates.length === 1 ? 0.9 : 0.7, source_message: best.source },
+				};
 			},
 		}),
 
@@ -864,7 +915,8 @@ function buildAllTools(context: ToolContext) {
 		}),
 
 		analyze_url: tool({
-			description: 'Analisa uma URL e detecta tipo de conteúdo (filme, série, vídeo, música, livro, link). Use quando receber uma URL sem contexto.',
+			description:
+				'Analisa uma URL e detecta tipo de conteúdo (filme, série, vídeo, música, livro, link). Use quando receber uma URL sem contexto.',
 			parameters: z.object({
 				url: z.string().describe('URL para analisar'),
 			}),
@@ -876,8 +928,13 @@ function buildAllTools(context: ToolContext) {
 				const ogMetadata = await openGraphService.fetchMetadata(normalizedUrl);
 				const detected_type: UrlContentType = detectedByPattern ?? 'link';
 				const TYPE_CATEGORY: Record<UrlContentType, string> = {
-					movie: 'enrichable', tv_show: 'enrichable', music: 'enrichable',
-					video: 'enrichable', book: 'enrichable', image: 'text', link: 'text',
+					movie: 'enrichable',
+					tv_show: 'enrichable',
+					music: 'enrichable',
+					video: 'enrichable',
+					book: 'enrichable',
+					image: 'text',
+					link: 'text',
 				};
 				return {
 					success: true,
