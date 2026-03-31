@@ -1,33 +1,36 @@
-import {
-	AGENT_DECISION_V2_CONTRACT_PROMPT,
-	AGENT_SYSTEM_PROMPT_V2,
-	applyAgentDecisionV2Contract,
-	getAgentSystemPrompt,
-} from '@nexo/api-core/config/prompts';
+import { buildAgentPrompt, buildClarificationPrompt, buildIntentClassifierPrompt } from '@nexo/api-core/config/prompt-builder';
 import { describe, expect, test } from 'vitest';
 
-describe('prompt contract V2 (TOOL_SCHEMA_V2 hardcoded)', () => {
-	test('sempre retorna o prompt V2 (schema 2.0)', () => {
-		const prompt = getAgentSystemPrompt('Nexo');
+describe('yaml prompt builders', () => {
+	test('buildAgentPrompt usa YAML como fonte e interpola nome/ferramentas', () => {
+		const prompt = buildAgentPrompt({
+			assistantName: 'Nexo',
+			availableTools: ['save_note', 'search_items'],
+		}).system;
 
-		expect(prompt).toBe(AGENT_SYSTEM_PROMPT_V2);
-		expect(prompt).toContain('"schema_version": "2.0"');
-		expect(prompt).toContain('"reasoning_intent"');
-		expect(prompt).toContain('"tool_call"');
-		expect(prompt).toContain('guardrails.deterministic_path MUST be true');
-		expect(prompt).toContain('NO TEXT BEFORE OR AFTER JSON');
+		expect(prompt).toContain('Você é Nexo');
+		expect(prompt).toContain('Ferramentas habilitadas no runtime atual: save_note, search_items');
+		expect(prompt).toContain('Sempre responda em Português Brasileiro');
 	});
 
-	test('substitui nome do assistente corretamente', () => {
-		const prompt = getAgentSystemPrompt('HAL-9000');
-		expect(prompt).toContain('You are HAL-9000,');
+	test('buildIntentClassifierPrompt retorna contrato JSON estrito em texto', () => {
+		const prompt = buildIntentClassifierPrompt();
+		expect(prompt).toContain('VOCÊ DEVE RESPONDER APENAS COM JSON VÁLIDO');
+		expect(prompt).toContain('O primeiro caractere da resposta deve ser { e o último deve ser }');
 	});
 
-	test('applyAgentDecisionV2Contract sempre adiciona o contrato ao prompt', () => {
-		const dynamicPrompt = 'You are Custom Nexo.';
+	test('buildClarificationPrompt injeta mensagem original, resposta e tentativas', () => {
+		const prompt = buildClarificationPrompt({
+			assistantName: 'Nexo',
+			originalMessage: 'salva o onix',
+			userResponse: 'é carro',
+			attempt: 2,
+			maxAttempts: 4,
+		});
 
-		const result = applyAgentDecisionV2Contract(dynamicPrompt);
-		expect(result).toContain(dynamicPrompt);
-		expect(result).toContain(AGENT_DECISION_V2_CONTRACT_PROMPT);
+		expect(prompt).toContain('Você é Nexo');
+		expect(prompt).toContain('salva o onix');
+		expect(prompt).toContain('é carro');
+		expect(prompt).toContain('Tentativa 2 de 4');
 	});
 });

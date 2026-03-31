@@ -17,6 +17,7 @@
 		"build:elysia": "turbo build --filter=@nexo/api-elysia",
 		"lint": "turbo lint",
 		"test": "turbo test",
+		"test:prompt-architecture": "turbo test:prompt-architecture --filter=@nexo/api",
 		"typecheck": "turbo typecheck",
 		"format": "turbo format",
 		"check": "turbo lint:biome",

@@ -439,10 +439,10 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 					return { success: false, error: 'message é obrigatório' };
 				}
 
-				const { getAgentSystemPrompt } = await import('@nexo/api-core/config/prompts');
+				const { buildAgentPrompt } = await import('@nexo/api-core/config/prompt-builder');
 				const { llmService } = await import('@nexo/api-core/services/ai');
 
-				const systemPrompt = getAgentSystemPrompt('Nexo', tools);
+				const systemPrompt = buildAgentPrompt({ assistantName: 'Nexo', availableTools: tools }).system;
 				const llmResponse = await llmService.callLLM({ message, history: [], systemPrompt });
 
 				return {

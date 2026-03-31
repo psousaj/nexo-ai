@@ -1,5 +1,5 @@
 import type { IncomingMessage, MessagingProvider } from '@nexo/api-core/adapters/messaging';
-import { ERROR_MESSAGES } from '@nexo/api-core/config/prompts';
+import { ERROR_MESSAGES } from '@nexo/api-core/config/message-templates';
 import { agentOrchestrator } from '@nexo/api-core/services/agent-orchestrator';
 import { processMessage } from '@nexo/api-core/services/message-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -48,9 +48,7 @@ vi.mock('@nexo/api-core/services/user-service', () => ({
 		getUserById: vi.fn().mockResolvedValue(null),
 		findOrCreateUserByAccount: vi.fn().mockResolvedValue({ user: { id: 'user-1', status: 'active', name: 'User' } }),
 		updateUserName: vi.fn().mockResolvedValue(undefined),
-		findAccount: vi
-			.fn()
-			.mockResolvedValue({ id: 'acc-1', userId: 'user-1', provider: 'telegram', externalId: 'external-1' }),
+		findAccount: vi.fn().mockResolvedValue({ id: 'acc-1', userId: 'user-1', provider: 'telegram', externalId: 'external-1' }),
 		findUserIdByOAuthAccount: vi.fn().mockResolvedValue(null),
 		linkAccountToUser: vi.fn().mockResolvedValue(undefined),
 		updateUserTimeout: vi.fn().mockResolvedValue(undefined),
@@ -230,9 +228,7 @@ describe('message-service sessionKey wiring', () => {
 		expect(provider.sendMessage).toHaveBeenCalledTimes(1);
 		expect(provider.sendMessage).toHaveBeenCalledWith(
 			incoming.externalId,
-			expect.stringMatching(
-				new RegExp(ERROR_MESSAGES.map((message) => message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')),
-			),
+			expect.stringMatching(new RegExp(ERROR_MESSAGES.map((message) => message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))),
 		);
 	});
 });

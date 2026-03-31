@@ -1,5 +1,5 @@
 import { env } from '@/config/env';
-import { INTENT_CLASSIFIER_PROMPT } from '@/config/prompts';
+import { buildIntentClassifierPrompt } from '@/config/prompt-builder';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { IntentAnalysisResult } from '@/services/message-analysis/types/analysis-result.types';
 import { instrumentService } from '@/services/service-instrumentation';
@@ -316,6 +316,7 @@ export class IntentClassifier {
 	 */
 	private async classifyWithLLM(message: string): Promise<IntentResult> {
 		loggers.ai.info({ messageSnippet: message.substring(0, 50) }, '🎯 Classificando com LLM');
+		const classifierPrompt = buildIntentClassifierPrompt();
 
 		try {
 			const response = await this.client!.chat.completions.create({
@@ -323,7 +324,7 @@ export class IntentClassifier {
 				messages: [
 					{
 						role: 'system',
-						content: INTENT_CLASSIFIER_PROMPT,
+						content: classifierPrompt,
 					},
 					{
 						role: 'user',

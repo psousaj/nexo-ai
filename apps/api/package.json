@@ -12,6 +12,7 @@
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"test": "vitest --run --config vitest.config.ts",
+		"test:prompt-architecture": "vitest --run --config vitest.config.ts src/tests/prompt-architecture-guard.test.ts src/tests/prompts-tool-schema-v2.test.ts",
 		"test:watch": "vitest --config vitest.config.ts --watch",
 		"test:ui": "vitest --ui",
 		"format": "biome format --fix .",

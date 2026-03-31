@@ -22,7 +22,7 @@
  */
 
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
-import { buildAgentPrompt } from '@/config/prompt-builder';
+import { buildAgentPrompt, buildClarificationPrompt } from '@/config/prompt-builder';
 import {
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
@@ -32,7 +32,7 @@ import {
 	SAVE_SUCCESS,
 	formatItemsList,
 	getRandomMessage as getRandomResponse,
-} from '@/config/prompts';
+} from '@/config/message-templates';
 import { setSentryContext } from '@/sentry';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { instrumentService } from '@/services/service-instrumentation';
@@ -150,7 +150,7 @@ export class AgentOrchestrator {
 					// Continua para o fluxo normal de processamento
 				} else {
 					// Continua em off_topic, responde com mensagem amigável aleatória
-					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
+					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/message-templates');
 					const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
 					await conversationService.addMessage(conversation.id, 'user', context.message, this.buildMessagePersistOptions(context, true));
@@ -416,6 +416,8 @@ export class AgentOrchestrator {
 
 			// Busca tools disponíveis (CASL gate)
 			const { tools: availableToolNames } = await toolAvailabilityService.getAvailableTools();
+			// Filtra delete_all_memories das tools do LLM (requer fluxo determinístico)
+			const safeToolNames = availableToolNames.filter((t: string) => t !== 'delete_all_memories');
 
 			// 🚨 GATE PRÉ-LLM: Detecta padrão de lembrete e clarifica ANTES de chamar LLM
 			if (intent.entities?.reminderHint && conversation?.state === 'idle') {
@@ -466,12 +468,12 @@ export class AgentOrchestrator {
 			if (context.sessionKey) {
 				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
 				assistantName = agentContext.assistantName || 'Nexo';
-				const base = buildAgentPrompt({ assistantName });
+				const base = buildAgentPrompt({ assistantName, availableTools: safeToolNames });
 				systemPrompt = agentContext.systemPrompt ? `${base.system}\n\n# PERSONALIZED CONTEXT\n${agentContext.systemPrompt}` : base.system;
 			} else {
 				const user = await userService.getUserById(context.userId);
 				assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = buildAgentPrompt({ assistantName }).system;
+				systemPrompt = buildAgentPrompt({ assistantName, availableTools: safeToolNames }).system;
 			}
 
 			// ============================================================================
@@ -483,8 +485,6 @@ export class AgentOrchestrator {
 				{ role: 'user' as const, content: context.message },
 			];
 
-			// Filtra delete_all_memories das tools do LLM (requer fluxo determinístico)
-			const safeToolNames = availableToolNames.filter((t: string) => t !== 'delete_all_memories');
 			const tools = buildTools(toolContext, safeToolNames);
 
 			// ============================================================================
@@ -738,7 +738,7 @@ export class AgentOrchestrator {
 
 		// Se usuário pediu para escolher novamente
 		if (context.callbackData === 'choose_again') {
-			// Mensagem aleatória de feedback (centralizada em config/prompts)
+			// Mensagem aleatória de feedback (centralizada em config/message-templates)
 			const randomMsg = getRandomResponse(CHOOSE_AGAIN_MESSAGES);
 
 			// Envia mensagem de feedback antes de mostrar a lista
@@ -912,7 +912,7 @@ export class AgentOrchestrator {
 		// 2. Usa action do intent para escolher categoria
 		else if (intent.action === 'thank') {
 			// Agradecimento: verifica se acabou de executar algo
-			const { CASUAL_RESPONSES } = await import('@/config/prompts');
+			const { CASUAL_RESPONSES } = await import('@/config/message-templates');
 			const history = await conversationService.getHistory(context.conversationId, 3);
 			const lastAssistantMsg = history.find((m) => m.role === 'assistant');
 
@@ -923,7 +923,7 @@ export class AgentOrchestrator {
 				response = 'De nada! 😊'; // Fallback neutro
 			}
 		} else if (intent.action === 'greet') {
-			const { CASUAL_RESPONSES } = await import('@/config/prompts');
+			const { CASUAL_RESPONSES } = await import('@/config/message-templates');
 			response = CASUAL_RESPONSES.greetings[Math.floor(Math.random() * CASUAL_RESPONSES.greetings.length)];
 		} else {
 			// Fallback genérico
@@ -1427,7 +1427,7 @@ export class AgentOrchestrator {
 		if (attempts >= this.MAX_CLARIFICATION_ATTEMPTS) {
 			loggers.ai.info({ attempts }, '🛑 Limite de clarificações atingido, entrando em off_topic');
 
-			const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
+			const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/message-templates');
 			const offTopicMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
 			await conversationService.updateState(conversation.id, 'off_topic_chat', {
@@ -1469,12 +1469,13 @@ export class AgentOrchestrator {
 	 * Gera resposta conversacional durante clarificação usando LLM
 	 */
 	private async getConversationalClarification(context: AgentContext, originalMessage: string, attempt: number): Promise<string> {
-		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
-
-		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
-			.replace('{user_response}', context.message)
-			.replace('{attempt}', String(attempt))
-			.replace('{max_attempts}', String(this.MAX_CLARIFICATION_ATTEMPTS));
+		const prompt = buildClarificationPrompt({
+			assistantName: 'Nexo',
+			originalMessage,
+			userResponse: context.message,
+			attempt,
+			maxAttempts: this.MAX_CLARIFICATION_ATTEMPTS,
+		});
 
 		const response = await llmService.callLLM({
 			message: context.message,

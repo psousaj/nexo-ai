@@ -8,7 +8,7 @@ import {
 	getChannelSignupRequiredMessage,
 	getChannelTrialExceededMessage,
 	getRandomMessage,
-} from '@/config/prompts';
+} from '@/config/message-templates';
 import { splitMessage } from '@/utils/message-splitter';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { commandHandlerService } from '@/services/command-handler.service';
@@ -159,7 +159,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 								await userService.linkAccountToUser(oauthUserId, incomingMsg.provider as any, identityId, {
 									username: incomingMsg.senderName,
 								});
-								const { getChannelLinkSuccessMessage } = await import('@/config/prompts');
+								const { getChannelLinkSuccessMessage } = await import('@/config/message-templates');
 								await provider.sendMessage(incomingMsg.externalId, getChannelLinkSuccessMessage(providerForGuard));
 								loggers.webhook.info({ provider: providerForGuard, identityId, userId: oauthUserId }, '✅ Canal auto-vinculado via OAuth');
 								return;

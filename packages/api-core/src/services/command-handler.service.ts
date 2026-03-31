@@ -1,10 +1,6 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import {
-	getChannelLinkSuccessMessage,
-	getChannelNotRegisteredMessage,
-	getChannelStartReturningMessage,
-} from '@/config/prompts';
+import { getChannelLinkSuccessMessage, getChannelNotRegisteredMessage, getChannelStartReturningMessage } from '@/config/message-templates';
 import { accountLinkingService } from '@/services/account-linking-service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
@@ -95,7 +91,7 @@ export class CommandHandlerService {
 
 		// WhatsApp é o único canal com trial (sem cadastro prévio obrigatório)
 		if (providerName === 'whatsapp') {
-			const { getChannelStartNewUserMessage } = await import('@/config/prompts');
+			const { getChannelStartNewUserMessage } = await import('@/config/message-templates');
 			await provider.sendMessage(message.externalId, getChannelStartNewUserMessage(providerName));
 			return true;
 		}
@@ -130,10 +126,7 @@ export class CommandHandlerService {
 		if (linked) {
 			await provider.sendMessage(message.externalId, getChannelLinkSuccessMessage(provider.getProviderName()));
 		} else {
-			await provider.sendMessage(
-				message.externalId,
-				'❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.',
-			);
+			await provider.sendMessage(message.externalId, '❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.');
 		}
 
 		return true; // Mensagem foi consumida pelo fluxo de vinculação

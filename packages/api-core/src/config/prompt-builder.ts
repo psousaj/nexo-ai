@@ -57,6 +57,12 @@ export interface BuiltPrompt {
 	user?: string;
 }
 
+function getCurrentDatetimeContext(): string {
+	const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+	const isoNow = new Date().toISOString().replace('Z', '-03:00');
+	return `${now} (${isoNow})`;
+}
+
 /**
  * Constrói um prompt a partir de YAML com interpolação e includes.
  *
@@ -79,13 +85,13 @@ export function buildPrompt(name: string, data: Record<string, string> = {}): Bu
 /**
  * Constrói prompt do agente com datetime injetado automaticamente.
  */
-export function buildAgentPrompt(data: { assistantName?: string; deepThinking?: boolean }): BuiltPrompt {
-	const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-	const isoNow = new Date().toISOString().replace('Z', '-03:00');
+export function buildAgentPrompt(data: { assistantName?: string; deepThinking?: boolean; availableTools?: string[] }): BuiltPrompt {
+	const availableToolsCsv = data.availableTools?.length ? data.availableTools.join(', ') : 'runtime-managed';
 
 	const templateData: Record<string, string> = {
 		assistantName: data.assistantName ?? 'Nexo',
-		currentDatetime: `${now} (${isoNow})`,
+		currentDatetime: getCurrentDatetimeContext(),
+		availableToolsCsv,
 	};
 
 	const prompt = buildPrompt('agent', templateData);
@@ -99,6 +105,35 @@ export function buildAgentPrompt(data: { assistantName?: string; deepThinking?: 
 	}
 
 	return prompt;
+}
+
+/**
+ * Constrói prompt de classificação de intenção exclusivamente a partir de YAML.
+ */
+export function buildIntentClassifierPrompt(): string {
+	return buildPrompt('intent_classifier', {
+		currentDatetime: getCurrentDatetimeContext(),
+	}).system;
+}
+
+/**
+ * Constrói prompt de clarificação conversacional exclusivamente a partir de YAML.
+ */
+export function buildClarificationPrompt(data: {
+	assistantName?: string;
+	originalMessage: string;
+	userResponse: string;
+	attempt: number;
+	maxAttempts: number;
+}): string {
+	return buildPrompt('clarification', {
+		assistantName: data.assistantName ?? 'Nexo',
+		originalMessage: data.originalMessage,
+		userResponse: data.userResponse,
+		attempt: String(data.attempt),
+		maxAttempts: String(data.maxAttempts),
+		currentDatetime: getCurrentDatetimeContext(),
+	}).system;
 }
 
 /** Limpa o cache de prompts (útil para testes ou hot-reload) */
