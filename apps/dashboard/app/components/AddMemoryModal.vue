@@ -47,7 +47,7 @@ if (process.client) {
 
 <template>
 	<Transition name="fade">
-		<div v-if="isOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+		<div v-if="isOpen" class="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6">
 			<!-- Backdrop -->
 			<div class="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" @click="handleClose"></div>
 

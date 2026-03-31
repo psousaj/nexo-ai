@@ -96,6 +96,10 @@ vi.mock('@nexo/api-core/services/ai', () => ({
 	},
 }));
 
+vi.mock('@nexo/api-core/services/ai/ai-sdk-provider', () => ({
+	getModel: vi.fn(),
+}));
+
 vi.mock('@nexo/api-core/utils/json-parser', () => ({
 	parseAgentDecisionV2FromLLM: vi.fn().mockReturnValue({
 		schema_version: '2.0',

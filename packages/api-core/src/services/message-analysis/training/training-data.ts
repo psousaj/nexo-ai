@@ -1548,7 +1548,26 @@ export const NEXO_ENTITIES = {
 		},
 		{
 			value: 'note',
-			synonyms: ['nota', 'notas', 'anotação', 'anotações', 'lembrete', 'lembretes', 'ideia', 'ideias', 'memo'],
+			synonyms: ['nota', 'notas', 'anotação', 'anotações', 'lembrete', 'lembretes'],
+		},
+		{
+			value: 'memory',
+			synonyms: [
+				'memória',
+				'memorias',
+				'memórias',
+				'memoria',
+				'memo',
+				'memos',
+				'ideia',
+				'ideias',
+				'pensamento',
+				'pensamentos',
+				'coisas',
+				'coisa',
+				'negócio',
+				'projeto',
+			],
 		},
 	],
 
