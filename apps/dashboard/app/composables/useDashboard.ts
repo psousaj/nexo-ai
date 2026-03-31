@@ -28,7 +28,7 @@ export const useDashboard = () => {
 		return (items as any[]).map((item: any) => ({
 			id: item.id,
 			title: item.title,
-			content: item.metadata?.full_content || item.title,
+			content: item.metadata?.full_content || item.metadata?.content || item.title,
 			type: item.type as ItemType,
 			category: item.type,
 			platform: item.metadata?.platform || 'Web',
@@ -39,8 +39,12 @@ export const useDashboard = () => {
 	const createMemory = async (payload: { title: string; type: ItemType; content: string }): Promise<any> => {
 		const metadata: any = {};
 		if (payload.type === 'link') metadata.url = payload.content;
-		if (payload.type === 'note' || payload.type === 'text') {
+		if (payload.type === 'note') {
 			metadata.full_content = payload.content;
+		}
+		if (payload.type === 'memory') {
+			metadata.content = payload.content;
+			metadata.created_via = 'api';
 		}
 
 		const { data } = await api.post('/memories', {
@@ -51,13 +55,10 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const updateMemory = async (
-		id: string | number,
-		payload: { title?: string; content?: string },
-	): Promise<{ success: boolean }> => {
+	const updateMemory = async (id: string | number, payload: { title?: string; content?: string }): Promise<{ success: boolean }> => {
 		const updates: Record<string, any> = {};
 		if (payload.title) updates.title = payload.title;
-		if (payload.content) updates.metadata = { full_content: payload.content };
+		if (payload.content) updates.metadata = { full_content: payload.content, content: payload.content };
 
 		const { data } = await api.patch<{ success: boolean }>(`/memories/${id}`, updates);
 		return data;
@@ -83,9 +84,7 @@ export const useDashboard = () => {
 	};
 
 	const getConversationMessages = async (conversationId: string): Promise<ConversationAudit> => {
-		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(
-			`/admin/conversations/${conversationId}/messages`,
-		);
+		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(`/admin/conversations/${conversationId}/messages`);
 		return data.data;
 	};
 
@@ -105,9 +104,7 @@ export const useDashboard = () => {
 			'appearanceTheme',
 			'appearanceLanguage',
 		];
-		const payload = Object.fromEntries(
-			knownKeys.filter((k) => k in updates && updates[k] != null).map((k) => [k, updates[k]]),
-		);
+		const payload = Object.fromEntries(knownKeys.filter((k) => k in updates && updates[k] != null).map((k) => [k, updates[k]]));
 		await api.patch('/user/preferences', payload);
 	};
 

@@ -17,6 +17,7 @@ const form = ref({
 
 const types = [
 	{ label: 'Nota', value: 'note' },
+	{ label: 'Memória', value: 'memory' },
 	{ label: 'Link', value: 'link' },
 	{ label: 'Filme', value: 'movie' },
 	{ label: 'Série', value: 'tv_show' },

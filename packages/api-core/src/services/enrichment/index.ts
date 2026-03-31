@@ -46,8 +46,8 @@ export class EnrichmentService {
 					// Notas não precisam de enriquecimento externo
 					return data.metadata || {};
 
-				case 'memo':
-					// Memos são notas livres — sem enriquecimento externo
+				case 'memory':
+					// Memorias são notas livres — sem enriquecimento externo
 					return data.metadata || {};
 
 				case 'book':

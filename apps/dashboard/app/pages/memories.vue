@@ -37,7 +37,7 @@ const iconMap: Record<string, any> = {
 	image: ImageIcon,
 	note: StickyNote,
 	video: Layers,
-	memo: Type,
+	memory: Type,
 	book: BookOpen,
 	music: Music,
 };
@@ -49,7 +49,7 @@ const categories: Array<{ label: string; value: string | undefined; icon: any }>
 	{ label: 'Vídeos', value: 'video', icon: Layers },
 	{ label: 'Links', value: 'link', icon: LinkIcon },
 	{ label: 'Notas', value: 'note', icon: StickyNote },
-	{ label: 'Memos', value: 'memo', icon: Type },
+	{ label: 'Memórias', value: 'memory', icon: Type },
 	{ label: 'Livros', value: 'book', icon: BookOpen },
 	{ label: 'Músicas', value: 'music', icon: Music },
 	{ label: 'Imagens', value: 'image', icon: ImageIcon },

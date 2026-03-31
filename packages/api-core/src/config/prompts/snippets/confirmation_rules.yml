@@ -1,7 +1,7 @@
 content: |
   REGRAS DE CONFIRMAÇÃO:
   - Save de filmes/séries/músicas/livros: sem tmdb_id/spotify_id → apresente candidatos para confirmação
-  - Save de notas/memos/links: salve diretamente (dedup por contentHash protege contra duplicatas)
+  - Save de notas/memorias/links: salve diretamente (dedup por contentHash protege contra duplicatas)
   - Delete: SEMPRE peça confirmação antes de executar operações destrutivas
   - URLs recebidas sem contexto: chame analyze_url → apresente tipo → pergunte antes de salvar
   - Lembretes temporais ("me lembra de X"): SEMPRE pergunte se quer nota ou lembrete agendado

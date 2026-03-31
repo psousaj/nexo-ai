@@ -18,7 +18,7 @@ import type {
 	BookMetadata,
 	ImageMetadata,
 	LinkMetadata,
-	MemoMetadata,
+	MemoryMetadata,
 	MovieMetadata,
 	MusicMetadata,
 	NoteMetadata,
@@ -1673,18 +1673,20 @@ export async function save_image(
 }
 
 // ============================================================================
-// SAVE MEMO
+// SAVE MEMORY
 // ============================================================================
 
 /**
- * Tool: save_memo
+ * Tool: save_memory
  * Salva memória avulsa (quote, ideia, pensamento) sem categoria definida.
  * Retorna preview para confirmação.
  */
-export async function save_memo(
+export async function save_memory(
 	context: ToolContext,
 	params: {
 		content: string;
+		semantic_type?: string;
+		tags?: string[];
 		source?: string;
 	},
 ): Promise<ToolOutput> {
@@ -1695,27 +1697,29 @@ export async function save_memo(
 	try {
 		const result = await itemService.createItem({
 			userId: context.userId,
-			type: 'memo',
+			type: 'memory',
 			title: params.content.slice(0, 100),
 			metadata: {
 				content: params.content,
+				semantic_type: params.semantic_type,
+				tags: params.tags,
 				source: params.source,
 				created_via: 'chat',
-			} as MemoMetadata,
+			} as MemoryMetadata,
 		});
 
 		if (result.isDuplicate && result.existingItem) {
 			return {
 				success: false,
 				error: 'duplicate',
-				message: `⚠️ Este memo já foi salvo em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+				message: `⚠️ Esta memória já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
 			};
 		}
 
 		if (!result.item) {
 			return {
 				success: false,
-				error: 'Erro ao criar memo no banco de dados',
+				error: 'Erro ao criar memória no banco de dados',
 			};
 		}
 
@@ -1726,7 +1730,7 @@ export async function save_memo(
 	} catch (error) {
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao salvar memo',
+			error: error instanceof Error ? error.message : 'Erro ao salvar memória',
 		};
 	}
 }
@@ -1775,7 +1779,7 @@ export const AVAILABLE_TOOLS = {
 	analyze_url,
 
 	// Novos tipos de conteúdo
-	save_memo,
+	save_memory,
 	save_book,
 	save_music,
 	save_image,

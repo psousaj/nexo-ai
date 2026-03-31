@@ -412,7 +412,7 @@ const allToolNames = [
 	'save_tv_show',
 	'save_video',
 	'save_link',
-	'save_memo',
+	'save_memory',
 	'save_book',
 	'save_music',
 	'save_image',

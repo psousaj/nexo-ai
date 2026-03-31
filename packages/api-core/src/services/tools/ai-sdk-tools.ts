@@ -30,7 +30,7 @@ import type {
 	BookMetadata,
 	ImageMetadata,
 	LinkMetadata,
-	MemoMetadata,
+	MemoryMetadata,
 	MovieMetadata,
 	MusicMetadata,
 	NoteMetadata,
@@ -393,23 +393,31 @@ function buildAllTools(context: ToolContext) {
 			},
 		}),
 
-		save_memo: tool({
+		save_memory: tool({
 			description: 'Salva uma memória avulsa (quote, ideia, pensamento). SEMPRE salva.',
 			parameters: z.object({
-				content: z.string().describe('Conteúdo do memo'),
+				content: z.string().describe('Conteúdo da memória'),
+				semantic_type: z.string().optional().describe('Categoria semântica aberta (ex: receita, carro, pessoa, ideia)'),
+				tags: z.array(z.string()).optional().describe('Tags opcionais da memória'),
 				source: z.string().optional().describe('Fonte ou contexto'),
 			}),
-			execute: async ({ content, source }) => {
+			execute: async ({ content, semantic_type, tags, source }) => {
 				const trimmed = content.trim();
 				if (!trimmed) return { success: false, error: 'Conteúdo vazio' };
 				const result = await itemService.createItem({
 					userId: context.userId,
-					type: 'memo',
+					type: 'memory',
 					title: trimmed.slice(0, 100),
-					metadata: { content: trimmed, source: source?.trim(), created_via: 'chat' } as MemoMetadata,
+					metadata: {
+						content: trimmed,
+						semantic_type: semantic_type?.trim() || undefined,
+						tags: tags?.map((tag) => tag.trim()).filter(Boolean),
+						source: source?.trim(),
+						created_via: 'chat',
+					} as MemoryMetadata,
 				});
 				if (result.isDuplicate) {
-					return { success: false, error: 'duplicate', message: 'Este memo já foi salvo.' };
+					return { success: false, error: 'duplicate', message: 'Esta memória já foi salva.' };
 				}
 				return { success: true, data: { id: result.item?.id, title: result.item?.title } };
 			},
@@ -448,7 +456,7 @@ function buildAllTools(context: ToolContext) {
 			parameters: z.object({
 				query: z.string().describe('Texto de busca semântica'),
 				maxResults: z.number().optional().describe('Máximo de resultados (1-50)'),
-				types: z.array(z.string()).optional().describe('Filtrar por tipo: movie, tv_show, video, link, note, memo, book, music, image'),
+				types: z.array(z.string()).optional().describe('Filtrar por tipo: movie, tv_show, video, link, note, memory, book, music, image'),
 			}),
 			execute: async ({ query, maxResults, types }) => {
 				const safeMax = maxResults ? clamp(maxResults, 1, 50) : 10;
@@ -655,7 +663,7 @@ function buildAllTools(context: ToolContext) {
 				type: z
 					.string()
 					.optional()
-					.describe('Tipo para filtrar: movie, tv_show, video, link, note, memo, book, music, image. Se omitido, deleta tudo.'),
+					.describe('Tipo para filtrar: movie, tv_show, video, link, note, memory, book, music, image. Se omitido, deleta tudo.'),
 			}),
 			execute: async ({ type }) => {
 				const deleted_count = await itemService.deleteAllItems(context.userId, type?.trim());

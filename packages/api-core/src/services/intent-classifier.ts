@@ -52,7 +52,7 @@ export interface IntentResult {
 	entities?: {
 		query?: string;
 		selection?: number | number[]; // Suporta múltiplas seleções
-		itemType?: 'movie' | 'tv_show' | 'video' | 'link' | 'note'; // Tipo específico mencionado
+		itemType?: 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memory'; // Tipo específico mencionado
 		url?: string;
 		refersToPrevious?: boolean;
 		target?: 'all' | 'item' | 'selection'; // Alvo da ação
@@ -894,12 +894,15 @@ export class IntentClassifier {
 	/**
 	 * Extrai tipo de item mencionado (nota, filme, série...)
 	 */
-	private extractItemType(msg: string): 'movie' | 'tv_show' | 'video' | 'link' | 'note' | undefined {
-		const typePatterns: Record<string, 'movie' | 'tv_show' | 'video' | 'link' | 'note'> = {
+	private extractItemType(msg: string): 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memory' | undefined {
+		const typePatterns: Record<string, 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memory'> = {
 			nota: 'note',
 			notas: 'note',
 			lembrete: 'note',
 			lembretes: 'note',
+			memoria: 'memory',
+			memorias: 'memory',
+			memory: 'memory',
 			filme: 'movie',
 			filmes: 'movie',
 			série: 'tv_show',

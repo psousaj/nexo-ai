@@ -52,6 +52,7 @@ import { type IntentResult, intentClassifier } from './intent-classifier';
 import { itemService } from './item-service';
 import { scheduleConversationClose } from './queue-service';
 import { toolAvailabilityService } from './tool-availability.service';
+import { filterToolNamesByPolicy } from './tools/registry';
 import { type ToolContext as LegacyToolContext, executeTool } from './tools';
 import { type ToolContext, buildTools } from './tools/ai-sdk-tools';
 
@@ -416,8 +417,13 @@ export class AgentOrchestrator {
 
 			// Busca tools disponíveis (CASL gate)
 			const { tools: availableToolNames } = await toolAvailabilityService.getAvailableTools();
-			// Filtra delete_all_memories das tools do LLM (requer fluxo determinístico)
-			const safeToolNames = availableToolNames.filter((t: string) => t !== 'delete_all_memories');
+			// Policy gate: LLM recebe apenas tools com execução automática (allow)
+			const safeToolNames = filterToolNamesByPolicy(availableToolNames, ['allow']);
+			const blockedByPolicy = availableToolNames.filter((toolName) => !safeToolNames.includes(toolName as ToolName));
+
+			if (blockedByPolicy.length > 0) {
+				loggers.ai.debug({ blockedByPolicy }, '🔐 Tools bloqueadas por policy (ask/deny) no loop LLM');
+			}
 
 			// 🚨 GATE PRÉ-LLM: Detecta padrão de lembrete e clarifica ANTES de chamar LLM
 			if (intent.entities?.reminderHint && conversation?.state === 'idle') {

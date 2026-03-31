@@ -7,12 +7,15 @@
 
 import type { ToolName } from './index';
 
+export type ToolExecutionPolicy = 'allow' | 'ask' | 'deny';
+
 export interface ToolDefinition {
 	name: ToolName;
 	label: string; // Nome amigável para exibição
 	description: string; // Descrição curta
 	icon: string; // Emoji para o dashboard
 	category: 'system' | 'user'; // system = sempre habilitada, user = plugável
+	executionPolicy?: ToolExecutionPolicy; // default = allow
 	defaultEnabled?: boolean; // undefined = true; false = desabilitada por padrão (Em breve)
 	oauthRequired?: 'google' | 'microsoft'; // preparação futura para gate por OAuth
 }
@@ -113,6 +116,7 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Remove item específico',
 		icon: '🗑️',
 		category: 'system',
+		executionPolicy: 'ask',
 	},
 
 	delete_all_memories: {
@@ -121,6 +125,7 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Remove todos os itens salvos',
 		icon: '🧹',
 		category: 'system',
+		executionPolicy: 'ask',
 	},
 
 	// ============================================================================
@@ -244,12 +249,12 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 	},
 
 	// ============================================================================
-	// NOVOS TIPOS DE CONTEÚDO — defaultEnabled: true para memo, false para demais
+	// NOVOS TIPOS DE CONTEÚDO — defaultEnabled: true para memory, false para demais
 	// ============================================================================
 
-	save_memo: {
-		name: 'save_memo',
-		label: 'Salvar Memo',
+	save_memory: {
+		name: 'save_memory',
+		label: 'Salvar Memória',
 		description: 'Salva memória avulsa sem categoria (pensamento, quote, ideia)',
 		icon: '🗒️',
 		category: 'user',
@@ -291,7 +296,7 @@ const USER_TOOL_NAMES: ToolName[] = [
 	'save_tv_show',
 	'save_video',
 	'save_link',
-	'save_memo',
+	'save_memory',
 	'save_book',
 	'save_music',
 	'save_image',
@@ -315,6 +320,29 @@ export function getUserTools(): ToolDefinition[] {
  */
 export function getToolDefinition(name: ToolName): ToolDefinition | undefined {
 	return TOOL_DEFINITIONS[name];
+}
+
+/**
+ * Retorna a policy de execução da tool.
+ * - allow: pode executar automaticamente
+ * - ask: requer confirmação determinística fora do loop de tool-calling
+ * - deny: não pode ser exposta/execução bloqueada
+ */
+export function getToolExecutionPolicy(name: ToolName): ToolExecutionPolicy {
+	return TOOL_DEFINITIONS[name]?.executionPolicy ?? 'allow';
+}
+
+/**
+ * Filtra nomes de tool por policy.
+ * Útil para expor ao LLM apenas tools com execução automática segura.
+ */
+export function filterToolNamesByPolicy(toolNames: string[], allowedPolicies: ToolExecutionPolicy[] = ['allow']): ToolName[] {
+	const allowedSet = new Set(allowedPolicies);
+	return toolNames.filter((name): name is ToolName => {
+		if (!(name in TOOL_DEFINITIONS)) return false;
+		const policy = getToolExecutionPolicy(name as ToolName);
+		return allowedSet.has(policy);
+	});
 }
 
 /**

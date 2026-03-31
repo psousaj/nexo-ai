@@ -18,7 +18,7 @@ vi.mock('@nexo/api-core/services/queue-service', () => ({
 
 vi.mock('@nexo/api-core/services/tool-availability.service', () => ({
 	toolAvailabilityService: {
-		getAvailableTools: vi.fn().mockResolvedValue({ tools: ['save_note', 'save_memo', 'search_items'] }),
+		getAvailableTools: vi.fn().mockResolvedValue({ tools: ['save_note', 'save_memory', 'search_items'] }),
 	},
 }));
 
