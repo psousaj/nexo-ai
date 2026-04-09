@@ -22,7 +22,7 @@
  */
 
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
-import { buildAgentPrompt, buildClarificationPrompt } from '@/config/prompt-builder';
+import { buildClarificationPrompt } from '@/config/prompt-builder';
 import { env } from '@/config/env';
 import { addRuntimeBlock, createRuntimeRound } from '@/services/ai/runtime-contract';
 import {
@@ -43,12 +43,11 @@ import type { ConversationState, ToolName } from '@/types';
 import type { MessageMetadata, OrchestratorTrace } from '@/types';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
-import { generateText, type CoreMessage } from 'ai';
-import type OpenAI from 'openai';
+import { generateText } from 'ai';
 import { getModel } from './ai/ai-sdk-provider';
+import { buildRuntimeContext } from './ai/runtime-context-builder';
 import { decideAgentAction } from './agent-action-routing';
 import { llmService, OpenAIGatewayTransport, runOpenAIManualLoop } from './ai';
-import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
 import { type IntentResult, intentClassifier } from './intent-classifier';
@@ -110,15 +109,6 @@ export class AgentOrchestrator {
 		}
 
 		return this.openAITransport;
-	}
-
-	private toOpenAIMessages(messages: CoreMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
-		return messages
-			.filter((msg): msg is Extract<CoreMessage, { role: 'user' | 'assistant' }> => msg.role === 'user' || msg.role === 'assistant')
-			.map((msg) => ({
-				role: msg.role,
-				content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-			}));
 	}
 
 	private buildMessagePersistOptions(context: AgentContext, includeProviderMessage = false) {
@@ -501,31 +491,17 @@ export class AgentOrchestrator {
 				return { message: clarificationMsg, state: 'awaiting_confirmation', toolsUsed: [] };
 			}
 
-			// ============================================================================
-			// BUILD SYSTEM PROMPT (OpenClaw personalization + YAML prompts)
-			// ============================================================================
-			let assistantName = 'Nexo';
-			let systemPrompt: string;
+			const runtimeContext = await buildRuntimeContext({
+				conversationId: context.conversationId,
+				userId: context.userId,
+				message: context.message,
+				availableTools: safeToolNames,
+				sessionKey: context.sessionKey,
+				historyLimit: 10,
+			});
 
-			if (context.sessionKey) {
-				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
-				assistantName = agentContext.assistantName || 'Nexo';
-				const base = buildAgentPrompt({ assistantName, availableTools: safeToolNames });
-				systemPrompt = agentContext.systemPrompt ? `${base.system}\n\n# PERSONALIZED CONTEXT\n${agentContext.systemPrompt}` : base.system;
-			} else {
-				const user = await userService.getUserById(context.userId);
-				assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = buildAgentPrompt({ assistantName, availableTools: safeToolNames }).system;
-			}
-
-			// ============================================================================
-			// BUILD MESSAGES + TOOLS
-			// ============================================================================
-			const history = await conversationService.getHistory(context.conversationId, 10);
-			const messages: CoreMessage[] = [
-				...history.map((m: any) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-				{ role: 'user' as const, content: context.message },
-			];
+			const systemPrompt = runtimeContext.systemPrompt;
+			const messages = runtimeContext.coreMessages;
 
 			const tools = buildTools(toolContext, safeToolNames);
 
@@ -556,6 +532,17 @@ export class AgentOrchestrator {
 					availableTools: safeToolNames.length,
 				},
 			});
+			addRuntimeBlock(runtimeRound, {
+				type: 'internal_task',
+				task: 'context_injection',
+				async: false,
+				status: 'completed',
+				metadata: {
+					assistantName: runtimeContext.assistantName,
+					historyBlocks: runtimeContext.historyBlocks.length,
+					hasSessionKey: !!context.sessionKey,
+				},
+			});
 			loggers.ai.debug(
 				{
 					runtimeRoundContext: runtimeRound.context,
@@ -577,7 +564,7 @@ export class AgentOrchestrator {
 							conversationId: context.conversationId,
 							userId: context.userId,
 							systemPrompt,
-							messages: this.toOpenAIMessages(messages),
+							messages: runtimeContext.openAIMessages,
 							availableTools: safeToolNames,
 							toolContext,
 							model: this.getManualRuntimeModel(),

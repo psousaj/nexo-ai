@@ -122,6 +122,12 @@ export {
 	type OpenAIManualLoopRequest,
 	type OpenAIManualLoopResult,
 } from './openai-manual-loop';
+export {
+	buildRuntimeContext,
+	type RuntimeContextBuilderRequest,
+	type RuntimeContextBuilderResult,
+	type RuntimeHistoryBlock,
+} from './runtime-context-builder';
 export type {
 	RuntimeErrorBlock,
 	RuntimeGatewayHeaders,

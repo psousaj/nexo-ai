@@ -47,6 +47,16 @@ vi.mock('@nexo/api-core/config/prompt-builder', () => ({
 	buildAgentPrompt: mockBuildAgentPrompt,
 }));
 
+vi.mock('@nexo/api-core/config/env', () => ({
+	env: {
+		MANUAL_RUNTIME_LOOP: false,
+		MANUAL_RUNTIME_MODEL: 'openai/gpt-5.2',
+		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
+		CLOUDFLARE_GATEWAY_ID: 'gw-test',
+		CLOUDFLARE_API_TOKEN: 'token-test',
+	},
+}));
+
 vi.mock('@nexo/api-core/services/tools/ai-sdk-tools', () => ({
 	buildTools: mockBuildTools,
 }));
