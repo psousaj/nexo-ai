@@ -19,9 +19,6 @@ COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 COPY packages/prettier-config/package.json packages/prettier-config/
 
-# Copia patches do pnpm (ex: Platform.MACOS fix do Baileys)
-COPY patches/ patches/
-
 # Instala dependências (todas, incluindo dev para build)
 RUN pnpm install --frozen-lockfile
 
@@ -65,16 +62,8 @@ COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 COPY packages/prettier-config/package.json packages/prettier-config/
 
-# Copia patches do pnpm (ex: Platform.MACOS fix do Baileys)
-COPY patches/ patches/
-
 # Instala apenas dependências de produção
 RUN pnpm install --frozen-lockfile --prod
-
-# Verifica se o patch Platform.MACOS foi aplicado corretamente
-RUN grep -q "Platform.MACOS" node_modules/.pnpm/$(ls node_modules/.pnpm | grep "whiskeysockets+baileys" | head -1)/node_modules/@whiskeysockets/baileys/lib/Utils/validate-connection.js \
-    && echo "[patch] ✅ Platform.MACOS aplicado com sucesso" \
-    || (echo "[patch] ❌ ERRO: patch Platform.MACOS NÃO foi aplicado!" && exit 1)
 
 
 # Copia builds dos packages (dist/ de cada um)
@@ -89,11 +78,6 @@ COPY --from=builder /app/apps/api/src/services/message-analysis/training/model/ 
 
 ENV NODE_ENV=production
 EXPOSE 3001
-
-# Diretório para persistir credenciais do Baileys (montado como volume no Railway)
-RUN mkdir -p /data/baileys-auth
-RUN chown -R appuser:appgroup /data/baileys-auth
-RUN chmod 770 /data/baileys-auth
 
 # Hardening: remove shell e loga resultado
 RUN set -eux; \

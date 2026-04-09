@@ -7,8 +7,8 @@ import { env } from "@/config/env";
 import { REDIS_BASE_OPTIONS } from "@/config/redis";
 import { db } from "@/db";
 import { conversations, semanticExternalItems } from "@/db/schema";
+import { embeddingService } from "@/services/ai/embedding-service";
 import { globalErrorHandler } from "@/services/error/error.service";
-import { buildEnrichmentEmbeddingItem } from "@/services/enrichment/enrichment-embedding-pipeline";
 import { mapWithConcurrency } from "@/utils/concurrency";
 import { loggers } from "@/utils/logger";
 import { recordException, setAttributes, startSpan } from "@nexo/otel/tracing";
@@ -111,7 +111,7 @@ queueLogger.info('✅ Queue "close-conversation" criada');
 export const messageQueue = new Queue<{
   incomingMsg: IncomingMessage;
   providerName: ProviderType;
-  providerApi?: "meta" | "baileys";
+  providerApi?: "evolution";
 }>("message-processing", { connection: REDIS_BASE_OPTIONS });
 
 queueLogger.info('✅ Queue "message-processing" criada');
@@ -248,12 +248,12 @@ closeConversationWorker.on("failed", (job, error) => {
 export const messageWorker = new Worker<{
   incomingMsg: IncomingMessage;
   providerName: ProviderType;
-  providerApi?: "meta" | "baileys";
+  providerApi?: "evolution";
 }>(
   "message-processing",
   async (job) => {
     return startSpan("queue.message.process", async (_span) => {
-      const { incomingMsg, providerName, providerApi } = job.data;
+      const { incomingMsg, providerName } = job.data;
 
       setAttributes({
         "queue.name": "message-processing",
@@ -270,19 +270,7 @@ export const messageWorker = new Worker<{
         );
 
         const { processMessage } = await import("./message-service");
-        let provider = await getProvider(providerName);
-
-        if (providerName === "whatsapp" && providerApi === "baileys") {
-          const { createBaileysAdapter } =
-            await import("@/adapters/messaging/baileys-adapter");
-          provider = createBaileysAdapter();
-        }
-
-        if (providerName === "whatsapp" && providerApi === "meta") {
-          const { whatsappAdapter } =
-            await import("@/adapters/messaging/whatsapp-adapter");
-          provider = whatsappAdapter;
-        }
+        const provider = await getProvider(providerName);
 
         if (!provider) {
           throw new Error(`Provider ${providerName} não encontrado para o job`);
@@ -535,8 +523,6 @@ export const enrichmentWorker = new Worker<EnrichmentJob>(
           { count: newCandidates.length },
           "🔍 Novos itens para processar",
         );
-        let embeddingCompleted = 0;
-        let embeddingFailed = 0;
 
         // 4. Batch Vectorize (concorrência controlada)
         // Prepara texto para embedding: "Title: <title>. Overview: <overview>"
@@ -544,31 +530,29 @@ export const enrichmentWorker = new Worker<EnrichmentJob>(
           newCandidates,
           EMBEDDING_MAX_CONCURRENCY,
           async (candidate) => {
-            const result = await buildEnrichmentEmbeddingItem({
-              candidate,
-              provider,
-              type,
-              jobId: job.id,
-            });
+            const text =
+              `Title: ${candidate.title || candidate.name}\nOverview: ${candidate.overview || ""}`.trim();
 
-            if (!result.item) {
-              embeddingFailed += 1;
+            let embedding: number[] | null = null;
+            try {
+              embedding = await embeddingService.generateEmbedding(text);
+            } catch (err) {
               queueLogger.error(
-                { candidateId: candidate.id, embeddingTask: result.block },
-                "⚠️ Falha ao gerar embedding no enrichment (ignorando item)",
+                { err, candidateId: candidate.id },
+                "⚠️ Falha ao gerar embedding (ignorando item)",
               );
               return null;
             }
 
-            embeddingCompleted += 1;
-            return result.item;
+            return {
+              externalId: String(candidate.id),
+              type,
+              provider,
+              rawData: candidate,
+              embedding,
+            };
           },
         );
-
-        setAttributes({
-          "enrichment.embedding_completed": embeddingCompleted,
-          "enrichment.embedding_failed": embeddingFailed,
-        });
 
         const validItems = itemsToInsert.filter(
           (i): i is NonNullable<typeof i> => {

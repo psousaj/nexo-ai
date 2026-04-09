@@ -6,16 +6,22 @@ This file defines mandatory execution rules for all AI coding agents in this rep
 
 - Always execute work in small, explicit tasks.
 - Mandatory git loop for every task: **tasks -> test -> commit**.
-- **NEVER run `git push` as an AI agent.**
-- Push/PR update actions must be done by a human maintainer after reviewing local commits.
+- **Never run `git push` automatically.**
+- If the user explicitly asks for push/PR actions, execute them.
+- Each planning cycle must run in one dedicated branch.
+- Keep implementation inside that dedicated branch until all planned milestones/tasks are complete.
 
 ## Mandatory Delivery Loop
 
-1. Implement one task.
-2. Add or update tests for that task.
-3. Run tests until green.
-4. Commit only that completed task.
-5. Repeat the loop for the next task.
+1. Start planning by creating/using a dedicated branch for that planning cycle.
+2. For each milestone/task, implement one feature.
+3. Add or update tests for that feature.
+4. Run tests until green.
+5. Commit only that completed feature/task.
+6. Repeat until all milestones/tasks in the planning are done.
+7. Ensure the final result is on the target feature branch.
+8. Notify the user that delivery is ready.
+9. Push/open/update PR only when the user explicitly requests it.
 
 ## Scope
 

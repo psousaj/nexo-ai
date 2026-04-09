@@ -140,7 +140,7 @@ describe('AgentOrchestrator context wiring', () => {
 			expect.any(Object),
 		);
 		expect(response.message).toBe('ok');
-	}, 15000);
+	}, 10000);
 
 	test('without sessionKey uses fallback user assistantName', async () => {
 		const context = {
@@ -177,5 +177,5 @@ describe('AgentOrchestrator context wiring', () => {
 			}),
 			expect.any(Object),
 		);
-	}, 15000);
+	}, 10000);
 });
