@@ -18,9 +18,8 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
     .default("evolution"),
   /**
    * phoneNumber - Phone number connected to instance
-   * Persistido na coluna legada baileys_phone_number por compatibilidade.
    */
-  phoneNumber: text("baileys_phone_number"),
+  phoneNumber: text("phone_number"),
   /**
    * metaPhoneNumberId - Phone Number ID from Meta API
    * Retrieved from Meta WhatsApp Business API configuration
@@ -28,10 +27,9 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
   metaPhoneNumberId: text("meta_phone_number_id"),
   /**
    * connectionStatus - Current WhatsApp connection status
-   * Persistido na coluna legada baileys_connection_status por compatibilidade.
    * 'connecting', 'connected', 'disconnected', 'error'
    */
-  connectionStatus: text("baileys_connection_status").$type<
+  connectionStatus: text("connection_status").$type<
     "connecting" | "connected" | "disconnected" | "error"
   >(),
   /**

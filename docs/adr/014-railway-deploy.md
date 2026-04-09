@@ -1,4 +1,4 @@
-# ADR-015: Railway como Plataforma de Deploy
+# ADR-014: Railway como Plataforma de Deploy
 
 **Status**: accepted  
 **Data**: 2026-01-05  
@@ -7,11 +7,10 @@
 
 ## Contexto
 
-A decisão original era usar Cloudflare Workers como plataforma de deploy. Porém, com o crescimento dos requisitos do projeto (Bull queues, Redis, Baileys WebSocket, long-running processes, ML local com NLP.js), Cloudflare Workers se mostrou incompatível:
+A decisão original era usar Cloudflare Workers como plataforma de deploy. Porém, com o crescimento dos requisitos do projeto (Bull queues, Redis, long-running processes, ML local com NLP.js e integração operacional com Evolution self-hosted), Cloudflare Workers se mostrou incompatível:
 
 - **CPU limit 50ms**: incompatível com NLP.js training e processamento de áudio
-- **Sem WebSocket persistente**: Baileys precisa de conexão WS longa
-- **Sem acesso a filesystem**: Baileys auth state precisa de storage persistente
+- **Sem runtime de processo longo**: workers de fila e processamento contínuo exigem processo persistente
 - **Sem suporte a Bull/ioredis**: queues exigem conexão TCP Redis longa
 
 ## Decisão
@@ -33,20 +32,20 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
 [[volumes]]
-mount = "/data/baileys-auth"
-name = "baileys-auth"
+mount = "/data/app"
+name = "app-data"
 ```
 
 - **Build**: Docker via `apps/api/Dockerfile`
 - **Runtime**: Node.js (processo longo, sem timeout de CPU)
-- **Volume persistente**: `/data/baileys-auth` para sessão do Baileys
+- **Volume persistente**: `/data/app` para dados operacionais da aplicação
 
 ## Por que Railway?
 
 | Critério | Cloudflare Workers | Railway |
 |---------|-------------------|---------|
 | Bull + Redis | ❌ sem TCP longo | ✅ nativo |
-| Baileys WS | ❌ limite 50ms CPU | ✅ processo longo |
+| Runtime de workers | ❌ limite 50ms CPU | ✅ processo longo |
 | NLP.js | ❌ bundle incompatível | ✅ Node.js |
 | Filesystem | ❌ sem acesso | ✅ volume persistente |
 | Custo MVP | ✅ gratuito | $5/mês |
@@ -65,7 +64,7 @@ Cloudflare ainda é usado **apenas como AI Gateway** (proxy das chamadas LLM), n
 
 ### Positivas
 - Processo longo: sem limites de CPU/memória problemáticos
-- Volume persistente para Baileys auth state
+- Volume persistente para dados operacionais
 - Redis e Bull funcionam nativamente
 - Deploy simples via Dockerfile + git push
 

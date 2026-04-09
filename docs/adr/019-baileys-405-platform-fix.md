@@ -1,8 +1,11 @@
-# ADR-020: Workaround para erro 405 do Baileys (Platform.WEB rejeitado)
+# ADR-019: Workaround para erro 405 do Baileys (Platform.WEB rejeitado)
 
-**Status**: Ativo (workaround temporário)  
+**Status**: superseded  
+**Superseded by**: [ADR-021](021-evolution-only-whatsapp-runtime.md)  
 **Data**: 2026-02-24  
 **Afeta**: `apps/api/src/services/baileys-service.ts`
+
+> Registro histórico. Não é usado no runtime atual Evolution-only.
 
 ---
 

@@ -9,7 +9,7 @@ Entenda como o Nexo AI funciona sob o capô.
 │                         CLIENTES                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
 │  │  Telegram    │  │  WhatsApp    │  │  Discord            │
-│  │  Bot API     │  │  Meta API    │  │  Bot.js             │
+│  │  Bot API     │  │ Evolution API │  │  Bot.js             │
 │  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘ │
 └─────────┼─────────────────┼─────────────────────┼──────────────┘
           │                 │                     │
@@ -110,7 +110,7 @@ Entenda como o Nexo AI funciona sob o capô.
 **Componentes**:
 
 - `telegram-adapter.ts` - Webhook do Telegram
-- `whatsapp-adapter.ts` - Webhook do WhatsApp (futuro)
+- `evolution-adapter.ts` - Webhook do WhatsApp (Evolution)
 - `routes/` - REST API endpoints
 
 **Características**:
