@@ -16,6 +16,7 @@ describe('runOpenAIManualLoop', () => {
 									tool_calls: [
 										{
 											id: 'call_1',
+											type: 'function',
 											function: {
 												name: 'search_items',
 												arguments: '{"query":"matrix"}',
@@ -91,6 +92,7 @@ describe('runOpenAIManualLoop', () => {
 									tool_calls: [
 										{
 											id: 'call_1',
+											type: 'function',
 											function: {
 												name: 'save_note',
 												arguments: '{"content":"teste"}',

@@ -1,198 +1,181 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-const {
-  mockGetHistory,
-  mockGetUserById,
-  mockBuildAgentContext,
-  mockRunOpenAIManualLoop,
-  mockBuildAgentPrompt,
-} = vi.hoisted(() => ({
-  mockGetHistory: vi.fn(),
-  mockGetUserById: vi.fn(),
-  mockBuildAgentContext: vi.fn(),
-  mockRunOpenAIManualLoop: vi.fn(),
-  mockBuildAgentPrompt: vi.fn(),
+const { mockGetHistory, mockGetUserById, mockBuildAgentContext, mockRunOpenAIManualLoop, mockBuildAgentPrompt } =
+	vi.hoisted(() => ({
+		mockGetHistory: vi.fn(),
+		mockGetUserById: vi.fn(),
+		mockBuildAgentContext: vi.fn(),
+		mockRunOpenAIManualLoop: vi.fn(),
+		mockBuildAgentPrompt: vi.fn(),
+	}));
+
+vi.mock('@nexo/api-core/services/queue-service', () => ({
+	scheduleConversationClose: vi.fn(),
+	cancelConversationClose: vi.fn(),
 }));
 
-vi.mock("@nexo/api-core/services/queue-service", () => ({
-  scheduleConversationClose: vi.fn(),
-  cancelConversationClose: vi.fn(),
+vi.mock('@nexo/api-core/services/tool-availability.service', () => ({
+	toolAvailabilityService: {
+		getAvailableTools: vi.fn().mockResolvedValue({
+			tools: ['save_note', 'save_memory', 'search_items'],
+		}),
+	},
 }));
 
-vi.mock("@nexo/api-core/services/tool-availability.service", () => ({
-  toolAvailabilityService: {
-    getAvailableTools: vi
-      .fn()
-      .mockResolvedValue({
-        tools: ["save_note", "save_memory", "search_items"],
-      }),
-  },
+vi.mock('@nexo/api-core/services/conversation-service', () => ({
+	conversationService: {
+		getHistory: mockGetHistory,
+		updateState: vi.fn(),
+	},
 }));
 
-vi.mock("@nexo/api-core/services/conversation-service", () => ({
-  conversationService: {
-    getHistory: mockGetHistory,
-    updateState: vi.fn(),
-  },
+vi.mock('@nexo/api-core/services/user-service', () => ({
+	userService: {
+		getUserById: mockGetUserById,
+	},
 }));
 
-vi.mock("@nexo/api-core/services/user-service", () => ({
-  userService: {
-    getUserById: mockGetUserById,
-  },
+vi.mock('@nexo/api-core/config/prompt-builder', () => ({
+	buildAgentPrompt: mockBuildAgentPrompt,
 }));
 
-vi.mock("@nexo/api-core/config/prompt-builder", () => ({
-  buildAgentPrompt: mockBuildAgentPrompt,
+vi.mock('@nexo/api-core/config/env', () => ({
+	env: {
+		MANUAL_RUNTIME_MODEL: 'openai/gpt-5.2',
+		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
+		CLOUDFLARE_GATEWAY_ID: 'gw-test',
+		CLOUDFLARE_API_TOKEN: 'token-test',
+	},
 }));
 
-vi.mock("@nexo/api-core/config/env", () => ({
-  env: {
-    MANUAL_RUNTIME_MODEL: "openai/gpt-5.2",
-    CLOUDFLARE_ACCOUNT_ID: "acc-test",
-    CLOUDFLARE_GATEWAY_ID: "gw-test",
-    CLOUDFLARE_API_TOKEN: "token-test",
-  },
+vi.mock('@nexo/api-core/services/context-builder', () => ({
+	buildAgentContext: mockBuildAgentContext,
 }));
 
-vi.mock("@nexo/api-core/services/context-builder", () => ({
-  buildAgentContext: mockBuildAgentContext,
+vi.mock('@nexo/api-core/services/tools', () => ({
+	executeTool: vi.fn().mockResolvedValue({ success: true, message: 'ok' }),
 }));
 
-vi.mock("@nexo/api-core/services/tools", () => ({
-  executeTool: vi.fn().mockResolvedValue({ success: true, message: "ok" }),
+vi.mock('@nexo/api-core/services/ai', () => ({
+	OpenAIGatewayTransport: vi.fn().mockImplementation(() => ({
+		createChatCompletion: vi.fn(),
+	})),
+	runOpenAIManualLoop: mockRunOpenAIManualLoop,
+	summarizeRuntimeRounds: vi.fn().mockReturnValue({
+		roundCount: 1,
+		toolUseBlocks: 0,
+		stopReasons: ['end_turn'],
+		totalTokens: 12,
+		gatewayHeaders: {},
+	}),
+	buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
+	llmService: { callLLM: vi.fn() },
 }));
 
-vi.mock("@nexo/api-core/services/ai", () => ({
-  OpenAIGatewayTransport: vi.fn().mockImplementation(() => ({
-    createChatCompletion: vi.fn(),
-  })),
-  runOpenAIManualLoop: mockRunOpenAIManualLoop,
-  summarizeRuntimeRounds: vi.fn().mockReturnValue({
-    roundCount: 1,
-    toolUseBlocks: 0,
-    stopReasons: ["end_turn"],
-    totalTokens: 12,
-    gatewayHeaders: {},
-  }),
-  buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
-  llmService: { callLLM: vi.fn() },
+vi.mock('@nexo/api-core/services/service-instrumentation', () => ({
+	instrumentService: (_name: string, instance: unknown) => instance,
 }));
 
-vi.mock("@nexo/api-core/services/service-instrumentation", () => ({
-  instrumentService: (_name: string, instance: unknown) => instance,
+vi.mock('@nexo/otel/tracing', () => ({
+	startSpan: async (_name: string, fn: (span: unknown) => Promise<unknown>) => fn({}),
+	setAttributes: vi.fn(),
 }));
 
-vi.mock("@nexo/otel/tracing", () => ({
-  startSpan: async (_name: string, fn: (span: unknown) => Promise<unknown>) =>
-    fn({}),
-  setAttributes: vi.fn(),
+vi.mock('@nexo/api-core/config/pivot-feature-flags', () => ({
+	getPivotFeatureFlags: vi.fn().mockResolvedValue({ TOOL_SCHEMA_V2: true }),
 }));
 
-vi.mock("@nexo/api-core/config/pivot-feature-flags", () => ({
-  getPivotFeatureFlags: vi.fn().mockResolvedValue({ TOOL_SCHEMA_V2: true }),
-}));
+describe('AgentOrchestrator context wiring', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockGetHistory.mockResolvedValue([]);
+		mockBuildAgentPrompt.mockReturnValue({
+			system: 'You are Nexo, a personal assistant.',
+		});
+		mockRunOpenAIManualLoop.mockResolvedValue({
+			text: 'ok',
+			toolsUsed: [],
+			rounds: 1,
+			lastResponse: null,
+			roundsData: [],
+		});
+	});
 
-describe("AgentOrchestrator context wiring", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGetHistory.mockResolvedValue([]);
-    mockBuildAgentPrompt.mockReturnValue({
-      system: "You are Nexo, a personal assistant.",
-    });
-    mockRunOpenAIManualLoop.mockResolvedValue({
-      text: "ok",
-      toolsUsed: [],
-      rounds: 1,
-      lastResponse: null,
-      roundsData: [],
-    });
-  });
+	test('with sessionKey uses personalized buildAgentContext path', async () => {
+		const context = {
+			userId: 'user-1',
+			conversationId: 'conv-1',
+			externalId: 'ext-1',
+			message: 'oi',
+			provider: 'telegram',
+			sessionKey: 'agent:main:telegram:direct:user-1',
+		};
 
-  test("with sessionKey uses personalized buildAgentContext path", async () => {
-    const context = {
-      userId: "user-1",
-      conversationId: "conv-1",
-      externalId: "ext-1",
-      message: "oi",
-      provider: "telegram",
-      sessionKey: "agent:main:telegram:direct:user-1",
-    };
+		mockBuildAgentContext.mockResolvedValue({
+			systemPrompt: 'PROMPT PERSONALIZADO',
+			assistantName: 'Aurora',
+			soulContent: 'alma',
+			identityContent: 'identidade',
+		});
 
-    mockBuildAgentContext.mockResolvedValue({
-      systemPrompt: "PROMPT PERSONALIZADO",
-      assistantName: "Aurora",
-      soulContent: "alma",
-      identityContent: "identidade",
-    });
+		mockBuildAgentPrompt.mockReturnValue({
+			system: 'You are Aurora, a personal assistant.',
+		});
 
-    mockBuildAgentPrompt.mockReturnValue({
-      system: "You are Aurora, a personal assistant.",
-    });
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
 
-    const { AgentOrchestrator } =
-      await import("@nexo/api-core/services/agent-orchestrator");
-    const orchestrator = new AgentOrchestrator();
+		const response = await (orchestrator as any).handleWithLLM(
+			context,
+			{ intent: 'casual_chat', action: 'greet', confidence: 0.95 },
+			{ id: 'conv-1' },
+		);
 
-    const response = await (orchestrator as any).handleWithLLM(
-      context,
-      { intent: "casual_chat", action: "greet", confidence: 0.95 },
-      { id: "conv-1" },
-    );
+		expect(mockBuildAgentContext).toHaveBeenCalledWith(context.userId, context.sessionKey);
+		expect(mockBuildAgentPrompt).toHaveBeenCalledWith(expect.objectContaining({ assistantName: 'Aurora' }));
+		expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining('PERSONALIZED CONTEXT'),
+			}),
+			expect.any(Object),
+		);
+		expect(response.message).toBe('ok');
+	}, 15000);
 
-    expect(mockBuildAgentContext).toHaveBeenCalledWith(
-      context.userId,
-      context.sessionKey,
-    );
-    expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ assistantName: "Aurora" }),
-    );
-    expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemPrompt: expect.stringContaining("PERSONALIZED CONTEXT"),
-      }),
-      expect.any(Object),
-    );
-    expect(response.message).toBe("ok");
-  }, 15000);
+	test('without sessionKey uses fallback user assistantName', async () => {
+		const context = {
+			userId: 'user-2',
+			conversationId: 'conv-2',
+			externalId: 'ext-2',
+			message: 'oi',
+			provider: 'telegram',
+		};
 
-  test("without sessionKey uses fallback user assistantName", async () => {
-    const context = {
-      userId: "user-2",
-      conversationId: "conv-2",
-      externalId: "ext-2",
-      message: "oi",
-      provider: "telegram",
-    };
+		mockGetUserById.mockResolvedValue({
+			id: context.userId,
+			assistantName: 'Aurora',
+		});
 
-    mockGetUserById.mockResolvedValue({
-      id: context.userId,
-      assistantName: "Aurora",
-    });
+		mockBuildAgentPrompt.mockReturnValue({
+			system: 'You are Aurora, a personal assistant.',
+		});
 
-    mockBuildAgentPrompt.mockReturnValue({
-      system: "You are Aurora, a personal assistant.",
-    });
+		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
 
-    const { AgentOrchestrator } =
-      await import("@nexo/api-core/services/agent-orchestrator");
-    const orchestrator = new AgentOrchestrator();
+		await (orchestrator as any).handleWithLLM(
+			context,
+			{ intent: 'casual_chat', action: 'greet', confidence: 0.95 },
+			{ id: 'conv-2' },
+		);
 
-    await (orchestrator as any).handleWithLLM(
-      context,
-      { intent: "casual_chat", action: "greet", confidence: 0.95 },
-      { id: "conv-2" },
-    );
-
-    expect(mockBuildAgentContext).not.toHaveBeenCalled();
-    expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ assistantName: "Aurora" }),
-    );
-    expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemPrompt: expect.stringContaining("Aurora"),
-      }),
-      expect.any(Object),
-    );
-  }, 15000);
+		expect(mockBuildAgentContext).not.toHaveBeenCalled();
+		expect(mockBuildAgentPrompt).toHaveBeenCalledWith(expect.objectContaining({ assistantName: 'Aurora' }));
+		expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining('Aurora'),
+			}),
+			expect.any(Object),
+		);
+	}, 15000);
 });

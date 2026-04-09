@@ -37,6 +37,13 @@ export interface OpenAIGatewayResponse {
 	round: RuntimeRound;
 }
 
+type ChatCompletionToolCallWithCustom = OpenAI.Chat.Completions.ChatCompletionMessageToolCall & {
+	custom?: {
+		name?: string;
+		input?: unknown;
+	};
+};
+
 export class OpenAIGatewayTransport {
 	private readonly client: OpenAI;
 	private model: string;
@@ -138,14 +145,22 @@ export class OpenAIGatewayTransport {
 			}
 
 			for (const toolCall of assistantMessage?.tool_calls ?? []) {
-				const toolName = toolCall.type === 'function' ? toolCall.function.name : toolCall.custom.name;
-				const rawInput = toolCall.type === 'function' ? toolCall.function.arguments : toolCall.custom.input;
+				const resolvedToolCall = this.resolveToolCall(toolCall);
+				if (!resolvedToolCall) {
+					addRuntimeBlock(runtimeRound, {
+						type: 'error',
+						code: 'invalid_tool_call',
+						message: 'Tool call inválida recebida do provedor OpenAI Gateway.',
+						retryable: false,
+					});
+					continue;
+				}
 
 				addRuntimeBlock(runtimeRound, {
 					type: 'tool_use',
-					id: toolCall.id,
-					name: toolName,
-					input: this.safeParseToolArguments(rawInput),
+					id: resolvedToolCall.id,
+					name: resolvedToolCall.name,
+					input: this.safeParseToolArguments(resolvedToolCall.rawInput),
 				});
 			}
 
@@ -171,7 +186,39 @@ export class OpenAIGatewayTransport {
 		}
 	}
 
-	private safeParseToolArguments(rawArguments: string): Record<string, unknown> {
+	private resolveToolCall(
+		toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+	): { id: string; name: string; rawInput: unknown } | null {
+		const functionCall = (toolCall as OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall).function;
+		if (functionCall && typeof functionCall.name === 'string') {
+			return {
+				id: toolCall.id,
+				name: functionCall.name,
+				rawInput: functionCall.arguments,
+			};
+		}
+
+		const customCall = (toolCall as ChatCompletionToolCallWithCustom).custom;
+		if (customCall && typeof customCall.name === 'string') {
+			return {
+				id: toolCall.id,
+				name: customCall.name,
+				rawInput: customCall.input,
+			};
+		}
+
+		return null;
+	}
+
+	private safeParseToolArguments(rawArguments: unknown): Record<string, unknown> {
+		if (rawArguments && typeof rawArguments === 'object' && !Array.isArray(rawArguments)) {
+			return rawArguments as Record<string, unknown>;
+		}
+
+		if (typeof rawArguments !== 'string') {
+			return {};
+		}
+
 		try {
 			const parsed = JSON.parse(rawArguments);
 			return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};

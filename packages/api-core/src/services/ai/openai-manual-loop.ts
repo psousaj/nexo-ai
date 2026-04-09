@@ -69,6 +69,15 @@ const MINIMAL_TOOL_DEFINITIONS: Record<MinimalTool, OpenAI.Chat.ChatCompletionTo
 	},
 };
 
+const SUPPORTED_MINIMAL_TOOLS = new Set<MinimalTool>(Object.keys(MINIMAL_TOOL_DEFINITIONS) as MinimalTool[]);
+
+type ChatCompletionToolCallWithCustom = OpenAI.Chat.Completions.ChatCompletionMessageToolCall & {
+	custom?: {
+		name?: string;
+		input?: unknown;
+	};
+};
+
 export interface OpenAIManualLoopDependencies {
 	transport: Pick<OpenAIGatewayTransport, 'createChatCompletion'>;
 	executeTool: (toolName: ToolName, context: ToolContext, params: Record<string, unknown>) => Promise<ToolOutput>;
@@ -94,8 +103,17 @@ export interface OpenAIManualLoopResult {
 }
 
 export function buildManualLoopTools(availableTools: string[]): OpenAI.Chat.ChatCompletionTool[] {
-	const allowSet = new Set(availableTools);
-	const enabled = (Object.keys(MINIMAL_TOOL_DEFINITIONS) as MinimalTool[]).filter((toolName) => allowSet.has(toolName));
+	const unsupportedTools = availableTools.filter((toolName) => !SUPPORTED_MINIMAL_TOOLS.has(toolName as MinimalTool));
+	if (unsupportedTools.length > 0) {
+		loggers.ai.warn(
+			{ unsupportedTools },
+			'⚠️ Manual loop recebeu tools sem definição e irá ignorá-las durante tool-calling.',
+		);
+	}
+
+	const enabled = availableTools.filter((toolName): toolName is MinimalTool =>
+		SUPPORTED_MINIMAL_TOOLS.has(toolName as MinimalTool),
+	);
 	return enabled.map((toolName) => MINIMAL_TOOL_DEFINITIONS[toolName]);
 }
 
@@ -138,14 +156,28 @@ export async function runOpenAIManualLoop(
 				tool_calls: toolCalls,
 			});
 
-			for (const toolCall of toolCalls) {
-				const toolName = (toolCall.type === 'function' ? toolCall.function.name : toolCall.custom.name) as ToolName;
+			for (const [index, toolCall] of toolCalls.entries()) {
+				const toolCallId = resolveToolCallId(toolCall, rounds, index);
+				const resolvedToolCall = resolveToolCall(toolCall);
+				if (!resolvedToolCall) {
+					conversationMessages.push({
+						role: 'tool',
+						tool_call_id: toolCallId,
+						content: JSON.stringify({
+							success: false,
+							error: 'Tool call inválida recebida do modelo.',
+						}),
+					});
+					continue;
+				}
+
+				const toolName = resolvedToolCall.name as ToolName;
 				toolsUsed.push(toolName);
 
 				if (!request.availableTools.includes(toolName)) {
 					conversationMessages.push({
 						role: 'tool',
-						tool_call_id: toolCall.id,
+						tool_call_id: toolCallId,
 						content: JSON.stringify({
 							success: false,
 							error: `Tool '${toolName}' não permitida pela policy atual.`,
@@ -154,13 +186,12 @@ export async function runOpenAIManualLoop(
 					continue;
 				}
 
-				const rawArguments = toolCall.type === 'function' ? toolCall.function.arguments : toolCall.custom.input;
-				const parsedArgs = safeParseToolArguments(rawArguments);
+				const parsedArgs = safeParseToolArguments(resolvedToolCall.rawArguments);
 				const toolResult = await deps.executeTool(toolName, request.toolContext, parsedArgs);
 
 				conversationMessages.push({
 					role: 'tool',
-					tool_call_id: toolCall.id,
+					tool_call_id: toolCallId,
 					content: JSON.stringify({
 						success: toolResult.success,
 						data: toolResult.data ?? null,
@@ -200,7 +231,49 @@ export async function runOpenAIManualLoop(
 	};
 }
 
-function safeParseToolArguments(raw: string): Record<string, unknown> {
+function resolveToolCall(
+	toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+): { name: string; rawArguments: unknown } | null {
+	const functionCall = (toolCall as OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall).function;
+	if (functionCall && typeof functionCall.name === 'string') {
+		return {
+			name: functionCall.name,
+			rawArguments: functionCall.arguments,
+		};
+	}
+
+	const customCall = (toolCall as ChatCompletionToolCallWithCustom).custom;
+	if (customCall && typeof customCall.name === 'string') {
+		return {
+			name: customCall.name,
+			rawArguments: customCall.input,
+		};
+	}
+
+	return null;
+}
+
+function resolveToolCallId(
+	toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+	round: number,
+	index: number,
+): string {
+	if (typeof toolCall.id === 'string' && toolCall.id.trim().length > 0) {
+		return toolCall.id;
+	}
+
+	return `tool_call_${round}_${index}`;
+}
+
+function safeParseToolArguments(raw: unknown): Record<string, unknown> {
+	if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+		return raw as Record<string, unknown>;
+	}
+
+	if (typeof raw !== 'string') {
+		return {};
+	}
+
 	try {
 		const parsed = JSON.parse(raw);
 		if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;

@@ -50,6 +50,7 @@ describe('OpenAIGatewayTransport', () => {
 						tool_calls: [
 							{
 								id: 'tool_1',
+								type: 'function',
 								function: {
 									name: 'search_items',
 									arguments: '{"query":"matrix"}',
