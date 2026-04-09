@@ -23,6 +23,7 @@
 
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { buildAgentPrompt, buildClarificationPrompt } from '@/config/prompt-builder';
+import { env } from '@/config/env';
 import { addRuntimeBlock, createRuntimeRound } from '@/services/ai/runtime-contract';
 import {
 	CANCELLATION_PROMPT,
@@ -43,9 +44,10 @@ import type { MessageMetadata, OrchestratorTrace } from '@/types';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { generateText, type CoreMessage } from 'ai';
+import type OpenAI from 'openai';
 import { getModel } from './ai/ai-sdk-provider';
 import { decideAgentAction } from './agent-action-routing';
-import { llmService } from './ai';
+import { llmService, OpenAIGatewayTransport, runOpenAIManualLoop } from './ai';
 import { buildAgentContext } from './context-builder'; // OpenClaw pattern
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
@@ -85,6 +87,39 @@ export interface AgentResponse {
  */
 export class AgentOrchestrator {
 	private readonly MAX_CLARIFICATION_ATTEMPTS = 4;
+	private openAITransport: OpenAIGatewayTransport | null = null;
+
+	private isManualRuntimeEnabled(): boolean {
+		return env.MANUAL_RUNTIME_LOOP;
+	}
+
+	private getManualRuntimeModel(): string {
+		return env.MANUAL_RUNTIME_MODEL;
+	}
+
+	private getOpenAITransport(): OpenAIGatewayTransport {
+		if (!this.openAITransport) {
+			this.openAITransport = new OpenAIGatewayTransport({
+				accountId: env.CLOUDFLARE_ACCOUNT_ID,
+				gatewayId: env.CLOUDFLARE_GATEWAY_ID,
+				apiToken: env.CLOUDFLARE_API_TOKEN,
+				model: this.getManualRuntimeModel(),
+				basePath: 'compat',
+				collectLog: true,
+			});
+		}
+
+		return this.openAITransport;
+	}
+
+	private toOpenAIMessages(messages: CoreMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
+		return messages
+			.filter((msg): msg is Extract<CoreMessage, { role: 'user' | 'assistant' }> => msg.role === 'user' || msg.role === 'assistant')
+			.map((msg) => ({
+				role: msg.role,
+				content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+			}));
+	}
 
 	private buildMessagePersistOptions(context: AgentContext, includeProviderMessage = false) {
 		return {
@@ -534,6 +569,53 @@ export class AgentOrchestrator {
 			// ============================================================================
 			const llmStart = performance.now();
 			const toolsUsed: string[] = [];
+
+			if (this.isManualRuntimeEnabled()) {
+				try {
+					const manualResult = await runOpenAIManualLoop(
+						{
+							conversationId: context.conversationId,
+							userId: context.userId,
+							systemPrompt,
+							messages: this.toOpenAIMessages(messages),
+							availableTools: safeToolNames,
+							toolContext,
+							model: this.getManualRuntimeModel(),
+							maxRounds: 6,
+						},
+						{
+							transport: this.getOpenAITransport(),
+							executeTool: async (toolName, toolCtx, params) => executeTool(toolName, toolCtx, params),
+						},
+					);
+
+					const llmDurationMs = Math.round(performance.now() - llmStart);
+					toolsUsed.push(...manualResult.toolsUsed);
+
+					loggers.ai.info(
+						{
+							toolsUsed: manualResult.toolsUsed,
+							rounds: manualResult.rounds,
+							textLength: manualResult.text.length,
+							duration: `${llmDurationMs}ms`,
+						},
+						'✅ Manual runtime respondeu',
+					);
+
+					return {
+						message: manualResult.text,
+						state: 'idle' as ConversationState,
+						toolsUsed,
+						trace: {
+							llm_action: toolsUsed.length > 0 ? 'CALL_TOOL' : 'RESPOND',
+							schema_version: '2.0',
+							durations: { llm_ms: llmDurationMs },
+						},
+					};
+				} catch (error) {
+					loggers.ai.warn({ err: error }, '⚠️ Manual runtime falhou, usando fallback legado');
+				}
+			}
 
 			try {
 				const result = await generateText({

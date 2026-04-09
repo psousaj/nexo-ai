@@ -115,6 +115,13 @@ export const llmService = instrumentService(
 export type { AIProvider, AIResponse, Message } from './types';
 export { OpenAIGatewayTransport } from './openai-gateway-transport';
 export type { OpenAIGatewayRequest, OpenAIGatewayResponse, OpenAIGatewayTransportConfig } from './openai-gateway-transport';
+export {
+	buildManualLoopTools,
+	runOpenAIManualLoop,
+	type OpenAIManualLoopDependencies,
+	type OpenAIManualLoopRequest,
+	type OpenAIManualLoopResult,
+} from './openai-manual-loop';
 export type {
 	RuntimeErrorBlock,
 	RuntimeGatewayHeaders,

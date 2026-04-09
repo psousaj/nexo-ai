@@ -27,6 +27,8 @@ export interface OpenAIGatewayRequest {
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
+	tools?: OpenAI.Chat.ChatCompletionTool[];
+	toolChoice?: OpenAI.Chat.ChatCompletionToolChoiceOption;
 	extraHeaders?: Record<string, string>;
 }
 
@@ -96,6 +98,8 @@ export class OpenAIGatewayTransport {
 					messages,
 					temperature: request.temperature,
 					max_tokens: request.maxTokens,
+					tools: request.tools,
+					tool_choice: request.toolChoice,
 				},
 				{
 					headers: {
