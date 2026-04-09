@@ -4,16 +4,14 @@ const {
   mockGetHistory,
   mockGetUserById,
   mockBuildAgentContext,
-  mockGenerateText,
+  mockRunOpenAIManualLoop,
   mockBuildAgentPrompt,
-  mockBuildTools,
 } = vi.hoisted(() => ({
   mockGetHistory: vi.fn(),
   mockGetUserById: vi.fn(),
   mockBuildAgentContext: vi.fn(),
-  mockGenerateText: vi.fn(),
+  mockRunOpenAIManualLoop: vi.fn(),
   mockBuildAgentPrompt: vi.fn(),
-  mockBuildTools: vi.fn(),
 }));
 
 vi.mock("@nexo/api-core/services/queue-service", () => ({
@@ -44,30 +42,17 @@ vi.mock("@nexo/api-core/services/user-service", () => ({
   },
 }));
 
-vi.mock("ai", () => ({
-  generateText: mockGenerateText,
-}));
-
-vi.mock("@nexo/api-core/services/ai/ai-sdk-provider", () => ({
-  getModel: vi.fn().mockReturnValue("mock-model"),
-}));
-
 vi.mock("@nexo/api-core/config/prompt-builder", () => ({
   buildAgentPrompt: mockBuildAgentPrompt,
 }));
 
 vi.mock("@nexo/api-core/config/env", () => ({
   env: {
-    MANUAL_RUNTIME_LOOP: false,
     MANUAL_RUNTIME_MODEL: "openai/gpt-5.2",
     CLOUDFLARE_ACCOUNT_ID: "acc-test",
     CLOUDFLARE_GATEWAY_ID: "gw-test",
     CLOUDFLARE_API_TOKEN: "token-test",
   },
-}));
-
-vi.mock("@nexo/api-core/services/tools/ai-sdk-tools", () => ({
-  buildTools: mockBuildTools,
 }));
 
 vi.mock("@nexo/api-core/services/context-builder", () => ({
@@ -79,6 +64,18 @@ vi.mock("@nexo/api-core/services/tools", () => ({
 }));
 
 vi.mock("@nexo/api-core/services/ai", () => ({
+  OpenAIGatewayTransport: vi.fn().mockImplementation(() => ({
+    createChatCompletion: vi.fn(),
+  })),
+  runOpenAIManualLoop: mockRunOpenAIManualLoop,
+  summarizeRuntimeRounds: vi.fn().mockReturnValue({
+    roundCount: 1,
+    toolUseBlocks: 0,
+    stopReasons: ["end_turn"],
+    totalTokens: 12,
+    gatewayHeaders: {},
+  }),
+  buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
   llmService: { callLLM: vi.fn() },
 }));
 
@@ -100,14 +97,15 @@ describe("AgentOrchestrator context wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetHistory.mockResolvedValue([]);
-    mockBuildTools.mockReturnValue({});
     mockBuildAgentPrompt.mockReturnValue({
       system: "You are Nexo, a personal assistant.",
     });
-    mockGenerateText.mockResolvedValue({
+    mockRunOpenAIManualLoop.mockResolvedValue({
       text: "ok",
-      steps: [],
-      toolCalls: [],
+      toolsUsed: [],
+      rounds: 1,
+      lastResponse: null,
+      roundsData: [],
     });
   });
 
@@ -149,10 +147,11 @@ describe("AgentOrchestrator context wiring", () => {
     expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
       expect.objectContaining({ assistantName: "Aurora" }),
     );
-    expect(mockGenerateText).toHaveBeenCalledWith(
+    expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining("PERSONALIZED CONTEXT"),
+        systemPrompt: expect.stringContaining("PERSONALIZED CONTEXT"),
       }),
+      expect.any(Object),
     );
     expect(response.message).toBe("ok");
   }, 15000);
@@ -189,10 +188,11 @@ describe("AgentOrchestrator context wiring", () => {
     expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
       expect.objectContaining({ assistantName: "Aurora" }),
     );
-    expect(mockGenerateText).toHaveBeenCalledWith(
+    expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining("Aurora"),
+        systemPrompt: expect.stringContaining("Aurora"),
       }),
+      expect.any(Object),
     );
   }, 15000);
 });

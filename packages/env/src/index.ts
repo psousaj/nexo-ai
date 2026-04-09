@@ -138,10 +138,6 @@ const envSchema = z.object({
 		.enum(['true', 'false'])
 		.transform((val) => val === 'true')
 		.default('false'),
-	MANUAL_RUNTIME_LOOP: z
-		.enum(['true', 'false'])
-		.transform((val) => val === 'true')
-		.default('false'),
 	MANUAL_RUNTIME_MODEL: z.string().default('openai/gpt-5.2'),
 
 	// Intake Worker

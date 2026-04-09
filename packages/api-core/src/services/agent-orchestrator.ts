@@ -47,8 +47,6 @@ import type { ConversationState, ToolName } from "@/types";
 import type { MessageMetadata, OrchestratorTrace } from "@/types";
 import { loggers } from "@/utils/logger";
 import { setAttributes, startSpan } from "@nexo/otel/tracing";
-import { generateText } from "ai";
-import { getModel } from "./ai/ai-sdk-provider";
 import { executeIntentClassificationTask } from "./ai/intent-classification-task";
 import { buildRuntimeContext } from "./ai/runtime-context-builder";
 import { decideAgentAction } from "./agent-action-routing";
@@ -71,7 +69,7 @@ import { scheduleConversationClose } from "./queue-service";
 import { toolAvailabilityService } from "./tool-availability.service";
 import { filterToolNamesByPolicy } from "./tools/registry";
 import { type ToolContext as LegacyToolContext, executeTool } from "./tools";
-import { type ToolContext, buildTools } from "./tools/ai-sdk-tools";
+import { type ToolContext } from "./tools/ai-sdk-tools";
 
 export interface AgentContext {
   userId: string;
@@ -102,10 +100,6 @@ export interface AgentResponse {
 export class AgentOrchestrator {
   private readonly MAX_CLARIFICATION_ATTEMPTS = 4;
   private openAITransport: OpenAIGatewayTransport | null = null;
-
-  private isManualRuntimeEnabled(): boolean {
-    return env.MANUAL_RUNTIME_LOOP;
-  }
 
   private getManualRuntimeModel(): string {
     return env.MANUAL_RUNTIME_MODEL;
@@ -540,14 +534,14 @@ export class AgentOrchestrator {
   }
 
   /**
-   * Delega para LLM com AI SDK native tool calling.
+    * Delega para LLM com runtime manual no OpenAI SDK + Cloudflare Gateway.
    *
-   * O AI SDK gerencia automaticamente:
-   * - Tool calling em loop (maxSteps)
-   * - Multi-step reasoning (enrich → save)
-   * - Texto final gerado após todas as tools
+    * O runtime manual gerencia explicitamente:
+    * - Rodadas de tool calling
+    * - Execução de tools com policy gate
+    * - Injeção de resultados e término por stop reason
    *
-   * Sem JSON parsing manual, sem retry loop, sem side-effect gate.
+    * Mantém contrato canônico de blocos para observabilidade e auditoria.
    */
   private async handleWithLLM(
     context: AgentContext,
@@ -647,9 +641,6 @@ export class AgentOrchestrator {
       });
 
       const systemPrompt = runtimeContext.systemPrompt;
-      const messages = runtimeContext.coreMessages;
-
-      const tools = buildTools(toolContext, safeToolNames);
 
       // Inicializa envelope canônico da rodada para migração do query engine.
       // Nesta fase, serve como telemetria e contrato de transição sem alterar o comportamento.
@@ -702,157 +693,76 @@ export class AgentOrchestrator {
       );
 
       // ============================================================================
-      // CALL LLM (AI SDK native tool calling)
+      // CALL LLM (Manual runtime + OpenAI Gateway)
       // ============================================================================
       const llmStart = performance.now();
       const toolsUsed: string[] = [];
-
-      if (this.isManualRuntimeEnabled()) {
-        try {
-          const manualResult = await runOpenAIManualLoop(
-            {
-              conversationId: context.conversationId,
-              userId: context.userId,
-              systemPrompt,
-              messages: runtimeContext.openAIMessages,
-              availableTools: safeToolNames,
-              toolContext,
-              model: this.getManualRuntimeModel(),
-              maxRounds: 6,
-            },
-            {
-              transport: this.getOpenAITransport(),
-              executeTool: async (toolName, toolCtx, params) =>
-                executeTool(toolName, toolCtx, params),
-            },
-          );
-
-          const llmDurationMs = Math.round(performance.now() - llmStart);
-          const runtimeSummary = summarizeRuntimeRounds(manualResult.roundsData);
-          toolsUsed.push(...manualResult.toolsUsed);
-
-          setAttributes(
-            buildRuntimeObservabilityAttributes(runtimeSummary, "runtime.manual"),
-          );
-
-          loggers.ai.info(
-            {
-              toolsUsed: manualResult.toolsUsed,
-              rounds: manualResult.rounds,
-              textLength: manualResult.text.length,
-              runtimeStopReasons: runtimeSummary.stopReasons,
-              runtimeTotalTokens: runtimeSummary.totalTokens,
-              gatewayHeaders: runtimeSummary.gatewayHeaders,
-              duration: `${llmDurationMs}ms`,
-            },
-            "✅ Manual runtime respondeu",
-          );
-
-          return {
-            message: manualResult.text,
-            state: "idle" as ConversationState,
-            toolsUsed,
-            trace: {
-              llm_action: toolsUsed.length > 0 ? "CALL_TOOL" : "RESPOND",
-              schema_version: "2.0",
-              runtime: {
-                rounds: runtimeSummary.roundCount,
-                tool_uses: runtimeSummary.toolUseBlocks,
-                stop_reasons: runtimeSummary.stopReasons,
-                total_tokens: runtimeSummary.totalTokens,
-                gateway_provider: runtimeSummary.gatewayHeaders?.cfAigProvider,
-                gateway_model: runtimeSummary.gatewayHeaders?.cfAigModel,
-              },
-              durations: { llm_ms: llmDurationMs },
-            },
-          };
-        } catch (error) {
-          loggers.ai.warn(
-            { err: error },
-            "⚠️ Manual runtime falhou, usando fallback legado",
-          );
-        }
-      }
-
       try {
-        const result = await generateText({
-          model: getModel(),
-          system: systemPrompt,
-          messages,
-          tools,
-          maxSteps: 6,
-          maxRetries: 1,
-          onStepFinish: async (step) => {
-            if (step.toolCalls) {
-              for (const tc of step.toolCalls) {
-                toolsUsed.push(tc.toolName);
-                loggers.ai.info({ tool: tc.toolName }, "🔧 Tool executada");
-              }
-            }
+        const manualResult = await runOpenAIManualLoop(
+          {
+            conversationId: context.conversationId,
+            userId: context.userId,
+            systemPrompt,
+            messages: runtimeContext.openAIMessages,
+            availableTools: safeToolNames,
+            toolContext,
+            model: this.getManualRuntimeModel(),
+            maxRounds: 6,
           },
-        });
+          {
+            transport: this.getOpenAITransport(),
+            executeTool: async (toolName, toolCtx, params) =>
+              executeTool(toolName, toolCtx, params),
+          },
+        );
 
         const llmDurationMs = Math.round(performance.now() - llmStart);
+        const runtimeSummary = summarizeRuntimeRounds(manualResult.roundsData);
+        toolsUsed.push(...manualResult.toolsUsed);
+
+        setAttributes(
+          buildRuntimeObservabilityAttributes(runtimeSummary, "runtime.manual"),
+        );
 
         loggers.ai.info(
           {
-            toolsUsed,
-            steps: result.steps.length,
-            textLength: result.text?.length || 0,
+            toolsUsed: manualResult.toolsUsed,
+            rounds: manualResult.rounds,
+            textLength: manualResult.text.length,
+            runtimeStopReasons: runtimeSummary.stopReasons,
+            runtimeTotalTokens: runtimeSummary.totalTokens,
+            gatewayHeaders: runtimeSummary.gatewayHeaders,
             duration: `${llmDurationMs}ms`,
           },
-          "✅ LLM respondeu",
+          "✅ Manual runtime respondeu",
         );
 
-        if (!result.text || result.text.trim().length === 0) {
-          loggers.ai.error(
-            {
-              toolsUsed,
-              steps: result.steps.length,
-              lastStepFinishReason: (result.steps.at(-1) as any)?.finishReason,
-              providerMetadata: result.providerMetadata,
-            },
-            "❌ LLM retornou resposta vazia (content null/empty)",
-          );
-
-          return {
-            message:
-              "O modelo retornou uma resposta vazia. Tente novamente em instantes.",
-            state: "idle" as ConversationState,
-            toolsUsed,
-          };
-        }
-
-        const responseMessage = result.text || "Pronto!";
-
         return {
-          message: responseMessage,
+          message: manualResult.text,
           state: "idle" as ConversationState,
           toolsUsed,
           trace: {
             llm_action: toolsUsed.length > 0 ? "CALL_TOOL" : "RESPOND",
             schema_version: "2.0",
+            runtime: {
+              rounds: runtimeSummary.roundCount,
+              tool_uses: runtimeSummary.toolUseBlocks,
+              stop_reasons: runtimeSummary.stopReasons,
+              total_tokens: runtimeSummary.totalTokens,
+              gateway_provider: runtimeSummary.gatewayHeaders?.cfAigProvider,
+              gateway_model: runtimeSummary.gatewayHeaders?.cfAigModel,
+            },
             durations: { llm_ms: llmDurationMs },
           },
         };
       } catch (error) {
         const err = error as any;
-        const responseHeaders = (err?.responseHeaders || {}) as Record<
-          string,
-          string
-        >;
-        const cfAigModel = responseHeaders["cf-aig-model"];
-        const cfAigProvider = responseHeaders["cf-aig-provider"];
-        const cfAigLogId = responseHeaders["cf-aig-log-id"];
-        const cfAigEventId = responseHeaders["cf-aig-event-id"];
-        const cfAiReqId = responseHeaders["cf-ai-req-id"];
-
+        const runtimeHeaders = err?.runtimeRound?.gatewayHeaders;
         const errMsg = error instanceof Error ? error.message : String(error);
         const errName = (error as any)?.name ? String((error as any).name) : "";
         const isGatewayUnavailable =
           errMsg.includes("Bad Request") ||
           errMsg.includes("Internal Server Error") ||
-          errMsg.includes("AI_APICallError") ||
           errName.includes("APICallError") ||
           errMsg.includes("maxRetriesExceeded");
 
@@ -863,13 +773,9 @@ export class AgentOrchestrator {
               statusCode: err?.statusCode,
               url: err?.url,
               responseBody: err?.responseBody,
-              cfAigModel,
-              cfAigProvider,
-              cfAigLogId,
-              cfAigEventId,
-              cfAiReqId,
+              gatewayHeaders: runtimeHeaders,
             },
-            "⚠️ LLM gateway indisponivel",
+            "⚠️ Runtime manual indisponivel",
           );
           return {
             message:
@@ -885,13 +791,9 @@ export class AgentOrchestrator {
             statusCode: err?.statusCode,
             url: err?.url,
             responseBody: err?.responseBody,
-            cfAigModel,
-            cfAigProvider,
-            cfAigLogId,
-            cfAigEventId,
-            cfAiReqId,
+            gatewayHeaders: runtimeHeaders,
           },
-          "❌ LLM error",
+          "❌ Manual runtime error",
         );
         return {
           message:
