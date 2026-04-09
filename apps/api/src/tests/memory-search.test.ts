@@ -27,11 +27,21 @@ vi.mock('@nexo/api-core/db', () => ({
 	},
 }));
 
-// Mock do serviço de embedding (importado dinamicamente em getEmbedding)
-vi.mock('@nexo/api-core/services/ai/embedding-service', () => ({
-	embeddingService: {
-		generateEmbedding: vi.fn().mockResolvedValue(new Array(384).fill(0)),
-	},
+// Mock da task de embedding (importada dinamicamente em getEmbedding)
+vi.mock('@nexo/api-core/services/ai/embedding-task', () => ({
+	executeEmbeddingTask: vi.fn().mockResolvedValue({
+		embedding: new Array(384).fill(0),
+		durationMs: 10,
+		block: {
+			type: 'internal_task',
+			task: 'embedding_generation',
+			async: false,
+			status: 'completed',
+			metadata: {
+				source: 'memory_search_query',
+			},
+		},
+	}),
 }));
 
 describe('Memory Search - Hybrid Search', () => {

@@ -6,7 +6,7 @@ import type { ItemMetadata, ItemType, MovieMetadata, TVShowMetadata } from '@/ty
 import { loggers } from '@/utils/logger';
 import { cosineSimilarity } from 'ai';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { embeddingService } from './ai/embedding-service';
+import { executeEmbeddingTask } from './ai/embedding-task';
 import { expandMovieQuery } from './query-expansion';
 import { instrumentService } from './service-instrumentation';
 
@@ -305,6 +305,41 @@ export class ItemService {
 		return text;
 	}
 
+	private scheduleEmbeddingUpdate(params: {
+		input: string;
+		source: string;
+		metadata?: Record<string, unknown>;
+		persist: (embedding: number[]) => Promise<unknown>;
+		successMessage: string;
+		failureMessage: string;
+		logContext?: Record<string, unknown>;
+	}): void {
+		void executeEmbeddingTask({
+			input: params.input,
+			async: true,
+			source: params.source,
+			metadata: params.metadata,
+		}).then(async (task) => {
+			if (!task.embedding) {
+				loggers.db.warn(
+					{ ...params.logContext, embeddingTask: task.block },
+					params.failureMessage,
+				);
+				return;
+			}
+
+			try {
+				await params.persist(task.embedding);
+				loggers.db.info({ ...params.logContext, embeddingTask: task.block }, params.successMessage);
+			} catch (error) {
+				loggers.db.warn(
+					{ err: error, ...params.logContext, embeddingTask: task.block },
+					'⚠️ Falha ao persistir embedding gerado em background',
+				);
+			}
+		});
+	}
+
 	/**
 	 * Cria nova memória (com validação de duplicata)
 	 * Retorna { item, isDuplicate, existingItem }
@@ -397,10 +432,17 @@ export class ItemService {
 						// Gera e persiste embedding em background (fire-and-forget)
 						const globalId = newGlobal.id;
 						const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
-						embeddingService
-							.generateEmbedding(textToEmbed)
-							.then((vec) => db.update(semanticExternalItems).set({ embedding: vec }).where(eq(semanticExternalItems.id, globalId)))
-							.catch((err) => loggers.db.warn({ err, externalId }, '⚠️ Falha ao gerar embedding global em background'));
+						this.scheduleEmbeddingUpdate({
+							input: textToEmbed,
+							source: 'create_global_item',
+							metadata: { externalId, type, provider },
+							persist: async (embedding) => {
+								await db.update(semanticExternalItems).set({ embedding }).where(eq(semanticExternalItems.id, globalId));
+							},
+							successMessage: '✨ Embedding global atualizado em background',
+							failureMessage: '⚠️ Falha ao gerar embedding global em background',
+							logContext: { externalId, globalId },
+						});
 					} else {
 						// Se falhar insert por conflito, busca novamente
 						const [existing] = await db
@@ -445,11 +487,17 @@ export class ItemService {
 		if (!semanticExternalItemId) {
 			const itemId = item.id;
 			const textToEmbed = this.prepareTextForEmbedding({ type, title, metadata });
-			embeddingService
-				.generateEmbedding(textToEmbed)
-				.then((vec) => db.update(memoryItems).set({ embedding: vec }).where(eq(memoryItems.id, itemId)))
-				.then(() => loggers.db.info({ itemId }, '✨ Embedding local atualizado em background'))
-				.catch((err) => loggers.db.warn({ err, itemId }, '⚠️ Falha ao gerar embedding local em background'));
+			this.scheduleEmbeddingUpdate({
+				input: textToEmbed,
+				source: 'create_local_item',
+				metadata: { itemId, type },
+				persist: async (embedding) => {
+					await db.update(memoryItems).set({ embedding }).where(eq(memoryItems.id, itemId));
+				},
+				successMessage: '✨ Embedding local atualizado em background',
+				failureMessage: '⚠️ Falha ao gerar embedding local em background',
+				logContext: { itemId },
+			});
 		}
 
 		return { item, isDuplicate: false };
@@ -532,7 +580,18 @@ export class ItemService {
 			loggers.db.debug({ original: query, expanded: expandedQuery.substring(0, 100) }, '🔍 Query expandida');
 
 			// 1. BUSCA VETORIAL (Semântica)
-			const queryEmbedding = await embeddingService.generateEmbedding(expandedQuery);
+			const queryEmbeddingTask = await executeEmbeddingTask({
+				input: expandedQuery,
+				async: false,
+				source: 'search_items_query',
+				metadata: { userId },
+			});
+
+			if (!queryEmbeddingTask.embedding) {
+				throw new Error(queryEmbeddingTask.block.error || 'Falha ao gerar embedding da query');
+			}
+
+			const queryEmbedding = queryEmbeddingTask.embedding;
 
 			// Busca todos os itens com embedding (Local ou Global)
 			// Coalesce garante que pegamos o embedding de onde ele estiver
@@ -815,7 +874,18 @@ export class ItemService {
 					title: newTitle,
 					metadata: newMetadata,
 				});
-				embedding = await embeddingService.generateEmbedding(textToEmbed);
+				const embeddingTask = await executeEmbeddingTask({
+					input: textToEmbed,
+					async: false,
+					source: 'update_item',
+					metadata: { itemId, userId },
+				});
+
+				if (embeddingTask.embedding) {
+					embedding = embeddingTask.embedding;
+				} else {
+					loggers.db.warn({ itemId, embeddingTask: embeddingTask.block }, '⚠️ Falha ao atualizar embedding');
+				}
 			} catch (error) {
 				loggers.db.warn({ err: error }, '⚠️ Falha ao atualizar embedding');
 			}

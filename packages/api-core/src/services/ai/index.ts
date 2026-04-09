@@ -134,6 +134,11 @@ export {
 	type IntentClassificationTaskRequest,
 	type IntentClassificationTaskResult,
 } from './intent-classification-task';
+export {
+	executeEmbeddingTask,
+	type EmbeddingTaskRequest,
+	type EmbeddingTaskResult,
+} from './embedding-task';
 export type {
 	RuntimeErrorBlock,
 	RuntimeGatewayHeaders,
