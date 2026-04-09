@@ -154,10 +154,10 @@ export const useDashboard = () => {
 	// WhatsApp Settings
 	const getWhatsAppSettings = async (): Promise<{
 		id: string;
-		activeApi: 'meta' | 'baileys';
+		activeApi: 'evolution';
 		baileysPhoneNumber?: string;
 		metaPhoneNumberId?: string;
-		baileysConnectionStatus?: string;
+		baileysConnectionStatus?: 'connecting' | 'connected' | 'disconnected' | 'error';
 		lastError?: string;
 		updatedAt: string;
 		createdAt: string;
@@ -166,7 +166,9 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const setWhatsAppApi = async (whatsappApi: 'meta' | 'baileys'): Promise<{ success: boolean; activeApi: string }> => {
+	const setWhatsAppApi = async (
+		whatsappApi: 'evolution' | 'meta' | 'baileys',
+	): Promise<{ success: boolean; activeApi: string; message?: string }> => {
 		const { data } = await api.post('/admin/whatsapp-settings/api', { api: whatsappApi });
 		return data;
 	};
@@ -176,18 +178,34 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null; connectionStatus?: any }> => {
+	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null; pairingCode?: string | null; connectionStatus?: any }> => {
 		const { data } = await api.get('/admin/whatsapp-settings/qr-code');
 		return data;
 	};
 
+	const bootstrapWhatsAppInstance = async (): Promise<{ success: boolean; instance?: any; error?: string }> => {
+		const { data } = await api.post('/admin/whatsapp-settings/bootstrap');
+		return data;
+	};
+
+	const connectWhatsAppInstance = async (): Promise<{
+		success: boolean;
+		qrCode?: string | null;
+		pairingCode?: string | null;
+		connectionStatus?: any;
+		error?: string;
+	}> => {
+		const { data } = await api.post('/admin/whatsapp-settings/evolution/connect');
+		return data;
+	};
+
 	const disconnectBaileys = async (): Promise<any> => {
-		const { data } = await api.post('/admin/whatsapp-settings/baileys/disconnect');
+		const { data } = await api.post('/admin/whatsapp-settings/evolution/disconnect');
 		return data;
 	};
 
 	const restartBaileys = async (): Promise<any> => {
-		const { data } = await api.post('/admin/whatsapp-settings/baileys/restart');
+		const { data } = await api.post('/admin/whatsapp-settings/evolution/restart');
 		return data;
 	};
 
@@ -236,6 +254,8 @@ export const useDashboard = () => {
 		setWhatsAppApi,
 		clearWhatsAppCache,
 		getWhatsAppQRCode,
+		bootstrapWhatsAppInstance,
+		connectWhatsAppInstance,
 		disconnectBaileys,
 		restartBaileys,
 		getDiscordBotInfo,

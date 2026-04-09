@@ -88,6 +88,18 @@ Endpoints de suporte para operação da instância Evolution no backend:
 
 Endpoints legados `.../baileys/*` permanecem como alias temporário para evitar quebra durante transição do dashboard.
 
+## 8. Fluxo no Dashboard (admin/settings)
+
+O painel de configuração WhatsApp foi simplificado para provider único Evolution.
+
+Fluxo recomendado:
+
+1. Clicar em `Confirmar Provider`.
+2. Clicar em `Bootstrap Instância`.
+3. Clicar em `Conectar` para obter QR Code.
+4. Escanear QR no WhatsApp para vincular a sessão.
+5. Usar `Reiniciar Sessão` ou `Desconectar` quando necessário.
+
 ## Troubleshooting rápido
 
 - `401 Unauthorized` no Evolution: verifique `apikey`.
