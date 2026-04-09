@@ -23,13 +23,6 @@ const envSchema = z.object({
   TELEGRAM_BOT_USERNAME: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 
-  // Meta WhatsApp API (OPCIONAL - Feature futura)
-  META_WHATSAPP_TOKEN: z.string().optional(),
-  META_WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
-  META_WHATSAPP_APP_SECRET: z.string().optional(),
-  META_VERIFY_TOKEN: z.string().optional(),
-  META_BUSINESS_ACCOUNT_ID: z.string().optional(),
-
   // Evolution API (WhatsApp self-hosted)
   EVOLUTION_API_BASE_URL: z.string().url().default("http://localhost:8080"),
   EVOLUTION_API_KEY: z.string().optional(),
@@ -207,10 +200,6 @@ const envSchema = z.object({
   // Microsoft OAuth
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
-
-  // Baileys (WhatsApp não-oficial)
-  BAILEYS_AUTH_PATH: z.string().default("./baileys-auth"),
-  BAILEYS_RECONNECT_INTERVAL: z.coerce.number().default(5000),
 
   // Nuxt Dashboard (frontend - public vars)
   NUXT_PUBLIC_AUTH_BASE_URL: z.string().url().optional(),

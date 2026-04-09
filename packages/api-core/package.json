@@ -15,7 +15,6 @@
         "./services/ai": "./src/services/ai/index.ts",
         "./services/enrichment": "./src/services/enrichment/index.ts",
         "./services/tools": "./src/services/tools/index.ts",
-        "./services/whatsapp": "./src/services/whatsapp/index.ts",
         "./types": "./src/types/index.ts"
     },
     "typesVersions": {
@@ -42,7 +41,6 @@
         "@openfeature/server-sdk": "^1.20.2",
         "@sentry/core": "^10.39.0",
         "@toon-format/toon": "^2.1.0",
-        "@whiskeysockets/baileys": "7.0.0-rc.9",
         "ai": "^6.0.49",
         "ai-gateway-provider": "^3.1.1",
         "better-auth": "^1.4.17",

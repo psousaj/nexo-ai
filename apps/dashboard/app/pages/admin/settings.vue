@@ -29,8 +29,8 @@ const connectionStatus = computed(() => {
   }
 
   return {
-    status: settings.value?.baileysConnectionStatus || 'disconnected',
-    phoneNumber: settings.value?.baileysPhoneNumber || null,
+    status: settings.value?.connectionStatus || 'disconnected',
+    phoneNumber: settings.value?.phoneNumber || null,
     error: settings.value?.lastError || null
   }
 })
@@ -48,27 +48,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message) return error.message
   return fallback
 }
-
-const ensureProviderMutation = useMutation({
-  mutationFn: async () => dashboard.setWhatsAppApi('evolution'),
-  onSuccess: async (data) => {
-    toast.add({
-      title: 'Provider confirmado',
-      description: data.message || 'WhatsApp configurado para Evolution.',
-      color: 'success',
-      icon: 'i-heroicons-check-circle'
-    })
-    await queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] })
-  },
-  onError: (error: unknown) => {
-    toast.add({
-      title: 'Falha ao definir provider',
-      description: getErrorMessage(error, 'Não foi possível confirmar provider Evolution.'),
-      color: 'error',
-      icon: 'i-heroicons-x-circle'
-    })
-  }
-})
 
 const bootstrapMutation = useMutation({
   mutationFn: async () => dashboard.bootstrapWhatsAppInstance(),
@@ -114,7 +93,7 @@ const connectMutation = useMutation({
 })
 
 const restartMutation = useMutation({
-  mutationFn: async () => dashboard.restartBaileys(),
+  mutationFn: async () => dashboard.restartWhatsAppInstance(),
   onSuccess: async () => {
     toast.add({
       title: 'Instância reiniciada',
@@ -136,7 +115,7 @@ const restartMutation = useMutation({
 })
 
 const disconnectMutation = useMutation({
-  mutationFn: async () => dashboard.disconnectBaileys(),
+  mutationFn: async () => dashboard.disconnectWhatsAppInstance(),
   onSuccess: async () => {
     toast.add({
       title: 'Sessão desconectada',
@@ -296,13 +275,6 @@ const clearCacheMutation = useMutation({
           Ações Operacionais
         </h3>
         <div class="mt-6 flex flex-wrap gap-3">
-          <button
-            class="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-50"
-            :disabled="ensureProviderMutation.isPending.value"
-            @click="ensureProviderMutation.mutate()"
-          >
-            Confirmar Provider
-          </button>
           <button
             class="px-4 py-2 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-900 dark:text-white font-semibold disabled:opacity-50"
             :disabled="bootstrapMutation.isPending.value"
