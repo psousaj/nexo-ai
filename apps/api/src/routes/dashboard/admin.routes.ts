@@ -33,15 +33,26 @@ async function getEvolutionConnectionView(options?: {
 }) {
   const stateResponse = await evolutionService.getConnectionState();
   let status = toConnectionStatus(stateResponse?.instance?.state);
+  let connectError: string | null = null;
 
   let qrCode: string | null = null;
   let pairingCode: string | null = null;
 
-  if (options?.connectIfNeeded && status !== "connected") {
+  const shouldTryConnect =
+    options?.connectIfNeeded &&
+    (status === "disconnected" || status === "error");
+
+  if (shouldTryConnect) {
     const connectResponse = await evolutionService.connectInstance();
-    qrCode = connectResponse?.code || null;
-    pairingCode = connectResponse?.pairingCode || null;
-    status = "connecting";
+
+    if (connectResponse) {
+      qrCode = connectResponse.code || null;
+      pairingCode = connectResponse.pairingCode || null;
+      status = "connecting";
+    } else {
+      connectError =
+        "Instância Evolution não encontrada para iniciar conexão.";
+    }
   }
 
   const settings = await getWhatsAppSettings();
@@ -52,7 +63,7 @@ async function getEvolutionConnectionView(options?: {
     connectionStatus: {
       status,
       phoneNumber: settings.phoneNumber || null,
-      error: settings.lastError || null,
+      error: settings.lastError || connectError,
     },
   };
 }

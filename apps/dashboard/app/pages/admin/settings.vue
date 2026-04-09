@@ -174,7 +174,7 @@ const clearCacheMutation = useMutation({
     />
 
     <template v-else>
-      <div class="premium-card p-8!">
+      <div class="premium-card !p-8">
         <div class="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p class="text-xs font-black uppercase text-surface-500">
@@ -224,7 +224,7 @@ const clearCacheMutation = useMutation({
         </div>
       </div>
 
-      <div class="premium-card p-8!">
+      <div class="premium-card !p-8">
         <h3 class="text-xl font-black text-surface-900 dark:text-white">
           Vinculação
         </h3>
@@ -270,7 +270,7 @@ const clearCacheMutation = useMutation({
         </div>
       </div>
 
-      <div class="premium-card p-8!">
+      <div class="premium-card !p-8">
         <h3 class="text-xl font-black text-surface-900 dark:text-white">
           Ações Operacionais
         </h3>
@@ -313,7 +313,7 @@ const clearCacheMutation = useMutation({
         </div>
       </div>
 
-      <div class="premium-card p-6! bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+      <div class="premium-card !p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
         <p class="text-sm text-blue-800 dark:text-blue-200">
           Webhook oficial em desenvolvimento: <strong>/webhook/whatsapp/evolution</strong>. O header de autenticação deve usar o segredo
           configurado em <strong>EVOLUTION_WEBHOOK_SECRET</strong>.

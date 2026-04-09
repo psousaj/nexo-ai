@@ -7,6 +7,7 @@ import { FLAG } from "@/config/feature-flag-definitions";
 import { db } from "@/db";
 import { whatsappSettings } from "@/db/schema";
 import { loggers } from "@/utils/logger";
+import { eq } from "drizzle-orm";
 import { OpenFeature } from "@openfeature/server-sdk";
 import { discordAdapter } from "./discord-adapter";
 import { evolutionAdapter } from "./evolution-adapter";
@@ -88,6 +89,22 @@ export async function getWhatsAppSettings() {
         id: "global",
         activeApi: "evolution",
       })
+      .returning();
+  }
+
+  if (settings.activeApi !== "evolution") {
+    loggers.ai.warn(
+      { activeApi: settings.activeApi },
+      "⚠️ activeApi legado detectado; normalizando para evolution",
+    );
+
+    [settings] = await db
+      .update(whatsappSettings)
+      .set({
+        activeApi: "evolution",
+        updatedAt: new Date(),
+      })
+      .where(eq(whatsappSettings.id, settings.id))
       .returning();
   }
 

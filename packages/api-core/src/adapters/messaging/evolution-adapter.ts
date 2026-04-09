@@ -30,6 +30,27 @@ export class EvolutionAdapter implements MessagingProvider {
     return "whatsapp";
   }
 
+  private buildDeterministicFallbackMessageId(params: {
+    remoteJid?: string;
+    participantJid?: string;
+    messageTimestamp?: number;
+    text: string;
+  }): string {
+    const fingerprint = [
+      params.remoteJid || "",
+      params.participantJid || "",
+      String(params.messageTimestamp || 0),
+      params.text.trim().toLowerCase(),
+    ].join("|");
+
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i += 1) {
+      hash = (hash * 31 + fingerprint.charCodeAt(i)) >>> 0;
+    }
+
+    return `evo-${hash.toString(16).padStart(8, "0")}`;
+  }
+
   private parseJid(jid?: string): {
     raw: string;
     identifier: string;
@@ -124,15 +145,31 @@ export class EvolutionAdapter implements MessagingProvider {
         ? participant.identifier
         : remote.identifier;
 
-    const timestampRaw = Number(
-      message?.messageTimestamp || Math.floor(Date.now() / 1000),
-    );
+    const messageTimestampRaw = Number(message?.messageTimestamp);
+    const messageTimestampSeed = Number.isNaN(messageTimestampRaw)
+      ? 0
+      : messageTimestampRaw;
+    const timestampRaw =
+      messageTimestampSeed > 0
+        ? messageTimestampSeed
+        : Math.floor(Date.now() / 1000);
     const timestamp = Number.isNaN(timestampRaw)
       ? new Date()
       : new Date(timestampRaw * 1000);
 
     const trimmedText = text.trim();
     let callbackData: string | undefined;
+
+    const fallbackMessageId = this.buildDeterministicFallbackMessageId({
+      remoteJid: key.remoteJid,
+      participantJid: key.participant,
+      messageTimestamp: messageTimestampSeed,
+      text: trimmedText,
+    });
+    const messageId =
+      typeof key.id === "string" && key.id.trim().length > 0
+        ? key.id
+        : fallbackMessageId;
 
     if (/^[1-9]$/.test(trimmedText)) {
       callbackData = `select_${Number.parseInt(trimmedText, 10) - 1}`;
@@ -145,7 +182,7 @@ export class EvolutionAdapter implements MessagingProvider {
     }
 
     return {
-      messageId: key.id || `evo-${Date.now()}`,
+      messageId,
       externalId: remote.raw || "",
       userId,
       senderName: message?.pushName,

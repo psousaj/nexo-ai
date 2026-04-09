@@ -5,10 +5,14 @@ const {
   mockGetPivotFeatureFlags,
   mockGetWhatsAppSettings,
   mockInvalidateCache,
+  mockGetConnectionState,
+  mockConnectInstance,
 } = vi.hoisted(() => ({
   mockGetPivotFeatureFlags: vi.fn(),
   mockGetWhatsAppSettings: vi.fn(),
   mockInvalidateCache: vi.fn(),
+  mockGetConnectionState: vi.fn(),
+  mockConnectInstance: vi.fn(),
 }));
 
 vi.mock("@nexo/api-core/config/pivot-feature-flags", () => ({
@@ -20,9 +24,24 @@ vi.mock("@nexo/api-core/adapters/messaging", () => ({
   invalidateWhatsAppProviderCache: mockInvalidateCache,
 }));
 
+vi.mock("@nexo/api-core/services/evolution-service", () => ({
+  evolutionService: {
+    getConnectionState: mockGetConnectionState,
+    connectInstance: mockConnectInstance,
+  },
+}));
+
 describe("Admin routes - pivot feature flags", () => {
   beforeEach(() => {
     mockGetPivotFeatureFlags.mockReset();
+    mockGetWhatsAppSettings.mockReset();
+    mockGetConnectionState.mockReset();
+    mockConnectInstance.mockReset();
+
+    mockGetWhatsAppSettings.mockResolvedValue({
+      phoneNumber: null,
+      lastError: null,
+    });
   });
 
   test("returns effective pivot feature flags and metadata", async () => {
@@ -95,5 +114,47 @@ describe("Admin routes - pivot feature flags", () => {
     expect(setApiResponse.status).toBe(404);
     expect(disconnectAliasResponse.status).toBe(404);
     expect(restartAliasResponse.status).toBe(404);
+  });
+
+  test("qr-code não tenta reconectar quando status já está connecting", async () => {
+    const { adminRoutes } = await import("@/routes/dashboard/admin.routes");
+
+    mockGetConnectionState.mockResolvedValue({
+      instance: {
+        state: "connecting",
+      },
+    });
+
+    const app = new Hono().route("/admin", adminRoutes);
+    const response = await app.request(
+      "http://localhost/admin/whatsapp-settings/qr-code",
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockConnectInstance).not.toHaveBeenCalled();
+    expect(body.connectionStatus.status).toBe("connecting");
+  });
+
+  test("qr-code preserva status quando connect retorna nulo", async () => {
+    const { adminRoutes } = await import("@/routes/dashboard/admin.routes");
+
+    mockGetConnectionState.mockResolvedValue({
+      instance: {
+        state: "disconnected",
+      },
+    });
+    mockConnectInstance.mockResolvedValue(null);
+
+    const app = new Hono().route("/admin", adminRoutes);
+    const response = await app.request(
+      "http://localhost/admin/whatsapp-settings/qr-code",
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockConnectInstance).toHaveBeenCalledTimes(1);
+    expect(body.connectionStatus.status).toBe("disconnected");
+    expect(body.connectionStatus.error).toContain("Instância Evolution não encontrada");
   });
 });

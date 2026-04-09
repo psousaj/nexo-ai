@@ -1,5 +1,13 @@
 import { EvolutionAdapter } from '@nexo/api-core/adapters/messaging/evolution-adapter';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+
+vi.mock('@nexo/api-core/services/evolution-service', () => ({
+	evolutionService: {
+		sendText: vi.fn(),
+		sendList: vi.fn(),
+		sendMediaImage: vi.fn(),
+	},
+}));
 
 describe('Evolution Adapter', () => {
 	const adapter = new EvolutionAdapter();
@@ -99,5 +107,28 @@ describe('Evolution Adapter', () => {
 		expect(parsed?.metadata?.groupId).toBe('120363312345678901@g.us');
 		expect(parsed?.userId).toBe('5511777777777');
 		expect(parsed?.phoneNumber).toBe('5511777777777');
+	});
+
+	test('parseIncomingMessage: gera fallback de messageId determinístico quando key.id está ausente', () => {
+		const payload = {
+			event: 'MESSAGES_UPSERT',
+			data: {
+				key: {
+					remoteJid: '5511666666666@s.whatsapp.net',
+					fromMe: false,
+				},
+				message: {
+					conversation: 'mensagem sem id',
+				},
+			},
+		};
+
+		const parsedA = adapter.parseIncomingMessage(payload);
+		const parsedB = adapter.parseIncomingMessage(payload);
+
+		expect(parsedA).not.toBeNull();
+		expect(parsedB).not.toBeNull();
+		expect(parsedA?.messageId).toBe(parsedB?.messageId);
+		expect(parsedA?.messageId).toMatch(/^evo-[0-9a-f]{8}$/);
 	});
 });

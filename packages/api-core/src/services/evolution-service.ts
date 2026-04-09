@@ -75,6 +75,7 @@ export class EvolutionService {
       .insert(whatsappSettings)
       .values({
         id: "global",
+        activeApi: "evolution",
         phoneNumber: payload.phoneNumber,
         connectionStatus: payload.connectionStatus,
         lastError: payload.lastError || null,
@@ -83,6 +84,7 @@ export class EvolutionService {
       .onConflictDoUpdate({
         target: whatsappSettings.id,
         set: {
+          activeApi: "evolution",
           phoneNumber: payload.phoneNumber,
           connectionStatus: payload.connectionStatus,
           lastError: payload.lastError || null,
