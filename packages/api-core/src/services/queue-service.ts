@@ -3,8 +3,8 @@ import { env } from '@/config/env';
 import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
-import { embeddingService } from '@/services/ai/embedding-service';
 import { globalErrorHandler } from '@/services/error/error.service';
+import { buildEnrichmentEmbeddingItem } from '@/services/enrichment/enrichment-embedding-pipeline';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { loggers } from '@/utils/logger';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
@@ -467,27 +467,35 @@ export const enrichmentWorker = new Worker<EnrichmentJob>(
 				setAttributes({ 'enrichment.new_candidates': newCandidates.length });
 				setAttributes({ 'enrichment.embedding_concurrency': EMBEDDING_MAX_CONCURRENCY });
 				queueLogger.info({ count: newCandidates.length }, '🔍 Novos itens para processar');
+				let embeddingCompleted = 0;
+				let embeddingFailed = 0;
 
 				// 4. Batch Vectorize (concorrência controlada)
 				// Prepara texto para embedding: "Title: <title>. Overview: <overview>"
 				const itemsToInsert = await mapWithConcurrency(newCandidates, EMBEDDING_MAX_CONCURRENCY, async (candidate) => {
-					const text = `Title: ${candidate.title || candidate.name}\nOverview: ${candidate.overview || ''}`.trim();
+					const result = await buildEnrichmentEmbeddingItem({
+						candidate,
+						provider,
+						type,
+						jobId: job.id,
+					});
 
-					let embedding: number[] | null = null;
-					try {
-						embedding = await embeddingService.generateEmbedding(text);
-					} catch (err) {
-						queueLogger.error({ err, candidateId: candidate.id }, '⚠️ Falha ao gerar embedding (ignorando item)');
+					if (!result.item) {
+						embeddingFailed += 1;
+						queueLogger.error(
+							{ candidateId: candidate.id, embeddingTask: result.block },
+							'⚠️ Falha ao gerar embedding no enrichment (ignorando item)',
+						);
 						return null;
 					}
 
-					return {
-						externalId: String(candidate.id),
-						type,
-						provider,
-						rawData: candidate,
-						embedding,
-					};
+					embeddingCompleted += 1;
+					return result.item;
+				});
+
+				setAttributes({
+					'enrichment.embedding_completed': embeddingCompleted,
+					'enrichment.embedding_failed': embeddingFailed,
 				});
 
 				const validItems = itemsToInsert.filter((i): i is NonNullable<typeof i> => {
