@@ -113,3 +113,19 @@ export const llmService = instrumentService(
 	new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN),
 );
 export type { AIProvider, AIResponse, Message } from './types';
+export { OpenAIGatewayTransport } from './openai-gateway-transport';
+export type { OpenAIGatewayRequest, OpenAIGatewayResponse, OpenAIGatewayTransportConfig } from './openai-gateway-transport';
+export type {
+	RuntimeErrorBlock,
+	RuntimeGatewayHeaders,
+	RuntimeInternalTaskBlock,
+	RuntimeInternalTaskName,
+	RuntimeInternalTaskStatus,
+	RuntimeRound,
+	RuntimeRoundBlock,
+	RuntimeRoundContext,
+	RuntimeStopReason,
+	RuntimeToolResultBlock,
+	RuntimeToolUseBlock,
+	RuntimeUsage,
+} from './runtime-contract';

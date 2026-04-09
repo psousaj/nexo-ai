@@ -23,6 +23,7 @@
 
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { buildAgentPrompt, buildClarificationPrompt } from '@/config/prompt-builder';
+import { addRuntimeBlock, createRuntimeRound } from '@/services/ai/runtime-contract';
 import {
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
@@ -492,6 +493,41 @@ export class AgentOrchestrator {
 			];
 
 			const tools = buildTools(toolContext, safeToolNames);
+
+			// Inicializa envelope canônico da rodada para migração do query engine.
+			// Nesta fase, serve como telemetria e contrato de transição sem alterar o comportamento.
+			const runtimeRound = createRuntimeRound({
+				conversationId: context.conversationId,
+				userId: context.userId,
+				model: 'gateway-managed',
+				gatewayBaseUrl: '/compat',
+			});
+			addRuntimeBlock(runtimeRound, {
+				type: 'internal_task',
+				task: 'intent_classification',
+				async: false,
+				status: 'completed',
+				metadata: {
+					intent: intent.intent,
+					confidence: intent.confidence,
+				},
+			});
+			addRuntimeBlock(runtimeRound, {
+				type: 'internal_task',
+				task: 'enrichment_dispatch',
+				async: true,
+				status: 'started',
+				metadata: {
+					availableTools: safeToolNames.length,
+				},
+			});
+			loggers.ai.debug(
+				{
+					runtimeRoundContext: runtimeRound.context,
+					runtimeBlocks: runtimeRound.blocks.length,
+				},
+				'🧱 Runtime round initialized',
+			);
 
 			// ============================================================================
 			// CALL LLM (AI SDK native tool calling)
