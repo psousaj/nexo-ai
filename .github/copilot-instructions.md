@@ -111,10 +111,14 @@ Database shape to keep in mind:
 
 Use this strict loop for delivery:
 
-1. implement one feature
-2. add/update tests for that feature
-3. run tests until green
-4. only then move to next feature
+1. create/use one dedicated branch for the current planning cycle
+2. implement one feature from the current milestone/task
+3. add/update tests for that feature
+4. run tests until green
+5. commit that completed feature/task
+6. repeat for the next milestone/task until planning is complete
+7. ensure the final result is on the target feature branch
+8. notify user that it is ready
 
 Required pattern: **feature -> tests -> green -> next**.
 
@@ -122,15 +126,18 @@ Required pattern: **feature -> tests -> green -> next**.
 
 - Always execute work in small, explicit tasks.
 - Mandatory git loop for every task: **tasks -> test -> commit**.
-- **NEVER run `git push` as an AI agent.**
-- Push/PR update actions must be done by a human maintainer after reviewing local commits.
+- **Never run `git push` automatically.**
+- If the user explicitly asks for push/PR actions, execute them.
+- Each planning cycle must run in one dedicated branch.
+- Keep implementation inside that dedicated branch until all planned milestones/tasks are complete.
 
 Additional rules:
 
 - Operate in a loop until all milestones and planned features are complete.
 - Commit after each completed feature/iteration (never batch many unrelated features in one commit).
 - Use a dedicated refactor branch (recommended: `refactor/conversational-memory-pivot`).
-- Open and keep an incremental PR updated for GitHub review after each green feature block.
+- Keep the planning branch as the source of truth until all milestones are done.
+- Open and keep an incremental PR updated for GitHub review after each green feature block when requested by the user.
 
 ## Source files used for these instructions
 
