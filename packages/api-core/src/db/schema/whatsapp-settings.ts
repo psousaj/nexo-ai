@@ -4,16 +4,15 @@ import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
  * WhatsApp Settings
  *
  * Global settings for WhatsApp integration.
- * Controls which API provider to use (Meta or Baileys).
+ * Mantém metadados operacionais do provider Evolution.
  */
 export const whatsappSettings = pgTable('whatsapp_settings', {
 	id: text('id').primaryKey().default('global'),
 	/**
-	 * activeApi - Which WhatsApp API to use
-	 * 'meta' - Official Meta WhatsApp Business API (cloud-hosted)
-	 * 'baileys' - Unofficial Baileys API (self-hosted WebSocket, OpenClaw-style)
+	 * Campo legado para compatibilidade com dashboard antigo.
+	 * Na arquitetura atual, sempre deve permanecer como 'evolution'.
 	 */
-	activeApi: text('active_api').$type<'meta' | 'baileys'>().notNull().default('meta'),
+	activeApi: text('active_api').$type<'evolution'>().notNull().default('evolution'),
 	/**
 	 * baileysPhoneNumber - Phone number connected to Baileys
 	 * Stored when Baileys is successfully paired

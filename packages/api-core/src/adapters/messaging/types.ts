@@ -70,7 +70,7 @@ export interface MessageMetadata {
 	/** Message type (text, command, etc) */
 	messageType: 'text' | 'command' | 'callback' | 'unknown';
 	/** Origem específica da API quando provider=whatsapp */
-	sourceApi?: 'meta' | 'baileys';
+	sourceApi?: 'evolution' | 'meta' | 'baileys';
 	/** JID remoto original (quando aplicável) */
 	remoteJid?: string;
 	/** Participante original em grupos (quando aplicável) */

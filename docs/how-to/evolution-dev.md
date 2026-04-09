@@ -75,6 +75,19 @@ Nesta migração, a entrada oficial será:
 
 A API do Nexo deve validar `EVOLUTION_WEBHOOK_SECRET` via header antes de enfileirar mensagens.
 
+## 7. Operação da instância via Dashboard/API
+
+Endpoints de suporte para operação da instância Evolution no backend:
+
+- `GET /api/admin/whatsapp-settings`
+- `POST /api/admin/whatsapp-settings/bootstrap`
+- `GET /api/admin/whatsapp-settings/qr-code`
+- `POST /api/admin/whatsapp-settings/evolution/connect`
+- `POST /api/admin/whatsapp-settings/evolution/restart`
+- `POST /api/admin/whatsapp-settings/evolution/disconnect`
+
+Endpoints legados `.../baileys/*` permanecem como alias temporário para evitar quebra durante transição do dashboard.
+
 ## Troubleshooting rápido
 
 - `401 Unauthorized` no Evolution: verifique `apikey`.

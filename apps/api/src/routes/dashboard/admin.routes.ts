@@ -3,10 +3,46 @@ import { env } from '@nexo/api-core/config/env';
 import { getPivotFeatureFlags } from '@nexo/api-core/config/pivot-feature-flags';
 import { adminService } from '@nexo/api-core/services/admin-service';
 import { embeddingService } from '@nexo/api-core/services/ai/embedding-service';
+import { evolutionService } from '@nexo/api-core/services/evolution-service';
 import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
 import { getSystemTools } from '@nexo/api-core/services/tools/registry';
 import { toolService } from '@nexo/api-core/services/tools/tool.service';
 import { Hono } from 'hono';
+
+function toConnectionStatus(state?: string): 'connecting' | 'connected' | 'disconnected' | 'error' {
+	const normalized = (state || '').toLowerCase();
+	if (normalized === 'open' || normalized === 'connected') return 'connected';
+	if (normalized === 'connecting' || normalized === 'created') return 'connecting';
+	if (normalized === 'close' || normalized === 'closed' || normalized === 'disconnected') return 'disconnected';
+	return 'error';
+}
+
+async function getEvolutionConnectionView(options?: { connectIfNeeded?: boolean }) {
+	const stateResponse = await evolutionService.getConnectionState();
+	let status = toConnectionStatus(stateResponse?.instance?.state);
+
+	let qrCode: string | null = null;
+	let pairingCode: string | null = null;
+
+	if (options?.connectIfNeeded && status !== 'connected') {
+		const connectResponse = await evolutionService.connectInstance();
+		qrCode = connectResponse?.code || null;
+		pairingCode = connectResponse?.pairingCode || null;
+		status = 'connecting';
+	}
+
+	const settings = await getWhatsAppSettings();
+
+	return {
+		qrCode,
+		pairingCode,
+		connectionStatus: {
+			status,
+			phoneNumber: settings.baileysPhoneNumber || null,
+			error: settings.lastError || null,
+		},
+	};
+}
 
 export const adminRoutes = new Hono()
 	.get('/conversations', async (c) => {
@@ -52,63 +88,22 @@ export const adminRoutes = new Hono()
 		return c.json(settings);
 	})
 	.post('/whatsapp-settings/api', async (c) => {
-		const { api } = await c.req.json();
-
-		if (api !== 'meta' && api !== 'baileys') {
-			return c.json({ error: 'API must be "meta" or "baileys"' }, 400);
-		}
-
 		try {
-			// Se está mudando para Baileys, inicializar
-			if (api === 'baileys') {
-				const { getBaileysService } = await import('@nexo/api-core/services/baileys-service');
+			const body = await c.req.json().catch(() => ({}));
+			const requestedApi = body?.api;
 
-				// Atualizar configuração no banco
-				await setActiveWhatsAppApi(api);
-
-				// Inicializar Baileys (vai começar a conectar)
-				await getBaileysService();
-
-				// Invalidar cache
-				invalidateWhatsAppProviderCache();
-
-				return c.json({
-					success: true,
-					activeApi: api,
-					message: 'Baileys ativado e conectando. Use /admin/whatsapp-settings/qr-code para obter QR Code.',
-				});
-			}
-
-			// Se está mudando para Meta, desconectar Baileys
-			if (api === 'meta') {
-				const { resetBaileysService } = await import('@nexo/api-core/services/baileys-service');
-
-				// Atualizar configuração no banco
-				await setActiveWhatsAppApi(api);
-
-				// Desconectar e limpar Baileys
-				try {
-					await resetBaileysService();
-				} catch (error) {
-					// Ignorar erro se Baileys não estava conectado
-					console.warn('Baileys não estava conectado:', error);
-				}
-
-				// Invalidar cache
-				invalidateWhatsAppProviderCache();
-
-				return c.json({
-					success: true,
-					activeApi: api,
-					message: 'Meta API ativada. Baileys desconectado.',
-				});
-			}
-
-			// Fallback (nunca deveria chegar aqui devido à validação no início)
-			await setActiveWhatsAppApi(api);
+			await setActiveWhatsAppApi('evolution');
 			invalidateWhatsAppProviderCache();
+			await evolutionService.ensureInstanceUpsert();
 
-			return c.json({ success: true, activeApi: api });
+			return c.json({
+				success: true,
+				activeApi: 'evolution',
+				message:
+					requestedApi && requestedApi !== 'evolution'
+						? 'Provider único de WhatsApp é Evolution. Solicitação recebida e normalizada.'
+						: 'Provider WhatsApp definido para Evolution.',
+			});
 		} catch (error) {
 			return c.json(
 				{
@@ -123,91 +118,123 @@ export const adminRoutes = new Hono()
 		invalidateWhatsAppProviderCache();
 		return c.json({ success: true, message: 'Cache cleared' });
 	})
-	// Disconnect Baileys session
-	.post('/whatsapp-settings/baileys/disconnect', async (c) => {
+	.post('/whatsapp-settings/bootstrap', async (c) => {
 		try {
-			const { resetBaileysService } = await import('@nexo/api-core/services/baileys-service');
-
-			// Reset the service (clears session and deletes auth files)
-			await resetBaileysService();
-
-			// Aguarda um instante para garantir que a instância foi limpa
-			await new Promise((resolve) => setTimeout(resolve, 500));
-
-			return c.json({
-				success: true,
-				message: 'Sessão Baileys desconectada com sucesso',
-			});
+			const instance = await evolutionService.ensureInstanceUpsert();
+			return c.json({ success: true, instance });
 		} catch (error) {
 			return c.json(
 				{
 					success: false,
-					error: error instanceof Error ? error.message : 'Erro ao desconectar Baileys',
+					error: error instanceof Error ? error.message : 'Erro ao executar bootstrap da instância',
 				},
 				500,
 			);
 		}
 	})
-	// Get Baileys QR Code
-	.get('/whatsapp-settings/qr-code', async (c) => {
+	// Disconnect Evolution session (legacy alias: /baileys/disconnect)
+	.post('/whatsapp-settings/baileys/disconnect', async (c) => {
 		try {
-			const { getBaileysService } = await import('@nexo/api-core/services/baileys-service');
-			const baileys = await getBaileysService();
-			const qrCode = await baileys.getQRCode();
-			const connectionStatus = baileys.getConnectionStatus();
-
-			return c.json({
-				qrCode,
-				connectionStatus,
-			});
-		} catch (_error) {
-			return c.json(
-				{
-					qrCode: null,
-					error: 'Baileys service not available',
-				},
-				503,
-			);
-		}
-	})
-	// Clear Baileys session and restart with new QR Code
-	.post('/whatsapp-settings/baileys/restart', async (c) => {
-		try {
-			const { getBaileysService, resetBaileysService } = await import('@nexo/api-core/services/baileys-service');
-
-			// 1. Limpar sessão e resetar (isso deleta os arquivos de auth)
-			await resetBaileysService();
-
-			// 2. Aguardar um momento para garantir que tudo foi limpo
-			await new Promise((resolve) => setTimeout(resolve, 500));
-
-			// 3. Criar nova instância e conectar (vai gerar NOVO QR Code)
-			const baileys = await getBaileysService();
-
-			// 4. Aguardar o QR Code ser gerado
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-
-			// 5. Tentar obter o novo QR Code (pode ainda estar null)
-			let attempts = 0;
-			let newQRCode = await baileys.getQRCode();
-
-			// Tentar até 5 vezes com intervalo de 500ms
-			while (!newQRCode && attempts < 5) {
-				await new Promise((resolve) => setTimeout(resolve, 500));
-				newQRCode = await baileys.getQRCode();
-				attempts++;
-			}
+			await evolutionService.logoutInstance();
 
 			return c.json({
 				success: true,
-				message: newQRCode ? 'Sessão limpa e novo QR Code gerado com sucesso!' : 'Sessão limpa. Aguarde o QR Code aparecer.',
-				qrCode: newQRCode,
+				message: 'Sessão Evolution desconectada com sucesso',
 			});
 		} catch (error) {
 			return c.json(
 				{
 					success: false,
-					error: error instanceof Error ? error.message : 'Erro ao reiniciar Baileys',
+					error: error instanceof Error ? error.message : 'Erro ao desconectar Evolution',
+				},
+				500,
+			);
+		}
+	})
+	.post('/whatsapp-settings/evolution/disconnect', async (c) => {
+		try {
+			await evolutionService.logoutInstance();
+			return c.json({ success: true, message: 'Sessão Evolution desconectada com sucesso' });
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao desconectar Evolution',
+				},
+				500,
+			);
+		}
+	})
+	// Get Evolution QR Code (compat endpoint)
+	.get('/whatsapp-settings/qr-code', async (c) => {
+		try {
+			const view = await getEvolutionConnectionView({ connectIfNeeded: true });
+			return c.json(view);
+		} catch (_error) {
+			return c.json(
+				{
+					qrCode: null,
+					error: 'Evolution service not available',
+				},
+				503,
+			);
+		}
+	})
+	.post('/whatsapp-settings/evolution/connect', async (c) => {
+		try {
+			const body = await c.req.json().catch(() => ({}));
+			const connectResponse = await evolutionService.connectInstance(body?.number);
+			const view = await getEvolutionConnectionView({ connectIfNeeded: false });
+
+			return c.json({
+				success: true,
+				pairingCode: connectResponse?.pairingCode || view.pairingCode,
+				qrCode: connectResponse?.code || view.qrCode,
+				connectionStatus: view.connectionStatus,
+			});
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao conectar instância Evolution',
+				},
+				500,
+			);
+		}
+	})
+	// Restart Evolution session (legacy alias: /baileys/restart)
+	.post('/whatsapp-settings/baileys/restart', async (c) => {
+		try {
+			await evolutionService.restartInstance();
+			const view = await getEvolutionConnectionView({ connectIfNeeded: true });
+
+			return c.json({
+				success: true,
+				message: view.qrCode ? 'Instância reiniciada e QR Code gerado com sucesso!' : 'Instância reiniciada. Aguarde o QR Code.',
+				qrCode: view.qrCode,
+				pairingCode: view.pairingCode,
+				connectionStatus: view.connectionStatus,
+			});
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao reiniciar Evolution',
+				},
+				500,
+			);
+		}
+	})
+	.post('/whatsapp-settings/evolution/restart', async (c) => {
+		try {
+			await evolutionService.restartInstance();
+			const view = await getEvolutionConnectionView({ connectIfNeeded: true });
+			return c.json({ success: true, ...view });
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: error instanceof Error ? error.message : 'Erro ao reiniciar Evolution',
 				},
 				500,
 			);

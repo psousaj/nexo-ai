@@ -1,9 +1,20 @@
-import { telegramAdapter, whatsappAdapter } from '@nexo/api-core/adapters/messaging';
+import { evolutionAdapter, telegramAdapter } from '@nexo/api-core/adapters/messaging';
 import { env } from '@nexo/api-core/config/env';
 import { messageQueue } from '@nexo/api-core/services/queue-service';
 import { logError, loggers } from '@nexo/api-core/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Hono } from 'hono';
+
+const evolutionWebhookRoute = (() => {
+	const rawPath = env.EVOLUTION_WEBHOOK_PATH || '/webhook/whatsapp/evolution';
+	if (rawPath.startsWith('/webhook/')) {
+		return rawPath.slice('/webhook'.length);
+	}
+	if (rawPath.startsWith('/')) {
+		return rawPath;
+	}
+	return `/${rawPath}`;
+})();
 
 export const webhookRoutes = new Hono()
 	// TELEGRAM
@@ -76,53 +87,44 @@ export const webhookRoutes = new Hono()
 		});
 	})
 
-	// WHATSAPP
+	// WHATSAPP (Evolution)
 	.get('/meta', (c) => {
-		const query = c.req.query();
-		const mode = query['hub.mode'];
-		const token = query['hub.verify_token'];
-		const challenge = query['hub.challenge'];
-
-		setAttributes({
-			'webhook.provider': 'whatsapp',
-			'webhook.type': 'verification',
-		});
-
-		if (mode === 'subscribe' && token === env.META_VERIFY_TOKEN) {
-			setAttributes({ 'webhook.status': 'verified' });
-			loggers.webhook.info('✅ Webhook WhatsApp verificado');
-			return c.text(challenge);
-		}
-
-		setAttributes({ 'webhook.status': 'verification_failed' });
-		return c.text('Verification failed', 403);
+		return c.json(
+			{
+				error: 'Legacy Meta webhook desativado. Configure Evolution em /webhook/whatsapp/evolution.',
+			},
+			410,
+		);
 	})
-	.post('/meta', async (c) => {
+	.post('/meta', (c) => {
+		return c.json(
+			{
+				error: 'Legacy Meta webhook desativado. Configure Evolution em /webhook/whatsapp/evolution.',
+			},
+			410,
+		);
+	})
+	.post(evolutionWebhookRoute, async (c) => {
 		return startSpan('webhook.whatsapp.receive', async (_span) => {
 			setAttributes({
 				'webhook.provider': 'whatsapp',
-				'webhook.route': '/meta',
+				'webhook.route': evolutionWebhookRoute,
 			});
 
-			if (!whatsappAdapter) {
+			if (!env.EVOLUTION_WEBHOOK_SECRET) {
 				setAttributes({ 'webhook.status': 'not_configured' });
-				return c.json({ error: 'WhatsApp not configured' }, 500);
+				return c.json({ error: 'Evolution webhook secret not configured' }, 500);
 			}
 
-			// Valida assinatura HMAC SHA-256 do Meta antes de processar
-			const rawBody = await c.req.text();
-			const isWhatsAppValid = await whatsappAdapter.verifyWebhook({
-				headers: c.req.raw.headers,
-				body: rawBody,
-			});
+			const isWhatsAppValid = evolutionAdapter.verifyWebhook(c.req.raw);
 			if (!isWhatsAppValid) {
 				setAttributes({ 'webhook.status': 'unauthorized' });
 				return c.json({ error: 'Unauthorized' }, 401);
 			}
 
 			try {
-				const body = JSON.parse(rawBody);
-				const message = whatsappAdapter.parseIncomingMessage(body);
+				const body = await c.req.json();
+				const message = evolutionAdapter.parseIncomingMessage(body);
 
 				if (message) {
 					setAttributes({
@@ -136,7 +138,7 @@ export const webhookRoutes = new Hono()
 						{
 							incomingMsg: message,
 							providerName: 'whatsapp',
-							providerApi: 'meta',
+							providerApi: 'evolution',
 						},
 						{
 							removeOnComplete: true,
