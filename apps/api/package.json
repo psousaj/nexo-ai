@@ -67,8 +67,6 @@
 		"zod": "^3.25.76"
 	},
 	"devDependencies": {
-		"@nexo/eslint-config": "workspace:*",
-		"@nexo/prettier-config": "workspace:*",
 		"@nexo/typescript-config": "workspace:*",
 		"@sentry/esbuild-plugin": "^4.9.1",
 		"@types/handlebars": "^4.1.0",

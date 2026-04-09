@@ -3,7 +3,6 @@ import * as Sentry from '@sentry/core';
 
 // Sentry é inicializado por cada app individualmente:
 //   - apps/api: uses @sentry/node (apps/api/src/sentry.ts)
-//   - apps/api-elysia: uses @sentry/bun (apps/api-elysia/src/init/sentry.ts)
 // api-core only uses @sentry/core for platform-agnostic capture helpers.
 
 const sentryLog = logger.child({ context: 'SENTRY' });

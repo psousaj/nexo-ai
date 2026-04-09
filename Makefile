@@ -1,4 +1,4 @@
-.PHONY: help dev build start test db-generate db-push db-studio merge-pr deploy clean install
+.PHONY: help dev build start test test-watch test-ui db-generate db-push db-studio clean install format format-check version-patch version-minor version-major
 
 # Cores para output
 GREEN  := \033[0;32m
@@ -20,17 +20,9 @@ build: ## Faz build do projeto
 	@echo "$(YELLOW)🔨 Fazendo build...$(RESET)"
 	pnpm run build
 
-build-binary: ## Faz build binário com Bun
-	@echo "$(YELLOW)🔨 Fazendo build binário...$(RESET)"
-	pnpm run build:binary
-
 start: ## Inicia servidor em modo produção
 	@echo "$(YELLOW)🚀 Iniciando servidor...$(RESET)"
 	pnpm run start
-
-start-binary: ## Inicia servidor binário
-	@echo "$(YELLOW)🚀 Iniciando servidor binário...$(RESET)"
-	./server
 
 # Database
 db-generate: ## Gera migrations do Drizzle
@@ -58,16 +50,6 @@ test-ui: ## Abre UI do Vitest
 	@echo "$(YELLOW)🧪 Abrindo UI do Vitest...$(RESET)"
 	pnpm run test:ui
 
-# Git / Deploy
-merge-pr: ## Cria e faz merge de PR (usa título do último commit)
-	@echo "$(YELLOW)🔀 Criando e mergeando PR...$(RESET)"
-	bash ./scripts/merge-pr.sh
-
-merge-pr-name: ## Cria e faz merge de PR com nome customizado
-	@echo "$(YELLOW)🔀 Criando e mergeando PR...$(RESET)"
-	@read -p "Título do PR: " title; \
-	bash ./scripts/merge-pr.sh --name "$$title"
-
 # Utils
 install: ## Instala dependências
 	@echo "$(YELLOW)📦 Instalando dependências...$(RESET)"
@@ -79,11 +61,11 @@ clean: ## Limpa arquivos de build
 
 format: ## Formata código com Biome
 	@echo "$(YELLOW)✨ Formatando código...$(RESET)"
-	pnpm run biome:fix
+	pnpm run check:fix
 
 format-check: ## Checa formatação com Biome
 	@echo "$(YELLOW)🔍 Checando formatação...$(RESET)"
-	pnpm run biome:check
+	pnpm run check
 
 # Versioning
 version-patch: ## Incrementa versão patch (0.0.X)
@@ -97,10 +79,3 @@ version-minor: ## Incrementa versão minor (0.X.0)
 version-major: ## Incrementa versão major (X.0.0)
 	@echo "$(YELLOW)📦 Incrementando versão major...$(RESET)"
 	pnpm version major
-
-# Workflow completo
-release: version-patch merge-pr ## Incrementa versão, cria e mergeia PR
-	@echo "$(GREEN)✅ Release completo!$(RESET)"
-
-release-name: version-patch merge-pr-name ## Incrementa versão, cria e mergeia PR
-	@echo "$(GREEN)✅ Release completo!$(RESET)"

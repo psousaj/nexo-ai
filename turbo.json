@@ -54,15 +54,6 @@
 		"db:studio": {
 			"cache": false,
 			"persistent": true
-		},
-		"@nexo/api-elysia#dev": {
-			"dependsOn": [
-				"@nexo/otel#build",
-				"@nexo/env#build",
-				"@nexo/shared#build"
-			],
-			"cache": false,
-			"persistent": true
 		}
 	}
 }

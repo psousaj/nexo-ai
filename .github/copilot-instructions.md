@@ -100,6 +100,13 @@ Database shape to keep in mind:
 7. **Service singleton pattern**: services are exported as instantiated singletons and reused across routes/adapters.
 8. **Server management expectation**: check whether dev servers are already running before restarting to avoid unnecessary disruption.
 
+## Additional development guardrails
+
+1. Validate assumptions and call out inconsistencies before implementing changes.
+2. Prefer existing solutions and established patterns before introducing new abstractions.
+3. Ask for confirmation when requirements are ambiguous or a change significantly expands scope.
+4. Avoid redundant or ornamental changes; keep implementation focused on business value.
+
 ## Mandatory execution workflow (for refactors/features)
 
 Use this strict loop for delivery:
@@ -110,6 +117,13 @@ Use this strict loop for delivery:
 4. only then move to next feature
 
 Required pattern: **feature -> tests -> green -> next**.
+
+## WARNING (ALL AI AGENTS)
+
+- Always execute work in small, explicit tasks.
+- Mandatory git loop for every task: **tasks -> test -> commit**.
+- **NEVER run `git push` as an AI agent.**
+- Push/PR update actions must be done by a human maintainer after reviewing local commits.
 
 Additional rules:
 

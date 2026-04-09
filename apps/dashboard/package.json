@@ -53,8 +53,6 @@
 	},
 	"devDependencies": {
 		"@img/sharp-wasm32": "^0.34.5",
-		"@nexo/eslint-config": "workspace:*",
-		"@nexo/prettier-config": "workspace:*",
 		"@nexo/typescript-config": "workspace:*",
 		"@nuxt/eslint": "^1.13.0",
 		"@playwright/test": "^1.58.0",

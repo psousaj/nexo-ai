@@ -1,7 +1,7 @@
 /**
  * @nexo/api-core - Framework-agnostic business logic for Nexo AI
  *
- * Shared between the Hono (apps/api) and Elysia (apps/api-elysia) runtimes.
+ * Shared framework-agnostic business logic used by the API runtime.
  *
  * Sub-path imports are supported via package.json "exports":
  *   import { db } from '@nexo/api-core/db'
