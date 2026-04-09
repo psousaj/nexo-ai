@@ -163,6 +163,12 @@ export interface OrchestratorTrace {
 	tools_used?: string[];
 	/** Schema version do contrato LLM */
 	schema_version?: string;
+	/** Estado da task interna de classificação de intenção */
+	classifier_task?: {
+		status: 'completed' | 'failed';
+		duration_ms: number;
+		error?: string;
+	};
 	/** Durações das etapas em milissegundos */
 	durations?: {
 		intent_ms?: number;

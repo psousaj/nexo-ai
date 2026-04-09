@@ -24,7 +24,7 @@
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { buildClarificationPrompt } from '@/config/prompt-builder';
 import { env } from '@/config/env';
-import { addRuntimeBlock, createRuntimeRound } from '@/services/ai/runtime-contract';
+import { addRuntimeBlock, createRuntimeRound, type RuntimeInternalTaskBlock } from '@/services/ai/runtime-contract';
 import {
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
@@ -45,12 +45,13 @@ import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { generateText } from 'ai';
 import { getModel } from './ai/ai-sdk-provider';
+import { executeIntentClassificationTask } from './ai/intent-classification-task';
 import { buildRuntimeContext } from './ai/runtime-context-builder';
 import { decideAgentAction } from './agent-action-routing';
 import { llmService, OpenAIGatewayTransport, runOpenAIManualLoop } from './ai';
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
-import { type IntentResult, intentClassifier } from './intent-classifier';
+import { type IntentResult } from './intent-classifier';
 import { itemService } from './item-service';
 import { scheduleConversationClose } from './queue-service';
 import { toolAvailabilityService } from './tool-availability.service';
@@ -164,7 +165,11 @@ export class AgentOrchestrator {
 			// A0. TRATAR ESTADO OFF_TOPIC_CHAT
 			if (conversation.state === 'off_topic_chat') {
 				// Re-classifica intenção para ver se usuário voltou ao escopo
-				const intent = await intentClassifier.classify(context.message);
+				const offTopicIntentTask = await executeIntentClassificationTask({
+					message: context.message,
+					phase: 'off_topic_reentry',
+				});
+				const intent = offTopicIntentTask.intent;
 
 				// Se intenção for clara (confiança alta), reseta para idle e processa normalmente
 				if (intent.intent !== 'unknown' && intent.confidence >= 0.85) {
@@ -230,14 +235,18 @@ export class AgentOrchestrator {
 
 			// 1. CLASSIFICAR INTENÇÃO (determinístico)
 			const startTotal = performance.now();
-			const startIntent = performance.now();
-			const intent = await intentClassifier.classify(context.message);
-			const endIntent = performance.now();
+			const intentTask = await executeIntentClassificationTask({
+				message: context.message,
+				phase: 'main',
+			});
+			const intent = intentTask.intent;
+			const classifierTaskBlock = intentTask.block;
+			const intentDurationMs = intentTask.durationMs;
 			loggers.ai.info(
 				{
 					intent: intent.intent,
 					confidence: intent.confidence,
-					duration: `${(endIntent - startIntent).toFixed(0)}*ms*`,
+					duration: `${intentDurationMs}*ms*`,
 				},
 				'🧠 Intenção detectada',
 			);
@@ -314,7 +323,7 @@ export class AgentOrchestrator {
 					break;
 
 				case 'handle_with_llm':
-					response = await this.handleWithLLM(context, intent, conversation);
+					response = await this.handleWithLLM(context, intent, conversation, classifierTaskBlock);
 					break;
 
 				case 'handle_confirmation':
@@ -348,11 +357,16 @@ export class AgentOrchestrator {
 				intent: intent.intent,
 				confidence: intent.confidence,
 				action,
+				classifier_task: {
+					status: classifierTaskBlock.status,
+					duration_ms: intentDurationMs,
+					error: classifierTaskBlock.error,
+				},
 				llm_action: response.trace?.llm_action,
 				tools_used: response.toolsUsed,
 				schema_version: response.trace?.schema_version,
 				durations: {
-					intent_ms: Math.round(endIntent - startIntent),
+					intent_ms: intentDurationMs,
 					action_ms: Math.round(endAction - startAction),
 					llm_ms: response.trace?.durations?.llm_ms,
 					total_ms: totalMs,
@@ -432,7 +446,12 @@ export class AgentOrchestrator {
 	 *
 	 * Sem JSON parsing manual, sem retry loop, sem side-effect gate.
 	 */
-	private async handleWithLLM(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
+	private async handleWithLLM(
+		context: AgentContext,
+		intent: IntentResult,
+		conversation: any,
+		classifierTaskBlock?: RuntimeInternalTaskBlock,
+	): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
 			const toolContext: ToolContext = {
 				userId: context.userId,
@@ -513,16 +532,20 @@ export class AgentOrchestrator {
 				model: 'gateway-managed',
 				gatewayBaseUrl: '/compat',
 			});
-			addRuntimeBlock(runtimeRound, {
-				type: 'internal_task',
-				task: 'intent_classification',
-				async: false,
-				status: 'completed',
-				metadata: {
-					intent: intent.intent,
-					confidence: intent.confidence,
-				},
-			});
+			if (classifierTaskBlock) {
+				addRuntimeBlock(runtimeRound, classifierTaskBlock);
+			} else {
+				addRuntimeBlock(runtimeRound, {
+					type: 'internal_task',
+					task: 'intent_classification',
+					async: false,
+					status: 'completed',
+					metadata: {
+						intent: intent.intent,
+						confidence: intent.confidence,
+					},
+				});
+			}
 			addRuntimeBlock(runtimeRound, {
 				type: 'internal_task',
 				task: 'enrichment_dispatch',

@@ -1,6 +1,10 @@
 export type RuntimeStopReason = 'tool_use' | 'end_turn' | 'max_tokens' | 'stop_sequence' | 'refusal' | 'unknown';
 
-export type RuntimeInternalTaskName = 'intent_classification' | 'enrichment_dispatch' | 'embedding_generation';
+export type RuntimeInternalTaskName =
+	| 'intent_classification'
+	| 'enrichment_dispatch'
+	| 'embedding_generation'
+	| 'context_injection';
 
 export type RuntimeInternalTaskStatus = 'started' | 'completed' | 'failed';
 

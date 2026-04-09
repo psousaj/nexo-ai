@@ -100,6 +100,16 @@ vi.mock('@nexo/api-core/services/ai/ai-sdk-provider', () => ({
 	getModel: vi.fn(),
 }));
 
+vi.mock('@nexo/api-core/config/env', () => ({
+	env: {
+		MANUAL_RUNTIME_LOOP: false,
+		MANUAL_RUNTIME_MODEL: 'openai/gpt-5.2',
+		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
+		CLOUDFLARE_GATEWAY_ID: 'gw-test',
+		CLOUDFLARE_API_TOKEN: 'token-test',
+	},
+}));
+
 vi.mock('@nexo/api-core/utils/json-parser', () => ({
 	parseAgentDecisionV2FromLLM: vi.fn().mockReturnValue({
 		schema_version: '2.0',

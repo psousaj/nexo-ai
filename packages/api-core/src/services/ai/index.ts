@@ -128,6 +128,12 @@ export {
 	type RuntimeContextBuilderResult,
 	type RuntimeHistoryBlock,
 } from './runtime-context-builder';
+export {
+	executeIntentClassificationTask,
+	type IntentClassificationPhase,
+	type IntentClassificationTaskRequest,
+	type IntentClassificationTaskResult,
+} from './intent-classification-task';
 export type {
 	RuntimeErrorBlock,
 	RuntimeGatewayHeaders,
