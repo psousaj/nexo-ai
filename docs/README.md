@@ -18,6 +18,7 @@ Esta documentação segue o padrão **BMAD (Breakthrough Method of Agile AI Driv
 
 - **[Busca Avançada](how-to/advanced-search.md)** - Filtros avançados e queries complexas
 - **[Busca Semântica](how-to/semantic-search.md)** - Sistema de embeddings e cache
+- **[Evolution em Docker (Dev)](how-to/evolution-dev.md)** - Subir Evolution local para testes de WhatsApp
 - **[Deployment Cloudflare](how-to/deployment-cloudflare.md)** - Deploy em produção
 - **[Troubleshooting](how-to/troubleshooting.md)** - Solução de problemas comuns
 

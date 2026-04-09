@@ -84,26 +84,15 @@ process.on('beforeExit', async () => {
 });
 
 /**
- * Inicializar Baileys se a API ativa for 'baileys'
- * Necessário para receber mensagens via WebSocket
+ * Garante que a instância Evolution exista no startup, quando habilitado por env.
  */
-async function initializeBaileysIfActive(): Promise<void> {
+async function initializeEvolutionOnStartup(): Promise<void> {
 	try {
-		const { getWhatsAppSettings } = await import('@nexo/api-core/adapters/messaging');
-		const settings = await getWhatsAppSettings();
-
-		if (settings.activeApi === 'baileys') {
-			logger.info('📱 Baileys é a API ativa, inicializando...');
-
-			const { getBaileysService } = await import('@nexo/api-core/services/baileys-service');
-			await getBaileysService();
-
-			logger.info('✅ Baileys inicializado e pronto para receber mensagens');
-		} else {
-			logger.info('📱 Meta API é a API ativa (Baileys não será inicializado)');
-		}
+		const { evolutionService } = await import('@nexo/api-core/services/evolution-service');
+		await evolutionService.bootstrapIfEnabled();
+		logger.info('✅ Bootstrap Evolution concluído');
 	} catch (error) {
-		logger.error({ error }, '❌ Erro ao verificar/inicializar Baileys');
+		logger.error({ error }, '❌ Erro ao executar bootstrap Evolution');
 	}
 }
 
@@ -129,8 +118,8 @@ serve(
 			}
 		}
 
-		// Iniciar Baileys se for a API ativa do WhatsApp
-		await initializeBaileysIfActive();
+		// Garantir instância Evolution no boot
+		await initializeEvolutionOnStartup();
 
 		logger.info(`🚀 Nexo AI rodando em http://0.0.0.0:${info.port}`);
 		logger.info(`📦 Version: ${pkg.version}`);

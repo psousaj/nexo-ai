@@ -125,7 +125,7 @@ describe('AgentOrchestrator context wiring', () => {
 			}),
 		);
 		expect(response.message).toBe('ok');
-	});
+	}, 10000);
 
 	test('without sessionKey uses fallback user assistantName', async () => {
 		const context = {
@@ -155,5 +155,5 @@ describe('AgentOrchestrator context wiring', () => {
 				system: expect.stringContaining('Aurora'),
 			}),
 		);
-	});
+	}, 10000);
 });

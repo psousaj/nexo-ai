@@ -127,6 +127,13 @@
       "when": 1773086832098,
       "tag": "0017_magenta_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1775765100051,
+      "tag": "0018_rename_whatsapp_baileys_columns",
+      "breakpoints": true
     }
   ]
 }

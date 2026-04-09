@@ -34,6 +34,19 @@ Sistema de embeddings e cache para busca inteligente.
 
 ---
 
+### **[Evolution em Docker (Dev)](evolution-dev.md)**
+
+Subir Evolution API local com Docker Compose para testes de integração no Nexo.
+
+- Compose dedicado para ambiente de desenvolvimento
+- Configuração de `.env` da Evolution
+- Verificação de health e autenticação por `apikey`
+- Fluxo de integração com webhook do Nexo
+
+**Use quando:** Precisar testar WhatsApp Evolution self-hosted localmente
+
+---
+
 ### **[Deployment Cloudflare](deployment-cloudflare.md)**
 
 Deploy em produção no Cloudflare Workers.
@@ -76,6 +89,11 @@ Solução de problemas comuns.
 
 1. [Deployment Cloudflare](deployment-cloudflare.md)
 2. [Troubleshooting](troubleshooting.md) - Se algo der errado
+
+### Testar Evolution Local
+
+1. [Evolution em Docker (Dev)](evolution-dev.md)
+2. [Troubleshooting](troubleshooting.md)
 
 ### Debugar Problemas
 

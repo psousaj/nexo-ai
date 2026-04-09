@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  evolution-api:
+    container_name: nexo-evolution-api
+    image: atendai/evolution-api:v2.3.7
+    restart: unless-stopped
+    env_file:
+      - ./docker/evolution/.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+
+volumes:
+  evolution_instances:
