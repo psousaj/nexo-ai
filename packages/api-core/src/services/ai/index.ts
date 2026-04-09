@@ -139,6 +139,11 @@ export {
 	type EmbeddingTaskRequest,
 	type EmbeddingTaskResult,
 } from './embedding-task';
+export {
+	buildRuntimeObservabilityAttributes,
+	summarizeRuntimeRounds,
+	type RuntimeRoundsSummary,
+} from './runtime-observability';
 export type {
 	RuntimeErrorBlock,
 	RuntimeGatewayHeaders,

@@ -3,6 +3,7 @@ import type { ToolName } from '@/types';
 import type { ToolContext, ToolOutput } from '@/services/tools';
 import { loggers } from '@/utils/logger';
 import type { OpenAIGatewayRequest, OpenAIGatewayTransport, OpenAIGatewayResponse } from './openai-gateway-transport';
+import type { RuntimeRound } from './runtime-contract';
 
 type MinimalTool = Extract<ToolName, 'save_note' | 'save_link' | 'search_items'>;
 
@@ -89,6 +90,7 @@ export interface OpenAIManualLoopResult {
 	toolsUsed: string[];
 	rounds: number;
 	lastResponse: OpenAIGatewayResponse | null;
+	roundsData: RuntimeRound[];
 }
 
 export function buildManualLoopTools(availableTools: string[]): OpenAI.Chat.ChatCompletionTool[] {
@@ -105,6 +107,7 @@ export async function runOpenAIManualLoop(
 	const tools = buildManualLoopTools(request.availableTools);
 	const conversationMessages = [...request.messages];
 	const toolsUsed: string[] = [];
+	const roundsData: RuntimeRound[] = [];
 	let rounds = 0;
 	let finalText = '';
 	let lastResponse: OpenAIGatewayResponse | null = null;
@@ -121,6 +124,8 @@ export async function runOpenAIManualLoop(
 			tools,
 			toolChoice: tools.length > 0 ? 'auto' : 'none',
 		} as OpenAIGatewayRequest);
+
+		roundsData.push(lastResponse.round);
 
 		const choice = lastResponse.completion.choices[0];
 		const assistantMessage = choice?.message;
@@ -190,6 +195,7 @@ export async function runOpenAIManualLoop(
 		toolsUsed,
 		rounds,
 		lastResponse,
+		roundsData,
 	};
 }
 

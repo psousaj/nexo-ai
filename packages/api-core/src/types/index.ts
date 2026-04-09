@@ -169,6 +169,15 @@ export interface OrchestratorTrace {
 		duration_ms: number;
 		error?: string;
 	};
+	/** Resumo de observabilidade da execução por rodadas canônicas */
+	runtime?: {
+		rounds: number;
+		tool_uses: number;
+		stop_reasons?: string[];
+		total_tokens?: number;
+		gateway_provider?: string;
+		gateway_model?: string;
+	};
 	/** Durações das etapas em milissegundos */
 	durations?: {
 		intent_ms?: number;

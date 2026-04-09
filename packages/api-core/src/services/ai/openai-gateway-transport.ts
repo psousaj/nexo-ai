@@ -92,7 +92,7 @@ export class OpenAIGatewayTransport {
 			: request.messages;
 
 		try {
-			const completion = await this.client.chat.completions.create(
+			const completionRequest = this.client.chat.completions.create(
 				{
 					model,
 					messages,
@@ -108,6 +108,23 @@ export class OpenAIGatewayTransport {
 					},
 				},
 			);
+
+			let completion: OpenAI.Chat.Completions.ChatCompletion;
+
+			if (typeof (completionRequest as any).withResponse === 'function') {
+				const responseWithHeaders = await (completionRequest as any).withResponse();
+				completion = responseWithHeaders.data as OpenAI.Chat.Completions.ChatCompletion;
+
+				const headerEntries = responseWithHeaders.response?.headers
+					? Object.fromEntries(responseWithHeaders.response.headers.entries())
+					: undefined;
+
+				runtimeRound.gatewayHeaders = normalizeGatewayHeaders(
+					headerEntries as Record<string, string | null | undefined> | undefined,
+				);
+			} else {
+				completion = await completionRequest;
+			}
 
 			runtimeRound.stopReason = mapOpenAIFinishReasonToRuntimeStopReason(completion.choices[0]?.finish_reason);
 			runtimeRound.usage = buildRuntimeUsageFromOpenAI(completion.usage);

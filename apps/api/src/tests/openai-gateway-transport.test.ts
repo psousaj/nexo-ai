@@ -109,4 +109,46 @@ describe('OpenAIGatewayTransport', () => {
 		expect(mapOpenAIFinishReasonToRuntimeStopReason('content_filter')).toBe('refusal');
 		expect(mapOpenAIFinishReasonToRuntimeStopReason('something-else')).toBe('unknown');
 	});
+
+	it('deve capturar headers cf-aig quando withResponse estiver disponível', async () => {
+		mockOpenAIInstance.chat.completions.create.mockReturnValueOnce({
+			withResponse: vi.fn().mockResolvedValue({
+				data: {
+					choices: [
+						{
+							finish_reason: 'stop',
+							message: {
+								content: 'ok',
+								tool_calls: [],
+							},
+						},
+					],
+					usage: {
+						prompt_tokens: 2,
+						completion_tokens: 1,
+						total_tokens: 3,
+					},
+				},
+				response: {
+					headers: new Map<string, string>([
+						['cf-aig-provider', 'openai'],
+						['cf-aig-model', 'gpt-5.2'],
+					]),
+				},
+			}),
+		});
+
+		const response = await transport.createChatCompletion({
+			conversationId: 'conv-1',
+			userId: 'user-1',
+			messages: [{ role: 'user', content: 'oi' }],
+		});
+
+		expect(response.round.gatewayHeaders).toEqual(
+			expect.objectContaining({
+				cfAigProvider: 'openai',
+				cfAigModel: 'gpt-5.2',
+			}),
+		);
+	});
 });
