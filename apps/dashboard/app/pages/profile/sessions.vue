@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
+import { useAuthStore } from '~/stores/auth';
 import { api } from '~/utils/api';
 
-definePageMeta({
-	middleware: ['auth'],
-});
-
-const auth = useAuth();
+const authStore = useAuthStore();
 
 // Filter state
 const searchQuery = ref('');
@@ -16,12 +13,12 @@ const selectedPeerKind = ref<'all' | 'direct' | 'group' | 'channel'>('all');
 
 // Fetch sessions
 const { data: sessions, isLoading } = useQuery({
-	queryKey: ['agent-sessions', auth.data?.user?.id],
+	queryKey: ['agent-sessions', authStore.user?.id],
 	queryFn: async () => {
 		const response = await api.get('/api/agent/sessions');
 		return response.data;
 	},
-	enabled: computed(() => !!auth.data?.user?.id),
+	enabled: computed(() => !!authStore.user?.id),
 });
 
 // Export session as JSONL

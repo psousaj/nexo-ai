@@ -7,7 +7,7 @@
  * - Langfuse span attributes
  */
 
-import { streamText, type CoreMessage, type StepResult, type ToolSet } from 'ai';
+import { stepCountIs, streamText, type ModelMessage, type StepResult, type StreamTextResult, type ToolSet } from 'ai';
 import { getModel } from './ai-sdk-provider';
 import { getLangfuse } from '@/services/langfuse';
 import { loggers } from '@/utils/logger';
@@ -15,7 +15,7 @@ import { getCurrentTraceId, setAttributes, startSpan } from '@nexo/otel/tracing'
 
 export interface StreamWithToolsParams {
 	system: string;
-	messages: CoreMessage[];
+	messages: ModelMessage[];
 	tools: ToolSet;
 	maxSteps?: number;
 	onStepFinish?: (step: StepResult<ToolSet>) => void | Promise<void>;
@@ -32,7 +32,7 @@ export interface StreamWithToolsParams {
  * const text = await result.text; // aguarda texto final
  * ```
  */
-export function runAgentStream(params: StreamWithToolsParams) {
+export function runAgentStream(params: StreamWithToolsParams): Promise<StreamTextResult<ToolSet, any>> {
 	return startSpan('agent.stream', (_span) => {
 		setAttributes({
 			'agent.message_count': params.messages.length,
@@ -64,11 +64,11 @@ export function runAgentStream(params: StreamWithToolsParams) {
 			system: params.system,
 			messages: params.messages,
 			tools: params.tools,
-			maxSteps: params.maxSteps ?? 5,
+			stopWhen: stepCountIs(params.maxSteps ?? 5),
 			onStepFinish: async (step) => {
 				loggers.ai.info(
 					{
-						stepType: step.stepType,
+						finishReason: step.finishReason,
 						toolCalls: step.toolCalls?.length ?? 0,
 						hasText: !!step.text,
 					},
@@ -76,15 +76,15 @@ export function runAgentStream(params: StreamWithToolsParams) {
 				);
 
 				setAttributes({
-					'agent.step_type': step.stepType,
+					'agent.step_reason': step.finishReason,
 					'agent.tool_calls': step.toolCalls?.length ?? 0,
 				});
 
 				if (step.usage) {
 					setAttributes({
-						'llm.prompt_tokens': step.usage.promptTokens,
-						'llm.completion_tokens': step.usage.completionTokens,
-						'llm.total_tokens': step.usage.totalTokens,
+						'llm.prompt_tokens': step.usage.inputTokens ?? 0,
+						'llm.completion_tokens': step.usage.outputTokens ?? 0,
+						'llm.total_tokens': step.usage.totalTokens ?? 0,
 					});
 				}
 

@@ -139,7 +139,7 @@ export async function runOpenAIManualLoop(
 			});
 
 			for (const toolCall of toolCalls) {
-				const toolName = toolCall.function.name as ToolName;
+				const toolName = (toolCall.type === 'function' ? toolCall.function.name : toolCall.custom.name) as ToolName;
 				toolsUsed.push(toolName);
 
 				if (!request.availableTools.includes(toolName)) {
@@ -154,7 +154,8 @@ export async function runOpenAIManualLoop(
 					continue;
 				}
 
-				const parsedArgs = safeParseToolArguments(toolCall.function.arguments);
+				const rawArguments = toolCall.type === 'function' ? toolCall.function.arguments : toolCall.custom.input;
+				const parsedArgs = safeParseToolArguments(rawArguments);
 				const toolResult = await deps.executeTool(toolName, request.toolContext, parsedArgs);
 
 				conversationMessages.push({

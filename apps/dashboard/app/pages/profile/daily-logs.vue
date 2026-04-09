@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
+import { useAuthStore } from '~/stores/auth';
 import { api } from '~/utils/api';
 
-definePageMeta({
-	middleware: ['auth'],
-});
+const authStore = useAuthStore();
 
-const auth = useAuth();
+function getCurrentDateKey(): string {
+	return new Date().toISOString().split('T')[0] ?? new Date().toISOString().slice(0, 10);
+}
 
 // State
-const selectedDate = ref(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+const selectedDate = ref(getCurrentDateKey()); // YYYY-MM-DD
 const logContent = ref('');
 const isEditing = ref(false);
 
@@ -20,12 +21,12 @@ const {
 	isLoading,
 	refetch,
 } = useQuery({
-	queryKey: ['daily-logs', auth.data?.user?.id],
+	queryKey: ['daily-logs', authStore.user?.id],
 	queryFn: async () => {
 		const response = await api.get('/api/agent/daily-logs');
 		return response.data;
 	},
-	enabled: computed(() => !!auth.data?.user?.id),
+	enabled: computed(() => !!authStore.user?.id),
 });
 
 // Load selected log content
@@ -62,7 +63,7 @@ function navigateDate(direction: 'prev' | 'next') {
 	} else {
 		date.setDate(date.getDate() + 1);
 	}
-	selectedDate.value = date.toISOString().split('T')[0];
+	selectedDate.value = date.toISOString().split('T')[0] ?? selectedDate.value;
 	loadLog(selectedDate.value);
 }
 

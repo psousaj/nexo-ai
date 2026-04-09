@@ -138,11 +138,14 @@ export class OpenAIGatewayTransport {
 			}
 
 			for (const toolCall of assistantMessage?.tool_calls ?? []) {
+				const toolName = toolCall.type === 'function' ? toolCall.function.name : toolCall.custom.name;
+				const rawInput = toolCall.type === 'function' ? toolCall.function.arguments : toolCall.custom.input;
+
 				addRuntimeBlock(runtimeRound, {
 					type: 'tool_use',
 					id: toolCall.id,
-					name: toolCall.function.name,
-					input: this.safeParseToolArguments(toolCall.function.arguments),
+					name: toolName,
+					input: this.safeParseToolArguments(rawInput),
 				});
 			}
 

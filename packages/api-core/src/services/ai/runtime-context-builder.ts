@@ -2,7 +2,7 @@ import { buildAgentPrompt } from "@/config/prompt-builder";
 import { conversationService } from "@/services/conversation-service";
 import { buildAgentContext } from "@/services/context-builder";
 import { userService } from "@/services/user-service";
-import type { CoreMessage } from "ai";
+import type { ModelMessage } from "ai";
 import type OpenAI from "openai";
 
 export interface RuntimeHistoryBlock {
@@ -23,7 +23,7 @@ export interface RuntimeContextBuilderRequest {
 export interface RuntimeContextBuilderResult {
   assistantName: string;
   systemPrompt: string;
-  coreMessages: CoreMessage[];
+  coreMessages: ModelMessage[];
   openAIMessages: OpenAI.Chat.ChatCompletionMessageParam[];
   historyBlocks: RuntimeHistoryBlock[];
 }
@@ -62,7 +62,7 @@ export async function buildRuntimeContext(
     source: "current",
   });
 
-  const coreMessages: CoreMessage[] = historyBlocks.map((block) => ({
+  const coreMessages: ModelMessage[] = historyBlocks.map((block) => ({
     role: block.role,
     content: block.content,
   }));
@@ -71,7 +71,7 @@ export async function buildRuntimeContext(
     .filter(
       (
         message,
-      ): message is Extract<CoreMessage, { role: "user" | "assistant" }> =>
+      ): message is Extract<ModelMessage, { role: "user" | "assistant" }> =>
         message.role === "user" || message.role === "assistant",
     )
     .map((message) => ({

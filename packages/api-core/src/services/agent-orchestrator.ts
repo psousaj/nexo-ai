@@ -438,7 +438,10 @@ export class AgentOrchestrator {
         confidence: intent.confidence,
         action,
         classifier_task: {
-          status: classifierTaskBlock.status,
+          status:
+            classifierTaskBlock.status === "completed"
+              ? "completed"
+              : "failed",
           duration_ms: intentDurationMs,
           error: classifierTaskBlock.error,
         },

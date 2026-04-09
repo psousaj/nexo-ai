@@ -30,6 +30,10 @@ interface ProcessMessageOptions {
 	shouldNotifyUserOnProcessingError?: boolean;
 }
 
+function getDashboardUrl(): string {
+	return env.DASHBOARD_URL ?? env.APP_URL ?? 'http://localhost:5173';
+}
+
 /**
  * Verifica se a mensagem contém conteúdo ofensivo usando nlp.js
  */
@@ -167,12 +171,13 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 
 							setAttributes({ 'message.status': 'user_not_registered' });
 							loggers.webhook.info({ provider: providerForGuard, identityId }, '⛔ Usuário sem cadastro - nenhum ghost user criado');
-							const isLocalhost = env.DASHBOARD_URL.includes('localhost') || env.DASHBOARD_URL.includes('127.0.0.1');
-							let signupLink = `${env.DASHBOARD_URL}/signup`;
+							const dashboardUrl = getDashboardUrl();
+							const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
+							let signupLink = `${dashboardUrl}/signup`;
 							if (!isLocalhost) {
 								const { accountLinkingService } = await import('@/services/account-linking-service');
 								const token = await accountLinkingService.generatePreSignupToken(identityId, incomingMsg.provider);
-								signupLink = `${env.DASHBOARD_URL}/signup?vinculate_code=${token}`;
+								signupLink = `${dashboardUrl}/signup?vinculate_code=${token}`;
 							}
 							const notRegisteredMsg = getChannelNotRegisteredMessage(providerForGuard, signupLink);
 							if (providerForGuard === 'telegram' && !isLocalhost) {
@@ -270,7 +275,7 @@ export async function processMessage(incomingMsg: IncomingMessage, provider: Mes
 							setAttributes({ 'message.status': 'onboarding_blocked' });
 
 							const { accountLinkingService } = await import('@/services/account-linking-service');
-							const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
+							const dashboardUrl = `${getDashboardUrl()}/signup`;
 							const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
 							const providerName = provider.getProviderName();
 

@@ -2,26 +2,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { Brain, FileText, Heart, Sparkles, User, Wrench } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { useAuthStore } from '~/stores/auth';
 import { api } from '~/utils/api';
 
-definePageMeta({
-	middleware: ['auth'],
-});
-
-const auth = useAuth();
+const authStore = useAuthStore();
 const queryClient = useQueryClient();
 
 // Tab state
-const activeTab = ref<'personality' | 'identity' | 'instructions' | 'user' | 'memory' | 'tools'>('personality');
+type ProfileTab = 'personality' | 'identity' | 'instructions' | 'user' | 'memory' | 'tools';
+const activeTab = ref<ProfileTab>('personality');
 
 // Fetch current profile
 const { data: profile, isLoading } = useQuery({
-	queryKey: ['agent-profile', auth.data?.user?.id],
+	queryKey: ['agent-profile', authStore.user?.id],
 	queryFn: async () => {
 		const response = await api.get('/api/agent/profile');
 		return response.data;
 	},
-	enabled: computed(() => !!auth.data?.user?.id),
+	enabled: computed(() => !!authStore.user?.id),
 });
 
 // Local form state
@@ -81,7 +79,7 @@ function showResetNotification() {
 	console.log('Profile reset to defaults');
 }
 
-const tabs = [
+const tabs: Array<{ id: ProfileTab; label: string; icon: any; description: string }> = [
 	{
 		id: 'personality',
 		label: 'Personalidade',

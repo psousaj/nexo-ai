@@ -265,7 +265,7 @@ const displayKPIs = computed(() => analytics.value?.kpis ?? []);
 										'px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter',
 										item.type === 'link'
 											? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30'
-											: item.type === 'text'
+											: item.type === 'note'
 												? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30'
 												: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
 									]"

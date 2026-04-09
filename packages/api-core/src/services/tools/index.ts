@@ -1458,6 +1458,7 @@ export async function save_book(
 					title: params.title,
 					authors: params.author ? [params.author] : [],
 					genres: [],
+					google_books_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
 				} as BookMetadata,
 			});
 			return {
@@ -1529,13 +1530,13 @@ export async function save_music(
 				title: params.title,
 				artist: params.artist ?? '',
 				artists: params.artist ? [params.artist] : [],
-				album: params.album,
+				album: params.album ?? 'Unknown album',
 				album_cover_url: params.album_cover_url,
 				year: params.year,
-				duration_ms: params.duration_ms,
+				duration_ms: params.duration_ms ?? 0,
 				genres: [],
 				spotify_id: params.spotify_id,
-				spotify_url: params.spotify_url,
+				spotify_url: params.spotify_url ?? `https://open.spotify.com/track/${params.spotify_id}`,
 			};
 
 			const result = await itemService.createItem({
@@ -1572,7 +1573,11 @@ export async function save_music(
 					title: params.title,
 					artist: params.artist ?? '',
 					artists: params.artist ? [params.artist] : [],
+					album: 'Unknown album',
+					duration_ms: 0,
 					genres: [],
+					spotify_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
+					spotify_url: 'https://open.spotify.com',
 				} as MusicMetadata,
 			});
 			return {
