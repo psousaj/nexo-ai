@@ -29,16 +29,6 @@ const envSchema = z.object({
   EVOLUTION_INSTANCE_NAME: z.string().default("nexo-dev"),
   EVOLUTION_WEBHOOK_SECRET: z.string().optional(),
   EVOLUTION_WEBHOOK_PATH: z.string().default("/webhook/whatsapp/evolution"),
-  EVOLUTION_BOOTSTRAP_ENABLED: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("true"),
-  EVOLUTION_BOOTSTRAP_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .min(1000)
-    .max(120000)
-    .default(15000),
 
   // Cloudflare AI Gateway (obrigatório)
   CLOUDFLARE_ACCOUNT_ID: z.string().min(1),

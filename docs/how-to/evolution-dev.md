@@ -41,7 +41,7 @@ docker compose -f docker-compose.evolution.dev.yml down
 
 ```bash
 curl --request GET \
-  --url http://localhost:8080/ \
+  --url http://localhost:8082/ \
   --header 'apikey: CHANGE_ME'
 ```
 
@@ -52,14 +52,15 @@ Resposta esperada: mensagem de welcome com status 200.
 No `.env` raiz do Nexo:
 
 ```bash
-EVOLUTION_API_BASE_URL=http://localhost:8080
+EVOLUTION_API_BASE_URL=http://localhost:8082
 EVOLUTION_API_KEY=CHANGE_ME
 EVOLUTION_INSTANCE_NAME=nexo-dev
 EVOLUTION_WEBHOOK_SECRET=change-webhook-secret
 EVOLUTION_WEBHOOK_PATH=/webhook/whatsapp/evolution
-EVOLUTION_BOOTSTRAP_ENABLED=true
-EVOLUTION_BOOTSTRAP_TIMEOUT_MS=15000
 ```
+
+Importante: a instância deve ser criada manualmente no Evolution antes de iniciar o Nexo.
+O backend não faz mais bootstrap/criação automática de instância.
 
 ## 5. Rodar API do Nexo
 
@@ -80,7 +81,6 @@ A API do Nexo deve validar `EVOLUTION_WEBHOOK_SECRET` via header antes de enfile
 Endpoints de suporte para operação da instância Evolution no backend:
 
 - `GET /api/admin/whatsapp-settings`
-- `POST /api/admin/whatsapp-settings/bootstrap`
 - `GET /api/admin/whatsapp-settings/qr-code`
 - `POST /api/admin/whatsapp-settings/evolution/connect`
 - `POST /api/admin/whatsapp-settings/evolution/restart`
@@ -92,7 +92,7 @@ O painel de configuração WhatsApp foi simplificado para provider único Evolut
 
 Fluxo recomendado:
 
-1. Clicar em `Bootstrap Instância`.
+1. Criar a instância manualmente no painel/API do Evolution com o mesmo nome de `EVOLUTION_INSTANCE_NAME`.
 2. Clicar em `Conectar` para obter QR Code.
 3. Escanear QR no WhatsApp para vincular a sessão.
 4. Usar `Reiniciar Sessão` ou `Desconectar` quando necessário.

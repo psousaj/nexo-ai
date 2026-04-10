@@ -49,28 +49,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback
 }
 
-const bootstrapMutation = useMutation({
-  mutationFn: async () => dashboard.bootstrapWhatsAppInstance(),
-  onSuccess: async () => {
-    toast.add({
-      title: 'Instância pronta',
-      description: 'Bootstrap da instância Evolution executado com sucesso.',
-      color: 'success',
-      icon: 'i-heroicons-check-circle'
-    })
-    await queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] })
-    await refetchQRCode()
-  },
-  onError: (error: unknown) => {
-    toast.add({
-      title: 'Falha no bootstrap',
-      description: getErrorMessage(error, 'Não foi possível executar bootstrap da instância.'),
-      color: 'error',
-      icon: 'i-heroicons-x-circle'
-    })
-  }
-})
-
 const connectMutation = useMutation({
   mutationFn: async () => dashboard.connectWhatsAppInstance(),
   onSuccess: async () => {
@@ -174,7 +152,7 @@ const clearCacheMutation = useMutation({
     />
 
     <template v-else>
-      <div class="premium-card !p-8">
+      <div class="premium-card p-8!">
         <div class="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p class="text-xs font-black uppercase text-surface-500">
@@ -224,10 +202,17 @@ const clearCacheMutation = useMutation({
         </div>
       </div>
 
-      <div class="premium-card !p-8">
+      <div class="premium-card p-8!">
         <h3 class="text-xl font-black text-surface-900 dark:text-white">
           Vinculação
         </h3>
+
+        <div class="mt-4 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 p-4">
+          <p class="text-sm text-blue-800 dark:text-blue-200">
+            A instância deve ser criada manualmente no Evolution com o mesmo nome configurado em
+            <strong>EVOLUTION_INSTANCE_NAME</strong>.
+          </p>
+        </div>
 
         <div
           v-if="!isConnected && qrCodeData?.qrCode"
@@ -270,18 +255,11 @@ const clearCacheMutation = useMutation({
         </div>
       </div>
 
-      <div class="premium-card !p-8">
+      <div class="premium-card p-8!">
         <h3 class="text-xl font-black text-surface-900 dark:text-white">
           Ações Operacionais
         </h3>
         <div class="mt-6 flex flex-wrap gap-3">
-          <button
-            class="px-4 py-2 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-900 dark:text-white font-semibold disabled:opacity-50"
-            :disabled="bootstrapMutation.isPending.value"
-            @click="bootstrapMutation.mutate()"
-          >
-            Bootstrap Instância
-          </button>
           <button
             class="px-4 py-2 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-900 dark:text-white font-semibold disabled:opacity-50"
             :disabled="connectMutation.isPending.value"
@@ -313,7 +291,7 @@ const clearCacheMutation = useMutation({
         </div>
       </div>
 
-      <div class="premium-card !p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+      <div class="premium-card p-6! bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
         <p class="text-sm text-blue-800 dark:text-blue-200">
           Webhook oficial em desenvolvimento: <strong>/webhook/whatsapp/evolution</strong>. O header de autenticação deve usar o segredo
           configurado em <strong>EVOLUTION_WEBHOOK_SECRET</strong>.

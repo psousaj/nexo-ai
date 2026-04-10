@@ -7,6 +7,7 @@ This file defines mandatory execution rules for all AI coding agents in this rep
 - Always execute work in small, explicit tasks.
 - Mandatory git loop for every task: **tasks -> test -> commit**.
 - **Never run `git push` automatically.**
+- For database migrations (`db:generate`, `db:push`, `drizzle-kit`), always run commands from `apps/api` (API root), not from monorepo root.
 - If the user explicitly asks for push/PR actions, execute them.
 - Each planning cycle must run in one dedicated branch.
 - Keep implementation inside that dedicated branch until all planned milestones/tasks are complete.

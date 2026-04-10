@@ -50,8 +50,7 @@ async function getEvolutionConnectionView(options?: {
       pairingCode = connectResponse.pairingCode || null;
       status = "connecting";
     } else {
-      connectError =
-        "Instância Evolution não encontrada para iniciar conexão.";
+      connectError = "Instância Evolution não encontrada para iniciar conexão.";
     }
   }
 
@@ -114,23 +113,6 @@ export const adminRoutes = new Hono()
   .post("/whatsapp-settings/cache/clear", async (c) => {
     invalidateWhatsAppProviderCache();
     return c.json({ success: true, message: "Cache cleared" });
-  })
-  .post("/whatsapp-settings/bootstrap", async (c) => {
-    try {
-      const instance = await evolutionService.ensureInstanceUpsert();
-      return c.json({ success: true, instance });
-    } catch (error) {
-      return c.json(
-        {
-          success: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Erro ao executar bootstrap da instância",
-        },
-        500,
-      );
-    }
   })
   .post("/whatsapp-settings/evolution/disconnect", async (c) => {
     try {

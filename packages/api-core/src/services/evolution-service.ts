@@ -2,7 +2,6 @@ import { env } from "@/config/env";
 import { db } from "@/db";
 import { whatsappSettings } from "@/db/schema";
 import { instrumentService } from "@/services/service-instrumentation";
-import { loggers } from "@/utils/logger";
 
 interface EvolutionInstancePayload {
   instance?: {
@@ -53,10 +52,8 @@ function normalizeStatus(
 }
 
 export class EvolutionService {
-  private readonly logger = loggers.api;
   private readonly baseUrl = env.EVOLUTION_API_BASE_URL.replace(/\/+$/, "");
   private readonly instanceName = env.EVOLUTION_INSTANCE_NAME;
-  private readonly webhookPath = env.EVOLUTION_WEBHOOK_PATH;
 
   private get apiKey(): string {
     if (!env.EVOLUTION_API_KEY || !env.EVOLUTION_API_KEY.trim()) {
@@ -91,11 +88,6 @@ export class EvolutionService {
           updatedAt: new Date(),
         },
       });
-  }
-
-  private buildWebhookUrl(): string {
-    const appUrl = env.APP_URL || `http://localhost:${env.PORT}`;
-    return `${appUrl.replace(/\/+$/, "")}${this.webhookPath.startsWith("/") ? "" : "/"}${this.webhookPath}`;
   }
 
   private requestUrl(
@@ -175,11 +167,16 @@ export class EvolutionService {
       "GET",
       "/instance/fetchInstances",
       {
+        acceptNotFound: true,
         query: {
           instanceName,
         },
       },
     );
+
+    if (!response) {
+      return [];
+    }
 
     if (Array.isArray(response)) {
       return response as EvolutionInstancePayload[];
@@ -199,45 +196,6 @@ export class EvolutionService {
         (item) => item.instance?.instanceName === this.instanceName,
       ) || null
     );
-  }
-
-  async ensureInstanceUpsert(): Promise<EvolutionInstancePayload | null> {
-    const existing = await this.getInstance();
-    if (existing) {
-      await this.syncSettingsFromInstance(existing);
-      return existing;
-    }
-
-    const body = {
-      instanceName: this.instanceName,
-      integration: "WHATSAPP-BAILEYS",
-      qrcode: true,
-      webhook: {
-        url: this.buildWebhookUrl(),
-        byEvents: true,
-        base64: true,
-        headers: env.EVOLUTION_WEBHOOK_SECRET
-          ? {
-              authorization: `Bearer ${env.EVOLUTION_WEBHOOK_SECRET}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
-        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
-      },
-    };
-
-    const created = await this.request<EvolutionInstancePayload>(
-      "POST",
-      "/instance/create",
-      { body },
-    );
-    if (created) {
-      await this.syncSettingsFromInstance(created);
-    }
-
-    return created;
   }
 
   async getConnectionState(): Promise<EvolutionConnectionStateResponse | null> {
@@ -364,24 +322,6 @@ export class EvolutionService {
       connectionStatus: normalizeStatus(instance?.status),
       lastError: null,
     });
-  }
-
-  async bootstrapIfEnabled(): Promise<void> {
-    if (!env.EVOLUTION_BOOTSTRAP_ENABLED) {
-      this.logger.info("⚪ Bootstrap Evolution desabilitado via env");
-      return;
-    }
-
-    const timeoutMs = env.EVOLUTION_BOOTSTRAP_TIMEOUT_MS;
-    const timeout = new Promise<never>((_, reject) => {
-      setTimeout(
-        () =>
-          reject(new Error(`Timeout no bootstrap Evolution (${timeoutMs}ms)`)),
-        timeoutMs,
-      );
-    });
-
-    await Promise.race([this.ensureInstanceUpsert(), timeout]);
   }
 }
 
