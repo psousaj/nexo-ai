@@ -232,6 +232,35 @@ curl http://localhost:3001/debug-sentry
 | `SENTRY_TRACES_SAMPLE_RATE` | Taxa de sampling | `0.1` |
 | `SENTRY_LOGS_SAMPLE_RATE` | Taxa de sampling de logs (prod) | `0.1` |
 
+## Provider Split - Sinais Operacionais
+
+Quando `PROVIDER_SPLIT=true`, monitore os sinais abaixo como baseline de saúde do fluxo de saída:
+
+### Filas Críticas
+
+- `adapter-output`: fila principal de dispatch canônico para adapters no app Bots
+- `adapter-output-dlq`: fila de mensagens com falha após tentativas do worker
+
+### Endpoints de Verificação
+
+- API: Bull Board em `/admin/queues` com a fila `adapter-output`
+- Bots: `/health` para estado geral de runtime
+- Bots: `/health/outgoing` para snapshot de contagem de jobs em `adapter-output` e `adapter-output-dlq`
+
+### Alertas Mínimos
+
+- backlog de `adapter-output` acima do padrão por mais de 5 minutos
+- crescimento contínuo de `adapter-output-dlq`
+- aumento de logs `adapter-output moved to DLQ`
+- aumento de logs `adapter-output duplicate idempotency key ignored`
+
+### Investigação Inicial
+
+1. Validar conectividade Redis no app Bots
+2. Verificar credenciais dos providers (Telegram, Evolution, Discord)
+3. Confirmar consistência de `idempotencyKey` nos envelopes de saída
+4. Inspecionar payloads da DLQ para identificar canal dominante
+
 ## Troubleshooting
 
 ### Jaeger não mostra traces

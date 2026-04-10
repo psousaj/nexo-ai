@@ -2,9 +2,16 @@ import { serve } from '@hono/node-server';
 import { startDiscordBot } from '@nexo/api-core/adapters/messaging/discord-adapter';
 import { env } from '@nexo/api-core/config/env';
 import { createBotsApp } from './app';
-import { createAdapterOutputWorker, shutdownAdapterOutputRuntime } from '@/outgoing/adapter-output-worker';
+import {
+	createAdapterOutputWorker,
+	getAdapterOutputQueueSnapshot,
+	shutdownAdapterOutputRuntime,
+} from '@/outgoing/adapter-output-worker';
 
-const app = createBotsApp();
+const app = createBotsApp({
+	providerSplitEnabled: env.PROVIDER_SPLIT,
+	getOutgoingSnapshot: getAdapterOutputQueueSnapshot,
+});
 const port = Number(process.env.BOTS_PORT || process.env.PORT || 3030);
 const adapterOutputWorker = createAdapterOutputWorker();
 

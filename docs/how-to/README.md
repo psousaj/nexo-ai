@@ -47,6 +47,19 @@ Subir Evolution API local com Docker Compose para testes de integração no Nexo
 
 ---
 
+### **[Cutover Provider Split](provider-split-cutover.md)**
+
+Checklist de rollout para split de providers entre API (ingress/core) e Bots (egress/adapters).
+
+- Sequência big bang de ativação
+- Verificações de saúde (`adapter-output` e `adapter-output-dlq`)
+- Alertas recomendados e rollback
+- Troubleshooting operacional
+
+**Use quando:** Ativar ou reverter `PROVIDER_SPLIT` em ambiente real
+
+---
+
 ### **[Deployment Cloudflare](deployment-cloudflare.md)**
 
 Deploy em produção no Cloudflare Workers.
@@ -94,6 +107,11 @@ Solução de problemas comuns.
 
 1. [Evolution em Docker (Dev)](evolution-dev.md)
 2. [Troubleshooting](troubleshooting.md)
+
+### Executar Cutover de Providers
+
+1. [Cutover Provider Split](provider-split-cutover.md)
+2. [Observabilidade](../observability.md)
 
 ### Debugar Problemas
 
