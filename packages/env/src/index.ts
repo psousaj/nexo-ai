@@ -63,7 +63,8 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 
   // Telegram Bot API (PADRÃO)
-  TELEGRAM_BOT_TOKEN: z.string(),
+  // Opcional no schema global para permitir runtimes sem adapter Telegram ativo.
+  TELEGRAM_BOT_TOKEN: z.string().default(""),
   TELEGRAM_BOT_USERNAME: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 
@@ -269,6 +270,84 @@ export function getBotsEnv(source: Env = env): BotsEnv {
     BOTS_CONFIG_PULL_TOKEN: source.BOTS_CONFIG_PULL_TOKEN,
     BOTS_CONFIG_REFRESH_MS: source.BOTS_CONFIG_REFRESH_MS,
     BOTS_CONFIG_TIMEOUT_MS: source.BOTS_CONFIG_TIMEOUT_MS,
+  };
+}
+
+export const API_ENV_KEYS = [
+  "NODE_ENV",
+  "PORT",
+  "CORS_ORIGINS",
+  "LOG_LEVEL",
+  "PROVIDER_SPLIT",
+  "DISCORD_BOT_TOKEN",
+  "BOTS_CONFIG_PULL_TOKEN",
+] as const;
+
+export type ApiEnv = Pick<Env, (typeof API_ENV_KEYS)[number]>;
+
+export function getApiEnv(source: Env = env): ApiEnv {
+  return {
+    NODE_ENV: source.NODE_ENV,
+    PORT: source.PORT,
+    CORS_ORIGINS: source.CORS_ORIGINS,
+    LOG_LEVEL: source.LOG_LEVEL,
+    PROVIDER_SPLIT: source.PROVIDER_SPLIT,
+    DISCORD_BOT_TOKEN: source.DISCORD_BOT_TOKEN,
+    BOTS_CONFIG_PULL_TOKEN: source.BOTS_CONFIG_PULL_TOKEN,
+  };
+}
+
+export const DASHBOARD_ENV_KEYS = [
+  "NODE_ENV",
+  "PORT_DASHBOARD",
+  "DASHBOARD_URL",
+  "NUXT_PUBLIC_AUTH_BASE_URL",
+  "NUXT_PUBLIC_API_URL",
+  "BETTER_AUTH_URL",
+  "BETTER_AUTH_SECRET",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "MICROSOFT_CLIENT_ID",
+  "MICROSOFT_CLIENT_SECRET",
+  "DISCORD_CLIENT_ID",
+  "DISCORD_CLIENT_SECRET",
+] as const;
+
+export type DashboardEnv = Pick<Env, (typeof DASHBOARD_ENV_KEYS)[number]>;
+
+export function getDashboardEnv(source: Env = env): DashboardEnv {
+  return {
+    NODE_ENV: source.NODE_ENV,
+    PORT_DASHBOARD: source.PORT_DASHBOARD,
+    DASHBOARD_URL: source.DASHBOARD_URL,
+    NUXT_PUBLIC_AUTH_BASE_URL: source.NUXT_PUBLIC_AUTH_BASE_URL,
+    NUXT_PUBLIC_API_URL: source.NUXT_PUBLIC_API_URL,
+    BETTER_AUTH_URL: source.BETTER_AUTH_URL,
+    BETTER_AUTH_SECRET: source.BETTER_AUTH_SECRET,
+    GOOGLE_CLIENT_ID: source.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: source.GOOGLE_CLIENT_SECRET,
+    MICROSOFT_CLIENT_ID: source.MICROSOFT_CLIENT_ID,
+    MICROSOFT_CLIENT_SECRET: source.MICROSOFT_CLIENT_SECRET,
+    DISCORD_CLIENT_ID: source.DISCORD_CLIENT_ID,
+    DISCORD_CLIENT_SECRET: source.DISCORD_CLIENT_SECRET,
+  };
+}
+
+export const LANDING_ENV_KEYS = [
+  "NODE_ENV",
+  "PORT_LANDING",
+  "APP_URL",
+  "DASHBOARD_URL",
+] as const;
+
+export type LandingEnv = Pick<Env, (typeof LANDING_ENV_KEYS)[number]>;
+
+export function getLandingEnv(source: Env = env): LandingEnv {
+  return {
+    NODE_ENV: source.NODE_ENV,
+    PORT_LANDING: source.PORT_LANDING,
+    APP_URL: source.APP_URL,
+    DASHBOARD_URL: source.DASHBOARD_URL,
   };
 }
 

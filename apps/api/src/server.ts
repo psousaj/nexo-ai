@@ -1,4 +1,4 @@
-import { env } from "@nexo/api-core/config/env";
+import { getApiEnv } from "@nexo/api-core/config/env";
 import { authRouter } from "@/routes/auth-better.routes";
 import { dashboardRouter } from "@/routes/dashboard";
 import { healthRouter } from "@/routes/health";
@@ -32,6 +32,7 @@ import pkg from "../package.json";
 import { loggers } from "@nexo/api-core/utils/logger";
 
 const app = new Hono();
+const apiEnv = getApiEnv();
 
 // CORS - Origins definidas em CORS_ORIGINS (separadas por vírgula)
 // Em dev: permite qualquer origem (útil para túneis zrok/ngrok)
@@ -40,11 +41,11 @@ app.use(
   cors({
     origin: (origin) => {
       // Em desenvolvimento, aceita qualquer origem
-      if (env.NODE_ENV === "development") {
+      if (apiEnv.NODE_ENV === "development") {
         return origin || "*";
       }
       // Em produção, valida contra CORS_ORIGINS
-      return env.CORS_ORIGINS.includes(origin || "") ? origin : undefined;
+      return apiEnv.CORS_ORIGINS.includes(origin || "") ? origin : undefined;
     },
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -104,13 +105,13 @@ serverAdapter.setBasePath("/admin/queues");
 app.route("/admin/queues", serverAdapter.registerPlugin());
 
 loggers.app.info(
-  `✅ Bull Board configurado em http://localhost:${env.PORT}/admin/queues`,
+  `✅ Bull Board configurado em http://localhost:${apiEnv.PORT}/admin/queues`,
 );
 
 // ============================================================================
 // CRON JOBS - Fechamento automático de conversas
 // ============================================================================
-if (env.NODE_ENV !== "test") {
+if (apiEnv.NODE_ENV !== "test") {
   // A cada 1 minuto
   cron.schedule("* * * * *", async () => {
     try {
@@ -151,7 +152,7 @@ app.onError(async (error, c) => {
   // Captura erros HTTP (4xx) - apenas loga, não envia para Sentry em produção
   if (error instanceof HTTPException) {
     // Em desenvolvimento, pode ser útil ver erros HTTP no Sentry
-    if (env.NODE_ENV === "development") {
+    if (apiEnv.NODE_ENV === "development") {
       Sentry.captureException(error, {
         tags: { http_status: String(error.status) },
         extra: {
@@ -200,7 +201,7 @@ app.onError(async (error, c) => {
   return c.json(
     {
       error: "Internal server error",
-      ...(env.NODE_ENV !== "production" && { message: errorMessage }),
+      ...(apiEnv.NODE_ENV !== "production" && { message: errorMessage }),
       ref: error instanceof Error ? error.name : "Unknown",
     },
     status,
@@ -216,7 +217,7 @@ app.route("/api/auth", authRouter);
 app.route("/api", dashboardRouter);
 
 // Debug route para testar Sentry (apenas em desenvolvimento)
-if (env.NODE_ENV === "development") {
+if (apiEnv.NODE_ENV === "development") {
   app.get("/debug-sentry", () => {
     // Envia um log antes de lançar o erro (conforme documentação)
     sentryLogger.info("User triggered test error", {
@@ -227,7 +228,7 @@ if (env.NODE_ENV === "development") {
     Sentry.metrics.count("debug_sentry_test_counter", 1, {
       attributes: {
         route: "/debug-sentry",
-        environment: env.NODE_ENV,
+        environment: apiEnv.NODE_ENV,
       },
     });
 

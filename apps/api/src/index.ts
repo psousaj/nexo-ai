@@ -1,7 +1,7 @@
 import './otel'; // OpenTelemetry must be imported first
 import './sentry'; // Sentry error tracking
 import { startDiscordBot } from '@nexo/api-core/adapters/messaging/discord-adapter';
-import { env } from '@nexo/api-core/config/env';
+import { getApiEnv } from '@nexo/api-core/config/env';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
@@ -11,7 +11,8 @@ import { logger } from '@nexo/api-core/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 
-const port = env.PORT;
+const apiEnv = getApiEnv();
+const port = apiEnv.PORT;
 
 process.on('unhandledRejection', async (reason) => {
 	await globalErrorHandler.handle(reason instanceof Error ? reason : new Error(String(reason)), {
@@ -97,9 +98,9 @@ serve(
 		}
 
 		// Iniciar bot do Discord se configurado
-		if (env.DISCORD_BOT_TOKEN && !env.PROVIDER_SPLIT) {
+		if (apiEnv.DISCORD_BOT_TOKEN && !apiEnv.PROVIDER_SPLIT) {
 			try {
-				await startDiscordBot(env.DISCORD_BOT_TOKEN);
+				await startDiscordBot(apiEnv.DISCORD_BOT_TOKEN);
 			} catch (error) {
 				logger.error({ error }, '❌ Falha ao iniciar bot Discord');
 			}
@@ -107,7 +108,7 @@ serve(
 
 		logger.info(`🚀 Nexo AI rodando em http://0.0.0.0:${info.port}`);
 		logger.info(`📦 Version: ${pkg.version}`);
-		logger.info(`🌍 Environment: ${env.NODE_ENV}`);
+		logger.info(`🌍 Environment: ${apiEnv.NODE_ENV}`);
 		logger.info(`⚡ Runtime: ${process.versions.bun ? 'Bun' : 'Node.js'}`);
 	},
 );

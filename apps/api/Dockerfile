@@ -12,6 +12,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 
 # Copia package.json de cada workspace necessário
 COPY apps/api/package.json apps/api/
+COPY apps/bots/package.json apps/bots/
 COPY packages/shared/package.json packages/shared/
 COPY packages/env/package.json packages/env/
 COPY packages/otel/package.json packages/otel/
@@ -25,12 +26,13 @@ RUN pnpm install --frozen-lockfile
 # Garante que tsup está acessível para packages internos
 RUN npm install -g tsup
 
-# Copia source code dos packages e da API
+# Copia source code dos packages, API e Bots
 COPY packages/ packages/
 COPY apps/api/ apps/api/
+COPY apps/bots/ apps/bots/
 
-# Build packages primeiro (shared, env, auth), depois API
-RUN pnpm build --filter=@nexo/api
+# Build de API e Bots
+RUN pnpm build --filter=@nexo/api --filter=@nexo/bots
 
 # Treina modelo NLP (necessário em runtime)
 RUN cd apps/api && pnpm train:nexo
@@ -55,6 +57,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 
 # Copia package.json de cada workspace
 COPY apps/api/package.json apps/api/
+COPY apps/bots/package.json apps/bots/
 COPY packages/shared/package.json packages/shared/
 COPY packages/env/package.json packages/env/
 COPY packages/otel/package.json packages/otel/
@@ -65,6 +68,9 @@ COPY packages/prettier-config/package.json packages/prettier-config/
 # Instala apenas dependências de produção
 RUN pnpm install --frozen-lockfile --prod
 
+# PM2 para execução de múltiplos processos (API + Bots)
+RUN npm install -g pm2
+
 
 # Copia builds dos packages (dist/ de cada um)
 COPY --from=builder /app/packages/shared/dist/ packages/shared/dist/
@@ -74,10 +80,14 @@ COPY --from=builder /app/packages/otel/dist/ packages/otel/dist/
 # Copia build da API + modelo treinado
 COPY --from=builder /app/apps/api/dist/ apps/api/dist/
 COPY --from=builder /app/apps/api/package.json apps/api/package.json
+COPY --from=builder /app/apps/bots/dist/ apps/bots/dist/
+COPY --from=builder /app/apps/bots/package.json apps/bots/package.json
 COPY --from=builder /app/apps/api/src/services/message-analysis/training/model/ apps/api/src/services/message-analysis/training/model/
+COPY ecosystem.config.cjs ecosystem.config.cjs
 
 ENV NODE_ENV=production
 EXPOSE 3001
+EXPOSE 3030
 
 # Hardening: remove shell e loga resultado
 RUN set -eux; \
@@ -91,5 +101,7 @@ RUN set -eux; \
 # Switch to the non-root user
 USER appuser
 
-CMD ["node", "apps/api/dist/index.js"]
+ENV PM2_HOME=/app/.pm2
+
+CMD ["pm2-runtime", "ecosystem.config.cjs", "--only", "nexo-api,nexo-bots"]
 
