@@ -1,4 +1,5 @@
 import {
+  createCanonicalIncomingEnvelope,
   evolutionAdapter,
   telegramAdapter,
 } from "@nexo/api-core/adapters/messaging";
@@ -63,10 +64,11 @@ export const webhookRoutes = new Hono()
           // Enfileira processamento assíncrono para todas as mensagens (incluindo comandos e tokens)
           await messageQueue.add(
             "message-processing",
-            {
+            createCanonicalIncomingEnvelope({
               incomingMsg: message,
               providerName: "telegram",
-            },
+              traceId: c.req.header("x-request-id"),
+            }),
             {
               removeOnComplete: true,
               attempts: 3,
@@ -131,11 +133,12 @@ export const webhookRoutes = new Hono()
           // Enfileira processamento assíncrono
           await messageQueue.add(
             "message-processing",
-            {
+            createCanonicalIncomingEnvelope({
               incomingMsg: message,
               providerName: "whatsapp",
               providerApi: "evolution",
-            },
+              traceId: c.req.header("x-request-id"),
+            }),
             {
               removeOnComplete: true,
               attempts: 3,

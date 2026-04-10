@@ -39,6 +39,7 @@ import type {
 	SessionKeyParams,
 	SessionKeyParts,
 } from './types';
+import { createCanonicalIncomingEnvelope } from './types';
 
 // Discord bot client with all necessary intents
 const client = new Client({
@@ -296,13 +297,14 @@ export class DiscordAdapter implements MessagingProvider {
 
 	private async enqueueIncomingMessage(incomingMessage: IncomingMessage): Promise<void> {
 		const { messageQueue } = await import('@/services/queue-service');
+		const ingressEvent = createCanonicalIncomingEnvelope({
+			incomingMsg: incomingMessage,
+			providerName: 'discord',
+		});
 
 		await messageQueue.add(
 			'message-processing',
-			{
-				incomingMsg: incomingMessage,
-				providerName: 'discord',
-			},
+			ingressEvent,
 			{
 				removeOnComplete: true,
 				attempts: 3,

@@ -14,9 +14,29 @@ const {
 }));
 
 vi.mock("@nexo/api-core/adapters/messaging", () => ({
+  createCanonicalIncomingEnvelope: vi.fn((params) => {
+    const { incomingMsg, providerName, providerApi, traceId } = params;
+    const idempotencyKey = `${providerName}:${incomingMsg.messageId}`;
+
+    return {
+      version: "1.0",
+      eventType: "incoming.message.received",
+      channel: providerName,
+      eventId: `ingress:${idempotencyKey}`,
+      idempotencyKey,
+      occurredAt: incomingMsg.timestamp.toISOString(),
+      traceId,
+      payload: {
+        incomingMsg,
+        providerName,
+        providerApi,
+      },
+    };
+  }),
   telegramAdapter: {
     verifyWebhook: mockTelegramVerifyWebhook,
     parseIncomingMessage: mockTelegramParseIncomingMessage,
+    answerCallbackQuery: vi.fn(),
   },
   evolutionAdapter: {
     verifyWebhook: mockEvolutionVerifyWebhook,

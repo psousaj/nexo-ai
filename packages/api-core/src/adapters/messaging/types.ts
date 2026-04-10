@@ -11,6 +11,26 @@ import type { MultimodalIntakePayload } from "@nexo/shared";
 export type ProviderType = LinkingTokenProvider;
 
 /**
+ * Canais de messaging suportados no runtime de chat
+ */
+export type MessagingChannel = Extract<
+  ProviderType,
+  "whatsapp" | "telegram" | "discord"
+>;
+
+/**
+ * Versão atual do envelope canônico entre ingress/workers/adapters
+ */
+export const MESSAGING_ENVELOPE_VERSION = "1.0" as const;
+
+/**
+ * Tipos de evento canônico suportados
+ */
+export type CanonicalMessageEventType =
+  | "incoming.message.received"
+  | "outgoing.message.dispatch";
+
+/**
  * Chat action type for activity indicators
  */
 export type ChatAction =
@@ -127,6 +147,104 @@ export interface IncomingMessage {
 
   /** Message metadata (groups, mentions, etc) */
   metadata?: MessageMetadata;
+}
+
+/**
+ * Envelope canônico versionado para eventos de messaging
+ */
+export interface CanonicalMessageEnvelope<TPayload = Record<string, unknown>> {
+  version: typeof MESSAGING_ENVELOPE_VERSION;
+  eventType: CanonicalMessageEventType;
+  channel: MessagingChannel;
+  eventId: string;
+  idempotencyKey: string;
+  occurredAt: string;
+  traceId?: string;
+  payload: TPayload;
+}
+
+/**
+ * Payload canônico de ingestão para processamento de mensagem
+ */
+export interface IngestMessageQueuePayload {
+  incomingMsg: IncomingMessage;
+  providerName: MessagingChannel;
+  providerApi?: "evolution";
+}
+
+/**
+ * Formato legado de jobs de ingestão (compatibilidade retroativa)
+ */
+export interface LegacyIngestMessageQueuePayload {
+  incomingMsg: IncomingMessage;
+  providerName: ProviderType;
+  providerApi?: "evolution";
+}
+
+/**
+ * Job de ingestão aceito pela fila (canônico + legado)
+ */
+export type IngestMessageQueueJob =
+  | CanonicalMessageEnvelope<IngestMessageQueuePayload>
+  | LegacyIngestMessageQueuePayload;
+
+export function isMessagingChannel(value: string): value is MessagingChannel {
+  return value === "whatsapp" || value === "telegram" || value === "discord";
+}
+
+function toValidIsoString(value: Date | undefined): string {
+  const candidate = value instanceof Date ? value : new Date();
+  if (Number.isNaN(candidate.getTime())) {
+    return new Date().toISOString();
+  }
+  return candidate.toISOString();
+}
+
+/**
+ * Cria envelope canônico para eventos de ingestão
+ */
+export function createCanonicalIncomingEnvelope(params: {
+  incomingMsg: IncomingMessage;
+  providerName: MessagingChannel;
+  providerApi?: "evolution";
+  traceId?: string;
+}): CanonicalMessageEnvelope<IngestMessageQueuePayload> {
+  const { incomingMsg, providerName, providerApi, traceId } = params;
+  const idempotencyKey = `${providerName}:${incomingMsg.messageId}`;
+
+  return {
+    version: MESSAGING_ENVELOPE_VERSION,
+    eventType: "incoming.message.received",
+    channel: providerName,
+    eventId: `ingress:${idempotencyKey}`,
+    idempotencyKey,
+    occurredAt: toValidIsoString(incomingMsg.timestamp),
+    traceId,
+    payload: {
+      incomingMsg,
+      providerName,
+      providerApi,
+    },
+  };
+}
+
+export function isCanonicalIncomingEnvelope(
+  data: unknown,
+): data is CanonicalMessageEnvelope<IngestMessageQueuePayload> {
+  if (!data || typeof data !== "object") return false;
+
+  const candidate = data as Partial<CanonicalMessageEnvelope<unknown>>;
+
+  return (
+    candidate.version === MESSAGING_ENVELOPE_VERSION &&
+    candidate.eventType === "incoming.message.received" &&
+    typeof candidate.channel === "string" &&
+    isMessagingChannel(candidate.channel) &&
+    typeof candidate.idempotencyKey === "string" &&
+    typeof candidate.occurredAt === "string" &&
+    !!candidate.payload &&
+    typeof candidate.payload === "object"
+  );
 }
 
 /**

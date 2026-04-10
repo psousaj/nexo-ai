@@ -1,7 +1,10 @@
 import {
-  type IncomingMessage,
+  type IngestMessageQueueJob,
+  type IngestMessageQueuePayload,
   type ProviderType,
   getProvider,
+  isCanonicalIncomingEnvelope,
+  isMessagingChannel,
 } from "@/adapters/messaging";
 import { env } from "@/config/env";
 import { REDIS_BASE_OPTIONS } from "@/config/redis";
@@ -72,6 +75,26 @@ function reportQueueError(
   });
 }
 
+function normalizeIngestQueueJobData(
+  data: IngestMessageQueueJob,
+): IngestMessageQueuePayload {
+  if (isCanonicalIncomingEnvelope(data)) {
+    return data.payload;
+  }
+
+  if (!isMessagingChannel(data.providerName)) {
+    throw new Error(
+      `Provider inválido no job de ingestão: ${String(data.providerName)}`,
+    );
+  }
+
+  return {
+    incomingMsg: data.incomingMsg,
+    providerName: data.providerName,
+    providerApi: data.providerApi,
+  };
+}
+
 // ============================================================================
 // QUEUE SETUP
 // ============================================================================
@@ -108,11 +131,10 @@ queueLogger.info('✅ Queue "close-conversation" criada');
 /**
  * Queue para processamento de mensagens recebidas (Webhooks)
  */
-export const messageQueue = new Queue<{
-  incomingMsg: IncomingMessage;
-  providerName: ProviderType;
-  providerApi?: "evolution";
-}>("message-processing", { connection: REDIS_BASE_OPTIONS });
+export const messageQueue = new Queue<IngestMessageQueueJob>(
+  "message-processing",
+  { connection: REDIS_BASE_OPTIONS },
+);
 
 queueLogger.info('✅ Queue "message-processing" criada');
 
@@ -245,15 +267,12 @@ closeConversationWorker.on("failed", (job, error) => {
 /**
  * Worker: Processa mensagens enfileiradas do webhook
  */
-export const messageWorker = new Worker<{
-  incomingMsg: IncomingMessage;
-  providerName: ProviderType;
-  providerApi?: "evolution";
-}>(
+export const messageWorker = new Worker<IngestMessageQueueJob>(
   "message-processing",
   async (job) => {
     return startSpan("queue.message.process", async (_span) => {
-      const { incomingMsg, providerName } = job.data;
+      const normalizedJob = normalizeIngestQueueJobData(job.data);
+      const { incomingMsg, providerName } = normalizedJob;
 
       setAttributes({
         "queue.name": "message-processing",
@@ -322,6 +341,17 @@ messageWorker.on("active", (job) => {
 
 messageWorker.on("failed", (job, error) => {
   if (!job) return;
+
+  let normalizedJob: IngestMessageQueuePayload | null = null;
+  try {
+    normalizedJob = normalizeIngestQueueJobData(job.data);
+  } catch (normalizationError) {
+    queueLogger.error(
+      { err: normalizationError, jobId: job.id },
+      "❌ [message-processing] Falha ao normalizar payload do job",
+    );
+  }
+
   queueLogger.error(
     { jobId: job.id, err: error },
     "❌ [message-processing] Job falhou",
@@ -332,13 +362,13 @@ messageWorker.on("failed", (job, error) => {
 
   reportQueueError(error, {
     queue: "message-processing",
-    provider: job.data.providerName,
+    provider: normalizedJob?.providerName,
     state: "background_job",
     conversationId,
     userId,
     extra: {
       jobId: job.id,
-      externalId: job.data.incomingMsg.externalId,
+      externalId: normalizedJob?.incomingMsg.externalId,
     },
   });
 });
