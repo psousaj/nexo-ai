@@ -184,6 +184,12 @@ const envSchema = z.object({
   DISCORD_BOT_TOKEN: z.string().optional(),
   DISCORD_BOT_USERNAME: z.string().default("NexoAssistente_bot"),
 
+  // Bots runtime config pull (API -> Bots)
+  BOTS_CONFIG_PULL_URL: z.string().url().optional(),
+  BOTS_CONFIG_PULL_TOKEN: z.string().optional(),
+  BOTS_CONFIG_REFRESH_MS: z.coerce.number().int().min(1000).max(300000).default(30000),
+  BOTS_CONFIG_TIMEOUT_MS: z.coerce.number().int().min(500).max(60000).default(3000),
+
   // Better Auth
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.string().url().optional(),

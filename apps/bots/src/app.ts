@@ -15,21 +15,37 @@ export interface OutgoingQueuesSnapshot {
   dlq: QueueJobCountsSnapshot;
 }
 
+export interface RuntimeConfigSnapshot {
+  providerSplitEnabled: boolean;
+  source: "env" | "api";
+  endpointUrl: string | null;
+  refreshIntervalMs: number;
+  requestTimeoutMs: number;
+  lastAttemptAt: string | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  failureCount: number;
+  pollingActive: boolean;
+}
+
 interface CreateBotsAppOptions {
   providerSplitEnabled?: boolean;
+  getProviderSplitEnabled?: () => boolean;
   getOutgoingSnapshot?: () => Promise<OutgoingQueuesSnapshot>;
+  getRuntimeConfigSnapshot?: () => RuntimeConfigSnapshot;
 }
 
 export function createBotsApp(options: CreateBotsAppOptions = {}) {
   const app = new Hono();
-  const providerSplitEnabled = options.providerSplitEnabled ?? false;
+  const readProviderSplitEnabled = () =>
+    options.getProviderSplitEnabled?.() ?? options.providerSplitEnabled ?? false;
 
   app.get("/health", (c) => {
     return c.json({
       status: "ok",
       service: "bots",
       timestamp: new Date().toISOString(),
-      providerSplitEnabled,
+      providerSplitEnabled: readProviderSplitEnabled(),
       channels: listChannelRuntimes(),
     });
   });
@@ -38,7 +54,7 @@ export function createBotsApp(options: CreateBotsAppOptions = {}) {
     if (!options.getOutgoingSnapshot) {
       return c.json({
         status: "unavailable",
-        providerSplitEnabled,
+        providerSplitEnabled: readProviderSplitEnabled(),
         reason: "outgoing snapshot provider is not configured",
       });
     }
@@ -47,8 +63,24 @@ export function createBotsApp(options: CreateBotsAppOptions = {}) {
 
     return c.json({
       status: "ok",
-      providerSplitEnabled,
+      providerSplitEnabled: readProviderSplitEnabled(),
       queues,
+    });
+  });
+
+  app.get("/health/runtime-config", (c) => {
+    if (!options.getRuntimeConfigSnapshot) {
+      return c.json({
+        status: "unavailable",
+        providerSplitEnabled: readProviderSplitEnabled(),
+        reason: "runtime config snapshot provider is not configured",
+      });
+    }
+
+    return c.json({
+      status: "ok",
+      providerSplitEnabled: readProviderSplitEnabled(),
+      runtimeConfig: options.getRuntimeConfigSnapshot(),
     });
   });
 

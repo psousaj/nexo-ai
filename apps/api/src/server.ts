@@ -2,6 +2,7 @@ import { env } from "@nexo/api-core/config/env";
 import { authRouter } from "@/routes/auth-better.routes";
 import { dashboardRouter } from "@/routes/dashboard";
 import { healthRouter } from "@/routes/health";
+import { internalRuntimeConfigRoutes } from "@/routes/internal/runtime-config.routes";
 import { itemsRouter } from "@/routes/items";
 import { webhookRoutes as webhookRouter } from "@/routes/webhook-new";
 import { sentryLogger } from "@/sentry";
@@ -208,6 +209,7 @@ app.onError(async (error, c) => {
 
 // Routes
 app.route("/health", healthRouter);
+app.route("/internal/runtime", internalRuntimeConfigRoutes);
 app.route("/webhook", webhookRouter);
 app.route("/items", itemsRouter);
 app.route("/api/auth", authRouter);

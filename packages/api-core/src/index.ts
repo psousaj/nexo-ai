@@ -22,6 +22,7 @@ export { globalErrorHandler } from './services/error/error.service.js';
 export { featureFlagService } from './services/feature-flag.service.js';
 export {
 	messageQueue,
+	adapterOutputQueue,
 	closeConversationQueue,
 	responseQueue,
 	enrichmentQueue,
@@ -31,6 +32,12 @@ export {
 	cancelConversationClose,
 	queueResponse,
 } from './services/queue-service.js';
+
+export {
+	type ProviderSplitRuntimeConfigPayload,
+	type ProviderSplitRuntimeConfigResponse,
+	isProviderSplitRuntimeConfigResponse,
+} from './config/provider-split-runtime-config.js';
 
 // Utils
 export * from './utils/logger.js';

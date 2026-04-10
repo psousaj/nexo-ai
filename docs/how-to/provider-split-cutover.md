@@ -16,13 +16,21 @@ Separar responsabilidades de runtime:
 - Variáveis de ambiente de providers configuradas em ambos os serviços.
 - Feature flag `PROVIDER_SPLIT` disponível para API e Bots.
 
+Se for usar config pull remoto para o Bots (recomendado em produção), configure também:
+
+- API/Bots: `BOTS_CONFIG_PULL_TOKEN` (token compartilhado)
+- Bots: `BOTS_CONFIG_PULL_URL` (ex.: `http://api:3001/internal/runtime/provider-split-config`)
+- Bots: `BOTS_CONFIG_REFRESH_MS` (default `30000`)
+- Bots: `BOTS_CONFIG_TIMEOUT_MS` (default `3000`)
+
 ## Sequência de Rollout (Big Bang)
 
 1. Deploy da API com suporte ao envelope canônico de entrada e dispatcher de saída.
 2. Deploy do Bots com worker de `adapter-output` e DLQ `adapter-output-dlq`.
 3. Validar saúde operacional:
    - API: `GET /admin/queues` (Bull Board) com fila `adapter-output` visível.
-   - Bots: `GET /health` e `GET /health/outgoing`.
+   - Bots: `GET /health`, `GET /health/outgoing` e `GET /health/runtime-config`.
+   - API (quando config pull ativo): `GET /internal/runtime/provider-split-config` com `Authorization: Bearer <BOTS_CONFIG_PULL_TOKEN>`.
 4. Ativar `PROVIDER_SPLIT=true` simultaneamente em API e Bots.
 5. Monitorar por 15-30 minutos:
    - backlog da `adapter-output`
@@ -34,6 +42,7 @@ Separar responsabilidades de runtime:
 
 - `adapter-output` com fila fluindo (jobs entram e saem sem acúmulo persistente).
 - `adapter-output-dlq` com crescimento zero ou residual controlado.
+- `health/runtime-config` no Bots com `source: "api"` e `lastError: null`.
 - Discord inicializado apenas no Bots quando split ativo.
 - API não inicializa Discord com split ativo.
 - Mensagens de saída chegando em Telegram/WhatsApp/Discord.
@@ -43,6 +52,7 @@ Separar responsabilidades de runtime:
 - `adapter-output.waiting` acima do baseline por mais de 5 minutos.
 - Qualquer crescimento contínuo de `adapter-output-dlq` por mais de 2 minutos.
 - Falhas repetidas por `providerName` no worker de Bots.
+- Falhas de refresh em `health/runtime-config` (`failureCount` crescente e `lastError` preenchido).
 - Queda abrupta de throughput de saída após ativar split.
 
 ## Rollback
@@ -64,3 +74,4 @@ Se ocorrer degradação crítica:
 - DLQ crescendo: inspecionar payload canônico e credenciais do provider afetado.
 - Mensagem duplicada: verificar logs de dedupe por `idempotencyKey`.
 - Sem snapshot em `GET /health/outgoing`: confirmar bootstrap do Bots com provider de snapshot configurado.
+- `health/runtime-config` sem sincronizar (`source: "env"`): validar `BOTS_CONFIG_PULL_URL`, token e resposta da API.

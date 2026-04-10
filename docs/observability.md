@@ -246,11 +246,14 @@ Quando `PROVIDER_SPLIT=true`, monitore os sinais abaixo como baseline de saúde 
 - API: Bull Board em `/admin/queues` com a fila `adapter-output`
 - Bots: `/health` para estado geral de runtime
 - Bots: `/health/outgoing` para snapshot de contagem de jobs em `adapter-output` e `adapter-output-dlq`
+- Bots: `/health/runtime-config` para estado do config pull remoto (source, erro, falhas)
+- API: `/internal/runtime/provider-split-config` (protegido por token) como fonte de config do Bots
 
 ### Alertas Mínimos
 
 - backlog de `adapter-output` acima do padrão por mais de 5 minutos
 - crescimento contínuo de `adapter-output-dlq`
+- `failureCount` crescente em `/health/runtime-config`
 - aumento de logs `adapter-output moved to DLQ`
 - aumento de logs `adapter-output duplicate idempotency key ignored`
 
@@ -260,6 +263,7 @@ Quando `PROVIDER_SPLIT=true`, monitore os sinais abaixo como baseline de saúde 
 2. Verificar credenciais dos providers (Telegram, Evolution, Discord)
 3. Confirmar consistência de `idempotencyKey` nos envelopes de saída
 4. Inspecionar payloads da DLQ para identificar canal dominante
+5. Validar token/URL do config pull (`BOTS_CONFIG_PULL_TOKEN`, `BOTS_CONFIG_PULL_URL`)
 
 ## Troubleshooting
 
