@@ -9,8 +9,7 @@
 		"preview": "vite preview",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"lint:biome": "biome check .",
-		"lint:biome:fix": "biome check --write ."
+		"lint:biome": "biome check --write ."
 	},
 	"dependencies": {
 		"vue": "^3.5.0",

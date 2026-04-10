@@ -37,7 +37,7 @@ if (process.client) {
 	<Transition name="fade">
 		<div v-if="isOpen" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
 			<!-- Backdrop -->
-			<div class="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" @click="handleClose"></div>
+			<div class="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" @click="handleClose" />
 
 			<!-- Modal Content -->
 			<div
@@ -61,13 +61,12 @@ if (process.client) {
 
 				<div class="p-6 bg-surface-50 dark:bg-surface-900/50 flex flex-col sm:flex-row gap-3">
 					<button
-						@click="handleClose"
 						class="flex-1 px-5 py-3 text-sm font-bold text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors"
+						@click="handleClose"
 					>
 						{{ cancelText || 'Cancelar' }}
 					</button>
 					<button
-						@click="handleConfirm"
 						:disabled="loading"
 						:class="[
 							'flex-1 flex items-center justify-center gap-2 px-6 py-3 text-white rounded-xl text-sm font-black shadow-lg transition-all',
@@ -75,6 +74,7 @@ if (process.client) {
 								? 'bg-rose-600 shadow-rose-600/20 hover:bg-rose-700'
 								: 'bg-primary-600 shadow-primary-600/20 hover:bg-primary-700',
 						]"
+						@click="handleConfirm"
 					>
 						<Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
 						{{ confirmText || 'Confirmar' }}

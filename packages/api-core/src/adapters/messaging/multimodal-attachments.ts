@@ -29,23 +29,25 @@ export function mapDiscordAttachmentsToMetadata(params: {
 	userId: string;
 	timestamp: Date;
 }): MultimodalIntakePayload[] {
-	return params.attachments
-		.map((attachment) => {
-			const kind = mapDiscordAttachmentKind(attachment.contentType ?? undefined);
-			if (!kind) {
-				return null;
-			}
+	const payloads: MultimodalIntakePayload[] = [];
 
-			return {
-				kind,
-				messageId: params.messageId,
-				userId: params.userId,
-				timestamp: params.timestamp,
-				mimeType: attachment.contentType || 'application/octet-stream',
-				url: attachment.url,
-				filename: attachment.name ?? undefined,
-				byteLength: attachment.size ?? undefined,
-			} satisfies MultimodalIntakePayload;
-		})
-		.filter((attachment): attachment is MultimodalIntakePayload => attachment !== null);
+	for (const attachment of params.attachments) {
+		const kind = mapDiscordAttachmentKind(attachment.contentType ?? undefined);
+		if (!kind) {
+			continue;
+		}
+
+		payloads.push({
+			kind,
+			messageId: params.messageId,
+			userId: params.userId,
+			timestamp: params.timestamp,
+			mimeType: attachment.contentType || 'application/octet-stream',
+			url: attachment.url,
+			filename: attachment.name ?? undefined,
+			byteLength: attachment.size ?? undefined,
+		});
+	}
+
+	return payloads;
 }

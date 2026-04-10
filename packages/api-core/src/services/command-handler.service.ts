@@ -11,6 +11,10 @@ import { loggers } from '@/utils/logger';
  * Funciona de forma agnóstica ao provider.
  */
 export class CommandHandlerService {
+	private getDashboardUrl(): string {
+		return env.DASHBOARD_URL ?? env.APP_URL ?? 'http://localhost:5173';
+	}
+
 	/**
 	 * Retorna o ID de identidade do remetente.
 	 * Para Discord em guild: externalId = channelId (reply), userId = author.id (identidade).
@@ -50,6 +54,7 @@ export class CommandHandlerService {
 	private async handleLinkCommand(message: IncomingMessage, provider: MessagingProvider): Promise<boolean> {
 		const providerName = provider.getProviderName();
 		const identityId = this.getIdentityId(message);
+		const dashboardUrl = this.getDashboardUrl();
 
 		// Verifica se já tem canal vinculado
 		const existingAccount = await userService.findAccount(message.provider as any, identityId);
@@ -57,7 +62,7 @@ export class CommandHandlerService {
 			const token = await accountLinkingService.generateLinkingToken(existingAccount.userId, message.provider, 'link');
 			await provider.sendMessage(
 				message.externalId,
-				`🔑 Seu código de vinculação é: **${token}**\n\nAcesse o seu painel e insira este código para unificar suas contas:\n\n🔗 ${env.DASHBOARD_URL}/profile`,
+				`🔑 Seu código de vinculação é: **${token}**\n\nAcesse o seu painel e insira este código para unificar suas contas:\n\n🔗 ${dashboardUrl}/profile`,
 			);
 			return true;
 		}
@@ -73,7 +78,7 @@ export class CommandHandlerService {
 		}
 
 		// Sem OAuth: orienta a criar conta
-		const signupLink = await this.buildPreSignupLink(identityId, message.provider, providerName);
+		const signupLink = await this.buildPreSignupLink(identityId, message.provider);
 		await provider.sendMessage(message.externalId, getChannelNotRegisteredMessage(providerName, signupLink));
 		return true;
 	}
@@ -83,9 +88,10 @@ export class CommandHandlerService {
 		const identityId = this.getIdentityId(message);
 		const isNewUser = await this.isNewUser(message, identityId);
 		const providerName = provider.getProviderName();
+		const dashboardUrl = this.getDashboardUrl();
 
 		if (!isNewUser) {
-			await provider.sendMessage(message.externalId, getChannelStartReturningMessage(providerName, env.DASHBOARD_URL));
+			await provider.sendMessage(message.externalId, getChannelStartReturningMessage(providerName, dashboardUrl));
 			return true;
 		}
 
@@ -107,7 +113,7 @@ export class CommandHandlerService {
 		}
 
 		// Sem OAuth: orienta a criar conta com pre-signup link
-		const signupLink = await this.buildPreSignupLink(identityId, message.provider, providerName);
+		const signupLink = await this.buildPreSignupLink(identityId, message.provider);
 		await provider.sendMessage(message.externalId, getChannelNotRegisteredMessage(providerName, signupLink));
 
 		return true;
@@ -138,13 +144,14 @@ export class CommandHandlerService {
 		return !account;
 	}
 
-	private async buildPreSignupLink(externalId: string, provider: string, providerName: string): Promise<string> {
-		const isLocalhost = env.DASHBOARD_URL.includes('localhost') || env.DASHBOARD_URL.includes('127.0.0.1');
+	private async buildPreSignupLink(externalId: string, provider: string): Promise<string> {
+		const dashboardUrl = this.getDashboardUrl();
+		const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
 		if (isLocalhost) {
-			return `${env.DASHBOARD_URL}/signup`;
+			return `${dashboardUrl}/signup`;
 		}
 		const token = await accountLinkingService.generatePreSignupToken(externalId, provider as any);
-		return `${env.DASHBOARD_URL}/signup?vinculate_code=${token}`;
+		return `${dashboardUrl}/signup?vinculate_code=${token}`;
 	}
 }
 

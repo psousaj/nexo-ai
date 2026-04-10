@@ -1,5 +1,6 @@
 import { env } from '@/config/env';
 import { loggers } from '@/utils/logger';
+import type { LanguageModel } from 'ai';
 import { createAiGateway } from 'ai-gateway-provider';
 import { createUnified } from 'ai-gateway-provider/providers/unified';
 
@@ -50,6 +51,6 @@ function getUnifiedProvider() {
  * Retorna model reference do AI SDK para uso com streamText/generateText/etc.
  * @param modelId - ID do modelo (default: 'dynamic/nexo')
  */
-export function getModel(modelId: string = DEFAULT_MODEL) {
+export function getModel(modelId: string = DEFAULT_MODEL): LanguageModel {
 	return getProvider()(getUnifiedProvider()(modelId));
 }

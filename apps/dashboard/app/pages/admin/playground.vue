@@ -131,7 +131,7 @@
 								<span class="text-green-600 dark:text-green-400">
 									[{{ embeddingResult.data.sample.first5.map((v: number) => v.toFixed(6)).join(', ') }}]
 								</span>
-								<br />
+								<br>
 								<span class="text-gray-400">últimos 5: &nbsp; </span>
 								<span class="text-blue-600 dark:text-blue-400">
 									[{{ embeddingResult.data.sample.last5.map((v: number) => v.toFixed(6)).join(', ') }}]
@@ -246,7 +246,7 @@
 												: ''
 										"
 									>
-										<input type="checkbox" :value="tool" v-model="promptTestTools" class="sr-only" />
+										<input v-model="promptTestTools" type="checkbox" :value="tool" class="sr-only">
 										{{ tool }}
 									</label>
 								</div>
@@ -264,7 +264,7 @@
 						</div>
 
 						<!-- Direita: resultado -->
-						<div class="space-y-3" v-if="promptTestResult">
+						<div v-if="promptTestResult" class="space-y-3">
 							<div class="space-y-2">
 								<p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resposta do LLM</p>
 								<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 font-mono text-xs overflow-auto max-h-60">

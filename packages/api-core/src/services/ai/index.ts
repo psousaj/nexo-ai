@@ -113,3 +113,48 @@ export const llmService = instrumentService(
 	new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN),
 );
 export type { AIProvider, AIResponse, Message } from './types';
+export { OpenAIGatewayTransport } from './openai-gateway-transport';
+export type { OpenAIGatewayRequest, OpenAIGatewayResponse, OpenAIGatewayTransportConfig } from './openai-gateway-transport';
+export {
+	buildManualLoopTools,
+	runOpenAIManualLoop,
+	type OpenAIManualLoopDependencies,
+	type OpenAIManualLoopRequest,
+	type OpenAIManualLoopResult,
+} from './openai-manual-loop';
+export {
+	buildRuntimeContext,
+	type RuntimeContextBuilderRequest,
+	type RuntimeContextBuilderResult,
+	type RuntimeHistoryBlock,
+} from './runtime-context-builder';
+export {
+	executeIntentClassificationTask,
+	type IntentClassificationPhase,
+	type IntentClassificationTaskRequest,
+	type IntentClassificationTaskResult,
+} from './intent-classification-task';
+export {
+	executeEmbeddingTask,
+	type EmbeddingTaskRequest,
+	type EmbeddingTaskResult,
+} from './embedding-task';
+export {
+	buildRuntimeObservabilityAttributes,
+	summarizeRuntimeRounds,
+	type RuntimeRoundsSummary,
+} from './runtime-observability';
+export type {
+	RuntimeErrorBlock,
+	RuntimeGatewayHeaders,
+	RuntimeInternalTaskBlock,
+	RuntimeInternalTaskName,
+	RuntimeInternalTaskStatus,
+	RuntimeRound,
+	RuntimeRoundBlock,
+	RuntimeRoundContext,
+	RuntimeStopReason,
+	RuntimeToolResultBlock,
+	RuntimeToolUseBlock,
+	RuntimeUsage,
+} from './runtime-contract';

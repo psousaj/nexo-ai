@@ -135,7 +135,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_note: tool({
 			description: 'Salva uma nota de texto na memória do usuário',
-			parameters: z.object({
+			inputSchema: z.object({
 				content: z.string().describe('Conteúdo da nota'),
 			}),
 			execute: async ({ content }) => {
@@ -156,7 +156,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_movie: tool({
 			description: 'Salva um filme na memória. SEMPRE salva. Use enrich_movie antes para buscar metadata.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título do filme'),
 				year: z.number().optional().describe('Ano de lançamento'),
 				tmdb_id: z.number().optional().describe('ID no TMDB (obtido via enrich_movie)'),
@@ -201,7 +201,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_tv_show: tool({
 			description: 'Salva uma série na memória. SEMPRE salva. Use enrich_tv_show antes para buscar metadata.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título da série'),
 				year: z.number().optional().describe('Ano de estreia'),
 				tmdb_id: z.number().optional().describe('ID no TMDB (obtido via enrich_tv_show)'),
@@ -249,7 +249,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_video: tool({
 			description: 'Salva um vídeo (YouTube etc.) na memória do usuário',
-			parameters: z.object({
+			inputSchema: z.object({
 				url: z.string().describe('URL do vídeo'),
 				title: z.string().optional().describe('Título do vídeo'),
 			}),
@@ -268,7 +268,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_link: tool({
 			description: 'Salva um link/URL genérico na memória do usuário',
-			parameters: z.object({
+			inputSchema: z.object({
 				url: z.string().describe('URL do link'),
 				description: z.string().optional().describe('Descrição do link'),
 			}),
@@ -287,7 +287,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_book: tool({
 			description: 'Salva um livro na memória. SEMPRE salva. Use search_book antes para buscar metadata.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título do livro'),
 				author: z.string().optional().describe('Autor do livro'),
 				year: z.number().optional().describe('Ano de publicação'),
@@ -333,7 +333,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_music: tool({
 			description: 'Salva uma música na memória. SEMPRE salva. Use search_music antes para buscar metadata.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título da música'),
 				artist: z.string().optional().describe('Artista'),
 				spotify_id: z.string().optional().describe('ID no Spotify (obtido via search_music)'),
@@ -376,7 +376,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_image: tool({
 			description: 'Salva uma imagem na memória do usuário. SEMPRE salva.',
-			parameters: z.object({
+			inputSchema: z.object({
 				url: z.string().describe('URL da imagem'),
 				description: z.string().optional().describe('Descrição da imagem'),
 			}),
@@ -395,7 +395,7 @@ function buildAllTools(context: ToolContext) {
 
 		save_memory: tool({
 			description: 'Salva uma memória avulsa (quote, ideia, pensamento). SEMPRE salva.',
-			parameters: z.object({
+			inputSchema: z.object({
 				content: z.string().describe('Conteúdo da memória'),
 				semantic_type: z.string().optional().describe('Categoria semântica aberta (ex: receita, carro, pessoa, ideia)'),
 				tags: z.array(z.string()).optional().describe('Tags opcionais da memória'),
@@ -429,7 +429,7 @@ function buildAllTools(context: ToolContext) {
 
 		search_items: tool({
 			description: 'Busca itens salvos na memória do usuário por texto. SOMENTE itens já salvos.',
-			parameters: z.object({
+			inputSchema: z.object({
 				query: z.string().optional().describe('Texto de busca'),
 				limit: z.number().optional().describe('Número máximo de resultados (1-50)'),
 			}),
@@ -453,7 +453,7 @@ function buildAllTools(context: ToolContext) {
 
 		memory_search: tool({
 			description: 'Busca semântica na memória do usuário (vector + keyword). Mais poderosa que search_items.',
-			parameters: z.object({
+			inputSchema: z.object({
 				query: z.string().describe('Texto de busca semântica'),
 				maxResults: z.number().optional().describe('Máximo de resultados (1-50)'),
 				types: z.array(z.string()).optional().describe('Filtrar por tipo: movie, tv_show, video, link, note, memory, book, music, image'),
@@ -485,7 +485,7 @@ function buildAllTools(context: ToolContext) {
 
 		memory_get: tool({
 			description: 'Busca um item específico da memória por ID',
-			parameters: z.object({
+			inputSchema: z.object({
 				id: z.string().describe('ID do item'),
 			}),
 			execute: async ({ id }) => {
@@ -498,7 +498,7 @@ function buildAllTools(context: ToolContext) {
 
 		daily_log_search: tool({
 			description: 'Busca no diário do usuário por data ou conteúdo',
-			parameters: z.object({
+			inputSchema: z.object({
 				date: z.string().optional().describe('Data no formato YYYY-MM-DD'),
 				query: z.string().optional().describe('Texto de busca'),
 			}),
@@ -515,7 +515,7 @@ function buildAllTools(context: ToolContext) {
 
 		enrich_movie: tool({
 			description: 'Busca candidatos de filme no TMDB. Retorna lista de resultados. Use save_movie depois para salvar.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título do filme para buscar'),
 				year: z.number().optional().describe('Ano de lançamento'),
 			}),
@@ -542,7 +542,7 @@ function buildAllTools(context: ToolContext) {
 
 		enrich_tv_show: tool({
 			description: 'Busca candidatos de série no TMDB. Retorna lista de resultados. Use save_tv_show depois para salvar.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título da série para buscar'),
 				year: z.number().optional().describe('Ano de estreia'),
 			}),
@@ -569,7 +569,7 @@ function buildAllTools(context: ToolContext) {
 
 		enrich_video: tool({
 			description: 'Busca metadata de vídeo no YouTube a partir da URL',
-			parameters: z.object({
+			inputSchema: z.object({
 				url: z.string().describe('URL do vídeo YouTube'),
 			}),
 			execute: async ({ url }) => {
@@ -582,7 +582,7 @@ function buildAllTools(context: ToolContext) {
 
 		search_book: tool({
 			description: 'Busca candidatos de livro no Google Books. Retorna metadata. Use save_book depois para salvar.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título do livro'),
 				author: z.string().optional().describe('Autor do livro'),
 			}),
@@ -614,7 +614,7 @@ function buildAllTools(context: ToolContext) {
 
 		search_music: tool({
 			description: 'Busca candidatos de música no Spotify. Retorna metadata. Use save_music depois para salvar.',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título da música'),
 				artist: z.string().optional().describe('Artista'),
 			}),
@@ -648,7 +648,7 @@ function buildAllTools(context: ToolContext) {
 
 		delete_memory: tool({
 			description: 'Deleta um item da memória por ID. Operação irreversível.',
-			parameters: z.object({
+			inputSchema: z.object({
 				item_id: z.string().describe('ID do item a deletar'),
 			}),
 			execute: async ({ item_id }) => {
@@ -659,7 +659,7 @@ function buildAllTools(context: ToolContext) {
 
 		delete_all_memories: tool({
 			description: 'Deleta TODOS os itens da memória. Pode filtrar por tipo. Operação irreversível.',
-			parameters: z.object({
+			inputSchema: z.object({
 				type: z
 					.string()
 					.optional()
@@ -677,7 +677,7 @@ function buildAllTools(context: ToolContext) {
 
 		update_user_settings: tool({
 			description: 'Atualiza configurações do usuário (ex: nome do assistente)',
-			parameters: z.object({
+			inputSchema: z.object({
 				assistantName: z.string().optional().describe('Novo nome para o assistente'),
 			}),
 			execute: async ({ assistantName }) => {
@@ -692,7 +692,7 @@ function buildAllTools(context: ToolContext) {
 
 		get_assistant_name: tool({
 			description: 'Retorna o nome atual do assistente',
-			parameters: z.object({}),
+			inputSchema: z.object({}),
 			execute: async () => {
 				const { preferencesService } = await import('@/services/preferences-service');
 				const name = await preferencesService.getAssistantName(context.userId);
@@ -706,7 +706,7 @@ function buildAllTools(context: ToolContext) {
 
 		list_calendar_events: tool({
 			description: 'Lista eventos do Google Calendar do usuário',
-			parameters: z.object({
+			inputSchema: z.object({
 				startDate: z.string().optional().describe('Data/hora de início (ISO 8601 ou linguagem natural)'),
 				endDate: z.string().optional().describe('Data/hora de fim (ISO 8601 ou linguagem natural)'),
 				maxResults: z.number().optional().describe('Máximo de eventos (1-50)'),
@@ -749,7 +749,7 @@ function buildAllTools(context: ToolContext) {
 
 		create_calendar_event: tool({
 			description: 'Cria evento no Google Calendar',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título do evento'),
 				startDate: z.string().describe('Data/hora de início (ISO 8601 ou linguagem natural)'),
 				endDate: z.string().optional().describe('Data/hora de fim'),
@@ -788,7 +788,7 @@ function buildAllTools(context: ToolContext) {
 
 		list_todos: tool({
 			description: 'Lista tarefas do Microsoft To Do',
-			parameters: z.object({}),
+			inputSchema: z.object({}),
 			execute: async () => {
 				const { hasMicrosoftTodoConnected, listTasks } = await import('@/services/integrations/microsoft-todo.service');
 				const isConnected = await hasMicrosoftTodoConnected(context.userId);
@@ -812,7 +812,7 @@ function buildAllTools(context: ToolContext) {
 
 		create_todo: tool({
 			description: 'Cria tarefa no Microsoft To Do',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título da tarefa'),
 				description: z.string().optional().describe('Descrição da tarefa'),
 				dueDate: z.string().optional().describe('Data de vencimento (ISO 8601 ou linguagem natural)'),
@@ -834,7 +834,7 @@ function buildAllTools(context: ToolContext) {
 
 		schedule_reminder: tool({
 			description: 'Agenda um lembrete para ser enviado em data/hora específica',
-			parameters: z.object({
+			inputSchema: z.object({
 				title: z.string().describe('Título do lembrete'),
 				description: z.string().optional().describe('Descrição do lembrete'),
 				when: z.string().describe('Quando enviar (ISO 8601 ou linguagem natural, ex: "amanhã às 9h")'),
@@ -868,7 +868,7 @@ function buildAllTools(context: ToolContext) {
 
 		resolve_context_reference: tool({
 			description: 'Resolve referência contextual do usuário ("esse primeiro", "aquele filme"). Busca nas mensagens recentes.',
-			parameters: z.object({
+			inputSchema: z.object({
 				reference_hint: z.string().describe('O texto de referência do usuário (ex: "esse", "o primeiro", "aquele filme")'),
 			}),
 			execute: async ({ reference_hint: _hint }) => {
@@ -908,7 +908,7 @@ function buildAllTools(context: ToolContext) {
 
 		web_search: tool({
 			description: 'Pesquisa na web via Brave Search. Retorna resultados estruturados.',
-			parameters: z.object({
+			inputSchema: z.object({
 				query: z.string().describe('Texto de busca'),
 				count: z.number().optional().describe('Número de resultados (1-20)'),
 			}),
@@ -925,7 +925,7 @@ function buildAllTools(context: ToolContext) {
 		analyze_url: tool({
 			description:
 				'Analisa uma URL e detecta tipo de conteúdo (filme, série, vídeo, música, livro, link). Use quando receber uma URL sem contexto.',
-			parameters: z.object({
+			inputSchema: z.object({
 				url: z.string().describe('URL para analisar'),
 			}),
 			execute: async ({ url }) => {

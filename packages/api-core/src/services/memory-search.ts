@@ -36,10 +36,21 @@ const DEFAULT_CONFIG: HybridSearchConfig = {
 async function getEmbedding(text: string): Promise<number[]> {
 	// Try to use the embedding service if available
 	try {
-		// Check if embedding service exists
-		const { embeddingService } = await import('@/services/ai/embedding-service');
-		const embedding = await embeddingService.generateEmbedding(text);
-		return embedding;
+		const { executeEmbeddingTask } = await import('@/services/ai/embedding-task');
+		const embeddingTask = await executeEmbeddingTask({
+			input: text,
+			async: false,
+			source: 'memory_search_query',
+			metadata: {
+				queryLength: text.length,
+			},
+		});
+
+		if (embeddingTask.embedding) {
+			return embeddingTask.embedding;
+		}
+
+		throw new Error(embeddingTask.block.error || 'Falha ao gerar embedding para memory_search');
 	} catch (error) {
 		loggers.memory.warn({ error }, '⚠️ Embedding service not available, using placeholder');
 

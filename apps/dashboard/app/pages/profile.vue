@@ -250,8 +250,8 @@ const handleUnlink = async (provider: string) => {
 				</div>
 				<div class="flex items-center gap-3">
 					<button
-						@click="isEditing = !isEditing"
 						class="px-5 py-2.5 bg-surface-100 dark:bg-surface-800 text-surface-900 dark:text-white rounded-xl font-bold text-sm hover:bg-surface-200 transition-all border border-surface-200 dark:border-surface-700"
+						@click="isEditing = !isEditing"
 					>
 						{{ isEditing ? 'Cancelar' : 'Editar Perfil' }}
 					</button>
@@ -271,7 +271,7 @@ const handleUnlink = async (provider: string) => {
 							v-model="profileForm.name"
 							type="text"
 							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
-						/>
+						>
 					</div>
 					<div>
 						<label class="block text-sm font-bold text-surface-500 mb-1.5 uppercase tracking-wider">E-mail</label>
@@ -279,11 +279,11 @@ const handleUnlink = async (provider: string) => {
 							v-model="profileForm.email"
 							type="email"
 							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
-						/>
+						>
 					</div>
 					<button
-						@click="handleSave"
 						class="w-full py-3 bg-primary-600 text-white rounded-xl font-black shadow-lg shadow-primary-600/30 hover:bg-primary-700 hover:scale-[1.02] transition-all"
+						@click="handleSave"
 					>
 						Salvar Alterações
 					</button>
@@ -297,7 +297,7 @@ const handleUnlink = async (provider: string) => {
 					</h3>
 				</div>
 				<div v-if="isLoadingAccounts" class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
-					<div v-for="i in 3" :key="i" class="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+					<div v-for="i in 3" :key="i" class="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
 				</div>
 				<div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div
@@ -327,8 +327,7 @@ const handleUnlink = async (provider: string) => {
 									<span
 										v-if="account.status === 'connected'"
 										class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-tighter rounded"
-										>Ativo</span
-									>
+										>Ativo</span>
 								</div>
 								<p class="text-sm text-surface-500 font-medium">{{ account.username || 'Não vinculado' }}</p>
 								<!-- Detectando instalação do bot -->
@@ -371,17 +370,17 @@ const handleUnlink = async (provider: string) => {
 						<div v-if="account.id !== 'whatsapp'">
 							<button
 								v-if="account.status === 'connected'"
-								@click="handleUnlink(account.id)"
 								class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
 								:disabled="isSyncing"
+								@click="handleUnlink(account.id)"
 							>
 								<XCircle class="w-5 h-5" />
 							</button>
 							<button
 								v-else
-								@click="handleLink(account.id)"
 								:disabled="isLinking"
 								class="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors disabled:opacity-50"
+								@click="handleLink(account.id)"
 							>
 								<Loader2 v-if="isLinking" class="w-5 h-5 animate-spin" />
 								<Plus v-else class="w-5 h-5" />
@@ -398,18 +397,18 @@ const handleUnlink = async (provider: string) => {
 								placeholder="Ex: AB12CD"
 								maxlength="14"
 								class="flex-1 px-4 py-2 bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none font-mono tracking-widest uppercase"
-							/>
+							>
 							<button
-								@click="handleManualLink"
 								:disabled="isLinking || !linkingToken"
 								class="px-6 py-2 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 disabled:opacity-50 transition-all flex items-center gap-2"
+								@click="handleManualLink"
 							>
 								<Loader2 v-if="isLinking" class="w-4 h-4 animate-spin" />
 								Vincular
 							</button>
 							<button
-								@click="showTokenInput = null"
 								class="p-2 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-xl transition-all"
+								@click="showTokenInput = null"
 							>
 								<XCircle class="w-5 h-5" />
 							</button>
@@ -417,8 +416,8 @@ const handleUnlink = async (provider: string) => {
 					</div>
 					<button
 						v-else
-						@click="showTokenInput = 'any'"
 						class="text-sm font-bold text-primary-600 hover:text-primary-700 flex items-center gap-2 px-1"
+						@click="showTokenInput = 'any'"
 					>
 						<Plus class="w-4 h-4" />
 						Tenho um código de vinculação
@@ -432,7 +431,7 @@ const handleUnlink = async (provider: string) => {
 					Contas OAuth
 				</h3>
 				<div v-if="isLoadingAccounts" class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
-					<div v-for="i in 2" :key="i" class="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+					<div v-for="i in 2" :key="i" class="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
 				</div>
 				<div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div
@@ -462,8 +461,7 @@ const handleUnlink = async (provider: string) => {
 									<span
 										v-if="account.status === 'connected'"
 										class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-tighter rounded"
-										>Ativo</span
-									>
+										>Ativo</span>
 								</div>
 								<p class="text-sm text-surface-500 font-medium">{{ account.username || 'Não vinculado' }}</p>
 							</div>
@@ -471,17 +469,17 @@ const handleUnlink = async (provider: string) => {
 						<div>
 							<button
 								v-if="account.status === 'connected'"
-								@click="handleUnlink((account as any).providerKey || account.id)"
 								class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
 								:disabled="isSyncing"
+								@click="handleUnlink((account as any).providerKey || account.id)"
 							>
 								<XCircle class="w-5 h-5" />
 							</button>
 							<button
 								v-else
-								@click="handleLink((account as any).providerKey || account.id)"
 								:disabled="isLinking"
 								class="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors disabled:opacity-50"
+								@click="handleLink((account as any).providerKey || account.id)"
 							>
 								<Loader2 v-if="isLinking" class="w-5 h-5 animate-spin" />
 								<Plus v-else class="w-5 h-5" />
@@ -498,8 +496,8 @@ const handleUnlink = async (provider: string) => {
 				</h3>
 				<p class="text-sm text-surface-500">A exclusão da conta é permanente e irá remover todos os seus dados, memórias e vinculações.</p>
 				<button
-					@click="handleDeleteAccount"
 					class="px-5 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 hover:scale-[1.02] transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2"
+					@click="handleDeleteAccount"
 				>
 					<Trash2 class="w-4 h-4" />
 					Excluir Minha Conta
