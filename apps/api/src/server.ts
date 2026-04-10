@@ -7,6 +7,7 @@ import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { sentryLogger } from '@/sentry';
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
 import {
+	adapterOutputQueue,
 	closeConversationQueue,
 	enrichmentQueue,
 	messageQueue,
@@ -87,6 +88,7 @@ const serverAdapter = new HonoAdapter(serveStatic);
 createBullBoard({
 	queues: [
 		new BullMQAdapter(messageQueue),
+		new BullMQAdapter(adapterOutputQueue),
 		new BullMQAdapter(closeConversationQueue),
 		new BullMQAdapter(responseQueue),
 		new BullMQAdapter(enrichmentQueue),

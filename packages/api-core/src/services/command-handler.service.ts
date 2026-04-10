@@ -1,7 +1,12 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import { getChannelLinkSuccessMessage, getChannelNotRegisteredMessage, getChannelStartReturningMessage } from '@/config/message-templates';
+import {
+	getChannelLinkSuccessMessage,
+	getChannelNotRegisteredMessage,
+	getChannelStartReturningMessage,
+} from '@/config/message-templates';
 import { accountLinkingService } from '@/services/account-linking-service';
+import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
@@ -60,8 +65,12 @@ export class CommandHandlerService {
 		const existingAccount = await userService.findAccount(message.provider as any, identityId);
 		if (existingAccount) {
 			const token = await accountLinkingService.generateLinkingToken(existingAccount.userId, message.provider, 'link');
-			await provider.sendMessage(
-				message.externalId,
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName: providerName,
+					externalId: message.externalId,
+				},
 				`🔑 Seu código de vinculação é: **${token}**\n\nAcesse o seu painel e insira este código para unificar suas contas:\n\n🔗 ${dashboardUrl}/profile`,
 			);
 			return true;
@@ -73,13 +82,27 @@ export class CommandHandlerService {
 			await userService.linkAccountToUser(oauthUserId, message.provider as any, identityId, {
 				username: message.senderName,
 			});
-			await provider.sendMessage(message.externalId, getChannelLinkSuccessMessage(providerName));
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName,
+					externalId: message.externalId,
+				},
+				getChannelLinkSuccessMessage(providerName),
+			);
 			return true;
 		}
 
 		// Sem OAuth: orienta a criar conta
 		const signupLink = await this.buildPreSignupLink(identityId, message.provider);
-		await provider.sendMessage(message.externalId, getChannelNotRegisteredMessage(providerName, signupLink));
+		await dispatchOutgoingText(
+			{
+				provider,
+				providerName,
+				externalId: message.externalId,
+			},
+			getChannelNotRegisteredMessage(providerName, signupLink),
+		);
 		return true;
 	}
 
@@ -91,14 +114,28 @@ export class CommandHandlerService {
 		const dashboardUrl = this.getDashboardUrl();
 
 		if (!isNewUser) {
-			await provider.sendMessage(message.externalId, getChannelStartReturningMessage(providerName, dashboardUrl));
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName,
+					externalId: message.externalId,
+				},
+				getChannelStartReturningMessage(providerName, dashboardUrl),
+			);
 			return true;
 		}
 
 		// WhatsApp é o único canal com trial (sem cadastro prévio obrigatório)
 		if (providerName === 'whatsapp') {
 			const { getChannelStartNewUserMessage } = await import('@/config/message-templates');
-			await provider.sendMessage(message.externalId, getChannelStartNewUserMessage(providerName));
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName,
+					externalId: message.externalId,
+				},
+				getChannelStartNewUserMessage(providerName),
+			);
 			return true;
 		}
 
@@ -108,13 +145,27 @@ export class CommandHandlerService {
 			await userService.linkAccountToUser(oauthUserId, message.provider as any, identityId, {
 				username: message.senderName,
 			});
-			await provider.sendMessage(message.externalId, getChannelLinkSuccessMessage(providerName));
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName,
+					externalId: message.externalId,
+				},
+				getChannelLinkSuccessMessage(providerName),
+			);
 			return true;
 		}
 
 		// Sem OAuth: orienta a criar conta com pre-signup link
 		const signupLink = await this.buildPreSignupLink(identityId, message.provider);
-		await provider.sendMessage(message.externalId, getChannelNotRegisteredMessage(providerName, signupLink));
+		await dispatchOutgoingText(
+			{
+				provider,
+				providerName,
+				externalId: message.externalId,
+			},
+			getChannelNotRegisteredMessage(providerName, signupLink),
+		);
 
 		return true;
 	}
@@ -130,9 +181,23 @@ export class CommandHandlerService {
 		});
 
 		if (linked) {
-			await provider.sendMessage(message.externalId, getChannelLinkSuccessMessage(provider.getProviderName()));
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName: provider.getProviderName() as any,
+					externalId: message.externalId,
+				},
+				getChannelLinkSuccessMessage(provider.getProviderName()),
+			);
 		} else {
-			await provider.sendMessage(message.externalId, '❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.');
+			await dispatchOutgoingText(
+				{
+					provider,
+					providerName: provider.getProviderName() as any,
+					externalId: message.externalId,
+				},
+				'❌ Token de vinculação inválido ou expirado. Tente gerar um novo link no painel.',
+			);
 		}
 
 		return true; // Mensagem foi consumida pelo fluxo de vinculação

@@ -5,10 +5,11 @@
  * Reminders are stored in the database and processed by a delayed queue.
  */
 
-import { type ProviderType, getProvider } from '@/adapters/messaging';
+import { type ProviderType } from '@/adapters/messaging';
 import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { scheduledReminders } from '@/db/schema';
+import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import { loggers } from '@/utils/logger';
 import { Queue, Worker } from 'bullmq';
 import { eq } from 'drizzle-orm';
@@ -34,7 +35,9 @@ export interface ReminderJob {
 /**
  * Queue para processamento de lembretes
  */
-export const reminderQueue = new Queue<ReminderJob>('reminder-processing', { connection: REDIS_BASE_OPTIONS });
+export const reminderQueue = new Queue<ReminderJob>('reminder-processing', {
+	connection: REDIS_BASE_OPTIONS,
+});
 
 schedulerLogger.info('✅ Queue "reminder-processing" criada');
 
@@ -58,7 +61,11 @@ export const reminderWorker = new Worker<ReminderJob>(
 		try {
 			schedulerLogger.info({ reminderId, userId, provider: providerName, externalId }, '🔔 [Worker] Enviando lembrete');
 
-			const [reminder] = await db.select().from(scheduledReminders).where(eq(scheduledReminders.id, reminderId)).limit(1);
+			const [reminder] = await db
+				.select()
+				.from(scheduledReminders)
+				.where(eq(scheduledReminders.id, reminderId))
+				.limit(1);
 
 			if (!reminder) {
 				schedulerLogger.warn({ reminderId }, '⚠️ Lembrete não encontrado');
@@ -72,12 +79,14 @@ export const reminderWorker = new Worker<ReminderJob>(
 
 			const message = `🔔 **Lembrete**\n\n**${title}**${description ? `\n\n${description}` : ''}`;
 
-			const providerInstance = await getProvider(providerName);
-			if (!providerInstance) {
-				throw new Error(`Provider ${providerName} não encontrado`);
-			}
-
-			await providerInstance.sendMessage(externalId, message);
+			await dispatchOutgoingText(
+				{
+					providerName: providerName as any,
+					externalId,
+					userId,
+				},
+				message,
+			);
 
 			await db
 				.update(scheduledReminders)
@@ -106,7 +115,10 @@ reminderWorker.on('completed', (job) => {
 });
 
 reminderWorker.on('failed', async (job, error) => {
-	schedulerLogger.error({ jobId: job?.id, reminderId: job?.data.reminderId, err: error }, '❌ [reminder-processing] Job falhou');
+	schedulerLogger.error(
+		{ jobId: job?.id, reminderId: job?.data.reminderId, err: error },
+		'❌ [reminder-processing] Job falhou',
+	);
 
 	if (job?.data.reminderId) {
 		try {
@@ -167,7 +179,10 @@ export async function scheduleReminder(params: {
 
 	const reminderId = reminder.id;
 
-	schedulerLogger.info({ reminderId, userId, scheduledFor: scheduledFor.toISOString(), delay }, '📅 Criando lembrete no banco de dados');
+	schedulerLogger.info(
+		{ reminderId, userId, scheduledFor: scheduledFor.toISOString(), delay },
+		'📅 Criando lembrete no banco de dados',
+	);
 
 	// Schedule job
 	const jobId = `reminder_${reminderId}`;
@@ -209,7 +224,10 @@ export async function cancelReminder(reminderId: string): Promise<boolean> {
 	try {
 		// Get reminder
 		const [reminder] = await db
-			.select({ bullJobId: scheduledReminders.bullJobId, status: scheduledReminders.status })
+			.select({
+				bullJobId: scheduledReminders.bullJobId,
+				status: scheduledReminders.status,
+			})
 			.from(scheduledReminders)
 			.where(eq(scheduledReminders.id, reminderId))
 			.limit(1);

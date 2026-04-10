@@ -8,6 +8,7 @@ import {
 	getRandomMessage,
 } from '@/services/message-analysis/constants/clarification-messages';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import type { Language } from '@/services/message-analysis/types/analysis-result.types';
 import { instrumentService } from '@/services/service-instrumentation';
 import type { ConversationContext, ConversationState, MessageMetadata, MessageRole } from '@/types';
@@ -220,7 +221,15 @@ export class ConversationService {
 			// Multi-provider: obtém provider correto e envia mensagem
 			const provider = await getProvider(providerType);
 			if (provider) {
-				await provider.sendMessage(externalId, `${msg}\n\n${optionsText}`);
+				await dispatchOutgoingText(
+					{
+						provider,
+						providerName: providerType,
+						externalId,
+						conversationId,
+					},
+					`${msg}\n\n${optionsText}`,
+				);
 			} else {
 				loggers.db.error({ provider: providerType }, '❌ Provider não encontrado');
 				throw new Error(`Provider ${providerType} não encontrado`);

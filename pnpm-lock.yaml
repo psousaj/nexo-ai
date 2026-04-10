@@ -189,9 +189,18 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.9
         version: 1.19.11(hono@4.11.9)
+      '@nexo/api-core':
+        specifier: workspace:*
+        version: link:../../packages/api-core
+      bullmq:
+        specifier: ^5.70.4
+        version: 5.70.4
       hono:
         specifier: ^4.11.5
         version: 4.11.9
+      ioredis:
+        specifier: ^5.9.2
+        version: 5.9.3
     devDependencies:
       '@nexo/typescript-config':
         specifier: workspace:*
