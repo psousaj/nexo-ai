@@ -49,9 +49,9 @@ const tabs = [
 					</div>
 				</Transition>
 				<button
-					@click="handleSave"
 					:disabled="isSaving || preferencesStore.isLoading"
 					class="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-black shadow-lg shadow-primary-600/20 hover:bg-primary-700 disabled:opacity-50 transition-all"
+					@click="handleSave"
 				>
 					<Loader2 v-if="isSaving" class="w-4 h-4 animate-spin" />
 					<Save v-else class="w-4 h-4" />
@@ -61,8 +61,8 @@ const tabs = [
 		</div>
 
 		<div v-if="preferencesStore.isLoading" class="grid grid-cols-1 md:grid-cols-3 gap-8 animate-pulse">
-			<div class="h-40 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
-			<div class="md:col-span-2 h-96 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+			<div class="h-40 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
+			<div class="md:col-span-2 h-96 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
 		</div>
 
 		<div v-else class="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -71,13 +71,13 @@ const tabs = [
 				<button
 					v-for="tab in tabs"
 					:key="tab.id"
-					@click="activeTab = tab.id as any"
 					:class="[
 						'w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold border',
 						activeTab === tab.id
 							? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20 border-primary-500'
 							: 'text-surface-600 dark:text-surface-400 hover:bg-white dark:hover:bg-surface-900 border-transparent hover:border-surface-200 dark:hover:border-surface-800',
 					]"
+					@click="activeTab = tab.id as any"
 				>
 					<component :is="tab.icon" class="w-5 h-5" /> {{ tab.label }}
 				</button>
@@ -107,10 +107,10 @@ const tabs = [
 									<p class="text-xs text-surface-500">Alertas em tempo real no seu navegador.</p>
 								</div>
 								<label class="relative inline-flex items-center cursor-pointer">
-									<input type="checkbox" v-model="preferencesStore.preferences.notificationsBrowser" class="sr-only peer" />
+									<input v-model="preferencesStore.preferences.notificationsBrowser" type="checkbox" class="sr-only peer">
 									<div
 										class="w-11 h-6 bg-surface-300 peer-focus:outline-none rounded-full peer dark:bg-surface-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"
-									></div>
+									/>
 								</label>
 							</div>
 							<div
@@ -121,10 +121,10 @@ const tabs = [
 									<p class="text-xs text-surface-500">Relatórios semanais e links rápidos.</p>
 								</div>
 								<label class="relative inline-flex items-center cursor-pointer">
-									<input type="checkbox" v-model="preferencesStore.preferences.notificationsWhatsapp" class="sr-only peer" />
+									<input v-model="preferencesStore.preferences.notificationsWhatsapp" type="checkbox" class="sr-only peer">
 									<div
 										class="w-11 h-6 bg-surface-300 peer-focus:outline-none rounded-full peer dark:bg-surface-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"
-									></div>
+									/>
 								</label>
 							</div>
 						</div>
@@ -134,13 +134,13 @@ const tabs = [
 						<h3 class="text-lg font-bold mb-6 flex items-center gap-2"><Sun class="w-5 h-5 text-primary-600" /> Aparência e Tema</h3>
 						<div class="grid grid-cols-2 gap-4">
 							<button
-								@click="preferencesStore.updatePreferences({ appearanceTheme: 'light' })"
 								class="flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all"
 								:class="
 									preferencesStore.preferences.appearanceTheme === 'light'
 										? 'border-primary-600 bg-primary-50 dark:bg-primary-900/10'
 										: 'border-surface-200 dark:border-surface-800'
 								"
+								@click="preferencesStore.updatePreferences({ appearanceTheme: 'light' })"
 							>
 								<div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-amber-500">
 									<Sun class="w-6 h-6" />
@@ -148,13 +148,13 @@ const tabs = [
 								<span class="text-sm font-bold">Modo Claro</span>
 							</button>
 							<button
-								@click="preferencesStore.updatePreferences({ appearanceTheme: 'dark' })"
 								class="flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all"
 								:class="
 									preferencesStore.preferences.appearanceTheme === 'dark'
 										? 'border-primary-600 bg-primary-50 dark:bg-primary-900/10'
 										: 'border-surface-200 dark:border-surface-800'
 								"
+								@click="preferencesStore.updatePreferences({ appearanceTheme: 'dark' })"
 							>
 								<div class="w-10 h-10 rounded-full bg-surface-950 shadow-sm flex items-center justify-center text-indigo-400">
 									<Moon class="w-6 h-6" />
@@ -178,10 +178,10 @@ const tabs = [
 									<p class="text-xs text-surface-500">Permitir que memórias antigas apareçam em buscas rápidas.</p>
 								</div>
 								<label class="relative inline-flex items-center cursor-pointer">
-									<input type="checkbox" v-model="preferencesStore.preferences.privacyShowMemoriesInSearch" class="sr-only peer" />
+									<input v-model="preferencesStore.preferences.privacyShowMemoriesInSearch" type="checkbox" class="sr-only peer">
 									<div
 										class="w-11 h-6 bg-surface-300 peer-focus:outline-none rounded-full peer dark:bg-surface-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"
-									></div>
+									/>
 								</label>
 							</div>
 						</div>

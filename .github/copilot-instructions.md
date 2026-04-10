@@ -46,7 +46,6 @@ pnpm run test:ui
 pnpm run test -- src/tests/intent-classifier.test.ts
 
 pnpm run lint:biome
-pnpm run lint:biome:fix
 pnpm run format:check
 ```
 

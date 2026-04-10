@@ -54,7 +54,7 @@ if (process.client) {
 	<Transition name="fade">
 		<div v-if="isOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
 			<!-- Backdrop -->
-			<div class="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" @click="handleClose"></div>
+			<div class="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" @click="handleClose" />
 
 			<!-- Modal Content -->
 			<div
@@ -64,11 +64,10 @@ if (process.client) {
 					<div class="flex items-center gap-2">
 						<span
 							class="px-2 py-0.5 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-[10px] font-black uppercase tracking-widest rounded-md"
-							>Editar</span
-						>
+							>Editar</span>
 						<h3 class="text-xl font-black text-surface-900 dark:text-white uppercase tracking-tighter italic">Editar Memória</h3>
 					</div>
-					<button @click="handleClose" class="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-xl transition-colors">
+					<button class="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-xl transition-colors" @click="handleClose">
 						<X class="w-5 h-5 text-surface-500" />
 					</button>
 				</div>
@@ -81,7 +80,7 @@ if (process.client) {
 							type="text"
 							placeholder="Ex: Minha nota importante"
 							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 rounded-2xl text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all"
-						/>
+						>
 					</div>
 
 					<div>
@@ -91,21 +90,21 @@ if (process.client) {
 							rows="5"
 							placeholder="Pode ser um texto, link ou sinopse..."
 							class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 rounded-2xl text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-all resize-none"
-						></textarea>
+						/>
 					</div>
 				</div>
 
 				<div class="p-6 bg-surface-50 dark:bg-surface-900/50 flex items-center justify-end gap-3">
 					<button
-						@click="handleClose"
 						class="px-5 py-2.5 text-sm font-bold text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors"
+						@click="handleClose"
 					>
 						Cancelar
 					</button>
 					<button
-						@click="handleSave"
 						:disabled="loading || !form.title || !form.content"
 						class="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-black shadow-lg shadow-primary-600/20 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+						@click="handleSave"
 					>
 						<Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
 						<Save v-else class="w-4 h-4" />

@@ -155,7 +155,7 @@ function getPeerKindBadgeStyle(kind: string): string {
 					type="text"
 					placeholder="Buscar sessões..."
 					class="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg focus:border-primary-500 focus:ring-0 text-sm"
-				/>
+				>
 			</div>
 
 			<select
@@ -182,7 +182,7 @@ function getPeerKindBadgeStyle(kind: string): string {
 
 		<!-- Loading state -->
 		<div v-if="isLoading" class="animate-pulse">
-			<div class="h-64 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+			<div class="h-64 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
 		</div>
 
 		<!-- Sessions list -->
@@ -237,8 +237,8 @@ function getPeerKindBadgeStyle(kind: string): string {
 					<!-- Actions -->
 					<div class="flex items-center gap-2">
 						<button
-							@click="exportSessionJsonl(session.id, session.sessionKey)"
 							class="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg font-bold text-xs hover:bg-primary-600 transition-colors"
+							@click="exportSessionJsonl(session.id, session.sessionKey)"
 						>
 							<Download class="w-3.5 h-3.5" />
 							Export JSONL

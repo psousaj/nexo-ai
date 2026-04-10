@@ -140,17 +140,17 @@ const examples = {
 			</div>
 			<div class="flex items-center gap-3">
 				<button
-					@click="resetMutation.mutate"
 					:disabled="resetMutation.isPending.value"
 					class="flex items-center gap-2 px-4 py-2.5 bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 rounded-xl font-bold text-sm hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					@click="resetMutation.mutate"
 				>
 					<RotateCcw class="w-4 h-4" />
 					Resetar
 				</button>
 				<button
-					@click="saveMutation.mutate"
 					:disabled="saveMutation.isPending.value"
 					class="flex items-center gap-2 px-6 py-2.5 bg-primary-500 text-white rounded-xl font-bold text-sm hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-500/25"
+					@click="saveMutation.mutate"
 				>
 					<Save class="w-4 h-4" />
 					{{ saveMutation.isPending.value ? 'Salvando...' : 'Salvar Alterações' }}
@@ -159,7 +159,7 @@ const examples = {
 		</div>
 
 		<div v-if="isLoading" class="animate-pulse">
-			<div class="h-96 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+			<div class="h-96 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
 		</div>
 
 		<div v-else class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -168,13 +168,13 @@ const examples = {
 				<button
 					v-for="tab in tabs"
 					:key="tab.id"
-					@click="activeTab = tab.id"
 					:class="[
 						'w-full text-left p-4 rounded-xl transition-all group',
 						activeTab === tab.id
 							? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25'
 							: 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700',
 					]"
+					@click="activeTab = tab.id"
 				>
 					<div class="flex items-center gap-3 mb-1">
 						<component :is="tab.icon" class="w-5 h-5" />
@@ -202,7 +202,7 @@ const examples = {
 							rows="12"
 							placeholder="Ex: Você é um assistente amigável e caloroso. Usa linguagem simples e emojis moderadamente..."
 							class="w-full p-4 bg-surface-50 dark:bg-surface-900 border-2 border-surface-200 dark:border-surface-800 rounded-xl focus:border-primary-500 focus:ring-0 text-surface-900 dark:text-white font-mono text-sm resize-none"
-						></textarea>
+						/>
 
 						<!-- Examples -->
 						<div class="mt-6">
@@ -211,8 +211,8 @@ const examples = {
 								<button
 									v-for="example in examples.personality"
 									:key="example.title"
-									@click="formData.soulContent = example.content"
 									class="text-left p-3 bg-surface-100 dark:bg-surface-800 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+									@click="formData.soulContent = example.content"
 								>
 									<p class="font-black text-xs text-primary-500 mb-1">{{ example.title }}</p>
 									<p class="text-xs text-surface-600 dark:text-surface-400 line-clamp-2">{{ example.content }}</p>
@@ -238,7 +238,7 @@ const examples = {
 							rows="8"
 							placeholder="Ex: Nome: NEXO&#10;Emoji: 🦊&#10;Creature: Raposa"
 							class="w-full p-4 bg-surface-50 dark:bg-surface-900 border-2 border-surface-200 dark:border-surface-800 rounded-xl focus:border-primary-500 focus:ring-0 text-surface-900 dark:text-white font-mono text-sm resize-none"
-						></textarea>
+						/>
 
 						<!-- Examples -->
 						<div class="mt-6">
@@ -247,8 +247,8 @@ const examples = {
 								<button
 									v-for="example in examples.identity"
 									:key="example.title"
-									@click="formData.identityContent = example.content"
 									class="text-left p-3 bg-surface-100 dark:bg-surface-800 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+									@click="formData.identityContent = example.content"
 								>
 									<p class="font-black text-xs text-primary-500 mb-1">{{ example.title }}</p>
 									<p class="text-xs text-surface-600 dark:text-surface-400 whitespace-pre-line">{{ example.content }}</p>
@@ -274,7 +274,7 @@ const examples = {
 							rows="12"
 							placeholder="Ex: - Sempre confirme antes de salvar itens&#10;- Use emojis moderadamente&#10;- Pergunte se o usuário quer mais informações"
 							class="w-full p-4 bg-surface-50 dark:bg-surface-900 border-2 border-surface-200 dark:border-surface-800 rounded-xl focus:border-primary-500 focus:ring-0 text-surface-900 dark:text-white font-mono text-sm resize-none"
-						></textarea>
+						/>
 					</div>
 				</div>
 
@@ -294,7 +294,7 @@ const examples = {
 							rows="10"
 							placeholder="Ex: Nome: João&#10;Interesses: Ficção científica, tecnologia, culinária&#10;Prefere: Respostas concisas"
 							class="w-full p-4 bg-surface-50 dark:bg-surface-900 border-2 border-surface-200 dark:border-surface-800 rounded-xl focus:border-primary-500 focus:ring-0 text-surface-900 dark:text-white font-mono text-sm resize-none"
-						></textarea>
+						/>
 
 						<div class="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
 							<p class="text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
@@ -320,7 +320,7 @@ const examples = {
 							rows="10"
 							placeholder="Ex: João adora filmes de ficção científica&#10;Prefere respostas curtas e diretas&#10;Gosta de receber recomendações de novos filmes"
 							class="w-full p-4 bg-surface-50 dark:bg-surface-900 border-2 border-surface-200 dark:border-surface-800 rounded-xl focus:border-primary-500 focus:ring-0 text-surface-900 dark:text-white font-mono text-sm resize-none"
-						></textarea>
+						/>
 
 						<div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
 							<p class="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-2">
@@ -346,7 +346,7 @@ const examples = {
 							rows="10"
 							placeholder="Ex: - save_movie: Salva filme na lista do usuário&#10;- search_items: Busca itens salvos&#10;- get_tmdb_info: Busca informações no TMDB"
 							class="w-full p-4 bg-surface-50 dark:bg-surface-900 border-2 border-surface-200 dark:border-surface-800 rounded-xl focus:border-primary-500 focus:ring-0 text-surface-900 dark:text-white font-mono text-sm resize-none"
-						></textarea>
+						/>
 					</div>
 				</div>
 			</div>

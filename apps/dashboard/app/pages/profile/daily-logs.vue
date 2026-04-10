@@ -107,7 +107,7 @@ const sortedLogs = computed(() => {
 					</h3>
 
 					<div v-if="isLoading" class="space-y-2">
-						<div v-for="i in 5" :key="i" class="h-8 bg-surface-100 dark:bg-surface-800 rounded-lg animate-pulse"></div>
+						<div v-for="i in 5" :key="i" class="h-8 bg-surface-100 dark:bg-surface-800 rounded-lg animate-pulse" />
 					</div>
 
 					<div v-else-if="sortedLogs.length === 0" class="text-center py-8">
@@ -119,13 +119,13 @@ const sortedLogs = computed(() => {
 						<button
 							v-for="log in sortedLogs"
 							:key="log.id"
-							@click="loadLog(log.logDate)"
 							:class="[
 								'w-full text-left p-3 rounded-lg transition-all text-left',
 								selectedDate === log.logDate
 									? 'bg-primary-500 text-white'
 									: 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700',
 							]"
+							@click="loadLog(log.logDate)"
 						>
 							<p class="font-black text-xs">{{ formatDisplayDate(log.logDate) }}</p>
 							<p class="text-[10px] opacity-80 mt-0.5">
@@ -143,8 +143,8 @@ const sortedLogs = computed(() => {
 					<div class="flex items-center justify-between mb-6">
 						<div class="flex items-center gap-3">
 							<button
-								@click="navigateDate('prev')"
 								class="p-2 bg-surface-100 dark:bg-surface-800 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+								@click="navigateDate('prev')"
 							>
 								<ChevronLeft class="w-4 h-4" />
 							</button>
@@ -155,8 +155,8 @@ const sortedLogs = computed(() => {
 								<p class="text-xs text-surface-500 font-mono">{{ selectedDate }}</p>
 							</div>
 							<button
-								@click="navigateDate('next')"
 								class="p-2 bg-surface-100 dark:bg-surface-800 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+								@click="navigateDate('next')"
 							>
 								<ChevronRight class="w-4 h-4" />
 							</button>
@@ -165,24 +165,24 @@ const sortedLogs = computed(() => {
 						<div class="flex items-center gap-2">
 							<button
 								v-if="!isEditing"
-								@click="isEditing = true"
 								class="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg font-bold text-xs hover:bg-primary-600 transition-colors"
+								@click="isEditing = true"
 							>
 								<Plus class="w-3.5 h-3.5" />
 								Editar
 							</button>
 							<button
 								v-if="isEditing"
-								@click="saveLog"
 								class="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-bold text-xs hover:bg-emerald-600 transition-colors"
+								@click="saveLog"
 							>
 								<Save class="w-3.5 h-3.5" />
 								Salvar
 							</button>
 							<button
 								v-if="isEditing"
-								@click="isEditing = false; loadLog(selectedDate)"
 								class="px-4 py-2 bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg font-bold text-xs hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
+								@click="isEditing = false; loadLog(selectedDate)"
 							>
 								Cancelar
 							</button>
@@ -197,8 +197,8 @@ const sortedLogs = computed(() => {
 								Nenhum registro para esta data
 							</p>
 							<button
-								@click="isEditing = true"
 								class="mt-4 px-6 py-2 bg-primary-500 text-white rounded-lg font-bold text-sm hover:bg-primary-600 transition-colors"
+								@click="isEditing = true"
 							>
 								Criar Registro
 							</button>
@@ -221,7 +221,7 @@ Exemplo:
 									'border-surface-200 dark:border-surface-800': !isEditing,
 									'border-primary-500': isEditing,
 								}"
-							></textarea>
+							/>
 
 							<!-- Word count -->
 							<div class="flex items-center justify-between text-xs text-surface-500">

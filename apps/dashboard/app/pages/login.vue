@@ -149,7 +149,7 @@ const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=
 								placeholder="exemplo@email.com"
 								class="w-full pl-12 pr-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
 								required
-							/>
+							>
 						</div>
 					</div>
 
@@ -163,7 +163,7 @@ const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=
 								placeholder="••••••••"
 								class="w-full pl-12 pr-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
 								required
-							/>
+							>
 						</div>
 					</div>
 

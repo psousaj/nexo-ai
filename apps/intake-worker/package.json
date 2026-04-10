@@ -8,7 +8,7 @@
 		"build": "tsup",
 		"start": "NODE_ENV=production node dist/index.js",
 		"test": "vitest --run --config vitest.config.ts",
-		"lint:biome": "biome check ."
+		"lint:biome": "biome check --write ."
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.19.9",
