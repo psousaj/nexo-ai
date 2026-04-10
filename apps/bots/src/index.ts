@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { env } from "@nexo/api-core/config/env";
+import { getBotsEnv } from "@nexo/env";
 import { createBotsApp } from "./app";
 import {
   createAdapterOutputWorker,
@@ -8,6 +8,7 @@ import {
 } from "@/outgoing/adapter-output-worker";
 import { createProviderSplitRuntimeConfigService } from "@/runtime/provider-split-runtime-config";
 
+const botsEnv = getBotsEnv();
 let discordGatewayStarted = false;
 
 async function maybeStartDiscordGateway(
@@ -17,7 +18,7 @@ async function maybeStartDiscordGateway(
     return;
   }
 
-  if (!env.DISCORD_BOT_TOKEN) {
+  if (!botsEnv.DISCORD_BOT_TOKEN) {
     return;
   }
 
@@ -25,10 +26,9 @@ async function maybeStartDiscordGateway(
     return;
   }
 
-  const { startDiscordBot } = await import(
-    "@nexo/api-core/adapters/messaging/discord-adapter"
-  );
-  await startDiscordBot(env.DISCORD_BOT_TOKEN);
+  const { startDiscordBot } =
+    await import("@nexo/api-core/adapters/messaging/discord-adapter");
+  await startDiscordBot(botsEnv.DISCORD_BOT_TOKEN);
   discordGatewayStarted = true;
   console.log("discord gateway started in bots app");
 }
@@ -59,7 +59,7 @@ const app = createBotsApp({
   getOutgoingSnapshot: getAdapterOutputQueueSnapshot,
   getRuntimeConfigSnapshot: runtimeConfigService.getSnapshot,
 });
-const port = Number(process.env.BOTS_PORT || 3030);
+const port = botsEnv.BOTS_PORT;
 const adapterOutputWorker = createAdapterOutputWorker();
 
 async function bootstrapRuntime(): Promise<void> {

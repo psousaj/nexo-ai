@@ -77,6 +77,7 @@ describe("provider split runtime config service", () => {
     const service = createProviderSplitRuntimeConfigService({
       initialProviderSplitEnabled: true,
       endpointUrl: "http://localhost/internal/runtime/provider-split-config",
+      sharedToken: "shared-token",
       refreshIntervalMs: 120000,
       requestTimeoutMs: 1000,
       fetchImpl: fetchMock,
@@ -84,6 +85,7 @@ describe("provider split runtime config service", () => {
 
     const snapshot = await service.initialize();
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(snapshot.providerSplitEnabled).toBe(true);
     expect(snapshot.source).toBe("env");
     expect(snapshot.lastError).toContain("timeout");

@@ -192,6 +192,9 @@ importers:
       '@nexo/api-core':
         specifier: workspace:*
         version: link:../../packages/api-core
+      '@nexo/env':
+        specifier: workspace:*
+        version: link:../../packages/env
       bullmq:
         specifier: ^5.70.4
         version: 5.70.4

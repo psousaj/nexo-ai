@@ -1,3 +1,5 @@
+import { parseBotsRuntimeEnv } from "@nexo/env";
+
 export type ProviderSplitRuntimeConfigSource = "env" | "api";
 
 interface PivotFeatureFlagsSnapshot {
@@ -125,42 +127,17 @@ function normalizeRequestTimeoutMs(value: number): number {
   return Math.max(500, Math.floor(value));
 }
 
-function parseBooleanEnv(
-  value: string | undefined,
-  fallback: boolean,
-): boolean {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  return value === "true";
-}
-
-function parseNumberEnv(value: string | undefined, fallback: number): number {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
 export function createProviderSplitRuntimeConfigService(
   options: CreateProviderSplitRuntimeConfigServiceOptions = {},
 ) {
-  const endpointUrl = options.endpointUrl ?? process.env.BOTS_CONFIG_PULL_URL;
-  const sharedToken = options.sharedToken ?? process.env.BOTS_CONFIG_PULL_TOKEN;
+  const parsedBotsEnv = parseBotsRuntimeEnv(process.env);
+  const endpointUrl = options.endpointUrl ?? parsedBotsEnv.BOTS_CONFIG_PULL_URL;
+  const sharedToken = options.sharedToken ?? parsedBotsEnv.BOTS_CONFIG_PULL_TOKEN;
   const refreshIntervalMs = normalizeRefreshIntervalMs(
-    options.refreshIntervalMs ??
-      parseNumberEnv(process.env.BOTS_CONFIG_REFRESH_MS, 30000),
+    options.refreshIntervalMs ?? parsedBotsEnv.BOTS_CONFIG_REFRESH_MS,
   );
   const requestTimeoutMs = normalizeRequestTimeoutMs(
-    options.requestTimeoutMs ??
-      parseNumberEnv(process.env.BOTS_CONFIG_TIMEOUT_MS, 3000),
+    options.requestTimeoutMs ?? parsedBotsEnv.BOTS_CONFIG_TIMEOUT_MS,
   );
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? (() => new Date());
@@ -170,7 +147,7 @@ export function createProviderSplitRuntimeConfigService(
   const state: MutableRuntimeState = {
     providerSplitEnabled:
       options.initialProviderSplitEnabled ??
-      parseBooleanEnv(process.env.PROVIDER_SPLIT, false),
+      parsedBotsEnv.PROVIDER_SPLIT,
     source: "env",
     lastAttemptAt: null,
     lastSyncedAt: null,
@@ -262,6 +239,13 @@ export function createProviderSplitRuntimeConfigService(
     if (!endpointUrl) {
       logger.info(
         "provider split runtime config pull disabled (no endpoint configured)",
+      );
+      return getSnapshot();
+    }
+
+    if (!sharedToken) {
+      logger.warn(
+        "provider split runtime config pull disabled (missing BOTS_CONFIG_PULL_TOKEN)",
       );
       return getSnapshot();
     }

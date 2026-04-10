@@ -9,6 +9,50 @@ import { z } from "zod";
  * Não faz hack de path relativo — quem carrega o .env é o runner (tsx, node, etc)
  */
 
+const boolFromEnv = z
+  .enum(["true", "false"])
+  .transform((val) => val === "true");
+
+const botsEnvShape = {
+  BOTS_PORT: z.coerce.number().int().min(1).max(65535).default(3030),
+  BOTS_CONFIG_PULL_URL: z.string().url().optional(),
+  BOTS_CONFIG_PULL_TOKEN: z.string().optional(),
+  BOTS_CONFIG_REFRESH_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(300000)
+    .default(30000),
+  BOTS_CONFIG_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(500)
+    .max(60000)
+    .default(3000),
+} as const;
+
+const botsRuntimeEnvSchema = z.object({
+  PROVIDER_SPLIT: boolFromEnv.default("false"),
+  DISCORD_BOT_TOKEN: z.string().optional(),
+  ...botsEnvShape,
+});
+
+export type BotsRuntimeEnv = z.infer<typeof botsRuntimeEnvSchema>;
+
+export function parseBotsRuntimeEnv(
+  source: Record<string, unknown> = process.env,
+): BotsRuntimeEnv {
+  const parsed = botsRuntimeEnvSchema.safeParse(source);
+
+  if (!parsed.success) {
+    console.error("❌ Erro na validação das variáveis de ambiente dos Bots:");
+    console.error(JSON.stringify(parsed.error.flatten().fieldErrors, null, 2));
+    throw new Error("Variáveis de ambiente dos Bots inválidas");
+  }
+
+  return parsed.data;
+}
+
 const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url(),
@@ -135,6 +179,7 @@ const envSchema = z.object({
     }),
   DASHBOARD_URL: z.string().url().optional(),
   PORT: z.coerce.number().default(3001), // API na 3001
+  ...botsEnvShape,
   PORT_DASHBOARD: z.coerce.number().default(5173), // Dashboard na 5173
   PORT_LANDING: z.coerce.number().default(3005), // Landing na 3005
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
@@ -184,22 +229,6 @@ const envSchema = z.object({
   DISCORD_BOT_TOKEN: z.string().optional(),
   DISCORD_BOT_USERNAME: z.string().default("NexoAssistente_bot"),
 
-  // Bots runtime config pull (API -> Bots)
-  BOTS_CONFIG_PULL_URL: z.string().url().optional(),
-  BOTS_CONFIG_PULL_TOKEN: z.string().optional(),
-  BOTS_CONFIG_REFRESH_MS: z.coerce
-    .number()
-    .int()
-    .min(1000)
-    .max(300000)
-    .default(30000),
-  BOTS_CONFIG_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .min(500)
-    .max(60000)
-    .default(3000),
-
   // Better Auth
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.string().url().optional(),
@@ -218,6 +247,30 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+export const BOTS_ENV_KEYS = [
+  "PROVIDER_SPLIT",
+  "DISCORD_BOT_TOKEN",
+  "BOTS_PORT",
+  "BOTS_CONFIG_PULL_URL",
+  "BOTS_CONFIG_PULL_TOKEN",
+  "BOTS_CONFIG_REFRESH_MS",
+  "BOTS_CONFIG_TIMEOUT_MS",
+] as const;
+
+export type BotsEnv = Pick<Env, (typeof BOTS_ENV_KEYS)[number]>;
+
+export function getBotsEnv(source: Env = env): BotsEnv {
+  return {
+    PROVIDER_SPLIT: source.PROVIDER_SPLIT,
+    DISCORD_BOT_TOKEN: source.DISCORD_BOT_TOKEN,
+    BOTS_PORT: source.BOTS_PORT,
+    BOTS_CONFIG_PULL_URL: source.BOTS_CONFIG_PULL_URL,
+    BOTS_CONFIG_PULL_TOKEN: source.BOTS_CONFIG_PULL_TOKEN,
+    BOTS_CONFIG_REFRESH_MS: source.BOTS_CONFIG_REFRESH_MS,
+    BOTS_CONFIG_TIMEOUT_MS: source.BOTS_CONFIG_TIMEOUT_MS,
+  };
+}
 
 let cachedEnv: Env | null = null;
 
