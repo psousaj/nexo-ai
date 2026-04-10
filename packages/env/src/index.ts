@@ -44,6 +44,7 @@ const envSchema = z.object({
   CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
   CLOUDFLARE_API_TOKEN: z.string().min(1),
   CLOUDFLARE_GATEWAY_ID: z.string().default("nexo-ai-gateway"),
+  MANUAL_RUNTIME_MODEL: z.string().default("openai/gpt-5.2"),
   EMBEDDING_MODEL: z.string().default("dynamic/embeddings"),
   EMBEDDING_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(4),
   EMBEDDING_TIMEOUT_MS: z.coerce
