@@ -54,8 +54,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.7,
         textWeight: 0.3,
         mergeStrategy: "weighted",
-        minScore: 0.3,
-        maxResults: 10,
       };
 
       expect(config.vectorWeight).toBe(0.7);
@@ -93,8 +91,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.7,
         textWeight: 0.3,
         mergeStrategy: "weighted",
-        minScore: 0.3,
-        maxResults: 10,
       };
 
       const merged = mergeHybridResults({
@@ -121,8 +117,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.7,
         textWeight: 0.3,
         mergeStrategy: "weighted",
-        minScore: 0.3,
-        maxResults: 10,
       };
 
       const merged = mergeHybridResults({
@@ -160,8 +154,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.7,
         textWeight: 0.3,
         mergeStrategy: "weighted",
-        minScore: 0.5,
-        maxResults: 10,
       };
 
       const merged = mergeHybridResults({
@@ -191,8 +183,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.7,
         textWeight: 0.3,
         mergeStrategy: "weighted",
-        minScore: 0.0,
-        maxResults: 5,
       };
 
       const merged = mergeHybridResults({
@@ -216,8 +206,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.8,
         textWeight: 0.2,
         mergeStrategy: "weighted",
-        minScore: 0.0,
-        maxResults: 10,
       };
 
       expect(config.mergeStrategy).toBe("weighted");
@@ -228,8 +216,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.5,
         textWeight: 0.5,
         mergeStrategy: "average",
-        minScore: 0.0,
-        maxResults: 10,
       };
 
       expect(config.mergeStrategy).toBe("average");
@@ -240,8 +226,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.5,
         textWeight: 0.5,
         mergeStrategy: "reciprocal_rank_fusion",
-        minScore: 0.0,
-        maxResults: 10,
       };
 
       expect(config.mergeStrategy).toBe("reciprocal_rank_fusion");
@@ -254,8 +238,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.8,
         textWeight: 0.2,
         mergeStrategy: "weighted",
-        minScore: 0.3,
-        maxResults: 10,
       };
 
       expect(movieConfig.vectorWeight).toBe(0.8);
@@ -267,8 +249,6 @@ describe("Memory Search - Hybrid Search", () => {
         vectorWeight: 0.6,
         textWeight: 0.4,
         mergeStrategy: "weighted",
-        minScore: 0.3,
-        maxResults: 10,
       };
 
       expect(noteConfig.vectorWeight).toBe(0.6);

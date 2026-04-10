@@ -30,8 +30,9 @@ export async function buildEnrichmentEmbeddingItem(params: {
 }): Promise<EnrichmentEmbeddingResult> {
   const { candidate, provider, type, jobId } = params;
 
-  const text =
-    `Title: ${candidate.title || candidate.name}\nOverview: ${candidate.overview || ""}`.trim();
+  const title = (candidate.title ?? candidate.name ?? "").trim();
+  const overview = (candidate.overview ?? "").trim();
+  const text = `Title: ${title || "N/A"}\nOverview: ${overview}`.trim();
   const embeddingTask = await executeEmbeddingTask({
     input: text,
     async: true,
