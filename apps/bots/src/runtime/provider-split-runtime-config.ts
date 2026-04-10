@@ -132,7 +132,8 @@ export function createProviderSplitRuntimeConfigService(
 ) {
   const parsedBotsEnv = parseBotsRuntimeEnv(process.env);
   const endpointUrl = options.endpointUrl ?? parsedBotsEnv.BOTS_CONFIG_PULL_URL;
-  const sharedToken = options.sharedToken ?? parsedBotsEnv.BOTS_CONFIG_PULL_TOKEN;
+  const sharedToken =
+    options.sharedToken ?? parsedBotsEnv.BOTS_CONFIG_PULL_TOKEN;
   const refreshIntervalMs = normalizeRefreshIntervalMs(
     options.refreshIntervalMs ?? parsedBotsEnv.BOTS_CONFIG_REFRESH_MS,
   );
@@ -146,8 +147,7 @@ export function createProviderSplitRuntimeConfigService(
 
   const state: MutableRuntimeState = {
     providerSplitEnabled:
-      options.initialProviderSplitEnabled ??
-      parsedBotsEnv.PROVIDER_SPLIT,
+      options.initialProviderSplitEnabled ?? parsedBotsEnv.PROVIDER_SPLIT,
     source: "env",
     lastAttemptAt: null,
     lastSyncedAt: null,
