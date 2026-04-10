@@ -11,7 +11,9 @@ import { createProviderSplitRuntimeConfigService } from "@/runtime/provider-spli
 
 let discordGatewayStarted = false;
 
-async function maybeStartDiscordGateway(providerSplitEnabled: boolean): Promise<void> {
+async function maybeStartDiscordGateway(
+  providerSplitEnabled: boolean,
+): Promise<void> {
   if (!providerSplitEnabled) {
     return;
   }

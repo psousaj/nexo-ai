@@ -41,7 +41,10 @@ export interface CreateProviderSplitRuntimeConfigServiceOptions {
   fetchImpl?: typeof fetch;
   now?: () => Date;
   logger?: Pick<Console, "info" | "warn">;
-  onProviderSplitChanged?: (next: boolean, previous: boolean) => Promise<void> | void;
+  onProviderSplitChanged?: (
+    next: boolean,
+    previous: boolean,
+  ) => Promise<void> | void;
 }
 
 interface MutableRuntimeState {
@@ -57,7 +60,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function isPivotFlagsSnapshot(value: unknown): value is PivotFeatureFlagsSnapshot {
+function isPivotFlagsSnapshot(
+  value: unknown,
+): value is PivotFeatureFlagsSnapshot {
   if (!isRecord(value)) {
     return false;
   }
@@ -120,7 +125,10 @@ function normalizeRequestTimeoutMs(value: number): number {
   return Math.max(500, Math.floor(value));
 }
 
-function parseBooleanEnv(value: string | undefined, fallback: boolean): boolean {
+function parseBooleanEnv(
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
   if (value === undefined) {
     return fallback;
   }
@@ -231,7 +239,10 @@ export function createProviderSplitRuntimeConfigService(
         previousProviderSplit !== state.providerSplitEnabled &&
         onProviderSplitChanged
       ) {
-        await onProviderSplitChanged(state.providerSplitEnabled, previousProviderSplit);
+        await onProviderSplitChanged(
+          state.providerSplitEnabled,
+          previousProviderSplit,
+        );
       }
     } catch (error) {
       state.failureCount += 1;
@@ -249,7 +260,9 @@ export function createProviderSplitRuntimeConfigService(
 
   async function initialize(): Promise<ProviderSplitRuntimeConfigSnapshot> {
     if (!endpointUrl) {
-      logger.info("provider split runtime config pull disabled (no endpoint configured)");
+      logger.info(
+        "provider split runtime config pull disabled (no endpoint configured)",
+      );
       return getSnapshot();
     }
 

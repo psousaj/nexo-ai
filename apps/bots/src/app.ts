@@ -38,7 +38,9 @@ interface CreateBotsAppOptions {
 export function createBotsApp(options: CreateBotsAppOptions = {}) {
   const app = new Hono();
   const readProviderSplitEnabled = () =>
-    options.getProviderSplitEnabled?.() ?? options.providerSplitEnabled ?? false;
+    options.getProviderSplitEnabled?.() ??
+    options.providerSplitEnabled ??
+    false;
 
   app.get("/health", (c) => {
     return c.json({

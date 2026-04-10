@@ -69,7 +69,9 @@ describe("bots app", () => {
   test("runtime config health route returns unavailable without snapshot provider", async () => {
     const app = createBotsApp();
 
-    const response = await app.request("http://localhost/health/runtime-config");
+    const response = await app.request(
+      "http://localhost/health/runtime-config",
+    );
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -94,7 +96,9 @@ describe("bots app", () => {
       }),
     });
 
-    const response = await app.request("http://localhost/health/runtime-config");
+    const response = await app.request(
+      "http://localhost/health/runtime-config",
+    );
     const body = await response.json();
 
     expect(response.status).toBe(200);
