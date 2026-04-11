@@ -6,7 +6,7 @@ services:
     env_file:
       - ./evolution/.env
     ports:
-      - "8082:8080"
+      - "${SERVER_PORT:-8080}:8080"
     volumes:
       - evolution_instances:/evolution/instances
 
