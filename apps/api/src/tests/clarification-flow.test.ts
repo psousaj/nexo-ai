@@ -96,10 +96,6 @@ vi.mock('@nexo/api-core/services/ai', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/services/ai/ai-sdk-provider', () => ({
-	getModel: vi.fn(),
-}));
-
 vi.mock('@nexo/api-core/config/env', () => ({
 	env: {
 		MANUAL_RUNTIME_LOOP: false,

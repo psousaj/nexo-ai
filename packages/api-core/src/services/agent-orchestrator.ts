@@ -44,7 +44,6 @@ import {
 	dispatchOutgoingText,
 } from '@/services/outgoing-dispatcher.service';
 import { instrumentService } from '@/services/service-instrumentation';
-import { userService } from '@/services/user-service';
 import type { ConversationState, ToolName } from '@/types';
 import type { MessageMetadata, OrchestratorTrace } from '@/types';
 import { loggers } from '@/utils/logger';
@@ -61,13 +60,13 @@ import {
 } from './ai';
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
-import { type IntentResult } from './intent-classifier';
+import type { IntentResult } from './intent-classifier';
 import { itemService } from './item-service';
 import { scheduleConversationClose } from './queue-service';
 import { toolAvailabilityService } from './tool-availability.service';
 import { filterToolNamesByPolicy } from './tools/registry';
-import { type ToolContext as LegacyToolContext, executeTool } from './tools';
-import { type ToolContext } from './tools/ai-sdk-tools';
+import { executeTool } from './tools';
+import type {  ToolContext } from './tools/ai-sdk-tools';
 
 export interface AgentContext {
 	userId: string;
@@ -1836,38 +1835,6 @@ export class AgentOrchestrator {
 	}
 }
 
-/**
- * Gera mensagem amigável baseada na tool executada
- */
-function getSuccessMessageForTool(tool: string, data?: any): string {
-	switch (tool) {
-		case 'save_note':
-			return '✅ Nota salva!';
-		case 'save_movie':
-			return '✅ Filme salvo!';
-		case 'save_tv_show':
-			return '✅ Série salva!';
-		case 'save_video':
-			return '✅ Vídeo salvo!';
-		case 'save_link':
-			return '✅ Link salvo!';
-		case 'search_items': {
-			const count = data?.count || 0;
-			if (count === 0) {
-				return 'Não encontrei nada 😕';
-			}
-			return formatItemsList(data.items, count);
-		}
-		case 'delete_memory':
-			return '✅ Item deletado!';
-		case 'delete_all_memories': {
-			const deleted = data?.deleted_count || 0;
-			return deleted > 0 ? `✅ ${deleted} item(ns) deletado(s)` : 'Nada para deletar';
-		}
-		default:
-			return '✅ Feito!';
-	}
-}
 
 // Singleton
 export const agentOrchestrator = instrumentService('agentOrchestrator', new AgentOrchestrator());
