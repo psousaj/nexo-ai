@@ -41,7 +41,7 @@ vi.mock('@nexo/api-core/config/prompt-builder', () => ({
 
 vi.mock('@nexo/api-core/config/env', () => ({
 	env: {
-		MANUAL_RUNTIME_MODEL: 'openai/gpt-5.2',
+		CF_GATEWAY_MODEL: 'dynamic/nexo',
 		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
 		CLOUDFLARE_GATEWAY_ID: 'gw-test',
 		CLOUDFLARE_API_TOKEN: 'token-test',
