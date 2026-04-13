@@ -1,11 +1,15 @@
-import { env } from '@/config/env';
-import { buildAgentPrompt } from '@/config/prompt-builder';
-import { getLangfuse } from '@/services/langfuse';
-import { instrumentService } from '@/services/service-instrumentation';
-import { loggers } from '@/utils/logger';
-import { getCurrentTraceId, setAttributes, startSpan } from '@nexo/otel/tracing';
-import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
-import type { AIResponse, Message } from './types';
+import { env } from "@/config/env";
+import { buildAgentPrompt } from "@/config/prompt-builder";
+import { getLangfuse } from "@/services/langfuse";
+import { instrumentService } from "@/services/service-instrumentation";
+import { loggers } from "@/utils/logger";
+import {
+  getCurrentTraceId,
+  setAttributes,
+  startSpan,
+} from "@nexo/otel/tracing";
+import { CloudflareAIGatewayProvider } from "./cloudflare-ai-gateway-provider";
+import type { AIResponse, Message } from "./types";
 
 /**
  * Serviço AI usando Cloudflare AI Gateway
@@ -16,145 +20,170 @@ import type { AIResponse, Message } from './types';
  * - Cache, rate limiting, analytics
  */
 export class AIService {
-	private provider: CloudflareAIGatewayProvider;
+  private provider: CloudflareAIGatewayProvider;
 
-	constructor(accountId: string, gatewayId: string, cfApiToken: string, defaultModel = 'dynamic/nexo') {
-		this.provider = new CloudflareAIGatewayProvider(accountId, gatewayId, cfApiToken, defaultModel);
-		loggers.ai.info('🤖 AI Service inicializado com AI Gateway');
-	}
+  constructor(
+    accountId: string,
+    gatewayId: string,
+    cfApiToken: string,
+    defaultModel = env.CF_GATEWAY_MODEL,
+  ) {
+    this.provider = new CloudflareAIGatewayProvider(
+      accountId,
+      gatewayId,
+      cfApiToken,
+      defaultModel,
+    );
+    loggers.ai.info("🤖 AI Service inicializado com AI Gateway");
+  }
 
-	/**
-	 * Chama o LLM com contexto da conversação
-	 * Retry e fallback são gerenciados pelo AI Gateway
-	 */
-	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
-		return startSpan('llm.call', async (_span) => {
-			const { systemPrompt, ...rest } = params;
-			const prompt = systemPrompt || buildAgentPrompt({ assistantName: 'Nexo' }).system;
+  /**
+   * Chama o LLM com contexto da conversação
+   * Retry e fallback são gerenciados pelo AI Gateway
+   */
+  async callLLM(params: {
+    message: string;
+    history?: Message[];
+    systemPrompt?: string;
+  }): Promise<AIResponse> {
+    return startSpan("llm.call", async (_span) => {
+      const { systemPrompt, ...rest } = params;
+      const prompt =
+        systemPrompt || buildAgentPrompt({ assistantName: "Nexo" }).system;
 
-			setAttributes({
-				'llm.message_length': params.message.length,
-				'llm.history_count': params.history?.length || 0,
-				'llm.system_prompt_length': prompt.length,
-			});
+      setAttributes({
+        "llm.message_length": params.message.length,
+        "llm.history_count": params.history?.length || 0,
+        "llm.system_prompt_length": prompt.length,
+      });
 
-			loggers.ai.info(`📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
-			loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
+      loggers.ai.info(
+        `📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? "..." : ""}"`,
+      );
+      loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
 
-			// Langfuse integration
-			const langfuse = getLangfuse();
-			const traceId = getCurrentTraceId();
-			let generation: any = null;
+      // Langfuse integration
+      const langfuse = getLangfuse();
+      const traceId = getCurrentTraceId();
+      let generation: any = null;
 
-			if (langfuse) {
-				generation = langfuse
-					.trace({
-						name: 'llm_call',
-						id: traceId,
-					})
-					.generation({
-						model: (this.provider as any).model || 'dynamic/cloudflare',
-						metadata: {
-							provider: 'cloudflare',
-							messageLength: params.message.length,
-						},
-					});
-			}
+      if (langfuse) {
+        generation = langfuse
+          .trace({
+            name: "llm_call",
+            id: traceId,
+          })
+          .generation({
+            model: (this.provider as any).model || "dynamic/cloudflare",
+            metadata: {
+              provider: "cloudflare",
+              messageLength: params.message.length,
+            },
+          });
+      }
 
-			const response = await this.provider.callLLM({
-				...rest,
-				systemPrompt: prompt,
-			});
+      const response = await this.provider.callLLM({
+        ...rest,
+        systemPrompt: prompt,
+      });
 
-			// OTEL attributes - Token usage
-			const usage = (response as any).usage;
-			setAttributes({
-				'llm.prompt_tokens': usage?.promptTokens || 0,
-				'llm.completion_tokens': usage?.completionTokens || 0,
-				'llm.total_tokens': usage?.totalTokens || 0,
-				'llm.response_length': response.message?.length || 0,
-			});
+      // OTEL attributes - Token usage
+      const usage = (response as any).usage;
+      setAttributes({
+        "llm.prompt_tokens": usage?.promptTokens || 0,
+        "llm.completion_tokens": usage?.completionTokens || 0,
+        "llm.total_tokens": usage?.totalTokens || 0,
+        "llm.response_length": response.message?.length || 0,
+      });
 
-			// Langfuse - Completion
-			if (generation && usage) {
-				generation.end({
-					completion: response.message,
-					usage: {
-						promptTokens: usage.promptTokens,
-						completionTokens: usage.completionTokens,
-						totalTokens: usage.totalTokens,
-					},
-				});
-			}
+      // Langfuse - Completion
+      if (generation && usage) {
+        generation.end({
+          completion: response.message,
+          usage: {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+          },
+        });
+      }
 
-			return response;
-		});
-	}
+      return response;
+    });
+  }
 
-	/**
-	 * Altera o modelo em runtime
-	 * Ex: 'dynamic/cloudflare', 'google-ai-studio/gemini-2.5-flash-lite'
-	 */
-	setModel(model: string): void {
-		this.provider.setModel(model);
-	}
+  /**
+   * Altera o modelo em runtime
+   * Ex: 'dynamic/cloudflare', 'google-ai-studio/gemini-2.5-flash-lite'
+   */
+  setModel(model: string): void {
+    this.provider.setModel(model);
+  }
 
-	/**
-	 * Retorna o provider ativo (sempre 'ai-gateway')
-	 */
-	getCurrentProvider(): string {
-		return this.provider.getName();
-	}
+  /**
+   * Retorna o provider ativo (sempre 'ai-gateway')
+   */
+  getCurrentProvider(): string {
+    return this.provider.getName();
+  }
 }
 
 // Singleton - credenciais são obrigatórias no env
 export const llmService = instrumentService(
-	'llm',
-	new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN),
+  "llm",
+  new AIService(
+    env.CLOUDFLARE_ACCOUNT_ID,
+    env.CLOUDFLARE_GATEWAY_ID,
+    env.CLOUDFLARE_API_TOKEN,
+  ),
 );
-export type { AIProvider, AIResponse, Message } from './types';
-export { OpenAIGatewayTransport } from './openai-gateway-transport';
-export type { OpenAIGatewayRequest, OpenAIGatewayResponse, OpenAIGatewayTransportConfig } from './openai-gateway-transport';
-export {
-	buildManualLoopTools,
-	runOpenAIManualLoop,
-	type OpenAIManualLoopDependencies,
-	type OpenAIManualLoopRequest,
-	type OpenAIManualLoopResult,
-} from './openai-manual-loop';
-export {
-	buildRuntimeContext,
-	type RuntimeContextBuilderRequest,
-	type RuntimeContextBuilderResult,
-	type RuntimeHistoryBlock,
-} from './runtime-context-builder';
-export {
-	executeIntentClassificationTask,
-	type IntentClassificationPhase,
-	type IntentClassificationTaskRequest,
-	type IntentClassificationTaskResult,
-} from './intent-classification-task';
-export {
-	executeEmbeddingTask,
-	type EmbeddingTaskRequest,
-	type EmbeddingTaskResult,
-} from './embedding-task';
-export {
-	buildRuntimeObservabilityAttributes,
-	summarizeRuntimeRounds,
-	type RuntimeRoundsSummary,
-} from './runtime-observability';
+export type { AIProvider, AIResponse, Message } from "./types";
+export { OpenAIGatewayTransport } from "./openai-gateway-transport";
 export type {
-	RuntimeErrorBlock,
-	RuntimeGatewayHeaders,
-	RuntimeInternalTaskBlock,
-	RuntimeInternalTaskName,
-	RuntimeInternalTaskStatus,
-	RuntimeRound,
-	RuntimeRoundBlock,
-	RuntimeRoundContext,
-	RuntimeStopReason,
-	RuntimeToolResultBlock,
-	RuntimeToolUseBlock,
-	RuntimeUsage,
-} from './runtime-contract';
+  OpenAIGatewayRequest,
+  OpenAIGatewayResponse,
+  OpenAIGatewayTransportConfig,
+} from "./openai-gateway-transport";
+export {
+  buildManualLoopTools,
+  runOpenAIManualLoop,
+  type OpenAIManualLoopDependencies,
+  type OpenAIManualLoopRequest,
+  type OpenAIManualLoopResult,
+} from "./openai-manual-loop";
+export {
+  buildRuntimeContext,
+  type RuntimeContextBuilderRequest,
+  type RuntimeContextBuilderResult,
+  type RuntimeHistoryBlock,
+} from "./runtime-context-builder";
+export {
+  executeIntentClassificationTask,
+  type IntentClassificationPhase,
+  type IntentClassificationTaskRequest,
+  type IntentClassificationTaskResult,
+} from "./intent-classification-task";
+export {
+  executeEmbeddingTask,
+  type EmbeddingTaskRequest,
+  type EmbeddingTaskResult,
+} from "./embedding-task";
+export {
+  buildRuntimeObservabilityAttributes,
+  summarizeRuntimeRounds,
+  type RuntimeRoundsSummary,
+} from "./runtime-observability";
+export type {
+  RuntimeErrorBlock,
+  RuntimeGatewayHeaders,
+  RuntimeInternalTaskBlock,
+  RuntimeInternalTaskName,
+  RuntimeInternalTaskStatus,
+  RuntimeRound,
+  RuntimeRoundBlock,
+  RuntimeRoundContext,
+  RuntimeStopReason,
+  RuntimeToolResultBlock,
+  RuntimeToolUseBlock,
+  RuntimeUsage,
+} from "./runtime-contract";

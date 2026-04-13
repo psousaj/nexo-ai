@@ -330,7 +330,7 @@ export const adminRoutes = new Hono()
     return c.json({
       success: true,
       data: {
-        model: env.EMBEDDING_MODEL ?? "@cf/baai/bge-small-en-v1.5",
+        model: env.CF_EMBED_MODEL,
         accountId: env.CLOUDFLARE_ACCOUNT_ID
           ? `${env.CLOUDFLARE_ACCOUNT_ID.slice(0, 6)}...`
           : null,
@@ -377,7 +377,7 @@ export const adminRoutes = new Hono()
             last5: embedding.slice(-5),
           },
           textLength: text.length,
-          model: env.EMBEDDING_MODEL ?? "@cf/baai/bge-small-en-v1.5",
+          model: env.CF_EMBED_MODEL,
         },
       });
     } catch (error: any) {
@@ -448,8 +448,8 @@ export const adminRoutes = new Hono()
       });
     }
 
-    // Checar Cloudflare API diretamente
-    const cfApiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/baai/bge-small-en-v1.5`;
+    // Checar execução de modelo dynamic no endpoint compat
+    const cfApiUrl = `${gatewayUrl}/embeddings`;
     const cfStart = Date.now();
     try {
       const res = await fetch(cfApiUrl, {
@@ -458,11 +458,14 @@ export const adminRoutes = new Hono()
           Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: ["ping"] }),
+        body: JSON.stringify({
+          model: env.CF_EMBED_MODEL,
+          input: "ping",
+        }),
         signal: AbortSignal.timeout(8000),
       });
       checks.push({
-        target: "CF Workers AI (direct)",
+        target: "CF AI Gateway dynamic (embed)",
         url: cfApiUrl,
         ok: res.ok,
         status: res.status,
@@ -470,7 +473,7 @@ export const adminRoutes = new Hono()
       });
     } catch (e: any) {
       checks.push({
-        target: "CF Workers AI (direct)",
+        target: "CF AI Gateway dynamic (embed)",
         url: cfApiUrl,
         ok: false,
         elapsedMs: Date.now() - cfStart,

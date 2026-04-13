@@ -1,7 +1,7 @@
-import { loggers } from '@/utils/logger';
-import { observe, updateActiveObservation } from '@langfuse/tracing';
-import OpenAI from 'openai';
-import type { AIProvider, AIResponse, Message } from './types';
+import { loggers } from "@/utils/logger";
+import { observe, updateActiveObservation } from "@langfuse/tracing";
+import OpenAI from "openai";
+import type { AIProvider, AIResponse, Message } from "./types";
 
 /**
  * Provider unificado usando Cloudflare AI Gateway
@@ -15,139 +15,154 @@ import type { AIProvider, AIResponse, Message } from './types';
  * - Histórico convertido para TOON (economia de tokens)
  */
 export class CloudflareAIGatewayProvider implements AIProvider {
-	private client: OpenAI;
-	private model: string;
+  private client: OpenAI;
+  private model: string;
 
-	constructor(accountId: string, gatewayId: string, cfApiToken: string, model = 'dynamic/cloudflare') {
-		const baseURL = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
+  constructor(
+    accountId: string,
+    gatewayId: string,
+    cfApiToken: string,
+    model = "dynamic/nexo",
+  ) {
+    const baseURL = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
 
-		this.client = new OpenAI({
-			apiKey: cfApiToken,
-			baseURL,
-		});
-		this.model = model;
+    this.client = new OpenAI({
+      apiKey: cfApiToken,
+      baseURL,
+    });
+    this.model = model;
 
-		loggers.ai.info(`✅ AI Gateway configurado: ${baseURL} (model: ${model})`);
-	}
+    loggers.ai.info(`✅ AI Gateway configurado: ${baseURL} (model: ${model})`);
+  }
 
-	getName(): string {
-		return 'ai-gateway';
-	}
+  getName(): string {
+    return "ai-gateway";
+  }
 
-	setModel(model: string): void {
-		this.model = model;
-		loggers.ai.info(`🔄 Model alterado para: ${model}`);
-	}
+  setModel(model: string): void {
+    this.model = model;
+    loggers.ai.info(`🔄 Model alterado para: ${model}`);
+  }
 
-	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
-		const { message, history = [], systemPrompt } = params;
-		const startTime = Date.now();
+  async callLLM(params: {
+    message: string;
+    history?: Message[];
+    systemPrompt?: string;
+  }): Promise<AIResponse> {
+    const { message, history = [], systemPrompt } = params;
+    const startTime = Date.now();
 
-		try {
-			loggers.ai.info(`🚀 Enviando para AI Gateway (model: ${this.model})`);
+    try {
+      loggers.ai.info(`🚀 Enviando para AI Gateway (model: ${this.model})`);
 
-			// Montar messages no formato OpenAI:
-			// - System prompt como texto puro (TOON degrada adesão ao contrato JSON)
-			// - Histórico como turns reais (LLM precisa dos roles para raciocinar)
-			// - Mensagem atual como turn final do usuário
-			const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+      // Montar messages no formato OpenAI:
+      // - System prompt como texto puro (TOON degrada adesão ao contrato JSON)
+      // - Histórico como turns reais (LLM precisa dos roles para raciocinar)
+      // - Mensagem atual como turn final do usuário
+      const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-			if (systemPrompt) {
-				messages.push({ role: 'system', content: systemPrompt });
-			}
+      if (systemPrompt) {
+        messages.push({ role: "system", content: systemPrompt });
+      }
 
-			for (const msg of history) {
-				messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
-			}
+      for (const msg of history) {
+        messages.push({
+          role: msg.role as "user" | "assistant",
+          content: msg.content,
+        });
+      }
 
-			messages.push({ role: 'user', content: message });
+      messages.push({ role: "user", content: message });
 
-			const tracedGatewayCompletion = observe(
-				async (payload: { model: string; messages: OpenAI.Chat.ChatCompletionMessageParam[] }) => {
-					updateActiveObservation({
-						metadata: {
-							provider: 'cloudflare-ai-gateway',
-							model: payload.model,
-							historyCount: history.length,
-							hasSystemPrompt: Boolean(systemPrompt),
-						},
-					});
+      const tracedGatewayCompletion = observe(
+        async (payload: {
+          model: string;
+          messages: OpenAI.Chat.ChatCompletionMessageParam[];
+        }) => {
+          updateActiveObservation({
+            metadata: {
+              provider: "cloudflare-ai-gateway",
+              model: payload.model,
+              historyCount: history.length,
+              hasSystemPrompt: Boolean(systemPrompt),
+            },
+          });
 
-					const completion = await this.client.chat.completions.create({
-						...payload,
-						max_tokens: 1024,
-					});
+          const completion = await this.client.chat.completions.create(payload);
 
-					updateActiveObservation({
-						metadata: {
-							responseId: completion.id,
-							responseModel: completion.model,
-							finishReason: completion.choices[0]?.finish_reason || null,
-							usage: completion.usage || null,
-						},
-					});
+          updateActiveObservation({
+            metadata: {
+              responseId: completion.id,
+              responseModel: completion.model,
+              finishReason: completion.choices[0]?.finish_reason || null,
+              usage: completion.usage || null,
+            },
+          });
 
-					return completion;
-				},
-				{
-					name: 'cloudflare-ai-gateway.chat.completions',
-					asType: 'generation',
-				},
-			);
+          return completion;
+        },
+        {
+          name: "cloudflare-ai-gateway.chat.completions",
+          asType: "generation",
+        },
+      );
 
-			// Chamada ao AI Gateway - retry e fallback são automáticos
-			const response = await tracedGatewayCompletion({
-				model: this.model,
-				messages,
-			});
-			const duration = Date.now() - startTime;
-			const choice = response.choices[0]?.message;
-			const rawContent = choice?.content;
-			const finishReason = response.choices[0]?.finish_reason;
+      // Chamada ao AI Gateway - retry e fallback são automáticos
+      const response = await tracedGatewayCompletion({
+        model: this.model,
+        messages,
+      });
+      const duration = Date.now() - startTime;
+      const choice = response.choices[0]?.message;
+      const rawContent = choice?.content;
+      const finishReason = response.choices[0]?.finish_reason;
 
-			// Log estruturado
-			loggers.ai.info(
-				{
-					response: {
-						id: response.id,
-						model: response.model,
-						duration,
-						usage: response.usage,
-					},
-				},
-				`✨ Resposta do AI Gateway em ${duration}ms`,
-			);
+      // Log estruturado
+      loggers.ai.info(
+        {
+          response: {
+            id: response.id,
+            model: response.model,
+            duration,
+            usage: response.usage,
+          },
+        },
+        `✨ Resposta do AI Gateway em ${duration}ms`,
+      );
 
-			let text = '';
-			if (typeof rawContent === 'string') {
-				text = rawContent;
-			} else if (typeof rawContent === 'object' && rawContent !== null) {
-				text = JSON.stringify(rawContent);
-			}
+      let text = "";
+      if (typeof rawContent === "string") {
+        text = rawContent;
+      } else if (typeof rawContent === "object" && rawContent !== null) {
+        text = JSON.stringify(rawContent);
+      }
 
-			if (!text || text.trim().length === 0) {
-				loggers.ai.error({ rawContent, finishReason, usage: response.usage }, '⚠️ Resposta vazia do AI Gateway');
-				const reason =
-					finishReason === 'length'
-						? 'AI Gateway cut response due to token limit (finish_reason: length)'
-						: `AI Gateway returned empty response (finish_reason: ${finishReason ?? 'unknown'})`;
-				throw new Error(reason);
-			}
+      if (!text || text.trim().length === 0) {
+        loggers.ai.error(
+          { rawContent, finishReason, usage: response.usage },
+          "⚠️ Resposta vazia do AI Gateway",
+        );
+        const reason =
+          finishReason === "length"
+            ? "AI Gateway cut response due to token limit (finish_reason: length)"
+            : `AI Gateway returned empty response (finish_reason: ${finishReason ?? "unknown"})`;
+        throw new Error(reason);
+      }
 
-			return {
-				message: text.trim(),
-			};
-		} catch (error: any) {
-			const duration = Date.now() - startTime;
-			loggers.ai.error(
-				{
-					err: error,
-					duration,
-					model: this.model,
-				},
-				'❌ Erro no AI Gateway',
-			);
-			throw error;
-		}
-	}
+      return {
+        message: text.trim(),
+      };
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      loggers.ai.error(
+        {
+          err: error,
+          duration,
+          model: this.model,
+        },
+        "❌ Erro no AI Gateway",
+      );
+      throw error;
+    }
+  }
 }
