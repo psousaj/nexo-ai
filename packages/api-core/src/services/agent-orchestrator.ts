@@ -68,6 +68,7 @@ import {
   confirmationMessages,
   getRandomMessage,
 } from "./conversation/messageTemplates";
+import { evaluateExecutionReadiness } from "./execution-readiness";
 import type { IntentResult } from "./intent-classifier";
 import { itemService } from "./item-service";
 import { scheduleConversationClose } from "./queue-service";
@@ -322,6 +323,7 @@ export class AgentOrchestrator {
 
       // Analisa tom para evitar tratar perguntas como itens ambíguos
       const tone = messageAnalyzer.checkTone(context.message);
+      const ambiguity = messageAnalyzer.checkAmbiguity(context.message);
       const isQuestion = tone.isQuestion;
 
       if (
@@ -363,7 +365,26 @@ export class AgentOrchestrator {
       }
 
       // 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
-      const action = await this.decideAction(intent, conversation.state);
+      let action = await this.decideAction(intent, conversation.state);
+
+      const readiness = evaluateExecutionReadiness({
+        state: conversation.state,
+        intent,
+        tone,
+        ambiguity,
+      });
+
+      if (!readiness.allowDirectExecution && action !== "handle_with_llm") {
+        loggers.ai.info(
+          {
+            intent: intent.intent,
+            action,
+            reasons: readiness.reasons,
+          },
+          "🧭 Gate de prontidão: desviando para LLM antes de tools",
+        );
+        action = "handle_with_llm";
+      }
 
       // 4. EXECUTAR AÇÃO
       loggers.ai.info(
