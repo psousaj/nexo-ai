@@ -316,8 +316,8 @@ export class AgentOrchestrator {
         "🧠 Intenção detectada",
       );
 
-      // 2. CHECAR AMBIGUIDADE (APENAS se intent for desconhecido ou baixa confiança)
-      // Se neural/LLM classificou com confiança, NÃO pedir clarificação
+      // 2. ANALISAR TOM + AMBIGUIDADE
+      // Ambiguidade é usada tanto no gate de prontidão quanto na clarificação para intents fracos.
       const intentIsKnown =
         intent.intent !== "unknown" && intent.confidence >= 0.85;
 
@@ -343,6 +343,8 @@ export class AgentOrchestrator {
           context.message,
           context.externalId,
           providerType,
+          undefined,
+          ambiguity,
         );
         const endAmbiguous = performance.now();
 
