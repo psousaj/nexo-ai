@@ -39,7 +39,7 @@ services:
     container_name: nexo_app
     build:
       context: ..
-      dockerfile: apps/api/Dockerfile
+      dockerfile: ../apps/api/Dockerfile
     restart: unless-stopped
     depends_on:
       - evolution-api
