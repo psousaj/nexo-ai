@@ -73,6 +73,19 @@ Deploy em produção no Cloudflare Workers.
 
 ---
 
+### **[Pipeline Docker Hub + Coolify](coolify-dockerhub-pipeline.md)**
+
+Build da imagem no GitHub Actions, push no Docker Hub e deploy no Coolify por webhook.
+
+- Build fora do servidor de produção
+- Push de tags por branch e por commit
+- Trigger de deploy no Coolify apenas apos imagem pronta
+- Espera opcional por healthcheck antes de concluir pipeline
+
+**Use quando:** Quiser tirar carga de CPU do servidor e usar pull de imagem no Coolify
+
+---
+
 ### **[Troubleshooting](troubleshooting.md)**
 
 Solução de problemas comuns.
@@ -100,8 +113,9 @@ Solução de problemas comuns.
 
 ### Deploy em Produção
 
-1. [Deployment Cloudflare](deployment-cloudflare.md)
-2. [Troubleshooting](troubleshooting.md) - Se algo der errado
+1. [Pipeline Docker Hub + Coolify](coolify-dockerhub-pipeline.md)
+2. [Deployment Cloudflare](deployment-cloudflare.md)
+3. [Troubleshooting](troubleshooting.md) - Se algo der errado
 
 ### Testar Evolution Local
 
