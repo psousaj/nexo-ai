@@ -73,19 +73,26 @@ jobs:
     name: Trigger Coolify deploy
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK != '' }}
+    env:
+      COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+      COOLIFY_HEALTHCHECK_URL: ${{ secrets.COOLIFY_HEALTHCHECK_URL }}
 
     steps:
+      - name: Skip deploy when webhook is not configured
+        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK == '' }}
+        run: echo "COOLIFY_DEPLOY_WEBHOOK is empty. Skipping deploy."
+
       - name: Trigger deploy webhook
+        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' }}
         run: |
-          curl -fsS -X POST "${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}" \
-            || curl -fsS "${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}"
+          curl -fsS -X POST "${COOLIFY_DEPLOY_WEBHOOK}" \
+            || curl -fsS "${COOLIFY_DEPLOY_WEBHOOK}"
 
       - name: Wait for healthcheck
-        if: ${{ secrets.COOLIFY_HEALTHCHECK_URL != '' }}
+        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_HEALTHCHECK_URL != '' }}
         run: |
           for attempt in $(seq 1 40); do
-            if curl -fsS --max-time 10 "${{ secrets.COOLIFY_HEALTHCHECK_URL }}" > /dev/null; then
+            if curl -fsS --max-time 10 "${COOLIFY_HEALTHCHECK_URL}" > /dev/null; then
               echo "Healthcheck OK after attempt ${attempt}."
               exit 0
             fi
