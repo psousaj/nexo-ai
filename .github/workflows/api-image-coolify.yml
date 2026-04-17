@@ -91,72 +91,122 @@ jobs:
 
       - name: Trigger deploy webhook
         if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN != '' }}
-        run: |
-          # Normalize token to avoid copy/paste issues (Bearer prefix, spaces, line breaks).
-          TOKEN="$(printf '%s' "${COOLIFY_API_TOKEN}" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-          TOKEN="${TOKEN#Bearer }"
-          TOKEN="${TOKEN#bearer }"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const webhook = process.env.COOLIFY_DEPLOY_WEBHOOK;
+            const rawToken = process.env.COOLIFY_API_TOKEN || "";
+            const token = rawToken.trim().replace(/^Bearer\s+/i, "");
 
-          if [ -z "${TOKEN}" ]; then
-            echo "::error::COOLIFY_API_TOKEN is empty after normalization."
-            exit 1
-          fi
+            if (!token) {
+              core.setFailed("COOLIFY_API_TOKEN is empty after normalization.");
+              return;
+            }
 
-          call_deploy() {
-            local method="$1"
-            local auth_header="$2"
-            local out_file="$3"
+            const isCloudflareChallenge = (body) =>
+              /just a moment|cf_chl|cf-browser-verification|challenge-platform|attention required/i.test(
+                body || "",
+              );
 
-            curl -sS -o "${out_file}" -w "%{http_code}" \
-              -X "${method}" "${COOLIFY_DEPLOY_WEBHOOK}" \
-              -H "${auth_header}" \
-              -H "Accept: application/json" \
-              -H "User-Agent: github-actions-coolify-deploy"
-          }
+            const callDeploy = async (method, authHeader) => {
+              let response;
+              try {
+                response = await fetch(webhook, {
+                  method,
+                  headers: {
+                    Authorization: authHeader,
+                    Accept: "application/json",
+                    "User-Agent": "github-actions-coolify-deploy",
+                  },
+                  signal: AbortSignal.timeout(30000),
+                });
+              } catch {
+                return {
+                  code: 0,
+                  body: "",
+                  headers: {},
+                };
+              }
 
-          post_bearer_code="$(call_deploy POST "Authorization: Bearer ${TOKEN}" /tmp/coolify_post_bearer_body.txt || echo 000)"
-          if [[ "${post_bearer_code}" =~ ^2[0-9][0-9]$ ]]; then
-            echo "Coolify deploy triggered (POST + Bearer, HTTP ${post_bearer_code})."
-            exit 0
-          fi
+              const body = await response.text();
+              const headers = Object.fromEntries(response.headers.entries());
 
-          post_raw_code="$(call_deploy POST "Authorization: ${TOKEN}" /tmp/coolify_post_raw_body.txt || echo 000)"
-          if [[ "${post_raw_code}" =~ ^2[0-9][0-9]$ ]]; then
-            echo "Coolify deploy triggered (POST + raw token, HTTP ${post_raw_code})."
-            exit 0
-          fi
+              return {
+                code: response.status,
+                body,
+                headers,
+              };
+            };
 
-          get_bearer_code="$(call_deploy GET "Authorization: Bearer ${TOKEN}" /tmp/coolify_get_bearer_body.txt || echo 000)"
-          if [[ "${get_bearer_code}" =~ ^2[0-9][0-9]$ ]]; then
-            echo "Coolify deploy triggered (GET + Bearer, HTTP ${get_bearer_code})."
-            exit 0
-          fi
+            const attempts = [
+              {
+                label: "POST + Bearer",
+                method: "POST",
+                authHeader: `Bearer ${token}`,
+              },
+              {
+                label: "POST + raw token",
+                method: "POST",
+                authHeader: token,
+              },
+              {
+                label: "GET + Bearer",
+                method: "GET",
+                authHeader: `Bearer ${token}`,
+              },
+              {
+                label: "GET + raw token",
+                method: "GET",
+                authHeader: token,
+              },
+            ];
 
-          get_raw_code="$(call_deploy GET "Authorization: ${TOKEN}" /tmp/coolify_get_raw_body.txt || echo 000)"
-          if [[ "${get_raw_code}" =~ ^2[0-9][0-9]$ ]]; then
-            echo "Coolify deploy triggered (GET + raw token, HTTP ${get_raw_code})."
-            exit 0
-          fi
+            const results = [];
 
-          if [ "${post_bearer_code}" = "401" ] || [ "${post_bearer_code}" = "403" ] \
-            || [ "${post_raw_code}" = "401" ] || [ "${post_raw_code}" = "403" ] \
-            || [ "${get_bearer_code}" = "401" ] || [ "${get_bearer_code}" = "403" ] \
-            || [ "${get_raw_code}" = "401" ] || [ "${get_raw_code}" = "403" ]; then
-            echo "::error::Coolify rejected auth (POST Bearer=${post_bearer_code}, POST raw=${post_raw_code}, GET Bearer=${get_bearer_code}, GET raw=${get_raw_code})."
-            echo "::error::Verify token scope/permission in Coolify and any proxy/WAF rule in front of the domain."
-          else
-            echo "::error::Coolify deploy call failed (POST Bearer=${post_bearer_code}, POST raw=${post_raw_code}, GET Bearer=${get_bearer_code}, GET raw=${get_raw_code})."
-          fi
+            for (const attempt of attempts) {
+              const result = await callDeploy(attempt.method, attempt.authHeader);
+              results.push({
+                ...attempt,
+                ...result,
+              });
 
-          for body in /tmp/coolify_post_bearer_body.txt /tmp/coolify_post_raw_body.txt /tmp/coolify_get_bearer_body.txt /tmp/coolify_get_raw_body.txt; do
-            if [ -s "${body}" ]; then
-              echo "--- ${body} (first 300 chars) ---"
-              head -c 300 "${body}" || true
-              echo
-            fi
-          done
+              if (result.code >= 200 && result.code < 300) {
+                core.info(
+                  `Coolify deploy triggered (${attempt.label}, HTTP ${result.code}).`,
+                );
+                return;
+              }
+            }
 
-          exit 1
+            const codesSummary = results
+              .map((result) => `${result.label}=${result.code}`)
+              .join(", ");
+
+            if (results.some((result) => isCloudflareChallenge(result.body))) {
+              core.setFailed(
+                `Deploy webhook blocked by Cloudflare challenge before reaching Coolify (${codesSummary}). Use a non-proxied/origin URL in COOLIFY_DEPLOY_WEBHOOK or add a WAF skip rule for this webhook path.`,
+              );
+            } else if (
+              results.some((result) => result.code === 401 || result.code === 403)
+            ) {
+              core.setFailed(
+                `Coolify rejected auth (${codesSummary}). Verify token scope/permission in Coolify.`,
+              );
+            } else {
+              core.setFailed(`Coolify deploy call failed (${codesSummary}).`);
+            }
+
+            for (const result of results) {
+              core.info(`--- ${result.label} response headers (first 10) ---`);
+              Object.entries(result.headers)
+                .slice(0, 10)
+                .forEach(([key, value]) => core.info(`${key}: ${value}`));
+
+              if (result.body) {
+                core.info(`--- ${result.label} response body (first 300 chars) ---`);
+                core.info(result.body.slice(0, 300));
+              }
+            }
 
       - name: Wait for healthcheck
         if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN != '' &&

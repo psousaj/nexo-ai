@@ -41,6 +41,19 @@ Configure em **Settings > Secrets and variables > Actions**:
 4. Habilite pull da tag no deploy (politica de pull sempre que disponivel).
 5. Copie o deploy webhook do app e salve em `COOLIFY_DEPLOY_WEBHOOK` no GitHub.
 
+## Troubleshooting: 403 com "Just a moment..."
+
+Se o job falhar com `403` e o body do response vier com HTML contendo `Just a moment...`, o request foi bloqueado por Cloudflare/WAF antes de chegar no Coolify.
+
+Checklist de correcao:
+
+1. Salve em `COOLIFY_DEPLOY_WEBHOOK` uma URL de origem que nao esteja atras de challenge JS (ex.: DNS only ou endpoint interno).
+2. Se precisar manter Cloudflare na frente do dominio, crie regra para pular challenge no caminho de deploy webhook (ex.: `/api/v1/deploy*`).
+3. Evite regras de bot/challenge para esse endpoint, pois o trigger vem de `curl` no GitHub Actions (sem browser).
+4. Execute o workflow de novo e confirme que o body nao mostra mais a pagina da Cloudflare.
+
+Observacao: se continuar `401/403` sem HTML de challenge, ai sim o problema tende a ser token/permissao no Coolify.
+
 ## Como o Coolify "espera" a pipeline
 
 O Coolify nao precisa esperar ativamente o GitHub.
