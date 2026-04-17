@@ -92,10 +92,71 @@ jobs:
       - name: Trigger deploy webhook
         if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN != '' }}
         run: |
-          curl -fsS -X POST "${COOLIFY_DEPLOY_WEBHOOK}" \
-            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
-            || curl -fsS "${COOLIFY_DEPLOY_WEBHOOK}" \
-              -H "Authorization: Bearer ${COOLIFY_API_TOKEN}"
+          # Normalize token to avoid copy/paste issues (Bearer prefix, spaces, line breaks).
+          TOKEN="$(printf '%s' "${COOLIFY_API_TOKEN}" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          TOKEN="${TOKEN#Bearer }"
+          TOKEN="${TOKEN#bearer }"
+
+          if [ -z "${TOKEN}" ]; then
+            echo "::error::COOLIFY_API_TOKEN is empty after normalization."
+            exit 1
+          fi
+
+          call_deploy() {
+            local method="$1"
+            local auth_header="$2"
+            local out_file="$3"
+
+            curl -sS -o "${out_file}" -w "%{http_code}" \
+              -X "${method}" "${COOLIFY_DEPLOY_WEBHOOK}" \
+              -H "${auth_header}" \
+              -H "Accept: application/json" \
+              -H "User-Agent: github-actions-coolify-deploy"
+          }
+
+          post_bearer_code="$(call_deploy POST "Authorization: Bearer ${TOKEN}" /tmp/coolify_post_bearer_body.txt || echo 000)"
+          if [[ "${post_bearer_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "Coolify deploy triggered (POST + Bearer, HTTP ${post_bearer_code})."
+            exit 0
+          fi
+
+          post_raw_code="$(call_deploy POST "Authorization: ${TOKEN}" /tmp/coolify_post_raw_body.txt || echo 000)"
+          if [[ "${post_raw_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "Coolify deploy triggered (POST + raw token, HTTP ${post_raw_code})."
+            exit 0
+          fi
+
+          get_bearer_code="$(call_deploy GET "Authorization: Bearer ${TOKEN}" /tmp/coolify_get_bearer_body.txt || echo 000)"
+          if [[ "${get_bearer_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "Coolify deploy triggered (GET + Bearer, HTTP ${get_bearer_code})."
+            exit 0
+          fi
+
+          get_raw_code="$(call_deploy GET "Authorization: ${TOKEN}" /tmp/coolify_get_raw_body.txt || echo 000)"
+          if [[ "${get_raw_code}" =~ ^2[0-9][0-9]$ ]]; then
+            echo "Coolify deploy triggered (GET + raw token, HTTP ${get_raw_code})."
+            exit 0
+          fi
+
+          if [ "${post_bearer_code}" = "401" ] || [ "${post_bearer_code}" = "403" ] \
+            || [ "${post_raw_code}" = "401" ] || [ "${post_raw_code}" = "403" ] \
+            || [ "${get_bearer_code}" = "401" ] || [ "${get_bearer_code}" = "403" ] \
+            || [ "${get_raw_code}" = "401" ] || [ "${get_raw_code}" = "403" ]; then
+            echo "::error::Coolify rejected auth (POST Bearer=${post_bearer_code}, POST raw=${post_raw_code}, GET Bearer=${get_bearer_code}, GET raw=${get_raw_code})."
+            echo "::error::Verify token scope/permission in Coolify and any proxy/WAF rule in front of the domain."
+          else
+            echo "::error::Coolify deploy call failed (POST Bearer=${post_bearer_code}, POST raw=${post_raw_code}, GET Bearer=${get_bearer_code}, GET raw=${get_raw_code})."
+          fi
+
+          for body in /tmp/coolify_post_bearer_body.txt /tmp/coolify_post_raw_body.txt /tmp/coolify_get_bearer_body.txt /tmp/coolify_get_raw_body.txt; do
+            if [ -s "${body}" ]; then
+              echo "--- ${body} (first 300 chars) ---"
+              head -c 300 "${body}" || true
+              echo
+            fi
+          done
+
+          exit 1
 
       - name: Wait for healthcheck
         if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN != '' &&
