@@ -30,6 +30,7 @@ Configure em **Settings > Secrets and variables > Actions**:
 - `DOCKERHUB_USERNAME`: usuario do Docker Hub.
 - `DOCKERHUB_TOKEN`: access token do Docker Hub.
 - `COOLIFY_DEPLOY_WEBHOOK`: URL de deploy webhook do app no Coolify (opcional, mas recomendado para deploy automatico).
+- `COOLIFY_API_TOKEN`: token de API do Coolify para autenticar no Deploy Webhook (obrigatorio quando `COOLIFY_DEPLOY_WEBHOOK` estiver configurado).
 - `COOLIFY_HEALTHCHECK_URL`: URL de healthcheck da API (opcional, para o workflow esperar o app subir).
 
 ## Configuracao no Coolify
