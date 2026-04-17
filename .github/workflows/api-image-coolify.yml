@@ -207,20 +207,3 @@ jobs:
                 core.info(result.body.slice(0, 300));
               }
             }
-
-      - name: Wait for healthcheck
-        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN != '' &&
-          env.COOLIFY_HEALTHCHECK_URL != '' }}
-        run: |
-          for attempt in $(seq 1 40); do
-            if curl -fsS --max-time 10 "${COOLIFY_HEALTHCHECK_URL}" > /dev/null; then
-              echo "Healthcheck OK after attempt ${attempt}."
-              exit 0
-            fi
-
-            echo "Waiting for app health (${attempt}/40)..."
-            sleep 15
-          done
-
-          echo "App did not become healthy in time."
-          exit 1
