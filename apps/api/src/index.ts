@@ -6,7 +6,6 @@ import { shutdownSentry } from '@/sentry';
 import app from '@/server';
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
 import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
-import { initializeLangfuse, shutdownLangfuse } from '@nexo/api-core/services/langfuse'; // Langfuse AI observability
 import { logger } from '@nexo/api-core/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
@@ -42,9 +41,6 @@ process.on('warning', async (warning) => {
 	});
 });
 
-// Initialize Langfuse for AI observability
-initializeLangfuse();
-
 let isShuttingDown = false;
 
 async function gracefulShutdown(signal: string): Promise<void> {
@@ -54,7 +50,6 @@ async function gracefulShutdown(signal: string): Promise<void> {
 	logger.info({ signal }, '🛑 Encerrando aplicação (graceful shutdown)');
 
 	try {
-		await shutdownLangfuse();
 		await shutdownSentry();
 		logger.info('✅ Shutdown de observabilidade concluído');
 	} catch (error) {
@@ -77,7 +72,6 @@ process.on('beforeExit', async () => {
 	isShuttingDown = true;
 
 	try {
-		await shutdownLangfuse();
 		await shutdownSentry();
 	} catch (error) {
 		logger.error({ error }, '❌ Erro no shutdown via beforeExit');

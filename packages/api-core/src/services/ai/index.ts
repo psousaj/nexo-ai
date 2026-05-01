@@ -1,6 +1,5 @@
 import { env } from "@/config/env";
 import { buildAgentPrompt } from "@/config/prompt-builder";
-import { getLangfuse } from "@/services/langfuse";
 import { instrumentService } from "@/services/service-instrumentation";
 import { loggers } from "@/utils/logger";
 import {
@@ -62,26 +61,6 @@ export class AIService {
       );
       loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
 
-      // Langfuse integration
-      const langfuse = getLangfuse();
-      const traceId = getCurrentTraceId();
-      let generation: any = null;
-
-      if (langfuse) {
-        generation = langfuse
-          .trace({
-            name: "llm_call",
-            id: traceId,
-          })
-          .generation({
-            model: (this.provider as any).model || "dynamic/cloudflare",
-            metadata: {
-              provider: "cloudflare",
-              messageLength: params.message.length,
-            },
-          });
-      }
-
       const response = await this.provider.callLLM({
         ...rest,
         systemPrompt: prompt,
@@ -95,18 +74,6 @@ export class AIService {
         "llm.total_tokens": usage?.totalTokens || 0,
         "llm.response_length": response.message?.length || 0,
       });
-
-      // Langfuse - Completion
-      if (generation && usage) {
-        generation.end({
-          completion: response.message,
-          usage: {
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            totalTokens: usage.totalTokens,
-          },
-        });
-      }
 
       return response;
     });

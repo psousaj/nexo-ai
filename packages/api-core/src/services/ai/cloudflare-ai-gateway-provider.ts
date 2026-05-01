@@ -1,5 +1,4 @@
 import { loggers } from "@/utils/logger";
-import { observe, updateActiveObservation } from "@langfuse/tracing";
 import OpenAI from "openai";
 import type { AIProvider, AIResponse, Message } from "./types";
 
@@ -74,41 +73,8 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 
       messages.push({ role: "user", content: message });
 
-      const tracedGatewayCompletion = observe(
-        async (payload: {
-          model: string;
-          messages: OpenAI.Chat.ChatCompletionMessageParam[];
-        }) => {
-          updateActiveObservation({
-            metadata: {
-              provider: "cloudflare-ai-gateway",
-              model: payload.model,
-              historyCount: history.length,
-              hasSystemPrompt: Boolean(systemPrompt),
-            },
-          });
-
-          const completion = await this.client.chat.completions.create(payload);
-
-          updateActiveObservation({
-            metadata: {
-              responseId: completion.id,
-              responseModel: completion.model,
-              finishReason: completion.choices[0]?.finish_reason || null,
-              usage: completion.usage || null,
-            },
-          });
-
-          return completion;
-        },
-        {
-          name: "cloudflare-ai-gateway.chat.completions",
-          asType: "generation",
-        },
-      );
-
       // Chamada ao AI Gateway - retry e fallback são automáticos
-      const response = await tracedGatewayCompletion({
+      const response = await this.client.chat.completions.create({
         model: this.model,
         messages,
       });

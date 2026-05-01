@@ -25,7 +25,6 @@ import { cancelConversationClose } from '@/services/queue-service';
 import { resolveSessionKey } from '@/services/session-key-resolver';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
-import { startObservation } from '@langfuse/tracing';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import * as Sentry from '@sentry/core';
 
@@ -108,23 +107,6 @@ export async function processMessage(
 			},
 		},
 		async () => {
-			const rootObservation = startObservation(
-				'message-processing',
-				{
-					input: {
-						provider: provider.getProviderName(),
-						externalId: incomingMsg.externalId,
-						messageId: incomingMsg.messageId,
-						callbackData: incomingMsg.callbackData || null,
-						message: messageText || '',
-					},
-					metadata: {
-						source: 'message-service',
-					},
-				},
-				{ asType: 'span' },
-			);
-
 			try {
 				const result = await startSpan('message.process', async (_span) => {
 					setAttributes({
@@ -661,30 +643,8 @@ export async function processMessage(
 					}
 				});
 
-				rootObservation
-					.update({
-						output: {
-							status: 'success',
-							provider: provider.getProviderName(),
-							externalId: incomingMsg.externalId,
-						},
-					})
-					.end();
-
 				return result;
 			} catch (error) {
-				rootObservation
-					.update({
-						output: {
-							status: 'error',
-							provider: provider.getProviderName(),
-							externalId: incomingMsg.externalId,
-						},
-						level: 'ERROR',
-						statusMessage: error instanceof Error ? error.message : String(error),
-					})
-					.end();
-
 				Sentry.captureException(error, {
 					tags: {
 						provider: provider.getProviderName(),

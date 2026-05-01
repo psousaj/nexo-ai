@@ -110,13 +110,7 @@ const envSchema = z.object({
   OTEL_SERVICE_NAME: z.string().optional(),
   // Jaeger UI URL para acesso em dev/local (apenas informativo no log de init)
   JAEGER_UI_URL: z.string().default("http://localhost:16686"),
-  // Langfuse - AI Observability
-  LANGFUSE_PUBLIC_KEY: z.string().optional(),
-  LANGFUSE_SECRET_KEY: z.string().optional(),
-  LANGFUSE_HOST: z.string().optional(),
-  LANGFUSE_BASE_URL: z.string().optional(),
-  LANGFUSE_PROMPT_NAME: z.string().optional(),
-  LANGFUSE_PROMPT_LABEL: z.string().optional(),
+
   // Sentry - Error tracking & Sourcemaps
   SENTRY_ENABLED: z
     .enum(["true", "false"])

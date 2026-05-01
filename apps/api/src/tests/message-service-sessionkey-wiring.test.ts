@@ -4,13 +4,6 @@ import { agentOrchestrator } from '@nexo/api-core/services/agent-orchestrator';
 import { processMessage } from '@nexo/api-core/services/message-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-vi.mock('@langfuse/tracing', () => ({
-	startObservation: vi.fn(() => ({
-		update: vi.fn().mockReturnThis(),
-		end: vi.fn(),
-	})),
-}));
-
 vi.mock('@nexo/otel/tracing', () => ({
 	startSpan: vi.fn(async (_name: string, fn: () => Promise<unknown>) => await fn()),
 	setAttributes: vi.fn(),

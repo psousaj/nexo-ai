@@ -30,8 +30,7 @@
 		"@hono/node-server": "^1.19.11",
 		"@hono/swagger-ui": "^0.5.3",
 		"@hono/zod-validator": "^0.7.6",
-		"@langfuse/openai": "^4.6.1",
-		"@langfuse/tracing": "^4.6.1",
+
 		"@nexo/api-core": "workspace:*",
 		"@nexo/env": "workspace:*",
 		"@nexo/otel": "workspace:*",
@@ -53,7 +52,7 @@
 		"handlebars": "^4.7.8",
 		"hono": "^4.11.5",
 		"ioredis": "^5.9.2",
-		"langfuse": "^3.0.0",
+
 		"node-cron": "^3.0.3",
 		"node-nlp": "5.0.0-alpha.5",
 		"openai": "^6.16.0",

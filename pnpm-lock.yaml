@@ -44,12 +44,6 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.7.6
         version: 0.7.6(hono@4.11.9)(zod@3.25.76)
-      '@langfuse/openai':
-        specifier: ^4.6.1
-        version: 4.6.1(@opentelemetry/api@1.9.0)
-      '@langfuse/tracing':
-        specifier: ^4.6.1
-        version: 4.6.1(@opentelemetry/api@1.9.0)
       '@nexo/api-core':
         specifier: workspace:*
         version: link:../../packages/api-core
@@ -113,9 +107,6 @@ importers:
       ioredis:
         specifier: ^5.9.2
         version: 5.9.3
-      langfuse:
-        specifier: ^3.0.0
-        version: 3.38.6
       node-cron:
         specifier: ^3.0.3
         version: 3.0.3
@@ -393,12 +384,6 @@ importers:
       '@google/generative-ai':
         specifier: ^0.24.1
         version: 0.24.1
-      '@langfuse/openai':
-        specifier: ^4.6.1
-        version: 4.6.1(@opentelemetry/api@1.9.0)
-      '@langfuse/tracing':
-        specifier: ^4.6.1
-        version: 4.6.1(@opentelemetry/api@1.9.0)
       '@nexo/env':
         specifier: workspace:*
         version: link:../env
@@ -450,9 +435,6 @@ importers:
       js-yaml:
         specifier: ^4.1.1
         version: 4.1.1
-      langfuse:
-        specifier: ^3.0.0
-        version: 3.38.6
       node-nlp:
         specifier: 5.0.0-alpha.5
         version: 5.0.0-alpha.5
@@ -515,9 +497,6 @@ importers:
 
   packages/otel:
     dependencies:
-      '@langfuse/otel':
-        specifier: ^4.6.1
-        version: 4.6.1(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.6.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.213.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -1857,29 +1836,6 @@ packages:
 
   '@kwsites/promise-deferred@1.1.1':
     resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
-
-  '@langfuse/core@4.6.1':
-    resolution: {integrity: sha512-DtQoKWHQh0I0MsJxcKrBQVKAJ3fea6+raXlISVY3NDMFG/zSKkdkNouQvUXQtSCHBbOFupHMBw8imM30lbhq3g==}
-    peerDependencies:
-      '@opentelemetry/api': ^1.9.0
-
-  '@langfuse/openai@4.6.1':
-    resolution: {integrity: sha512-U07zUPkivaKi8S8a3oXDzheUhROI/A6RQLYWqGyvvbOodjPQDFLCeiHneCfaZjBss6n8CCrL8E6NSzqR1UlinQ==}
-
-  '@langfuse/otel@4.6.1':
-    resolution: {integrity: sha512-ZUa+nV5und6IYK2b5w1vXoNzU/Hfpl1MJ2uu9Woyb74ZBQi36nBwo7SeX+NLvy+n/UzKcJMetOYrA5ywlXvnuA==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@opentelemetry/api': ^1.9.0
-      '@opentelemetry/core': 2.6.0
-      '@opentelemetry/exporter-trace-otlp-http': '>=0.202.0 <1.0.0'
-      '@opentelemetry/sdk-trace-base': 2.6.0
-
-  '@langfuse/tracing@4.6.1':
-    resolution: {integrity: sha512-Ld1bPU6RxzifgGEDtN70Og8u2eL906jtnnEnt62BEOcML8UUiMgzwAKZDBbIjF2midnfac7Xnho3s546fcCDtQ==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@opentelemetry/api': ^1.9.0
 
   '@mapbox/node-pre-gyp@2.0.3':
     resolution: {integrity: sha512-uwPAhccfFJlsfCxMYTwOdVfOz3xqyj8xYL3zJj8f0pb30tLohnnFPhLuqp4/qoEz8sNxe4SESZedcBojRefIzg==}
@@ -6691,14 +6647,6 @@ packages:
     resolution: {integrity: sha512-zpGIFg0HuoC893rIjYX1BETkVWdDnzTzF5e0kWXJFg5lE0k1/LfNWBejrcnOFu8Q2Rfq/hTDTU7XLUM8QOrpzg==}
     engines: {node: '>=20.0.0'}
 
-  langfuse-core@3.38.6:
-    resolution: {integrity: sha512-EcZXa+DK9FJdi1I30+u19eKjuBJ04du6j2Nybk19KKCuraLczg/ppkTQcGvc4QOk//OAi3qUHrajUuV74RXsBQ==}
-    engines: {node: '>=18'}
-
-  langfuse@3.38.6:
-    resolution: {integrity: sha512-mtwfsNGIYvObRh+NYNGlJQJDiBN+Wr3Hnr++wN25mxuOpSTdXX+JQqVCyAqGL5GD2TAXRZ7COsN42Vmp9krYmg==}
-    engines: {node: '>=18'}
-
   launch-editor@2.12.0:
     resolution: {integrity: sha512-giOHXoOtifjdHqUamwKq6c49GzBdLjvxrd2D+Q4V6uOHopJv7p9VJxikDsQ/CBXZbEITgUqSVHXLTG3VhPP1Dg==}
 
@@ -7094,10 +7042,6 @@ packages:
 
   muggle-string@0.4.1:
     resolution: {integrity: sha512-VNTrAak/KhO2i8dqqnqnAHOa3cYBwXEZe9h+D5h/1ZqFSTEFHdM65lR7RoIqq3tBBYavsOXV84NoHXZ0AkPyqQ==}
-
-  mustache@4.2.0:
-    resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
-    hasBin: true
 
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
@@ -10261,30 +10205,6 @@ snapshots:
       - supports-color
 
   '@kwsites/promise-deferred@1.1.1': {}
-
-  '@langfuse/core@4.6.1(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-
-  '@langfuse/openai@4.6.1(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@langfuse/core': 4.6.1(@opentelemetry/api@1.9.0)
-      '@langfuse/tracing': 4.6.1(@opentelemetry/api@1.9.0)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-
-  '@langfuse/otel@4.6.1(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.6.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.213.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))':
-    dependencies:
-      '@langfuse/core': 4.6.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/core': 2.6.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/exporter-trace-otlp-http': 0.213.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/sdk-trace-base': 2.6.0(@opentelemetry/api@1.9.0)
-
-  '@langfuse/tracing@4.6.1(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@langfuse/core': 4.6.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/api': 1.9.0
 
   '@mapbox/node-pre-gyp@2.0.3':
     dependencies:
@@ -15900,14 +15820,6 @@ snapshots:
 
   kysely@0.28.11: {}
 
-  langfuse-core@3.38.6:
-    dependencies:
-      mustache: 4.2.0
-
-  langfuse@3.38.6:
-    dependencies:
-      langfuse-core: 3.38.6
-
   launch-editor@2.12.0:
     dependencies:
       picocolors: 1.1.1
@@ -16267,8 +16179,6 @@ snapshots:
       msgpackr-extract: 3.0.3
 
   muggle-string@0.4.1: {}
-
-  mustache@4.2.0: {}
 
   mz@2.7.0:
     dependencies:

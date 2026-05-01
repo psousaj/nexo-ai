@@ -23,7 +23,6 @@
 		"dev": "tsup --watch"
 	},
 	"dependencies": {
-		"@langfuse/otel": "^4.6.1",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/auto-instrumentations-node": "^0.71.0",
 		"@opentelemetry/core": "^2.6.0",
