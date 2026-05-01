@@ -7,6 +7,7 @@ import {
 	createCanonicalOutgoingEnvelope,
 	getProvider,
 	isCanonicalIncomingEnvelope,
+	isCanonicalOutgoingEnvelope,
 	isMessagingChannel,
 } from '@/adapters/messaging';
 import { env } from '@/config/env';
@@ -14,12 +15,14 @@ import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
 import { embeddingService } from '@/services/ai/embedding-service';
+import { dispatchAdapterOutputJob } from '@/services/adapter-output-dispatcher';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { loggers } from '@/utils/logger';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Queue, Worker } from 'bullmq';
+import Redis from 'ioredis';
 import { and, eq, inArray, lte } from 'drizzle-orm';
 
 /**
@@ -131,13 +134,32 @@ export const messageQueue = new Queue<IngestMessageQueueJob>('message-processing
 queueLogger.info('✅ Queue "message-processing" criada');
 
 /**
- * Queue para despacho de saída para adapters (consumida pelo app bots)
+ * Queue para despacho de saída para adapters
  */
 export const adapterOutputQueue = new Queue<AdapterOutputQueueJob>('adapter-output', {
 	connection: REDIS_BASE_OPTIONS,
 });
 
 queueLogger.info('✅ Queue "adapter-output" criada');
+
+const IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24;
+const idempotencyRedis = new Redis(REDIS_BASE_OPTIONS);
+
+export interface AdapterOutputDlqJob {
+	failedAt: string;
+	providerName: AdapterOutputQueueJob['payload']['providerName'];
+	externalId: string;
+	idempotencyKey: string;
+	attemptsMade: number;
+	errorMessage: string;
+	payload: AdapterOutputQueueJob;
+}
+
+export const adapterOutputDlqQueue = new Queue<AdapterOutputDlqJob>('adapter-output-dlq', {
+	connection: REDIS_BASE_OPTIONS,
+});
+
+queueLogger.info('✅ Queue "adapter-output-dlq" criada');
 
 /**
  * Queue para envio de respostas com retry automático
@@ -629,6 +651,89 @@ enrichmentWorker.on('failed', (job, error) => {
 	});
 });
 
+/**
+ * Worker: Processa saída de adapters (mensagens outgoing)
+ */
+async function registerIdempotencyKey(key: string): Promise<boolean> {
+	const response = await idempotencyRedis.set(
+		`nexo:outgoing:idempotency:${key}`,
+		'1',
+		'EX',
+		IDEMPOTENCY_TTL_SECONDS,
+		'NX',
+	);
+	return response === 'OK';
+}
+
+export const adapterOutputWorker = new Worker<AdapterOutputQueueJob>(
+	'adapter-output',
+	async (job) => {
+		return startSpan('queue.adapter_output.process', async (_span) => {
+			setAttributes({
+				'queue.name': 'adapter-output',
+				'queue.job_id': String(job.id),
+			});
+
+			if (!isCanonicalOutgoingEnvelope(job.data)) {
+				throw new Error('Payload inválido na adapter-output queue');
+			}
+
+			const idempotencyAccepted = await registerIdempotencyKey(job.data.idempotencyKey);
+			if (!idempotencyAccepted) {
+				queueLogger.warn('adapter-output duplicate idempotency key ignored', {
+					jobId: job.id,
+					idempotencyKey: job.data.idempotencyKey,
+					externalId: job.data.payload.externalId,
+				});
+				return;
+			}
+
+			await dispatchAdapterOutputJob(job.data);
+			setAttributes({ 'queue.status': 'dispatched' });
+		});
+	},
+	{
+		connection: REDIS_BASE_OPTIONS,
+		concurrency: 5,
+	},
+);
+
+adapterOutputWorker.on('active', (job) => {
+	queueLogger.debug({ jobId: job.id }, '🔄 [adapter-output] Job ativo');
+});
+
+adapterOutputWorker.on('failed', async (job, error) => {
+	if (!job || !isCanonicalOutgoingEnvelope(job.data)) {
+		return;
+	}
+
+	await adapterOutputDlqQueue.add(
+		'adapter-output-failed',
+		{
+			failedAt: new Date().toISOString(),
+			providerName: job.data.payload.providerName,
+			externalId: job.data.payload.externalId,
+			idempotencyKey: job.data.idempotencyKey,
+			attemptsMade: job.attemptsMade,
+			errorMessage: error.message,
+			payload: job.data,
+		},
+		{
+			removeOnComplete: 1000,
+			removeOnFail: false,
+		},
+	);
+
+	queueLogger.error('adapter-output moved to DLQ', {
+		jobId: job.id,
+		idempotencyKey: job.data.idempotencyKey,
+		externalId: job.data.payload.externalId,
+		providerName: job.data.payload.providerName,
+		attemptsMade: job.attemptsMade,
+		error: error.message,
+	});
+});
+
 // ============================================================================
 // FUNÇÕES PÚBLICAS
 // ============================================================================
@@ -827,26 +932,19 @@ export async function queueAdapterOutput(
 // GRACEFUL SHUTDOWN
 // ============================================================================
 
-async function shutdownQueues() {
+export async function shutdownQueues() {
 	await Promise.all([
 		closeConversationWorker.close(),
 		messageWorker.close(),
 		responseWorker.close(),
 		enrichmentWorker.close(),
+		adapterOutputWorker.close(),
 		closeConversationQueue.close(),
 		messageQueue.close(),
 		adapterOutputQueue.close(),
+		adapterOutputDlqQueue.close(),
 		responseQueue.close(),
 		enrichmentQueue.close(),
+		idempotencyRedis.quit(),
 	]);
 }
-
-process.on('SIGTERM', async () => {
-	queueLogger.info('🛑 Recebido SIGTERM, fechando queues e workers...');
-	await shutdownQueues();
-});
-
-process.on('SIGINT', async () => {
-	queueLogger.info('🛑 Recebido SIGINT, fechando queues e workers...');
-	await shutdownQueues();
-});

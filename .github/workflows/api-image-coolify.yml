@@ -5,9 +5,7 @@ on:
     branches: [ development ]
     paths:
       - apps/api/**
-      - apps/bots/**
       - packages/**
-      - ecosystem.config.cjs
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml

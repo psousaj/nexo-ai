@@ -1,9 +1,9 @@
-import { type AdapterOutputQueueJob, type MessagingProvider } from '@nexo/api-core/adapters/messaging';
+import { type AdapterOutputQueueJob, type MessagingProvider } from '@/adapters/messaging/types';
 
 async function resolveProvider(
 	providerName: AdapterOutputQueueJob['payload']['providerName'],
 ): Promise<MessagingProvider | null> {
-	const { getProvider } = await import('@nexo/api-core/adapters/messaging');
+	const { getProvider } = await import('@/adapters/messaging');
 	return await getProvider(providerName);
 }
 

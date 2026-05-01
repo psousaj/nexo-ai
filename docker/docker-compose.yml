@@ -46,7 +46,6 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3001}
-      BOTS_PORT: ${BOTS_PORT:-3030}
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
@@ -87,10 +86,6 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3002}
 
       PROVIDER_SPLIT: ${PROVIDER_SPLIT:-false}
-      BOTS_CONFIG_PULL_URL: ${BOTS_CONFIG_PULL_URL:-}
-      BOTS_CONFIG_PULL_TOKEN: ${BOTS_CONFIG_PULL_TOKEN:-}
-      BOTS_CONFIG_REFRESH_MS: ${BOTS_CONFIG_REFRESH_MS:-30000}
-      BOTS_CONFIG_TIMEOUT_MS: ${BOTS_CONFIG_TIMEOUT_MS:-3000}
 
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
       JAEGER_UI_URL: ${JAEGER_UI_URL:-http://localhost:16686}
@@ -117,7 +112,6 @@ services:
       NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:3002/api}
     ports:
       - "${PORT:-3001}:${PORT:-3001}"
-      - "${BOTS_PORT:-3030}:${BOTS_PORT:-3030}"
     networks:
       - nexo-runtime
 

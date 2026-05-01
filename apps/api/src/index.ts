@@ -6,6 +6,7 @@ import { shutdownSentry } from '@/sentry';
 import app from '@/server';
 import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
 import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
+import { shutdownQueues } from '@nexo/api-core/services/queue-service';
 import { logger } from '@nexo/api-core/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
@@ -50,12 +51,17 @@ async function gracefulShutdown(signal: string): Promise<void> {
 	logger.info({ signal }, '🛑 Encerrando aplicação (graceful shutdown)');
 
 	try {
+		await shutdownQueues();
+		logger.info('✅ Queues e workers fechados');
+	} catch (error) {
+		logger.error({ error }, '❌ Erro ao fechar queues durante graceful shutdown');
+	}
+
+	try {
 		await shutdownSentry();
 		logger.info('✅ Shutdown de observabilidade concluído');
 	} catch (error) {
 		logger.error({ error }, '❌ Erro durante graceful shutdown');
-	} finally {
-		process.exit(0);
 	}
 }
 
@@ -65,17 +71,6 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
 	void gracefulShutdown('SIGTERM');
-});
-
-process.on('beforeExit', async () => {
-	if (isShuttingDown) return;
-	isShuttingDown = true;
-
-	try {
-		await shutdownSentry();
-	} catch (error) {
-		logger.error({ error }, '❌ Erro no shutdown via beforeExit');
-	}
 });
 
 serve(
@@ -92,7 +87,7 @@ serve(
 		}
 
 		// Iniciar bot do Discord se configurado
-		if (apiEnv.DISCORD_BOT_TOKEN && !apiEnv.PROVIDER_SPLIT) {
+		if (apiEnv.DISCORD_BOT_TOKEN) {
 			try {
 				await startDiscordBot(apiEnv.DISCORD_BOT_TOKEN);
 			} catch (error) {

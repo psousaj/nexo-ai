@@ -33,12 +33,6 @@ export {
   queueResponse,
 } from "./services/queue-service.js";
 
-export {
-  type ProviderSplitRuntimeConfigPayload,
-  type ProviderSplitRuntimeConfigResponse,
-  isProviderSplitRuntimeConfigResponse,
-} from "./config/provider-split-runtime-config.js";
-
 // Utils
 export * from "./utils/logger.js";
 export * from "./utils/json-parser.js";
