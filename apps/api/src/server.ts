@@ -210,6 +210,9 @@ app.onError(async (error, c) => {
 // Routes
 app.route("/health", healthRouter);
 app.route("/webhook", webhookRouter);
+
+import { intakeRoutes } from "@/routes/internal/intake.routes";
+app.route("/internal/intake", intakeRoutes);
 app.route("/items", itemsRouter);
 app.route("/api/auth", authRouter);
 app.route("/api", dashboardRouter);

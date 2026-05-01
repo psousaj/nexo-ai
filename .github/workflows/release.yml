@@ -82,21 +82,4 @@ jobs:
         run: |
           echo "⚠️ Tag ${{ steps.package-version.outputs.version }} já existe. Nenhum release criado."
 
-  # Notifica New Relic do deployment após release criado
-  newrelic:
-    needs: release
-    if: needs.release.outputs.created == 'true'
-    runs-on: ubuntu-latest
-    name: New Relic Deployment Marker
-    steps:
-      - name: Set Release Version
-        id: version
-        run: echo "release_version=${{ needs.release.outputs.version }}" >> $GITHUB_OUTPUT
 
-      - name: New Relic Application Deployment Marker
-        uses: newrelic/deployment-marker-action@v2.3.0
-        with:
-          apiKey: ${{ secrets.NEW_RELIC_API_KEY }}
-          guid: ${{ secrets.NEW_RELIC_DEPLOYMENT_ENTITY_GUID }}
-          version: '${{ steps.version.outputs.release_version }}'
-          user: '${{ github.actor }}'

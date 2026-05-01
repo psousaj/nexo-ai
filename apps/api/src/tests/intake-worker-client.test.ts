@@ -2,9 +2,7 @@ import type { MultimodalIntakePayload } from '@nexo/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockEnv = {
-	INTAKE_WORKER_URL: 'http://localhost:3002',
-	INTAKE_WORKER_TIMEOUT_MS: 2000,
-	INTAKE_WORKER_TOKEN: undefined as string | undefined,
+	PORT: 3001,
 };
 
 vi.mock('@/config/env', () => ({
@@ -14,14 +12,13 @@ vi.mock('@/config/env', () => ({
 describe('IntakeWorkerClient', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
-		mockEnv.INTAKE_WORKER_TOKEN = undefined;
 	});
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
 	});
 
-	it('posts attachments to intake worker endpoint', async () => {
+	it('posts attachments to internal intake endpoint', async () => {
 		const fetchMock = vi.fn().mockResolvedValue({
 			ok: true,
 			json: async () => ({ items: [{ kind: 'image', messageId: 'msg-1', text: 'screenshot text' }] }),
@@ -45,40 +42,11 @@ describe('IntakeWorkerClient', () => {
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(fetchMock).toHaveBeenCalledWith(
-			'http://localhost:3002/intake/process',
+			'http://localhost:3001/internal/intake/process',
 			expect.objectContaining({ method: 'POST' }),
 		);
 		expect(result.items).toHaveLength(1);
 		expect(result.items[0].text).toBe('screenshot text');
-	});
-
-	it('sends bearer token when configured', async () => {
-		mockEnv.INTAKE_WORKER_TOKEN = 'worker-token';
-		const fetchMock = vi.fn().mockResolvedValue({
-			ok: true,
-			json: async () => ({ items: [] }),
-		});
-		vi.stubGlobal('fetch', fetchMock);
-
-		const { IntakeWorkerClient } = await import('@/services/intake-worker-client');
-		const client = new IntakeWorkerClient();
-
-		await client.processAttachments([
-			{
-				kind: 'audio',
-				messageId: 'msg-2',
-				userId: 'user-2',
-				mimeType: 'audio/ogg',
-				url: 'https://cdn.example/audio.ogg',
-			},
-		]);
-
-		const options = fetchMock.mock.calls[0]?.[1] as RequestInit;
-		expect(options.headers).toEqual(
-			expect.objectContaining({
-				authorization: 'Bearer worker-token',
-			}),
-		);
 	});
 
 	it('throws deterministic error on non-2xx response', async () => {
@@ -98,6 +66,6 @@ describe('IntakeWorkerClient', () => {
 					url: 'https://cdn.example/image.jpg',
 				},
 			]),
-		).rejects.toThrow('intake-worker request failed (503)');
+		).rejects.toThrow('internal intake request failed (503)');
 	});
 });
