@@ -2,6 +2,9 @@
 .env
 .env.local
 
+# Docker Evolution API credentials
+docker/evolution/.env
+
 # Baileys WhatsApp authentication
 **/baileys-auth/
 # Dependencies

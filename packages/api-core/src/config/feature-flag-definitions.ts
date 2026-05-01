@@ -58,13 +58,7 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
     category: "pivot",
     defaultEnabled: env.PROVIDER_SPLIT,
   },
-  {
-    key: "nexo.pivot.elysia-runtime",
-    label: "Elysia Runtime",
-    description: "Usa runtime Elysia (experimental)",
-    category: "pivot",
-    defaultEnabled: env.ELYSIA_RUNTIME,
-  },
+
 ];
 
 // ============================================================================
@@ -133,7 +127,7 @@ export const FLAG = {
   MULTIMODAL_AUDIO: "nexo.pivot.multimodal-audio",
   MULTIMODAL_IMAGE: "nexo.pivot.multimodal-image",
   PROVIDER_SPLIT: "nexo.pivot.provider-split",
-  ELYSIA_RUNTIME: "nexo.pivot.elysia-runtime",
+
   // Channels
   CHANNEL_TELEGRAM: "nexo.channel.telegram",
   CHANNEL_DISCORD: "nexo.channel.discord",

@@ -207,10 +207,6 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .transform((val) => val === "true")
     .default("false"),
-  ELYSIA_RUNTIME: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
 
   // Intake Worker
   INTAKE_WORKER_URL: z.string().url().default("http://localhost:3002"),

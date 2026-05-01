@@ -241,9 +241,6 @@ importers:
       '@iconify-json/simple-icons':
         specifier: ^1.2.68
         version: 1.2.70
-      '@nexo/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
       '@nexo/env':
         specifier: workspace:*
         version: link:../../packages/env
@@ -347,40 +344,6 @@ importers:
       vue-tsc:
         specifier: ^3.2.4
         version: 3.2.4(typescript@5.9.3)
-
-  apps/intake-worker:
-    dependencies:
-      '@hono/node-server':
-        specifier: ^1.19.9
-        version: 1.19.9(hono@4.11.9)
-      '@nexo/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      hono:
-        specifier: ^4.11.5
-        version: 4.11.9
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
-    devDependencies:
-      '@nexo/typescript-config':
-        specifier: workspace:*
-        version: link:../../packages/typescript-config
-      '@types/node':
-        specifier: ^20.19.30
-        version: 20.19.33
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.19.33)(lightningcss@1.31.1)(terser@5.46.0)
 
   apps/landing:
     dependencies:
@@ -527,22 +490,6 @@ importers:
       '@types/pg':
         specifier: ^8.16.0
         version: 8.16.0
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/auth:
-    dependencies:
-      better-auth:
-        specifier: ^1.4.18
-        version: 1.4.18(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(@types/pg@8.16.0)(bun-types@1.3.10)(kysely@0.28.11)(pg@8.18.0)(postgres@3.4.8))(pg@8.18.0)(vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.28(typescript@5.9.3))
-    devDependencies:
-      '@types/node':
-        specifier: ^25.2.3
-        version: 25.2.3
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
@@ -1673,12 +1620,6 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hono/node-server@1.19.9':
-    resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
-    engines: {node: '>=18.14.1'}
-    peerDependencies:
-      hono: ^4
-
   '@hono/swagger-ui@0.5.3':
     resolution: {integrity: sha512-Hn90DOOJ62ICJQplQvCDVpi9Jcn6EhtRaiffyJIS53wA5RmRLtMCDQGVc0bor8vQD7JIwpkweWjs+3cycp+IvA==}
     peerDependencies:
@@ -1846,7 +1787,6 @@ packages:
   '@img/sharp-wasm32@0.34.5':
     resolution: {integrity: sha512-OdWTEiVkY2PHwqkbBI8frFxQQFekHaSSkUIJkwzclWZe64O1X4UlUjqqqLaPbUpMOQk6FBu/HtlGXNblIs0huw==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
-    cpu: [wasm32]
 
   '@img/sharp-win32-arm64@0.34.5':
     resolution: {integrity: sha512-WQ3AgWCWYSb2yt+IG8mnC6Jdk9Whs7O0gxphblsLvdhSpSTtmu69ZG1Gkb6NuvxsNACwiPV6cNSZNzt0KPsw7g==}
@@ -10113,10 +10053,6 @@ snapshots:
       yargs: 17.7.2
 
   '@hono/node-server@1.19.11(hono@4.11.9)':
-    dependencies:
-      hono: 4.11.9
-
-  '@hono/node-server@1.19.9(hono@4.11.9)':
     dependencies:
       hono: 4.11.9
 

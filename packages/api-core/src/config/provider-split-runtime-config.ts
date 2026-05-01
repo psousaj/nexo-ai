@@ -26,8 +26,7 @@ function isPivotFeatureFlags(value: unknown): value is PivotFeatureFlags {
     typeof value.TOOL_SCHEMA_V2 === "boolean" &&
     typeof value.MULTIMODAL_AUDIO === "boolean" &&
     typeof value.MULTIMODAL_IMAGE === "boolean" &&
-    typeof value.PROVIDER_SPLIT === "boolean" &&
-    typeof value.ELYSIA_RUNTIME === "boolean"
+    typeof value.PROVIDER_SPLIT === "boolean"
   );
 }
 

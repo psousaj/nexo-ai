@@ -12,7 +12,6 @@ function makePivotFlags(
     MULTIMODAL_AUDIO: false,
     MULTIMODAL_IMAGE: false,
     PROVIDER_SPLIT: true,
-    ELYSIA_RUNTIME: false,
     ...overrides,
   };
 }
@@ -93,7 +92,6 @@ describe("internal runtime config route", () => {
           MULTIMODAL_AUDIO: false,
           MULTIMODAL_IMAGE: false,
           PROVIDER_SPLIT: true,
-          ELYSIA_RUNTIME: false,
         },
       },
     });

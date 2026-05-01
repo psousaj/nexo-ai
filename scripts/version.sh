@@ -41,11 +41,8 @@ PACKAGES=(
   "apps/api/package.json"
   "apps/dashboard/package.json"
   "apps/landing/package.json"
-  "packages/auth/package.json"
   "packages/env/package.json"
-  "packages/eslint-config/package.json"
   "packages/otel/package.json"
-  "packages/prettier-config/package.json"
   "packages/shared/package.json"
   "packages/typescript-config/package.json"
 )

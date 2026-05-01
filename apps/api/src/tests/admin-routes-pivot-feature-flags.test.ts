@@ -53,7 +53,6 @@ describe("Admin routes - pivot feature flags", () => {
       MULTIMODAL_AUDIO: true,
       MULTIMODAL_IMAGE: false,
       PROVIDER_SPLIT: false,
-      ELYSIA_RUNTIME: true,
     });
 
     const app = new Hono().route("/admin", adminRoutes);
@@ -73,11 +72,10 @@ describe("Admin routes - pivot feature flags", () => {
           MULTIMODAL_AUDIO: true,
           MULTIMODAL_IMAGE: false,
           PROVIDER_SPLIT: false,
-          ELYSIA_RUNTIME: true,
         },
         meta: {
-          enabled: 3,
-          total: 6,
+          enabled: 2,
+          total: 5,
         },
       },
     });
