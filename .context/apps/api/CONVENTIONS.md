@@ -17,8 +17,8 @@ Conventions are documented in `AGENTS.md` and `.github/copilot-instructions.md`,
 |---|---|
 | Routes grouped by domain under `routes/dashboard` | `admin.routes.ts`, `user.routes.ts` |
 | Services are singleton exports | `export const featureFlagService = ...` |
-| Prompt definitions centralized | `packages/api-core/src/config/prompts/*.yml` |
-| DB schema one file per table/domain | `packages/api-core/src/db/schema/*.ts` |
+| Prompt definitions centralized | `apps/api/src/config/prompts/*.yml` |
+| DB schema one file per table/domain | `apps/api/src/db/schema/*.ts` |
 | Middleware as explicit functions | `authMiddleware`, `adminMiddleware` |
 
 ## Import conventions

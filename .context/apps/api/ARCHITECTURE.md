@@ -7,7 +7,7 @@
 
 ## Overview
 
-The API app follows a transport-first architecture where `apps/api` owns HTTP concerns and lifecycle bootstrapping, and `packages/api-core` owns domain/runtime execution. This separation allows routes to stay relatively simple while orchestrator, queues, tools, enrichment, and persistence are reused across runtime contexts.
+The API app follows a transport-first architecture where `apps/api` owns HTTP concerns and lifecycle bootstrapping, and `apps/api/src` owns domain/runtime execution. This separation allows routes to stay relatively simple while orchestrator, queues, tools, enrichment, and persistence are reused across runtime contexts.
 
 Request handling is mixed sync/async. Synchronous HTTP APIs are used for dashboard/admin/user interactions, while webhook ingestion is asynchronous through BullMQ queues. This avoids webhook timeout pressure and centralizes retries in workers.
 
@@ -18,7 +18,7 @@ graph TD
   Client[Dashboard / External providers] --> Hono[apps/api Hono server]
   Hono --> Middlewares[CORS + logger + auth/admin middlewares]
   Hono --> Routes[Route handlers]
-  Routes --> ApiCore[packages/api-core services]
+  Routes --> ApiCore[apps/api/src services]
   Routes --> BullBoard[/admin/queues]
   ApiCore --> Queues[BullMQ queues/workers]
   Queues --> Redis[(Redis)]
@@ -34,7 +34,7 @@ graph TD
 
 - **Responsibility:** Boot Hono app, attach routes and middleware, initialize cron and queue dashboard.
 - **Location:** `apps/api/src/server.ts`, `apps/api/src/index.ts`
-- **Communicates with:** `packages/api-core`, Redis, provider adapters
+- **Communicates with:** `apps/api/src`, Redis, provider adapters
 - **Protocol:** In-process imports + HTTP
 
 ### Webhook routes
@@ -54,7 +54,7 @@ graph TD
 ### Shared runtime core
 
 - **Responsibility:** Intent classification, agent orchestration, tool execution, persistence, queue workers.
-- **Location:** `packages/api-core/src/services/*`
+- **Location:** `apps/api/src/services/*`
 - **Communicates with:** DB, Redis, LLMs, external APIs
 - **Protocol:** In-process calls + external HTTP
 
@@ -63,13 +63,13 @@ graph TD
 The observed layering is:
 
 1. **Transport Layer:** Hono routes/middleware (`apps/api/src/routes`, `apps/api/src/middlewares`).
-2. **Application Layer:** orchestration/services (`packages/api-core/src/services`).
-3. **Domain/Data Layer:** types + schema + DB services (`packages/api-core/src/types`, `packages/api-core/src/db`).
+2. **Application Layer:** orchestration/services (`apps/api/src/services`).
+3. **Domain/Data Layer:** types + schema + DB services (`apps/api/src/types`, `apps/api/src/db`).
 4. **Infrastructure Layer:** Redis/BullMQ/LLM providers/enrichment APIs.
 
 ## Cross-cutting concerns
 
-- **Authentication:** Better Auth session cookie via `authPlugin` (`packages/api-core/src/lib/auth.ts`) and `authMiddleware` (`apps/api/src/middlewares/auth.middleware.ts`).
+- **Authentication:** Better Auth session cookie via `authPlugin` (`apps/api/src/lib/auth.ts`) and `authMiddleware` (`apps/api/src/middlewares/auth.middleware.ts`).
 - **Authorization:** `adminMiddleware` checks `user.role === 'admin'` for `/api/admin/*`.
 - **Logging:** pino-based loggers via `@nexo/api-core/utils/logger`, plus Hono request logger.
 - **Error handling:** Hono `app.onError`, HTTPException handling, global error service, Sentry capture.

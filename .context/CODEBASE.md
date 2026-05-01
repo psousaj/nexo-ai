@@ -13,20 +13,19 @@ Nexo AI is a TypeScript monorepo for a multi-channel messaging assistant that ca
 
 ## Architecture at a glance
 
-Monorepo with four deployable apps (`api`, `dashboard`, `intake-worker`, `landing`) plus shared packages; the runtime-critical business logic is centralized in `packages/api-core`, while `apps/api` is the Hono delivery shell.
+Monorepo with three deployable apps (`api`, `dashboard`, `landing`) plus shared packages; the runtime-critical business logic is centralized in `apps/api/src`, while `apps/api` is the Hono delivery shell. Intake processing (multimodal attachments) is handled internally by the API at `/internal/intake/process`.
 
 ```mermaid
 graph LR
   TG[Telegram / WhatsApp / Discord] --> API[apps/api Hono API]
   API --> Q[BullMQ Queues]
-  Q --> CORE[packages/api-core services]
+  Q --> CORE[apps/api/src services]
   CORE --> PG[(PostgreSQL + pgvector)]
   CORE --> RD[(Redis)]
   CORE --> LLM[Cloudflare AI Gateway / OpenAI-compatible]
   CORE --> EXT[TMDB / YouTube / Evolution API]
   DASH[apps/dashboard Nuxt SPA] --> API
-  IW[apps/intake-worker Hono] --> SHARED[packages/shared contracts]
-  API --> SHARED
+  API --> SHARED[packages/shared contracts]
   LAND[apps/landing Vue+Vite] -. marketing .-> USERS[End users]
 ```
 
@@ -42,23 +41,23 @@ graph LR
 
 | Metric | Value |
 |--------|-------|
-| Top-level modules (`apps/*` + `packages/*`) | 10 |
-| Source files (repo scan) | 502 |
-| Test files (repo scan) | 59 |
-| Approximate LOC (`apps/*` + `packages/*`) | 54,463 |
-| Applications under `apps/` | 4 |
+| Top-level modules (`apps/*` + `packages/*`) | 8 |
+| Source files (repo scan) | ~450 |
+| Test files (repo scan) | ~55 |
+| Approximate LOC (`apps/*` + `packages/*`) | ~50,000 |
+| Applications under `apps/` | 3 |
 
 ## Critical knowledge
 
-1. Runtime orchestration is deterministic by design: the LLM plans/writes, but state transitions and execution control stay in code (`packages/api-core/src/services/agent-orchestrator.ts`).
-2. Message processing is asynchronous through BullMQ queues; webhook routes enqueue and return quickly (`apps/api/src/routes/webhook-new.ts`, `packages/api-core/src/services/queue-service.ts`).
-3. The real backend domain/service layer lives in `packages/api-core`; `apps/api` mostly wires server boot, middleware, and routes.
+1. Runtime orchestration is deterministic by design: the LLM plans/writes, but state transitions and execution control stay in code (`apps/api/src/services/agent-orchestrator.ts`).
+2. Message processing is asynchronous through BullMQ queues; webhook routes enqueue and return quickly (`apps/api/src/routes/webhook-new.ts`, `apps/api/src/services/queue-service.ts`).
+3. The real backend domain/service layer lives in `apps/api/src`; `apps/api` mostly wires server boot, middleware, and routes.
 4. Authentication uses Better Auth sessions/cookies, with explicit DB-user existence checks to avoid stale cookie cache issues (`apps/api/src/middlewares/auth.middleware.ts`).
-5. Feature flags are persisted in database tables and mirrored into OpenFeature in-memory provider at runtime (`packages/api-core/src/services/feature-flag.service.ts`).
-6. Data model relies heavily on JSONB and vector embeddings (`memory_items.embedding` 384 dims), enabling hybrid semantic + keyword search (`packages/api-core/src/services/memory-search.ts`).
+5. Feature flags are persisted in database tables and mirrored into OpenFeature in-memory provider at runtime (`apps/api/src/services/feature-flag.service.ts`).
+6. Data model relies heavily on JSONB and vector embeddings (`memory_items.embedding` 384 dims), enabling hybrid semantic + keyword search (`apps/api/src/services/memory-search.ts`).
 7. The dashboard is SPA mode (`ssr: false`) and depends on API cookies; role checks exist in both frontend middleware and backend admin middleware.
 8. `apps/landing/src/App.vue.js` appears to be generated JS committed into source; this inflates LOC and can confuse static analysis.
-9. Intake Worker is intentionally small and currently uses stub OCR/STT adapters; contract stability exists, but extraction quality is placeholder today.
+9. Multimodal intake (audio/image processing) is handled internally via `/internal/intake/process` inside the API; previously an external app, now consolidated into the API runtime.
 10. CI in this repo is currently lightweight (lint + typecheck workflow); there is no monorepo-wide automated coverage gate in GitHub Actions.
 
 ## Monorepo context documents
@@ -67,7 +66,6 @@ graph LR
 |----------|-------------|
 | API | [apps/api/CODEBASE.md](./apps/api/CODEBASE.md) |
 | Dashboard | [apps/dashboard/CODEBASE.md](./apps/dashboard/CODEBASE.md) |
-| Intake Worker | [apps/intake-worker/CODEBASE.md](./apps/intake-worker/CODEBASE.md) |
 | Landing | [apps/landing/CODEBASE.md](./apps/landing/CODEBASE.md) |
 
 ## Notes

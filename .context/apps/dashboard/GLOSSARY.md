@@ -21,4 +21,4 @@
 
 ## Notes
 
-Terminology is UI-facing and may differ from backend schema naming in `packages/api-core`.
+Terminology is UI-facing and may differ from backend schema naming in `apps/api/src`.

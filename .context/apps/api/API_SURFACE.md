@@ -58,11 +58,11 @@ Sources: `apps/api/src/routes/auth-better.routes.ts`, `apps/api/src/routes/dashb
 |---|---|---|
 | Session auth | Better Auth cookie session | `apps/api/src/middlewares/auth.middleware.ts` |
 | Role auth | `user.role === 'admin'` | `apps/api/src/middlewares/admin.middleware.ts` |
-| Better Auth config | DB + optional Redis secondary storage | `packages/api-core/src/lib/auth.ts` |
+| Better Auth config | DB + optional Redis secondary storage | `apps/api/src/lib/auth.ts` |
 
 ## Internal contracts
 
-- Route handlers call singleton services from `packages/api-core`.
+- Route handlers call singleton services from `apps/api/src`.
 - Admin endpoints also expose provider connectivity test operations and feature/tool toggles.
 - Queue interaction is direct in webhook routes and orchestrator/worker services.
 

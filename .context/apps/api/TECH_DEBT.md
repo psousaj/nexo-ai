@@ -9,15 +9,15 @@
 
 The API runtime is feature-rich and well-instrumented, but complexity has concentrated in a few large modules. Debt is primarily structural (large files, mixed responsibilities, implicit contracts) rather than foundational architecture mistakes.
 
-This debt assessment includes app shell and its direct runtime dependency `packages/api-core`, because that package is the real behavior engine for API.
+This debt assessment includes app shell and its direct runtime dependency `apps/api/src`, because that package is the real behavior engine for API.
 
 ## High-risk hotspots
 
 | Severity | Finding | Evidence |
 |---|---|---|
-| High | Orchestrator monolith | `packages/api-core/src/services/agent-orchestrator.ts` (~2110 LOC) |
-| High | Tool registry/execution concentration | `packages/api-core/src/services/tools/index.ts` (~1843 LOC) |
-| Medium | Large intent classifier with multi-strategy complexity | `packages/api-core/src/services/intent-classifier.ts` (~1038 LOC) |
+| High | Orchestrator monolith | `apps/api/src/services/agent-orchestrator.ts` (~2110 LOC) |
+| High | Tool registry/execution concentration | `apps/api/src/services/tools/index.ts` (~1843 LOC) |
+| Medium | Large intent classifier with multi-strategy complexity | `apps/api/src/services/intent-classifier.ts` (~1038 LOC) |
 | Medium | Admin route file with broad responsibilities | `apps/api/src/routes/dashboard/admin.routes.ts` (~541 LOC) |
 | Medium | Queue and message services are heavy and cross many concerns | `queue-service.ts`, `message-service.ts` |
 

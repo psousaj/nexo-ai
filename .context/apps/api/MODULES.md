@@ -7,7 +7,7 @@
 
 ## Overview
 
-`apps/api` is organized as a thin delivery layer, while most modules with business/runtime responsibilities come from `packages/api-core`. For practical maintenance, both sets must be treated as one runtime module graph.
+`apps/api` is organized as a thin delivery layer, while most modules with business/runtime responsibilities come from `apps/api/src`. For practical maintenance, both sets must be treated as one runtime module graph.
 
 ## Module inventory
 
@@ -45,7 +45,7 @@
 
 ### orchestration-core
 
-- **Path:** `packages/api-core/src/services/agent-orchestrator.ts`
+- **Path:** `apps/api/src/services/agent-orchestrator.ts`
 - **Responsibility:** deterministic runtime flow, intent-to-action routing, LLM mediation, state transitions.
 - **Internal dependencies:** classifier, conversation service, tools, queue service.
 - **External dependencies:** AI SDK/OpenAI transport.
@@ -53,7 +53,7 @@
 
 ### queue-runtime
 
-- **Path:** `packages/api-core/src/services/queue-service.ts`
+- **Path:** `apps/api/src/services/queue-service.ts`
 - **Responsibility:** queue definitions, workers, retries, delayed closing jobs.
 - **Internal dependencies:** message-service, DB, provider factory.
 - **External dependencies:** BullMQ, ioredis.
@@ -61,30 +61,30 @@
 
 ### persistence-and-schema
 
-- **Path:** `packages/api-core/src/db/**`, `packages/api-core/src/db/schema/**`
+- **Path:** `apps/api/src/db/**`, `apps/api/src/db/schema/**`
 - **Responsibility:** DB client, typed schema, relationships.
 - **Key files:**
-  - `packages/api-core/src/db/index.ts`
-  - `packages/api-core/src/db/schema/items.ts`
-  - `packages/api-core/src/db/schema/conversations.ts`
+  - `apps/api/src/db/index.ts`
+  - `apps/api/src/db/schema/items.ts`
+  - `apps/api/src/db/schema/conversations.ts`
 - **External dependencies:** drizzle-orm, postgres-js.
 
 ### tools-and-enrichment
 
-- **Path:** `packages/api-core/src/services/tools/**`, `packages/api-core/src/services/enrichment/**`
+- **Path:** `apps/api/src/services/tools/**`, `apps/api/src/services/enrichment/**`
 - **Responsibility:** strongly-typed tool execution and third-party enrichment.
 - **Key files:**
-  - `packages/api-core/src/services/tools/index.ts`
-  - `packages/api-core/src/services/enrichment/tmdb-service.ts`
+  - `apps/api/src/services/tools/index.ts`
+  - `apps/api/src/services/enrichment/tmdb-service.ts`
 - **Notes:** combines synchronous save flow with async enrichment follow-up.
 
 ### ai-provider-layer
 
-- **Path:** `packages/api-core/src/services/ai/**`
+- **Path:** `apps/api/src/services/ai/**`
 - **Responsibility:** LLM provider abstraction, embedding generation, manual tool loop runtime.
 - **Key files:**
-  - `packages/api-core/src/services/ai/index.ts`
-  - `packages/api-core/src/services/ai/ai-sdk-provider.ts`
+  - `apps/api/src/services/ai/index.ts`
+  - `apps/api/src/services/ai/ai-sdk-provider.ts`
 
 ## Dependency graph
 

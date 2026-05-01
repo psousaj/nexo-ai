@@ -7,7 +7,7 @@
 
 ## Overview
 
-The API stack is TypeScript-first and centered on Hono for HTTP routing, Drizzle for DB access, BullMQ for asynchronous processing, and OpenAI-compatible AI access through Cloudflare AI Gateway. The implementation is split between app shell (`apps/api`) and shared backend core (`packages/api-core`).
+The API stack is TypeScript-first and centered on Hono for HTTP routing, Drizzle for DB access, BullMQ for asynchronous processing, and OpenAI-compatible AI access through Cloudflare AI Gateway. The implementation is split between app shell (`apps/api`) and shared backend core (`apps/api/src`).
 
 The dependency profile shows strong integration needs: messaging providers, enrichment APIs, auth/session, observability, and queue infra. Build tooling is tsup/tsx for runtime, with Vitest for tests.
 
@@ -18,23 +18,23 @@ The dependency profile shows strong integration needs: messaging providers, enri
 | HTTP framework | Hono | `apps/api/src/server.ts` |
 | HTTP server | `@hono/node-server` | `apps/api/src/index.ts` |
 | Validation | Zod + `@hono/zod-validator` | route files in `apps/api/src/routes` |
-| Auth | Better Auth | `packages/api-core/src/lib/auth.ts` |
-| DB ORM | Drizzle ORM + postgres-js | `packages/api-core/src/db/index.ts` |
-| Queue | BullMQ + ioredis | `packages/api-core/src/services/queue-service.ts` |
-| AI | `ai` SDK + OpenAI SDK + Cloudflare AI Gateway | `packages/api-core/src/services/ai/*` |
-| Observability | Sentry + OpenTelemetry + Langfuse | `apps/api/src/sentry.ts`, `packages/otel`, `packages/api-core/src/services/langfuse.ts` |
+| Auth | Better Auth | `apps/api/src/lib/auth.ts` |
+| DB ORM | Drizzle ORM + postgres-js | `apps/api/src/db/index.ts` |
+| Queue | BullMQ + ioredis | `apps/api/src/services/queue-service.ts` |
+| AI | `ai` SDK + OpenAI SDK + Cloudflare AI Gateway | `apps/api/src/services/ai/*` |
+| Observability | Sentry + OpenTelemetry + Langfuse | `apps/api/src/sentry.ts`, `packages/otel`, `apps/api/src/services/langfuse.ts` |
 
 ## Key libraries
 
 | Library | Purpose | Evidence |
 |---|---|---|
 | `hono` | routing/middleware | `apps/api/package.json` |
-| `drizzle-orm` | SQL mapping and schema typing | `apps/api/package.json`, `packages/api-core/src/db/schema/*` |
-| `bullmq` | async job queues | `apps/api/package.json`, `packages/api-core/src/services/queue-service.ts` |
-| `ioredis` | Redis clients for queue/cache | `packages/api-core/src/config/redis.ts` |
-| `openai`, `ai`, `ai-gateway-provider` | LLM + tool runtime | `packages/api-core/package.json`, `packages/api-core/src/services/ai` |
+| `drizzle-orm` | SQL mapping and schema typing | `apps/api/package.json`, `apps/api/src/db/schema/*` |
+| `bullmq` | async job queues | `apps/api/package.json`, `apps/api/src/services/queue-service.ts` |
+| `ioredis` | Redis clients for queue/cache | `apps/api/src/config/redis.ts` |
+| `openai`, `ai`, `ai-gateway-provider` | LLM + tool runtime | `apps/api/src/package.json`, `apps/api/src/services/ai` |
 | `node-nlp` | neural intent classifier component | `apps/api/package.json` |
-| `discord.js` | Discord messaging adapter | `packages/api-core/package.json` |
+| `discord.js` | Discord messaging adapter | `apps/api/src/package.json` |
 
 ## Build, test, and local run
 

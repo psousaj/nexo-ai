@@ -7,17 +7,17 @@
 
 ## Overview
 
-The API data layer uses PostgreSQL through Drizzle ORM and `postgres` driver, with schemas centralized in `packages/api-core/src/db/schema`. Redis is used for queue transport and selective caching. Semantic retrieval combines pgvector embeddings and PostgreSQL FTS.
+The API data layer uses PostgreSQL through Drizzle ORM and `postgres` driver, with schemas centralized in `apps/api/src/db/schema`. Redis is used for queue transport and selective caching. Semantic retrieval combines pgvector embeddings and PostgreSQL FTS.
 
-Migrations are managed by Drizzle Kit from `apps/api`, but schema source of truth points to `packages/api-core`.
+Migrations are managed by Drizzle Kit from `apps/api`, but schema source of truth points to `apps/api/src`.
 
 ## Databases and stores
 
 | Store | Purpose | Main files |
 |---|---|---|
-| PostgreSQL | transactional and conversational persistence | `packages/api-core/src/db/index.ts` |
-| pgvector extension usage | semantic embeddings on memory and external items | `packages/api-core/src/db/schema/items.ts`, `semantic-external-items.ts` |
-| Redis | BullMQ queues + cache helpers | `packages/api-core/src/config/redis.ts` |
+| PostgreSQL | transactional and conversational persistence | `apps/api/src/db/index.ts` |
+| pgvector extension usage | semantic embeddings on memory and external items | `apps/api/src/db/schema/items.ts`, `semantic-external-items.ts` |
+| Redis | BullMQ queues + cache helpers | `apps/api/src/config/redis.ts` |
 
 ## Core tables
 
@@ -37,7 +37,7 @@ Migrations are managed by Drizzle Kit from `apps/api`, but schema source of trut
 | Item | Value |
 |---|---|
 | Drizzle config | `apps/api/drizzle.config.ts` |
-| Schema source | `../../packages/api-core/src/db/schema/index.ts` |
+| Schema source | `../../apps/api/src/db/schema/index.ts` |
 | Output folder | `apps/api/drizzle` |
 | Commands | `pnpm db:generate`, `pnpm db:push`, `pnpm db:studio` |
 
@@ -51,7 +51,7 @@ const item = await db.query.memoryItems.findFirst({
 });
 ```
 
-Source: `packages/api-core/src/services/memory-search.ts`
+Source: `apps/api/src/services/memory-search.ts`
 
 ### Hybrid semantic + keyword query
 
@@ -62,7 +62,7 @@ FROM memory_items
 ORDER BY embedding <=> $query::vector ASC
 ```
 
-Source: `packages/api-core/src/services/memory-search.ts`
+Source: `apps/api/src/services/memory-search.ts`
 
 ## Caching strategy
 

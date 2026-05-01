@@ -15,7 +15,7 @@ At the same time, some modules became large and multi-responsibility, creating l
 
 | Pattern | Where | Status |
 |---|---|---|
-| Deterministic runtime over LLM | `packages/api-core/src/services/agent-orchestrator.ts` | Consistent |
+| Deterministic runtime over LLM | `apps/api/src/services/agent-orchestrator.ts` | Consistent |
 | Queue-based webhook processing | `apps/api/src/routes/webhook-new.ts`, `queue-service.ts` | Consistent |
 | Service singleton exports | many `services/*.ts` files | Consistent |
 | DB-first feature flags + OpenFeature provider | `feature-flag.service.ts` | Consistent |
@@ -54,7 +54,7 @@ await db.update(featureFlags)
 this.provider.putConfiguration(config);
 ```
 
-Source: `packages/api-core/src/services/feature-flag.service.ts`
+Source: `apps/api/src/services/feature-flag.service.ts`
 
 ## Error handling strategy
 

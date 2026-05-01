@@ -7,7 +7,7 @@
 
 ## Overview
 
-The API app uses Vitest in Node environment and includes a broad set of tests around orchestrator behavior, adapters, runtime guards, feature flags, enrichment, and transport boundaries. The test suite count is high for the app shell because tests frequently target `packages/api-core` behavior through API-level aliases.
+The API app uses Vitest in Node environment and includes a broad set of tests around orchestrator behavior, adapters, runtime guards, feature flags, enrichment, and transport boundaries. The test suite count is high for the app shell because tests frequently target `apps/api/src` behavior through API-level aliases.
 
 Coverage reporters are configured in Vitest, but CI workflow currently emphasizes lint/typecheck and does not enforce coverage thresholds in GitHub Actions.
 

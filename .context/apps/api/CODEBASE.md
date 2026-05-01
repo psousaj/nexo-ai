@@ -9,11 +9,11 @@
 
 ## What is this
 
-`apps/api` is the Hono runtime shell for Nexo AI backend delivery. It exposes HTTP routes for health, webhooks, dashboard APIs, auth, and docs, while delegating most business logic to `packages/api-core`. It also boots observability, feature flags, Discord bot startup, queue workers, and graceful shutdown behavior.
+`apps/api` is the Hono runtime shell for Nexo AI backend delivery. It exposes HTTP routes for health, webhooks, dashboard APIs, auth, and docs, while delegating most business logic to `apps/api/src`. It also boots observability, feature flags, Discord bot startup, queue workers, and graceful shutdown behavior.
 
 ## Architecture at a glance
 
-Thin transport layer (`apps/api`) + shared domain/application layer (`packages/api-core`) + async queue processing (`BullMQ`).
+Thin transport layer (`apps/api`) + shared domain/application layer (`apps/api/src`) + async queue processing (`BullMQ`).
 
 ```mermaid
 graph TD
@@ -47,14 +47,14 @@ graph TD
 
 ## Critical knowledge
 
-1. `apps/api/src/index.ts` only boots server/integration concerns; business logic is mostly in `packages/api-core`.
+1. `apps/api/src/index.ts` only boots server/integration concerns; business logic is mostly in `apps/api/src`.
 2. Webhooks enqueue jobs and return quickly; heavy processing is handled by workers.
 3. Auth is Better Auth cookie-based and validated again against DB user existence.
 4. Admin endpoints are protected by both auth and role middleware.
 5. Runtime feature flags are loaded from DB and surfaced through OpenFeature.
 6. Queue workers are created on app startup and connected to Redis immediately.
 7. OpenAPI docs are manually defined and not fully generated from route schemas.
-8. Some critical behavior is in large files (`agent-orchestrator.ts`, `tools/index.ts`) under `packages/api-core`.
+8. Some critical behavior is in large files (`agent-orchestrator.ts`, `tools/index.ts`) under `apps/api/src`.
 
 ## Context documents
 

@@ -15,21 +15,21 @@ Data enters from messaging webhooks or dashboard actions, is transformed by clas
 
 | Entity | Responsibility | Key fields | Source |
 |---|---|---|---|
-| User | Account root identity | `id`, `email`, `status`, `role` | `packages/api-core/src/db/schema/users.ts` |
-| UserChannel | Link user to messaging providers | `channel`, `channelUserId` | `packages/api-core/src/db/schema/user-channels.ts` |
-| Conversation | Stateful chat session | `state`, `context`, `closeAt` | `packages/api-core/src/db/schema/conversations.ts` |
-| Message | Chat history records | `role`, `content`, provider metadata | `packages/api-core/src/db/schema/messages.ts` |
-| MemoryItem | Saved user memory artifact | `type`, `title`, `metadata`, `embedding` | `packages/api-core/src/db/schema/items.ts` |
-| SemanticExternalItem | Cached third-party enrichment payload | `externalId`, `provider`, `rawData`, `embedding` | `packages/api-core/src/db/schema/semantic-external-items.ts` |
-| FeatureFlag | Runtime behavior toggles | `key`, `category`, `enabled` | `packages/api-core/src/db/schema/feature-flags.ts` |
-| GlobalTool | Tool availability controls | `toolName`, `enabled` | `packages/api-core/src/db/schema/global-tools.ts` |
+| User | Account root identity | `id`, `email`, `status`, `role` | `apps/api/src/db/schema/users.ts` |
+| UserChannel | Link user to messaging providers | `channel`, `channelUserId` | `apps/api/src/db/schema/user-channels.ts` |
+| Conversation | Stateful chat session | `state`, `context`, `closeAt` | `apps/api/src/db/schema/conversations.ts` |
+| Message | Chat history records | `role`, `content`, provider metadata | `apps/api/src/db/schema/messages.ts` |
+| MemoryItem | Saved user memory artifact | `type`, `title`, `metadata`, `embedding` | `apps/api/src/db/schema/items.ts` |
+| SemanticExternalItem | Cached third-party enrichment payload | `externalId`, `provider`, `rawData`, `embedding` | `apps/api/src/db/schema/semantic-external-items.ts` |
+| FeatureFlag | Runtime behavior toggles | `key`, `category`, `enabled` | `apps/api/src/db/schema/feature-flags.ts` |
+| GlobalTool | Tool availability controls | `toolName`, `enabled` | `apps/api/src/db/schema/global-tools.ts` |
 
 ## Bounded contexts
 
 | Context | Main files | Notes |
 |---|---|---|
-| Messaging ingress | `apps/api/src/routes/webhook-new.ts`, `packages/api-core/src/adapters/messaging/*` | Provider parsing + verification |
-| Conversation runtime | `packages/api-core/src/services/agent-orchestrator.ts`, `conversation-service.ts` | Deterministic runtime rules |
+| Messaging ingress | `apps/api/src/routes/webhook-new.ts`, `apps/api/src/adapters/messaging/*` | Provider parsing + verification |
+| Conversation runtime | `apps/api/src/services/agent-orchestrator.ts`, `conversation-service.ts` | Deterministic runtime rules |
 | Memory management | `item-service.ts`, `tools/index.ts`, `memory-search.ts` | CRUD + semantic/keyword retrieval |
 | Auth and account linking | `lib/auth.ts`, `account-linking-service.ts`, `user.routes.ts` | Better Auth + token linking |
 | Admin/operations | `apps/api/src/routes/dashboard/admin.routes.ts` | Flags, tools, connectivity, conversation audit |
