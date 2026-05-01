@@ -1,15 +1,15 @@
 import {
   getWhatsAppSettings,
   invalidateWhatsAppProviderCache,
-} from "@nexo/api-core/adapters/messaging";
-import { env } from "@nexo/api-core/config/env";
-import { getPivotFeatureFlags } from "@nexo/api-core/config/pivot-feature-flags";
-import { adminService } from "@nexo/api-core/services/admin-service";
-import { embeddingService } from "@nexo/api-core/services/ai/embedding-service";
-import { evolutionService } from "@nexo/api-core/services/evolution-service";
-import { featureFlagService } from "@nexo/api-core/services/feature-flag.service";
-import { getSystemTools } from "@nexo/api-core/services/tools/registry";
-import { toolService } from "@nexo/api-core/services/tools/tool.service";
+} from "@/adapters/messaging";
+import { env } from "@/config/env";
+import { getPivotFeatureFlags } from "@/config/pivot-feature-flags";
+import { adminService } from "@/services/admin-service";
+import { embeddingService } from "@/services/ai/embedding-service";
+import { evolutionService } from "@/services/evolution-service";
+import { featureFlagService } from "@/services/feature-flag.service";
+import { getSystemTools } from "@/services/tools/registry";
+import { toolService } from "@/services/tools/tool.service";
 import { Hono } from "hono";
 
 function toConnectionStatus(
@@ -494,8 +494,8 @@ export const adminRoutes = new Hono()
       }
 
       const { buildAgentPrompt } =
-        await import("@nexo/api-core/config/prompt-builder");
-      const { llmService } = await import("@nexo/api-core/services/ai");
+        await import("@/config/prompt-builder");
+      const { llmService } = await import("@/services/ai");
 
       const systemPrompt = buildAgentPrompt({
         assistantName: "Nexo",

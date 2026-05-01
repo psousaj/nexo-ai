@@ -1,5 +1,5 @@
-import { itemService } from '@nexo/api-core/services/item-service';
-import { logger } from '@nexo/api-core/utils/logger';
+import { itemService } from '@/services/item-service';
+import { logger } from '@/utils/logger';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';

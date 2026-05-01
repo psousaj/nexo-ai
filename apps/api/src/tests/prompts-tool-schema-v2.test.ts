@@ -1,4 +1,4 @@
-import { buildAgentPrompt, buildClarificationPrompt, buildIntentClassifierPrompt } from '@nexo/api-core/config/prompt-builder';
+import { buildAgentPrompt, buildClarificationPrompt, buildIntentClassifierPrompt } from '@/config/prompt-builder';
 import { describe, expect, test } from 'vitest';
 
 describe('yaml prompt builders', () => {

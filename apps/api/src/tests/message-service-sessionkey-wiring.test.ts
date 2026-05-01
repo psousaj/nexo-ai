@@ -1,7 +1,7 @@
-import type { IncomingMessage, MessagingProvider } from '@nexo/api-core/adapters/messaging';
-import { ERROR_MESSAGES } from '@nexo/api-core/config/message-templates';
-import { agentOrchestrator } from '@nexo/api-core/services/agent-orchestrator';
-import { processMessage } from '@nexo/api-core/services/message-service';
+import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
+import { ERROR_MESSAGES } from '@/config/message-templates';
+import { agentOrchestrator } from '@/services/agent-orchestrator';
+import { processMessage } from '@/services/message-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('@nexo/otel/tracing', () => ({
@@ -15,7 +15,7 @@ vi.mock('@sentry/node', () => ({
 	captureException: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/agent-orchestrator', () => ({
+vi.mock('@/services/agent-orchestrator', () => ({
 	agentOrchestrator: {
 		processMessage: vi.fn().mockResolvedValue({
 			message: 'ok',
@@ -24,19 +24,19 @@ vi.mock('@nexo/api-core/services/agent-orchestrator', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/services/command-handler.service', () => ({
+vi.mock('@/services/command-handler.service', () => ({
 	commandHandlerService: {
 		handleCommand: vi.fn().mockResolvedValue(false),
 	},
 }));
 
-vi.mock('@nexo/api-core/services/message-analysis/message-analyzer.service', () => ({
+vi.mock('@/services/message-analysis/message-analyzer.service', () => ({
 	messageAnalyzer: {
 		analyzeSentiment: vi.fn().mockResolvedValue({ score: 0, sentiment: 'neutral' }),
 	},
 }));
 
-vi.mock('@nexo/api-core/services/user-service', () => ({
+vi.mock('@/services/user-service', () => ({
 	userService: {
 		getUserById: vi.fn().mockResolvedValue(null),
 		findOrCreateUserByAccount: vi.fn().mockResolvedValue({ user: { id: 'user-1', status: 'active', name: 'User' } }),
@@ -49,13 +49,13 @@ vi.mock('@nexo/api-core/services/user-service', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/services/conversation-service', () => ({
+vi.mock('@/services/conversation-service', () => ({
 	conversationService: {
 		findOrCreateConversation: vi.fn().mockResolvedValue({ id: 'conv-1', state: 'idle' }),
 	},
 }));
 
-vi.mock('@nexo/api-core/config/env', () => ({
+vi.mock('@/config/env', () => ({
 	env: {
 		DASHBOARD_URL: 'http://localhost:5173',
 		TELEGRAM_BOT_TOKEN: 'test-bot-token',
@@ -66,14 +66,14 @@ vi.mock('@nexo/api-core/config/env', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/services/onboarding-service', () => ({
+vi.mock('@/services/onboarding-service', () => ({
 	onboardingService: {
 		checkOnboardingStatus: vi.fn().mockResolvedValue({ allowed: true }),
 		incrementInteractionCount: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
-vi.mock('@nexo/api-core/services/queue-service', () => ({
+vi.mock('@/services/queue-service', () => ({
 	cancelConversationClose: vi.fn().mockResolvedValue(undefined),
 }));
 

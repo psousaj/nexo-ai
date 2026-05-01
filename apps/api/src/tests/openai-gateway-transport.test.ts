@@ -1,7 +1,7 @@
 import {
 	OpenAIGatewayTransport,
-} from '@nexo/api-core/services/ai/openai-gateway-transport';
-import { mapOpenAIFinishReasonToRuntimeStopReason } from '@nexo/api-core/services/ai/runtime-contract';
+} from '@/services/ai/openai-gateway-transport';
+import { mapOpenAIFinishReasonToRuntimeStopReason } from '@/services/ai/runtime-contract';
 import OpenAI from 'openai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

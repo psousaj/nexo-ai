@@ -9,7 +9,7 @@ config({
 });
 
 export default defineConfig({
-	schema: '../../packages/api-core/src/db/schema/index.ts',
+	schema: './src/db/schema/index.ts',
 	out: './drizzle',
 	dialect: 'postgresql',
 	dbCredentials: {

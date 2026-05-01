@@ -1,8 +1,8 @@
-import type { ConversationState } from '@nexo/api-core/types';
+import type { ConversationState } from '@/types';
 import { describe, expect, test, vi } from 'vitest';
-import { decideAgentAction } from '@nexo/api-core/services/agent-action-routing';
-import type { IntentResult } from '@nexo/api-core/services/intent-classifier';
-import { isValidAgentResponse, normalizeAgentResponse, parseJSONFromLLM } from '@nexo/api-core/utils/json-parser';
+import { decideAgentAction } from '@/services/agent-action-routing';
+import type { IntentResult } from '@/services/intent-classifier';
+import { isValidAgentResponse, normalizeAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
 
 const { mockMetricIncrement } = vi.hoisted(() => ({
 	mockMetricIncrement: vi.fn(),

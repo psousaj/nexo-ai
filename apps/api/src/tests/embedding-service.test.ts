@@ -1,4 +1,4 @@
-import { EmbeddingService } from '@nexo/api-core/services/ai/embedding-service';
+import { EmbeddingService } from '@/services/ai/embedding-service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('EmbeddingService', () => {

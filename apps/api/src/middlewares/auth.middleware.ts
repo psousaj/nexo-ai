@@ -1,5 +1,5 @@
-import { authPlugin } from '@nexo/api-core/lib/auth';
-import { userService } from '@nexo/api-core/services/user-service';
+import { authPlugin } from '@/lib/auth';
+import { userService } from '@/services/user-service';
 import type { Context, Next } from 'hono';
 
 /**

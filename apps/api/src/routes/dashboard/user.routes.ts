@@ -1,13 +1,13 @@
-import { getProvider } from '@nexo/api-core/adapters/messaging';
-import { env } from '@nexo/api-core/config/env';
-import { getChannelLinkSuccessMessage } from '@nexo/api-core/config/message-templates';
-import { db } from '@nexo/api-core/db';
-import { type MessagingChannel, accounts as betterAuthAccounts, messagingChannelEnum, userChannels } from '@nexo/api-core/db/schema';
-import { accountLinkingService } from '@nexo/api-core/services/account-linking-service';
-import { preferencesService } from '@nexo/api-core/services/preferences-service';
-import { userService } from '@nexo/api-core/services/user-service';
-import type { AuthContext } from '@nexo/api-core/types/hono';
-import { loggers } from '@nexo/api-core/utils/logger';
+import { getProvider } from '@/adapters/messaging';
+import { env } from '@/config/env';
+import { getChannelLinkSuccessMessage } from '@/config/message-templates';
+import { db } from '@/db';
+import { type MessagingChannel, accounts as betterAuthAccounts, messagingChannelEnum, userChannels } from '@/db/schema';
+import { accountLinkingService } from '@/services/account-linking-service';
+import { preferencesService } from '@/services/preferences-service';
+import { userService } from '@/services/user-service';
+import type { AuthContext } from '@/types/hono';
+import { loggers } from '@/utils/logger';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -108,7 +108,7 @@ export const userRoutes = new Hono<AuthContext>()
 		const discordUserId = oauthAccount.accountId;
 
 		// Verifica se o bot está em algum servidor que o usuário é dono
-		const { findGuildOwnedByUser } = await import('@nexo/api-core/adapters/messaging/discord-adapter');
+		const { findGuildOwnedByUser } = await import('@/adapters/messaging/discord-adapter');
 		const guild = await findGuildOwnedByUser(discordUserId);
 
 		if (guild) {

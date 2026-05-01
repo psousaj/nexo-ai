@@ -5,8 +5,8 @@
  * usando os embeddings reais do Cloudflare Workers AI
  */
 
-import { embeddingService } from '@nexo/api-core/services/ai/embedding-service';
-import { loggers } from '@nexo/api-core/utils/logger';
+import { embeddingService } from '@/services/ai/embedding-service';
+import { loggers } from '@/utils/logger';
 import { cosineSimilarity } from 'ai';
 
 async function testAISimilarity() {

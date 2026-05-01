@@ -1,5 +1,5 @@
-import { db } from '@nexo/api-core/db';
-import { userChannels, users } from '@nexo/api-core/db/schema';
+import { db } from '@/db';
+import { userChannels, users } from '@/db/schema';
 
 async function checkDuplicates() {
 	console.log('--- Checking for Duplicate Users ---');

@@ -5,7 +5,7 @@ const { mockGetBooleanValue } = vi.hoisted(() => ({
 	mockGetBooleanValue: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/feature-flag.service', () => ({
+vi.mock('@/services/feature-flag.service', () => ({
 	featureFlagClient: vi.fn(() => ({
 		getBooleanValue: mockGetBooleanValue,
 	})),
@@ -21,7 +21,7 @@ describe('Pivot feature flags', () => {
 		// Simula BD retornando valores padrão (como se env não estivesse setada)
 		mockGetBooleanValue.mockImplementation((_key: string, defaultValue: boolean) => Promise.resolve(defaultValue));
 
-		const { getPivotFeatureFlags } = await import('@nexo/api-core/config/pivot-feature-flags');
+		const { getPivotFeatureFlags } = await import('@/config/pivot-feature-flags');
 		const flags = await getPivotFeatureFlags();
 
 		expect(flags).toEqual({
@@ -44,7 +44,7 @@ describe('Pivot feature flags', () => {
 
 		mockGetBooleanValue.mockImplementation((key: string) => Promise.resolve(bdValues[key] ?? false));
 
-		const { getPivotFeatureFlags } = await import('@nexo/api-core/config/pivot-feature-flags');
+		const { getPivotFeatureFlags } = await import('@/config/pivot-feature-flags');
 		const flags = await getPivotFeatureFlags();
 
 		expect(flags).toEqual({

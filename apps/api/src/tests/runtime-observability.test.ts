@@ -1,7 +1,7 @@
 import {
 	buildRuntimeObservabilityAttributes,
 	summarizeRuntimeRounds,
-} from '@nexo/api-core/services/ai/runtime-observability';
+} from '@/services/ai/runtime-observability';
 import { describe, expect, it } from 'vitest';
 
 describe('runtime observability', () => {

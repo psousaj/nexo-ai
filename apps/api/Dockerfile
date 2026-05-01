@@ -14,7 +14,6 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 
 # Copia package.json dos workspaces usados pela API
 COPY apps/api/package.json apps/api/
-COPY packages/api-core/package.json packages/api-core/
 COPY packages/shared/package.json packages/shared/
 COPY packages/env/package.json packages/env/
 COPY packages/otel/package.json packages/otel/
@@ -48,7 +47,6 @@ WORKDIR /app
 # Reusa node_modules completos do stage deps para garantir tsx em runtime
 COPY --from=deps /app/node_modules/ node_modules/
 COPY --from=deps /app/apps/api/node_modules/ apps/api/node_modules/
-COPY --from=deps /app/packages/api-core/node_modules/ packages/api-core/node_modules/
 COPY --from=deps /app/packages/env/node_modules/ packages/env/node_modules/
 COPY --from=deps /app/packages/otel/node_modules/ packages/otel/node_modules/
 COPY --from=deps /app/packages/shared/node_modules/ packages/shared/node_modules/
@@ -56,7 +54,6 @@ COPY --from=deps /app/packages/shared/node_modules/ packages/shared/node_modules
 # Metadados de workspace necessários para resolução de pacotes pnpm
 COPY --from=deps /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/package.json /app/turbo.json ./
 COPY --from=deps /app/apps/api/package.json apps/api/
-COPY --from=deps /app/packages/api-core/package.json packages/api-core/
 COPY --from=deps /app/packages/shared/package.json packages/shared/
 COPY --from=deps /app/packages/env/package.json packages/env/
 COPY --from=deps /app/packages/otel/package.json packages/otel/
@@ -70,19 +67,19 @@ COPY --from=builder /app/packages/otel/dist/ packages/otel/dist/
 # Dist da API
 COPY --from=builder /app/apps/api/dist/ apps/api/dist/
 
-# O pacote api-core ainda exporta de src; mantém fontes + tsconfig para runtime
-COPY --from=builder /app/packages/api-core/src/ packages/api-core/src/
-COPY --from=builder /app/packages/api-core/tsconfig.json packages/api-core/tsconfig.json
+# Mantém fontes TS + tsconfig para runtime com tsx loader
+COPY --from=builder /app/apps/api/src/ apps/api/src/
+COPY --from=builder /app/apps/api/tsconfig.json apps/api/tsconfig.json
 COPY --from=builder /app/packages/typescript-config/ packages/typescript-config/
 
 ENV NODE_ENV=production
 
-# Runtime atual precisa do tsx loader para resolver imports TS de @nexo/api-core.
+# Runtime precisa do tsx loader para resolver imports TS internos
 ENV NODE_OPTIONS=--import=/app/apps/api/node_modules/tsx/dist/loader.mjs
-ENV TSX_TSCONFIG_PATH=/app/packages/api-core/tsconfig.json
+ENV TSX_TSCONFIG_PATH=/app/apps/api/tsconfig.json
 
 # Garante caminho explícito do modelo NLP em produção
-ENV NEXO_MODEL_PATH=/app/packages/api-core/src/services/message-analysis/training/model/nexo-model.nlp
+ENV NEXO_MODEL_PATH=/app/apps/api/src/services/message-analysis/training/model/nexo-model.nlp
 
 EXPOSE 3001
 

@@ -4,12 +4,12 @@
  * Valida os fluxos de enriquecimento em background e fallback síncrono.
  */
 
-import { db } from '@nexo/api-core/db';
-import { authProviders, memoryItems, semanticExternalItems, users } from '@nexo/api-core/db/schema';
-import { tmdbService } from '@nexo/api-core/services/enrichment/tmdb-service';
-import { itemService } from '@nexo/api-core/services/item-service';
-import { enrichmentQueue } from '@nexo/api-core/services/queue-service';
-import { loggers } from '@nexo/api-core/utils/logger';
+import { db } from '@/db';
+import { authProviders, memoryItems, semanticExternalItems, users } from '@/db/schema';
+import { tmdbService } from '@/services/enrichment/tmdb-service';
+import { itemService } from '@/services/item-service';
+import { enrichmentQueue } from '@/services/queue-service';
+import { loggers } from '@/utils/logger';
 import { and, eq } from 'drizzle-orm';
 
 async function testEnrichmentFlow() {

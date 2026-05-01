@@ -15,16 +15,16 @@ const {
   mockConnectInstance: vi.fn(),
 }));
 
-vi.mock("@nexo/api-core/config/pivot-feature-flags", () => ({
+vi.mock("@/config/pivot-feature-flags", () => ({
   getPivotFeatureFlags: mockGetPivotFeatureFlags,
 }));
 
-vi.mock("@nexo/api-core/adapters/messaging", () => ({
+vi.mock("@/adapters/messaging", () => ({
   getWhatsAppSettings: mockGetWhatsAppSettings,
   invalidateWhatsAppProviderCache: mockInvalidateCache,
 }));
 
-vi.mock("@nexo/api-core/services/evolution-service", () => ({
+vi.mock("@/services/evolution-service", () => ({
   evolutionService: {
     getConnectionState: mockGetConnectionState,
     connectInstance: mockConnectInstance,

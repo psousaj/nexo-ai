@@ -1,11 +1,11 @@
-import { getApiEnv } from "@nexo/api-core/config/env";
+import { getApiEnv } from "@/config/env";
 import { authRouter } from "@/routes/auth-better.routes";
 import { dashboardRouter } from "@/routes/dashboard";
 import { healthRouter } from "@/routes/health";
 import { itemsRouter } from "@/routes/items";
 import { webhookRoutes as webhookRouter } from "@/routes/webhook-new";
 import { sentryLogger } from "@/sentry";
-import { globalErrorHandler } from "@nexo/api-core/services/error/error.service";
+import { globalErrorHandler } from "@/services/error/error.service";
 import {
   adapterOutputQueue,
   closeConversationQueue,
@@ -14,7 +14,7 @@ import {
   responseQueue,
   runAwaitingConfirmationTimeoutCron,
   runConversationCloseCron,
-} from "@nexo/api-core/services/queue-service";
+} from "@/services/queue-service";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
@@ -28,7 +28,7 @@ import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import cron from "node-cron";
 import pkg from "../package.json";
-import { loggers } from "@nexo/api-core/utils/logger";
+import { loggers } from "@/utils/logger";
 
 const app = new Hono();
 const apiEnv = getApiEnv();

@@ -1,4 +1,4 @@
-import { CloudflareAIGatewayProvider } from '@nexo/api-core/services/ai/cloudflare-ai-gateway-provider';
+import { CloudflareAIGatewayProvider } from '@/services/ai/cloudflare-ai-gateway-provider';
 import OpenAI from 'openai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

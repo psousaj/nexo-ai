@@ -16,8 +16,6 @@ export default defineConfig({
 		},
 	},
 	resolve: {
-		alias: {
-			'@nexo/api-core': resolve(__dirname, '../../packages/api-core/src'),
-		},
+		alias: {},
 	},
 });

@@ -1,4 +1,4 @@
-import { loggers } from "@nexo/api-core/utils/logger";
+import { loggers } from "@/utils/logger";
 import { afterAll, beforeAll } from "vitest";
 
 // Configurar variáveis de ambiente para testes

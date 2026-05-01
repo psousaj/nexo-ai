@@ -1,10 +1,10 @@
-import { evaluateExecutionReadiness } from '@nexo/api-core/services/execution-readiness';
-import type { IntentResult } from '@nexo/api-core/services/intent-classifier';
+import { evaluateExecutionReadiness } from '@/services/execution-readiness';
+import type { IntentResult } from '@/services/intent-classifier';
 import type {
 	AmbiguityAnalysisResult,
 	ToneAnalysisResult,
-} from '@nexo/api-core/services/message-analysis/types/analysis-result.types';
-import type { ConversationState } from '@nexo/api-core/types';
+} from '@/services/message-analysis/types/analysis-result.types';
+import type { ConversationState } from '@/types';
 import { describe, expect, test } from 'vitest';
 
 function makeIntent(overrides: Partial<IntentResult>): IntentResult {

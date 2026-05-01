@@ -1,5 +1,5 @@
-import { env } from "@nexo/api-core/config/env";
-import { logger } from "@nexo/api-core/utils/logger";
+import { env } from "@/config/env";
+import { logger } from "@/utils/logger";
 import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 

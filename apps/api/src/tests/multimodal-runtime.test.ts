@@ -1,16 +1,16 @@
-import type { MessageMetadata } from '@nexo/api-core/adapters/messaging';
+import type { MessageMetadata } from '@/adapters/messaging';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const processAttachmentsMock = vi.fn();
 const getPivotFeatureFlagsMock = vi.fn();
 
-vi.mock('@nexo/api-core/services/intake-worker-client', () => ({
+vi.mock('@/services/intake-worker-client', () => ({
 	intakeWorkerClient: {
 		processAttachments: processAttachmentsMock,
 	},
 }));
 
-vi.mock('@nexo/api-core/config/pivot-feature-flags', () => ({
+vi.mock('@/config/pivot-feature-flags', () => ({
 	getPivotFeatureFlags: getPivotFeatureFlagsMock,
 }));
 
@@ -45,7 +45,7 @@ describe('applyMultimodalRuntime', () => {
 			items: [{ kind: 'image', messageId: 'msg-1', text: 'cartaz do filme' }],
 		});
 
-		const { applyMultimodalRuntime } = await import('@nexo/api-core/services/multimodal-runtime');
+		const { applyMultimodalRuntime } = await import('@/services/multimodal-runtime');
 		const result = await applyMultimodalRuntime(
 			'quero salvar isso',
 			createMetadata({
@@ -80,7 +80,7 @@ describe('applyMultimodalRuntime', () => {
 	it('keeps deterministic text path and tags failure metadata when worker fails', async () => {
 		processAttachmentsMock.mockRejectedValue(new Error('down'));
 
-		const { applyMultimodalRuntime } = await import('@nexo/api-core/services/multimodal-runtime');
+		const { applyMultimodalRuntime } = await import('@/services/multimodal-runtime');
 		const result = await applyMultimodalRuntime(
 			'mensagem original',
 			createMetadata({
@@ -129,7 +129,7 @@ describe('applyMultimodalRuntime', () => {
 			],
 		});
 
-		const { applyMultimodalRuntime } = await import('@nexo/api-core/services/multimodal-runtime');
+		const { applyMultimodalRuntime } = await import('@/services/multimodal-runtime');
 		const result = await applyMultimodalRuntime('texto sem mudança', metadata);
 
 		expect(processAttachmentsMock).not.toHaveBeenCalled();

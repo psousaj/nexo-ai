@@ -6,10 +6,10 @@
  * ADR-019: Pluggable Tools System with CASL Protection
  */
 
-import { toolAvailabilityService } from '@nexo/api-core/services/tool-availability.service';
-import { getAllTools } from '@nexo/api-core/services/tools/registry';
-import { toolService } from '@nexo/api-core/services/tools/tool.service';
-import { loggers } from '@nexo/api-core/utils/logger';
+import { toolAvailabilityService } from '@/services/tool-availability.service';
+import { getAllTools } from '@/services/tools/registry';
+import { toolService } from '@/services/tools/tool.service';
+import { loggers } from '@/utils/logger';
 import { Hono } from 'hono';
 import { z } from 'zod';
 

@@ -1,4 +1,4 @@
-import { buildManualLoopTools, runOpenAIManualLoop } from '@nexo/api-core/services/ai/openai-manual-loop';
+import { buildManualLoopTools, runOpenAIManualLoop } from '@/services/ai/openai-manual-loop';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('runOpenAIManualLoop', () => {

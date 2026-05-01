@@ -2,7 +2,7 @@
  * Testes unitários para Session Service (OpenClaw Session Keys)
  */
 
-import { type SessionKeyParams, buildSessionKey, parseSessionKey } from '@nexo/api-core/services/session-service';
+import { type SessionKeyParams, buildSessionKey, parseSessionKey } from '@/services/session-service';
 import { describe, expect, test } from 'vitest';
 
 describe('Session Service - OpenClaw Session Keys', () => {

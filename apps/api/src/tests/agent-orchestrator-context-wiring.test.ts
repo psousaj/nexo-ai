@@ -9,12 +9,12 @@ const { mockGetHistory, mockGetUserById, mockBuildAgentContext, mockRunOpenAIMan
 		mockBuildAgentPrompt: vi.fn(),
 	}));
 
-vi.mock('@nexo/api-core/services/queue-service', () => ({
+vi.mock('@/services/queue-service', () => ({
 	scheduleConversationClose: vi.fn(),
 	cancelConversationClose: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/tool-availability.service', () => ({
+vi.mock('@/services/tool-availability.service', () => ({
 	toolAvailabilityService: {
 		getAvailableTools: vi.fn().mockResolvedValue({
 			tools: ['save_note', 'save_memory', 'search_items'],
@@ -22,24 +22,24 @@ vi.mock('@nexo/api-core/services/tool-availability.service', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/services/conversation-service', () => ({
+vi.mock('@/services/conversation-service', () => ({
 	conversationService: {
 		getHistory: mockGetHistory,
 		updateState: vi.fn(),
 	},
 }));
 
-vi.mock('@nexo/api-core/services/user-service', () => ({
+vi.mock('@/services/user-service', () => ({
 	userService: {
 		getUserById: mockGetUserById,
 	},
 }));
 
-vi.mock('@nexo/api-core/config/prompt-builder', () => ({
+vi.mock('@/config/prompt-builder', () => ({
 	buildAgentPrompt: mockBuildAgentPrompt,
 }));
 
-vi.mock('@nexo/api-core/config/env', () => ({
+vi.mock('@/config/env', () => ({
 	env: {
 		CF_GATEWAY_MODEL: 'dynamic/nexo',
 		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
@@ -48,15 +48,15 @@ vi.mock('@nexo/api-core/config/env', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/services/context-builder', () => ({
+vi.mock('@/services/context-builder', () => ({
 	buildAgentContext: mockBuildAgentContext,
 }));
 
-vi.mock('@nexo/api-core/services/tools', () => ({
+vi.mock('@/services/tools', () => ({
 	executeTool: vi.fn().mockResolvedValue({ success: true, message: 'ok' }),
 }));
 
-vi.mock('@nexo/api-core/services/ai', () => ({
+vi.mock('@/services/ai', () => ({
 	OpenAIGatewayTransport: vi.fn().mockImplementation(() => ({
 		createChatCompletion: vi.fn(),
 	})),
@@ -72,7 +72,7 @@ vi.mock('@nexo/api-core/services/ai', () => ({
 	llmService: { callLLM: vi.fn() },
 }));
 
-vi.mock('@nexo/api-core/services/service-instrumentation', () => ({
+vi.mock('@/services/service-instrumentation', () => ({
 	instrumentService: (_name: string, instance: unknown) => instance,
 }));
 
@@ -81,7 +81,7 @@ vi.mock('@nexo/otel/tracing', () => ({
 	setAttributes: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/config/pivot-feature-flags', () => ({
+vi.mock('@/config/pivot-feature-flags', () => ({
 	getPivotFeatureFlags: vi.fn().mockResolvedValue({ TOOL_SCHEMA_V2: true }),
 }));
 
@@ -122,7 +122,7 @@ describe('AgentOrchestrator context wiring', () => {
 			system: 'You are Aurora, a personal assistant.',
 		});
 
-		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
@@ -160,7 +160,7 @@ describe('AgentOrchestrator context wiring', () => {
 			system: 'You are Aurora, a personal assistant.',
 		});
 
-		const { AgentOrchestrator } = await import('@nexo/api-core/services/agent-orchestrator');
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
 		const orchestrator = new AgentOrchestrator();
 
 		await (orchestrator as any).handleWithLLM(

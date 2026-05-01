@@ -1,7 +1,7 @@
-import { EvolutionAdapter } from '@nexo/api-core/adapters/messaging/evolution-adapter';
+import { EvolutionAdapter } from '@/adapters/messaging/evolution-adapter';
 import { describe, expect, test, vi } from 'vitest';
 
-vi.mock('@nexo/api-core/services/evolution-service', () => ({
+vi.mock('@/services/evolution-service', () => ({
 	evolutionService: {
 		sendText: vi.fn(),
 		sendList: vi.fn(),

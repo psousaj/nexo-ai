@@ -5,13 +5,13 @@ const { mockGenerateEmbedding, mockCaptureException } = vi.hoisted(() => ({
 	mockCaptureException: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/ai/embedding-service', () => ({
+vi.mock('@/services/ai/embedding-service', () => ({
 	embeddingService: {
 		generateEmbedding: mockGenerateEmbedding,
 	},
 }));
 
-vi.mock('@nexo/api-core/sentry', () => ({
+vi.mock('@/sentry', () => ({
 	captureException: mockCaptureException,
 }));
 
@@ -19,7 +19,7 @@ describe('executeEmbeddingTask', () => {
 	it('retorna bloco completed quando embedding é gerado', async () => {
 		mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
 
-		const { executeEmbeddingTask } = await import('@nexo/api-core/services/ai/embedding-task');
+		const { executeEmbeddingTask } = await import('@/services/ai/embedding-task');
 		const result = await executeEmbeddingTask({
 			input: 'texto para embedding',
 			async: false,
@@ -42,7 +42,7 @@ describe('executeEmbeddingTask', () => {
 	it('retorna bloco failed e embedding nulo quando serviço falha', async () => {
 		mockGenerateEmbedding.mockRejectedValue(new Error('gateway timeout'));
 
-		const { executeEmbeddingTask } = await import('@nexo/api-core/services/ai/embedding-task');
+		const { executeEmbeddingTask } = await import('@/services/ai/embedding-task');
 		const result = await executeEmbeddingTask({
 			input: 'texto para embedding',
 			async: true,

@@ -13,7 +13,7 @@ const {
   mockEvolutionParseIncomingMessage: vi.fn(() => null),
 }));
 
-vi.mock("@nexo/api-core/adapters/messaging", () => ({
+vi.mock("@/adapters/messaging", () => ({
   createCanonicalIncomingEnvelope: vi.fn((params) => {
     const { incomingMsg, providerName, providerApi, traceId } = params;
     const idempotencyKey = `${providerName}:${incomingMsg.messageId}`;
@@ -44,13 +44,13 @@ vi.mock("@nexo/api-core/adapters/messaging", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/services/queue-service", () => ({
+vi.mock("@/services/queue-service", () => ({
   messageQueue: {
     add: vi.fn(),
   },
 }));
 
-vi.mock("@nexo/api-core/config/env", () => ({
+vi.mock("@/config/env", () => ({
   env: {
     EVOLUTION_WEBHOOK_PATH: "/webhook/whatsapp/evolution",
     EVOLUTION_WEBHOOK_SECRET: "test-evolution-secret",

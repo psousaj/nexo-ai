@@ -46,7 +46,7 @@ const {
 	};
 });
 
-vi.mock('@nexo/api-core/db', () => ({
+vi.mock('@/db', () => ({
 	db: {
 		insert: mockDbInsert,
 		update: mockDbUpdate,
@@ -54,12 +54,12 @@ vi.mock('@nexo/api-core/db', () => ({
 	},
 }));
 
-vi.mock('@nexo/api-core/db/schema', () => ({
+vi.mock('@/db/schema', () => ({
 	featureFlags: { key: 'key', category: 'category', enabled: 'enabled' },
 	globalTools: { toolName: 'toolName', enabled: 'enabled' },
 }));
 
-vi.mock('@nexo/api-core/services/tools/tool.service', () => ({
+vi.mock('@/services/tools/tool.service', () => ({
 	toolService: {
 		initializeTools: mockToolServiceInitialize,
 		updateTool: mockToolServiceUpdateTool,
@@ -128,7 +128,7 @@ describe('FeatureFlagService', () => {
 	test('initialize() seeds BD and registers InMemoryProvider', async () => {
 		setupDbMocks();
 
-		const { featureFlagService } = await import('@nexo/api-core/services/feature-flag.service');
+		const { featureFlagService } = await import('@/services/feature-flag.service');
 		await featureFlagService.initialize();
 
 		// Deve ter tentado inserir FLAG_DEFINITIONS
@@ -144,7 +144,7 @@ describe('FeatureFlagService', () => {
 	test('update() with pivot key updates feature_flags table', async () => {
 		setupDbMocks();
 
-		const { featureFlagService } = await import('@nexo/api-core/services/feature-flag.service');
+		const { featureFlagService } = await import('@/services/feature-flag.service');
 		await featureFlagService.initialize();
 
 		vi.clearAllMocks();
@@ -163,7 +163,7 @@ describe('FeatureFlagService', () => {
 	test('update() with tool key routes to toolService.updateTool', async () => {
 		setupDbMocks();
 
-		const { featureFlagService } = await import('@nexo/api-core/services/feature-flag.service');
+		const { featureFlagService } = await import('@/services/feature-flag.service');
 		await featureFlagService.initialize();
 
 		vi.clearAllMocks();
@@ -182,7 +182,7 @@ describe('FeatureFlagService', () => {
 	test('getAll() returns flags from both feature_flags and global_tools', async () => {
 		setupDbMocks();
 
-		const { featureFlagService } = await import('@nexo/api-core/services/feature-flag.service');
+		const { featureFlagService } = await import('@/services/feature-flag.service');
 		await featureFlagService.initialize();
 
 		vi.clearAllMocks();

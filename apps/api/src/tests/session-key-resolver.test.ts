@@ -1,5 +1,5 @@
-import type { IncomingMessage } from '@nexo/api-core/adapters/messaging';
-import { resolveSessionKey } from '@nexo/api-core/services/session-key-resolver';
+import type { IncomingMessage } from '@/adapters/messaging';
+import { resolveSessionKey } from '@/services/session-key-resolver';
 import { describe, expect, test } from 'vitest';
 
 function makeIncomingMessage(overrides: Partial<IncomingMessage> = {}): IncomingMessage {

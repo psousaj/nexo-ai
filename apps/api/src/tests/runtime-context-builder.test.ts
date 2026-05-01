@@ -7,23 +7,23 @@ const { mockGetHistory, mockGetUserById, mockBuildAgentContext, mockBuildAgentPr
 	mockBuildAgentPrompt: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/conversation-service', () => ({
+vi.mock('@/services/conversation-service', () => ({
 	conversationService: {
 		getHistory: mockGetHistory,
 	},
 }));
 
-vi.mock('@nexo/api-core/services/user-service', () => ({
+vi.mock('@/services/user-service', () => ({
 	userService: {
 		getUserById: mockGetUserById,
 	},
 }));
 
-vi.mock('@nexo/api-core/services/context-builder', () => ({
+vi.mock('@/services/context-builder', () => ({
 	buildAgentContext: mockBuildAgentContext,
 }));
 
-vi.mock('@nexo/api-core/config/prompt-builder', () => ({
+vi.mock('@/config/prompt-builder', () => ({
 	buildAgentPrompt: mockBuildAgentPrompt,
 }));
 
@@ -45,7 +45,7 @@ describe('buildRuntimeContext', () => {
 			assistantName: 'Aurora',
 		});
 
-		const { buildRuntimeContext } = await import('@nexo/api-core/services/ai/runtime-context-builder');
+		const { buildRuntimeContext } = await import('@/services/ai/runtime-context-builder');
 		const result = await buildRuntimeContext({
 			conversationId: 'conv-1',
 			userId: 'user-1',
@@ -76,7 +76,7 @@ describe('buildRuntimeContext', () => {
 			systemPrompt: 'Preferências: respostas curtas e objetivas.',
 		});
 
-		const { buildRuntimeContext } = await import('@nexo/api-core/services/ai/runtime-context-builder');
+		const { buildRuntimeContext } = await import('@/services/ai/runtime-context-builder');
 		const result = await buildRuntimeContext({
 			conversationId: 'conv-1',
 			userId: 'user-1',

@@ -4,7 +4,7 @@ const { mockClassify } = vi.hoisted(() => ({
 	mockClassify: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/intent-classifier', () => ({
+vi.mock('@/services/intent-classifier', () => ({
 	intentClassifier: {
 		classify: mockClassify,
 	},
@@ -18,7 +18,7 @@ describe('executeIntentClassificationTask', () => {
 			confidence: 0.93,
 		});
 
-		const { executeIntentClassificationTask } = await import('@nexo/api-core/services/ai/intent-classification-task');
+		const { executeIntentClassificationTask } = await import('@/services/ai/intent-classification-task');
 		const result = await executeIntentClassificationTask({
 			message: 'salva esse link',
 			phase: 'main',
@@ -45,7 +45,7 @@ describe('executeIntentClassificationTask', () => {
 	it('retorna fallback unknown e bloco failed quando classificador falha', async () => {
 		mockClassify.mockRejectedValue(new Error('classifier timeout'));
 
-		const { executeIntentClassificationTask } = await import('@nexo/api-core/services/ai/intent-classification-task');
+		const { executeIntentClassificationTask } = await import('@/services/ai/intent-classification-task');
 		const result = await executeIntentClassificationTask({
 			message: 'qualquer coisa',
 			phase: 'off_topic_reentry',

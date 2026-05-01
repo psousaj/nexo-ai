@@ -1,6 +1,6 @@
-import { AgentOrchestrator } from "@nexo/api-core/services/agent-orchestrator";
-import { getRandomMessage } from "@nexo/api-core/services/message-analysis/constants/clarification-messages";
-import { messageAnalyzer } from "@nexo/api-core/services/message-analysis/message-analyzer.service";
+import { AgentOrchestrator } from "@/services/agent-orchestrator";
+import { getRandomMessage } from "@/services/message-analysis/constants/clarification-messages";
+import { messageAnalyzer } from "@/services/message-analysis/message-analyzer.service";
 import { describe, expect, test, vi } from "vitest";
 
 /**
@@ -12,7 +12,7 @@ import { describe, expect, test, vi } from "vitest";
 
 // ─── Mocks necessários para o AgentOrchestrator e dependências ───────────────
 
-vi.mock("@nexo/api-core/db", () => ({
+vi.mock("@/db", () => ({
   db: {
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
@@ -32,14 +32,14 @@ vi.mock("@nexo/api-core/db", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/adapters/messaging", () => ({
+vi.mock("@/adapters/messaging", () => ({
   getProvider: vi.fn().mockResolvedValue({
     sendMessage: vi.fn().mockResolvedValue(undefined),
   }),
   getProviderByName: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock("@nexo/api-core/services/tools/tool.service", () => ({
+vi.mock("@/services/tools/tool.service", () => ({
   toolService: {
     getSaveTools: vi.fn().mockResolvedValue([
       { name: "save_note", label: "Nota", icon: "📝" },
@@ -52,13 +52,13 @@ vi.mock("@nexo/api-core/services/tools/tool.service", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/services/tools", () => ({
+vi.mock("@/services/tools", () => ({
   executeTool: vi
     .fn()
     .mockResolvedValue({ success: true, message: "ok", data: null }),
 }));
 
-vi.mock("@nexo/api-core/services/conversation-service", () => ({
+vi.mock("@/services/conversation-service", () => ({
   conversationService: {
     findOrCreateConversation: vi.fn().mockResolvedValue({
       conversation: {
@@ -82,7 +82,7 @@ vi.mock("@nexo/api-core/services/conversation-service", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/services/user-service", () => ({
+vi.mock("@/services/user-service", () => ({
   userService: {
     getUserById: vi
       .fn()
@@ -90,7 +90,7 @@ vi.mock("@nexo/api-core/services/user-service", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/services/ai", () => ({
+vi.mock("@/services/ai", () => ({
   llmService: {
     callLLM: vi.fn().mockResolvedValue({
       message:
@@ -100,7 +100,7 @@ vi.mock("@nexo/api-core/services/ai", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/config/env", () => ({
+vi.mock("@/config/env", () => ({
   env: {
     MANUAL_RUNTIME_LOOP: false,
     CF_GATEWAY_MODEL: "dynamic/nexo",
@@ -110,7 +110,7 @@ vi.mock("@nexo/api-core/config/env", () => ({
   },
 }));
 
-vi.mock("@nexo/api-core/utils/json-parser", () => ({
+vi.mock("@/utils/json-parser", () => ({
   parseAgentDecisionV2FromLLM: vi.fn().mockReturnValue({
     schema_version: "2.0",
     action: "RESPOND",
@@ -136,16 +136,16 @@ vi.mock("@nexo/otel/tracing", () => ({
   recordException: vi.fn(),
 }));
 
-vi.mock("@nexo/api-core/services/service-instrumentation", () => ({
+vi.mock("@/services/service-instrumentation", () => ({
   instrumentService: (_name: string, instance: unknown) => instance,
 }));
 
-vi.mock("@nexo/api-core/services/queue-service", () => ({
+vi.mock("@/services/queue-service", () => ({
   scheduleConversationClose: vi.fn(),
   cancelConversationClose: vi.fn(),
 }));
 
-vi.mock("@nexo/api-core/config/pivot-feature-flags", () => ({
+vi.mock("@/config/pivot-feature-flags", () => ({
   getPivotFeatureFlags: vi.fn().mockResolvedValue({ TOOL_SCHEMA_V2: true }),
 }));
 

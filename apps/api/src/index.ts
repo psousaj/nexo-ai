@@ -1,13 +1,13 @@
 import './otel'; // OpenTelemetry must be imported first
 import './sentry'; // Sentry error tracking
-import { startDiscordBot } from '@nexo/api-core/adapters/messaging/discord-adapter';
-import { getApiEnv } from '@nexo/api-core/config/env';
+import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
+import { getApiEnv } from '@/config/env';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
-import { globalErrorHandler } from '@nexo/api-core/services/error/error.service';
-import { featureFlagService } from '@nexo/api-core/services/feature-flag.service';
-import { shutdownQueues } from '@nexo/api-core/services/queue-service';
-import { logger } from '@nexo/api-core/utils/logger';
+import { globalErrorHandler } from '@/services/error/error.service';
+import { featureFlagService } from '@/services/feature-flag.service';
+import { shutdownQueues } from '@/services/queue-service';
+import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 

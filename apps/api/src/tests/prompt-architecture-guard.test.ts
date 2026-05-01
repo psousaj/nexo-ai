@@ -60,7 +60,7 @@ describe('prompt architecture guard (yaml-first)', () => {
 
 	test('message-templates não exporta prompts de LLM em TypeScript', () => {
 		const repoRoot = findRepoRoot(resolve(__dirname, '../../../..'));
-		const file = join(repoRoot, 'packages/api-core/src/config/message-templates.ts');
+		const file = join(repoRoot, 'apps/api/src/config/message-templates.ts');
 		const content = readFileSync(file, 'utf-8');
 
 		const forbiddenTokens = [

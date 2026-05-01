@@ -4,7 +4,7 @@ const { mockExecuteEmbeddingTask } = vi.hoisted(() => ({
 	mockExecuteEmbeddingTask: vi.fn(),
 }));
 
-vi.mock('@nexo/api-core/services/ai/embedding-task', () => ({
+vi.mock('@/services/ai/embedding-task', () => ({
 	executeEmbeddingTask: mockExecuteEmbeddingTask,
 }));
 
@@ -23,7 +23,7 @@ describe('buildEnrichmentEmbeddingItem', () => {
 		});
 
 		const { buildEnrichmentEmbeddingItem } = await import(
-			'@nexo/api-core/services/enrichment/enrichment-embedding-pipeline'
+			'@/services/enrichment/enrichment-embedding-pipeline'
 		);
 
 		const result = await buildEnrichmentEmbeddingItem({
@@ -69,7 +69,7 @@ describe('buildEnrichmentEmbeddingItem', () => {
 		});
 
 		const { buildEnrichmentEmbeddingItem } = await import(
-			'@nexo/api-core/services/enrichment/enrichment-embedding-pipeline'
+			'@/services/enrichment/enrichment-embedding-pipeline'
 		);
 
 		const result = await buildEnrichmentEmbeddingItem({

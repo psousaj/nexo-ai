@@ -5,7 +5,7 @@
 		"strict": true,
 		"lib": ["ESNext"],
 		"paths": {
-			"@/*": ["./src/*", "../../packages/api-core/src/*"]
+			"@/*": ["./src/*"]
 		}
 	},
 	"include": ["src/**/*.ts"],

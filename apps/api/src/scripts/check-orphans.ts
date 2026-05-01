@@ -1,6 +1,6 @@
-import { db } from '@nexo/api-core/db';
-import { userChannels, users } from '@nexo/api-core/db/schema';
-import { conversations } from '@nexo/api-core/db/schema/conversations';
+import { db } from '@/db';
+import { userChannels, users } from '@/db/schema';
+import { conversations } from '@/db/schema/conversations';
 
 async function checkOrphans() {
 	console.log('--- Checking for Orphan Users ---');

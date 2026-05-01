@@ -1,4 +1,4 @@
-import { isValidAgentDecisionV2 } from '@nexo/api-core/types';
+import { isValidAgentDecisionV2 } from '@/types';
 import { describe, expect, test } from 'vitest';
 
 describe('AgentDecisionV2 validator', () => {

@@ -1,4 +1,4 @@
-import { filterToolNamesByPolicy, getToolExecutionPolicy, getToolDefinition } from '@nexo/api-core/services/tools/registry';
+import { filterToolNamesByPolicy, getToolExecutionPolicy, getToolDefinition } from '@/services/tools/registry';
 import { describe, expect, test } from 'vitest';
 
 describe('tool registry execution policy', () => {

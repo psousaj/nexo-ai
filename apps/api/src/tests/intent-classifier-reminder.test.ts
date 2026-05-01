@@ -6,7 +6,7 @@
  * Para frases puras de lembrete sem conteúdo a salvar, o campo não é preenchido.
  */
 
-import { IntentClassifier } from '@nexo/api-core/services/intent-classifier';
+import { IntentClassifier } from '@/services/intent-classifier';
 import { describe, expect, test } from 'vitest';
 
 const classifier = new IntentClassifier();
