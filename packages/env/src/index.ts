@@ -5,37 +5,82 @@ import { z } from "zod";
  *
  * Dev: dotenv carrega .env da raiz do monorepo (via -r dotenv/config no tsx)
  * Prod: process.env já vem preenchido pelo runtime (Railway, Docker, etc)
- *
- * Não faz hack de path relativo — quem carrega o .env é o runner (tsx, node, etc)
  */
 
 const boolFromEnv = z
   .enum(["true", "false"])
   .transform((val) => val === "true");
 
+// ============================================================================
+// SCHEMA MONOLÍTICO — valida todas as variáveis de uma vez
+// ============================================================================
+// Nota: em vez de validar por-app, o schema é único para garantir que
+// qualquer processo que precise de uma var tenha ela disponível via proxy.
+// Apps consomem subsets via getApiEnv(), getDashboardEnv(), getLandingEnv().
+
 const envSchema = z.object({
+  // --------------------------------------------------------------------------
+  // Core — runtime básico
+  // --------------------------------------------------------------------------
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
+
+  // --------------------------------------------------------------------------
+  // HTTP — ports por app
+  // --------------------------------------------------------------------------
+  PORT: z.coerce.number().default(3001),
+  PORT_DASHBOARD: z.coerce.number().default(5173),
+  PORT_LANDING: z.coerce.number().default(3005),
+  APP_URL: z.string().url().optional(),
+  DASHBOARD_URL: z.string().url().optional(),
+  CORS_ORIGINS: z
+    .string()
+    .optional()
+    .transform((val) => {
+      return (
+        val
+          ?.trim()
+          .split(",")
+          .map((origin) => origin.trim()) ?? []
+      );
+    }),
+  COOKIE_DOMAIN: z.string().optional(),
+
+  // --------------------------------------------------------------------------
   // Database
+  // --------------------------------------------------------------------------
   DATABASE_URL: z.string().url(),
 
-  // Supabase (opcional, se usar Supabase diretamente)
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_ANON_KEY: z.string().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  // --------------------------------------------------------------------------
+  // Redis — obrigatório para BullMQ
+  // --------------------------------------------------------------------------
+  REDIS_HOST: z.string().min(1, "REDIS_HOST é obrigatório"),
+  REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_USER: z.string().min(1, "REDIS_USER é obrigatório"),
+  REDIS_PASSWORD: z.string().min(1, "REDIS_PASSWORD é obrigatório"),
+  REDIS_TLS: boolFromEnv.default("false"),
 
-  // Telegram Bot API (PADRÃO)
-  // Opcional no schema global para permitir runtimes sem adapter Telegram ativo.
+  // --------------------------------------------------------------------------
+  // Telegram Bot
+  // --------------------------------------------------------------------------
   TELEGRAM_BOT_TOKEN: z.string().default(""),
   TELEGRAM_BOT_USERNAME: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 
+  // --------------------------------------------------------------------------
   // Evolution API (WhatsApp self-hosted)
+  // --------------------------------------------------------------------------
   EVOLUTION_API_BASE_URL: z.string().url().default("http://localhost:8080"),
   EVOLUTION_API_KEY: z.string().optional(),
   EVOLUTION_INSTANCE_NAME: z.string().default("nexo-dev"),
   EVOLUTION_WEBHOOK_SECRET: z.string().optional(),
   EVOLUTION_WEBHOOK_PATH: z.string().default("/webhook/whatsapp/evolution"),
 
-  // Cloudflare AI Gateway (obrigatório)
+  // --------------------------------------------------------------------------
+  // Cloudflare AI Gateway
+  // --------------------------------------------------------------------------
   CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
   CLOUDFLARE_API_TOKEN: z.string().min(1),
   CLOUDFLARE_GATEWAY_ID: z.string().default("nexo-ai-gateway"),
@@ -63,26 +108,26 @@ const envSchema = z.object({
     .max(60000)
     .default(8000),
 
-  // Observability
-  UPTRACE_DSN: z.string().optional(),
-  // OTLP collector endpoint (traces). Default aponta pro Jaeger local.
+  // --------------------------------------------------------------------------
+  // Observability — OpenTelemetry + Jaeger
+  // --------------------------------------------------------------------------
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4317"),
   OTEL_SERVICE_NAME: z.string().optional(),
-  // Jaeger UI URL para acesso em dev/local (apenas informativo no log de init)
   JAEGER_UI_URL: z.string().default("http://localhost:16686"),
 
-  // Sentry - Error tracking & Sourcemaps
-  SENTRY_ENABLED: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("true"),
+  // --------------------------------------------------------------------------
+  // Observability — Sentry
+  // --------------------------------------------------------------------------
+  SENTRY_ENABLED: boolFromEnv.default("true"),
   SENTRY_DSN: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.1),
   SENTRY_AUTH_TOKEN: z.string().optional(),
   SENTRY_ORG: z.string().default("ze-filho"),
   SENTRY_PROJECT: z.string().default("node-hono"),
 
+  // --------------------------------------------------------------------------
   // Enrichment APIs
+  // --------------------------------------------------------------------------
   TMDB_API_KEY: z.string(),
   YOUTUBE_API_KEY: z.string(),
   GOOGLE_BOOKS_API_KEY: z.string().optional(),
@@ -94,74 +139,18 @@ const envSchema = z.object({
     .min(1, "SPOTIFY_CLIENT_SECRET é obrigatório para save_music"),
   BRAVE_SEARCH_API_KEY: z.string().optional(),
 
-  // Cache - Upstash Redis
-  UPSTASH_REDIS_URL: z.string().url().optional(),
-  UPSTASH_REDIS_TOKEN: z.string().optional(),
+  // --------------------------------------------------------------------------
+  // Feature flags (pivot)
+  // --------------------------------------------------------------------------
+  CONVERSATION_FREE: boolFromEnv.default("true"),
+  TOOL_SCHEMA_V2: boolFromEnv.default("false"),
+  MULTIMODAL_AUDIO: boolFromEnv.default("false"),
+  MULTIMODAL_IMAGE: boolFromEnv.default("false"),
+  PROVIDER_SPLIT: boolFromEnv.default("false"),
 
-  // Redis (para Bull queue) - OBRIGATÓRIO
-  REDIS_HOST: z.string().min(1, "REDIS_HOST é obrigatório"),
-  REDIS_PORT: z.coerce.number().default(6379),
-  REDIS_USER: z.string().min(1, "REDIS_USER é obrigatório"),
-  REDIS_PASSWORD: z.string().min(1, "REDIS_PASSWORD é obrigatório"),
-  REDIS_TLS: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
-
-  // Observability - New Relic (opcional em dev, obrigatório em prod se habilitado)
-  NEW_RELIC_LICENSE_KEY: z.string().optional(),
-  NEW_RELIC_APP_NAME: z.string().default("nexo-ai"),
-  NEW_RELIC_ENABLED: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
-
-  // Application
-  NODE_ENV: z
-    .enum(["development", "production", "test"])
-    .default("development"),
-  APP_URL: z.string().url().optional(),
-  COOKIE_DOMAIN: z.string().optional(),
-  CORS_ORIGINS: z
-    .string()
-    .optional()
-    .transform((val) => {
-      return (
-        val
-          ?.trim()
-          .split(",")
-          .map((origin) => origin.trim()) ?? []
-      );
-    }),
-  DASHBOARD_URL: z.string().url().optional(),
-  PORT: z.coerce.number().default(3001), // API na 3001
-  PORT_DASHBOARD: z.coerce.number().default(5173), // Dashboard na 5173
-  PORT_LANDING: z.coerce.number().default(3005), // Landing na 3005
-  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("debug"),
-
-  // Pivot feature flags
-  CONVERSATION_FREE: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("true"),
-  TOOL_SCHEMA_V2: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
-  MULTIMODAL_AUDIO: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
-  MULTIMODAL_IMAGE: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
-  PROVIDER_SPLIT: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default("false"),
-
-  // Intake Worker
+  // --------------------------------------------------------------------------
+  // Intake Worker (legacy — será internalizado na API em M7)
+  // --------------------------------------------------------------------------
   INTAKE_WORKER_URL: z.string().url().default("http://localhost:3002"),
   INTAKE_WORKER_TIMEOUT_MS: z.coerce
     .number()
@@ -171,33 +160,49 @@ const envSchema = z.object({
     .default(4000),
   INTAKE_WORKER_TOKEN: z.string().optional(),
 
+  // --------------------------------------------------------------------------
   // Email (Resend)
+  // --------------------------------------------------------------------------
   RESEND_API_KEY: z.string().optional(),
 
-  // Discord OAuth2 (gerenciado pelo Better Auth)
+  // --------------------------------------------------------------------------
+  // Discord OAuth + Bot
+  // --------------------------------------------------------------------------
   DISCORD_CLIENT_ID: z.string().optional(),
   DISCORD_CLIENT_SECRET: z.string().optional(),
   DISCORD_BOT_TOKEN: z.string().optional(),
   DISCORD_BOT_USERNAME: z.string().default("NexoAssistente_bot"),
 
+  // --------------------------------------------------------------------------
   // Better Auth
+  // --------------------------------------------------------------------------
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
   BETTER_AUTH_URL: z.string().url().optional(),
 
+  // --------------------------------------------------------------------------
   // Google OAuth
+  // --------------------------------------------------------------------------
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+  // --------------------------------------------------------------------------
   // Microsoft OAuth
+  // --------------------------------------------------------------------------
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
 
+  // --------------------------------------------------------------------------
   // Nuxt Dashboard (frontend - public vars)
+  // --------------------------------------------------------------------------
   NUXT_PUBLIC_AUTH_BASE_URL: z.string().url().optional(),
   NUXT_PUBLIC_API_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+// ============================================================================
+// SUBSETS POR APP
+// ============================================================================
 
 export const API_ENV_KEYS = [
   "NODE_ENV",
@@ -274,6 +279,10 @@ export function getLandingEnv(source: Env = env): LandingEnv {
     DASHBOARD_URL: source.DASHBOARD_URL,
   };
 }
+
+// ============================================================================
+// VALIDAÇÃO
+// ============================================================================
 
 let cachedEnv: Env | null = null;
 
