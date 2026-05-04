@@ -9,7 +9,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
@@ -28,27 +28,27 @@ interface PromptYaml {
 const cache = new Map<string, PromptYaml>();
 
 function loadYaml(name: string): PromptYaml {
-  const cached = cache.get(name);
-  if (cached) return cached;
+	const cached = cache.get(name);
+	if (cached) return cached;
 
-  const filePath = join(PROMPTS_DIR, `${name}.yml`);
+	const filePath = join(PROMPTS_DIR, `${name}.yml`);
 
-  let raw: string;
-  try {
-    raw = readFileSync(filePath, 'utf-8');
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
-      console.error(`⚠️ Prompt YAML not found: ${filePath} — using empty fallback`);
-      const fallback: PromptYaml = { system: '', content: '' };
-      cache.set(name, fallback);
-      return fallback;
-    }
-    throw err;
-  }
+	let raw: string;
+	try {
+		raw = readFileSync(filePath, 'utf-8');
+	} catch (err: any) {
+		if (err.code === 'ENOENT') {
+			console.error(`⚠️ Prompt YAML not found: ${filePath} — using empty fallback`);
+			const fallback: PromptYaml = { system: '', content: '' };
+			cache.set(name, fallback);
+			return fallback;
+		}
+		throw err;
+	}
 
-  const parsed = yaml.load(raw) as PromptYaml;
-  cache.set(name, parsed);
-  return parsed;
+	const parsed = yaml.load(raw) as PromptYaml;
+	cache.set(name, parsed);
+	return parsed;
 }
 
 function interpolate(text: string, data: Record<string, string>): string {
@@ -98,7 +98,11 @@ export function buildPrompt(name: string, data: Record<string, string> = {}): Bu
 /**
  * Constrói prompt do agente com datetime injetado automaticamente.
  */
-export function buildAgentPrompt(data: { assistantName?: string; deepThinking?: boolean; availableTools?: string[] }): BuiltPrompt {
+export function buildAgentPrompt(data: {
+	assistantName?: string;
+	deepThinking?: boolean;
+	availableTools?: string[];
+}): BuiltPrompt {
 	const availableToolsCsv = data.availableTools?.length ? data.availableTools.join(', ') : 'runtime-managed';
 
 	const templateData: Record<string, string> = {
