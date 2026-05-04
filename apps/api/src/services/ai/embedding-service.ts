@@ -71,37 +71,46 @@ export class EmbeddingService {
     return undefined;
   }
 
-  private isRetryableError(error: any): boolean {
-    const status = this.extractStatus(error);
-    if (status === 429) return true;
-    if (typeof status === "number" && status >= 500) return true;
+private isRetryableError(error: any): boolean {
+	const status = this.extractStatus(error);
+	if (status === 429) return true;
+	if (typeof status === 'number' && status >= 500 && status < 600) {
+		const msg = String(error?.message ?? '').toLowerCase();
+		if (msg.includes('model_not_found') || msg.includes('model_not_available') || msg.includes('invalid_model')) {
+			return false;
+		}
+		return true;
+	}
 
-    const code = String(error?.code || error?.cause?.code || "").toUpperCase();
-    const retryableCodes = new Set([
-      "ECONNRESET",
-      "ECONNREFUSED",
-      "ETIMEDOUT",
-      "UND_ERR_CONNECT_TIMEOUT",
-      "ENOTFOUND",
-    ]);
+	const code = String(error?.code || error?.cause?.code || "").toUpperCase();
+	const retryableCodes = new Set([
+		"ECONNRESET",
+		"ECONNREFUSED",
+		"ETIMEDOUT",
+		"UND_ERR_CONNECT_TIMEOUT",
+		"ENOTFOUND",
+	]);
 
-    return retryableCodes.has(code);
-  }
+	return retryableCodes.has(code);
+}
 
-  private async requestEmbedding(input: string): Promise<number[]> {
-    const response = await this.client.embeddings.create({
-      model: this.model,
-      input,
-    });
+private async requestEmbedding(input: string): Promise<number[]> {
+	const response = await this.client.embeddings.create({
+		model: this.model,
+		input,
+	});
 
-    const embedding = response.data[0]?.embedding;
+	const embedding = response.data?.[0]?.embedding;
 
-    if (!embedding || !Array.isArray(embedding)) {
-      throw new Error("Formato de resposta inválido da API");
-    }
+	if (!embedding || !Array.isArray(embedding)) {
+		const dataLength = response.data?.length;
+		throw new Error(
+			`Formato de resposta inválido da API (data.length=${dataLength}, model=${this.model})`,
+		);
+	}
 
-    return embedding;
-  }
+	return embedding;
+}
 
   /**
    * Trunca texto para caber no limite do modelo
