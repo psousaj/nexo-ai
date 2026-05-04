@@ -12,7 +12,7 @@ export interface PivotFeatureFlags {
 const PIVOT_DEFAULTS: Record<keyof PivotFeatureFlags, { key: FlagKey; default: boolean }> = {
 	CONVERSATION_FREE: { key: FLAG.CONVERSATION_FREE, default: true },
 	TOOL_SCHEMA_V2: { key: FLAG.TOOL_SCHEMA_V2, default: false },
-	MULTIMODAL_AUDIO: { key: FLAG.MULTIMODAL_AUDIO, default: false },
+	MULTIMODAL_AUDIO: { key: FLAG.MULTIMODAL_AUDIO, default: true },
 	MULTIMODAL_IMAGE: { key: FLAG.MULTIMODAL_IMAGE, default: false },
 	PROVIDER_SPLIT: { key: FLAG.PROVIDER_SPLIT, default: false },
 };
