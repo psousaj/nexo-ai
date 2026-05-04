@@ -114,31 +114,50 @@ export class EvolutionService {
       acceptNotFound?: boolean;
     },
   ): Promise<T | null> {
-    const response = await fetch(this.requestUrl(path, options?.query), {
-      method,
-      headers: {
-        apikey: this.apiKey,
-        "Content-Type": "application/json",
-      },
-      body: options?.body ? JSON.stringify(options.body) : undefined,
-    });
+    const url = this.requestUrl(path, options?.query);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    if (response.status === 404 && options?.acceptNotFound) {
-      return null;
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          apikey: this.apiKey,
+          "Content-Type": "application/json",
+        },
+        body: options?.body ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
+      });
+
+      if (response.status === 404 && options?.acceptNotFound) {
+        return null;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Evolution API ${method} ${path} failed: ${response.status} ${errorText}`,
+        );
+      }
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      return (await response.json()) as T;
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        throw new Error(`Evolution API ${method} ${path} timed out after 15s`);
+      }
+      if (error.message?.includes("fetch failed")) {
+        throw new Error(
+          `Evolution API ${method} ${path} connection failed — endpoint may be down. Original: ${error.message}`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Evolution API ${method} ${path} failed: ${response.status} ${errorText}`,
-      );
-    }
-
-    if (response.status === 204) {
-      return null;
-    }
-
-    return (await response.json()) as T;
   }
 
   private normalizeRecipient(recipient: string): string {
