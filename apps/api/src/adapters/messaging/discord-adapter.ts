@@ -19,6 +19,7 @@ import {
 	type ChatInputCommandInteraction,
 	Client,
 	type Message as DiscordMessage,
+	AttachmentBuilder,
 	EmbedBuilder,
 	GatewayIntentBits,
 	type Interaction,
@@ -910,6 +911,20 @@ export class DiscordAdapter implements MessagingProvider {
 			loggers.discord.info({ chatId, hasCaption: !!caption, hasButtons: !!buttons }, '✅ Photo (embed) enviada');
 		} catch (error) {
 			loggers.discord.error({ error, chatId }, '❌ Failed to send photo');
+			throw error;
+		}
+	}
+
+	async sendVoice(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void> {
+		try {
+			const channel = await client.channels.fetch(chatId);
+			if (!channel || !channel.isTextBased()) throw new Error('Invalid channel');
+
+			const attachment = new AttachmentBuilder(audioBuffer, { name: filename ?? 'voice.ogg' });
+			await (channel as any).send({ files: [attachment] });
+			loggers.discord.info({ chatId, voiceSize: audioBuffer.length }, '✅ Voice message enviada');
+		} catch (error) {
+			loggers.discord.error({ error, chatId }, '❌ Failed to send voice message');
 			throw error;
 		}
 	}

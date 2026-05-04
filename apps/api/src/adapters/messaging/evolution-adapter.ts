@@ -306,6 +306,16 @@ export class EvolutionAdapter implements MessagingProvider {
     }
   }
 
+  async sendVoice(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void> {
+    const resolvedFilename = filename ?? "voice.ogg";
+    const resolvedMime = mimeType || "audio/ogg; codecs=opus";
+    const base64Audio = audioBuffer.toString("base64");
+
+    await evolutionService.sendMediaAudio(chatId, base64Audio, resolvedMime, resolvedFilename);
+
+    loggers.webhook.info({ chatId, voiceSize: audioBuffer.length }, '📤 Voice message enviada via Evolution');
+  }
+
   buildSessionKey(params: SessionKeyParams): string {
     return buildSessionKeyUtil(params);
   }

@@ -432,6 +432,40 @@ export class TelegramAdapter implements MessagingProvider {
 	}
 
 	/**
+	 * Envia mensagem de voz como voice bubble (áudio Opus .ogg)
+	 */
+	async sendVoice(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void> {
+		return startSpan('messaging.telegram.send_voice', async (_span) => {
+			setAttributes({
+				'messaging.platform': 'telegram',
+				'messaging.chat_id': chatId,
+				'messaging.voice_size': audioBuffer.length,
+			});
+
+			const url = `${this.baseUrl}/bot${this.token}/sendVoice`;
+			const formData = new FormData();
+			const blob = new Blob([audioBuffer], { type: mimeType || 'audio/ogg' });
+			formData.append('voice', blob, filename ?? 'voice.ogg');
+			formData.append('chat_id', chatId);
+
+			loggers.webhook.info({ chatId, voiceSize: audioBuffer.length }, '📤 Enviando voice message via Telegram');
+
+			const response = await fetch(url, {
+				method: 'POST',
+				body: formData,
+			});
+
+			if (!response.ok) {
+				const errorData = (await response.json()) as { error_code?: number; description?: string };
+				loggers.webhook.error({ errorCode: errorData.error_code }, 'Erro ao enviar voice message');
+				throw new Error(`Telegram sendVoice error: ${errorData.description}`);
+			}
+
+			loggers.webhook.info({ chatId }, 'Voice message enviada');
+		});
+	}
+
+	/**
 	 * Responde a callback query (necessário para remover loading dos botões)
 	 */
 	async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
