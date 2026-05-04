@@ -56,6 +56,9 @@ COPY --from=builder /app/packages/otel/dist/ packages/otel/dist/
 
 COPY --from=builder /app/apps/api/dist/ apps/api/dist/
 
+# Copy YAML prompts (not compiled by tsup, copied via onSuccess hook)
+COPY --from=builder /app/apps/api/dist/config/prompts/ apps/api/dist/config/prompts/
+
 ENV NODE_ENV=production
 ENV NEXO_MODEL_PATH=/app/apps/api/dist/model/nexo-model.nlp
 

@@ -28,14 +28,27 @@ interface PromptYaml {
 const cache = new Map<string, PromptYaml>();
 
 function loadYaml(name: string): PromptYaml {
-	const cached = cache.get(name);
-	if (cached) return cached;
+  const cached = cache.get(name);
+  if (cached) return cached;
 
-	const filePath = join(PROMPTS_DIR, `${name}.yml`);
-	const raw = readFileSync(filePath, 'utf-8');
-	const parsed = yaml.load(raw) as PromptYaml;
-	cache.set(name, parsed);
-	return parsed;
+  const filePath = join(PROMPTS_DIR, `${name}.yml`);
+
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, 'utf-8');
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      console.error(`⚠️ Prompt YAML not found: ${filePath} — using empty fallback`);
+      const fallback: PromptYaml = { system: '', content: '' };
+      cache.set(name, fallback);
+      return fallback;
+    }
+    throw err;
+  }
+
+  const parsed = yaml.load(raw) as PromptYaml;
+  cache.set(name, parsed);
+  return parsed;
 }
 
 function interpolate(text: string, data: Record<string, string>): string {
