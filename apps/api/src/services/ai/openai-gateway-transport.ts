@@ -120,10 +120,10 @@ export class OpenAIGatewayTransport {
         {
           model,
           messages,
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          tools: request.tools,
-          tool_choice: request.toolChoice,
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
+          ...(request.tools?.length ? { tools: request.tools } : {}),
+          ...(request.toolChoice ? { tool_choice: request.toolChoice } : {}),
         },
         {
           headers: {
@@ -155,12 +155,39 @@ export class OpenAIGatewayTransport {
         completion = await completionRequest;
       }
 
+      if (!completion?.choices || !Array.isArray(completion.choices) || completion.choices.length === 0) {
+        addRuntimeBlock(runtimeRound, {
+          type: "error",
+          code: "empty_completion",
+          message: `OpenAI Gateway retornou resposta sem choices (model: ${model}, finish_reason: ${completion?.choices?.[0]?.finish_reason ?? "unknown"})`,
+          retryable: true,
+        });
+
+        throw Object.assign(
+          new Error("OpenAI Gateway: resposta sem choices"),
+          { runtimeRound },
+        );
+      }
+
       runtimeRound.stopReason = mapOpenAIFinishReasonToRuntimeStopReason(
         completion.choices[0]?.finish_reason,
       );
       runtimeRound.usage = buildRuntimeUsageFromOpenAI(completion.usage);
 
       const assistantMessage = completion.choices[0]?.message;
+      if (!assistantMessage) {
+        addRuntimeBlock(runtimeRound, {
+          type: "error",
+          code: "empty_message",
+          message: `OpenAI Gateway: choices[0].message vazio ou nulo (model: ${model})`,
+          retryable: true,
+        });
+
+        throw Object.assign(
+          new Error("OpenAI Gateway: mensagem do assistente vazia"),
+          { runtimeRound },
+        );
+      }
       if (
         typeof assistantMessage?.content === "string" &&
         assistantMessage.content.trim().length > 0
