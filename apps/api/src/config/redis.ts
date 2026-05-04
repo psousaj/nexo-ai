@@ -4,6 +4,22 @@ import { env } from './env';
 
 let redis: any = null;
 
+function isDnsError(error: any): boolean {
+	const msg = String(error?.message ?? error?.code ?? '').toLowerCase();
+	return msg.includes('enotfound') || msg.includes('getaddrinfo') || msg.includes('dns');
+}
+
+function logRedisError(error: any, context: string) {
+	if (isDnsError(error)) {
+		loggers.cache.error(
+			{ err: error, host: env.REDIS_HOST, context },
+			'🔴 Redis DNS resolution failed — check REDIS_HOST and network connectivity',
+		);
+	} else {
+		loggers.cache.error({ err: error, context }, `Redis error [${context}]`);
+	}
+}
+
 // ============================================================================
 // SHARED BULLMQ CONNECTION
 // BullMQ usa uma única conexão IORedis por Queue/Worker.
@@ -17,6 +33,10 @@ export const REDIS_BASE_OPTIONS = {
 	username: env.REDIS_USER || '',
 	maxRetriesPerRequest: null as null,
 	enableReadyCheck: false,
+	retryStrategy(times: number) {
+		const delay = Math.min(times * 500, 10_000);
+		return delay;
+	},
 	...(env.REDIS_TLS ? { tls: {} } : {}),
 };
 
@@ -25,7 +45,7 @@ let _sharedConnection: Redis | null = null;
 function getSharedConnection(): Redis {
 	if (!_sharedConnection) {
 		_sharedConnection = new Redis(REDIS_BASE_OPTIONS);
-		_sharedConnection.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared] error'));
+		_sharedConnection.on('error', (err) => logRedisError(err, 'shared'));
 	}
 	return _sharedConnection;
 }
@@ -52,7 +72,7 @@ export async function getRedisClient(): Promise<Redis | null> {
 	if (!redis) {
 		try {
 			const client = new Redis(REDIS_BASE_OPTIONS);
-			client.on('error', (err) => loggers.cache.error({ err }, 'Redis [cache] error'));
+			client.on('error', (err) => logRedisError(err, 'cache'));
 			redis = client;
 			loggers.cache.info('Redis conectado para cache');
 		} catch (error) {
