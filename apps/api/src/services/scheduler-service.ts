@@ -5,7 +5,7 @@
  * Reminders are stored in the database and processed by a delayed queue.
  */
 
-import { type ProviderType } from '@/adapters/messaging';
+import type { ProviderType } from '@/adapters/messaging';
 import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { scheduledReminders } from '@/db/schema';

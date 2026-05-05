@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { Bot, Brain, Calendar, Clock, Download, FileText, MessageCircle, Search } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { api } from '~/utils/api';

@@ -14,16 +14,16 @@ import { env } from '@/config/env';
 import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
-import { embeddingService } from '@/services/ai/embedding-service';
 import { dispatchAdapterOutputJob } from '@/services/adapter-output-dispatcher';
+import { embeddingService } from '@/services/ai/embedding-service';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { loggers } from '@/utils/logger';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Queue, Worker } from 'bullmq';
-import Redis from 'ioredis';
 import { and, eq, inArray, lte } from 'drizzle-orm';
+import Redis from 'ioredis';
 
 /**
  * Response Queue Job Interface
@@ -823,16 +823,30 @@ export async function runConversationCloseCron(): Promise<number> {
 	try {
 		const now = new Date();
 
-		const result = await db
-			.update(conversations)
-			.set({
-				state: 'closed',
-				closeAt: null,
-				closeJobId: null,
-				updatedAt: now,
-			})
-			.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
-			.returning({ id: conversations.id });
+		const result = await db.transaction(async (tx) => {
+			const lockedRows = await tx
+				.select({ id: conversations.id })
+				.from(conversations)
+				.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
+				.for('update', { skipLocked: true });
+
+			if (lockedRows.length === 0) {
+				return [];
+			}
+
+			const lockedIds = lockedRows.map((r) => r.id);
+
+			return tx
+				.update(conversations)
+				.set({
+					state: 'closed',
+					closeAt: null,
+					closeJobId: null,
+					updatedAt: now,
+				})
+				.where(inArray(conversations.id, lockedIds))
+				.returning({ id: conversations.id });
+		});
 
 		const count = result.length;
 
@@ -855,17 +869,31 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		const now = new Date();
 		const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
-		const result = await db
-			.update(conversations)
-			.set({
-				state: 'closed',
-				closeAt: null,
-				closeJobId: null,
-				context: null,
-				updatedAt: now,
-			})
-			.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
-			.returning({ id: conversations.id });
+		const result = await db.transaction(async (tx) => {
+			const lockedRows = await tx
+				.select({ id: conversations.id })
+				.from(conversations)
+				.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
+				.for('update', { skipLocked: true });
+
+			if (lockedRows.length === 0) {
+				return [];
+			}
+
+			const lockedIds = lockedRows.map((r) => r.id);
+
+			return tx
+				.update(conversations)
+				.set({
+					state: 'closed',
+					closeAt: null,
+					closeJobId: null,
+					context: null,
+					updatedAt: now,
+				})
+				.where(inArray(conversations.id, lockedIds))
+				.returning({ id: conversations.id });
+		});
 
 		const count = result.length;
 

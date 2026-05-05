@@ -22,9 +22,7 @@ describe('buildEnrichmentEmbeddingItem', () => {
 			},
 		});
 
-		const { buildEnrichmentEmbeddingItem } = await import(
-			'@/services/enrichment/enrichment-embedding-pipeline'
-		);
+		const { buildEnrichmentEmbeddingItem } = await import('@/services/enrichment/enrichment-embedding-pipeline');
 
 		const result = await buildEnrichmentEmbeddingItem({
 			candidate: {
@@ -68,9 +66,7 @@ describe('buildEnrichmentEmbeddingItem', () => {
 			},
 		});
 
-		const { buildEnrichmentEmbeddingItem } = await import(
-			'@/services/enrichment/enrichment-embedding-pipeline'
-		);
+		const { buildEnrichmentEmbeddingItem } = await import('@/services/enrichment/enrichment-embedding-pipeline');
 
 		const result = await buildEnrichmentEmbeddingItem({
 			candidate: { id: 456, name: 'Video' },

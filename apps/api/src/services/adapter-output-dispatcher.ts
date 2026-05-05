@@ -1,4 +1,4 @@
-import { type AdapterOutputQueueJob, type MessagingProvider } from '@/adapters/messaging/types';
+import type { AdapterOutputQueueJob, MessagingProvider } from '@/adapters/messaging/types';
 
 async function resolveProvider(
 	providerName: AdapterOutputQueueJob['payload']['providerName'],

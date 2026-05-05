@@ -1,7 +1,4 @@
-import {
-	buildRuntimeObservabilityAttributes,
-	summarizeRuntimeRounds,
-} from '@/services/ai/runtime-observability';
+import { buildRuntimeObservabilityAttributes, summarizeRuntimeRounds } from '@/services/ai/runtime-observability';
 import { describe, expect, it } from 'vitest';
 
 describe('runtime observability', () => {

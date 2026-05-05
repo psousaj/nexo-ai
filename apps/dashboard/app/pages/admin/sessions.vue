@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { Activity, Eye, ExternalLink, Key, MessageSquare, Search, Users } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 

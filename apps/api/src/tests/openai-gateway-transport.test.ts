@@ -1,6 +1,4 @@
-import {
-	OpenAIGatewayTransport,
-} from '@/services/ai/openai-gateway-transport';
+import { OpenAIGatewayTransport } from '@/services/ai/openai-gateway-transport';
 import { mapOpenAIFinishReasonToRuntimeStopReason } from '@/services/ai/runtime-contract';
 import OpenAI from 'openai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

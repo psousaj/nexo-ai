@@ -38,7 +38,9 @@ export interface InstrumentationConfig {
  * - PostgreSQL (pg)
  * - And more based on installed packages
  */
-export function getAutoInstrumentations(config?: InstrumentationConfig): ReturnType<typeof getNodeAutoInstrumentations> {
+export function getAutoInstrumentations(
+	config?: InstrumentationConfig,
+): ReturnType<typeof getNodeAutoInstrumentations> {
 	const options: Parameters<typeof getNodeAutoInstrumentations>[0] = {};
 
 	if (config?.httpHeadersToInclude) {
@@ -59,7 +61,9 @@ export function getAutoInstrumentations(config?: InstrumentationConfig): ReturnT
 	if (config?.instrumentations) {
 		// Filter instrumentations based on the provided list
 		const allInstrumentations = getNodeAutoInstrumentations(options);
-		return allInstrumentations.filter((inst) => config.instrumentations!.some((name) => inst.instrumentationName.includes(name)));
+		return allInstrumentations.filter((inst) =>
+			config.instrumentations!.some((name) => inst.instrumentationName.includes(name)),
+		);
 	}
 
 	return getNodeAutoInstrumentations(options);
