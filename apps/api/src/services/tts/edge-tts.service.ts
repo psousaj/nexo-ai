@@ -27,13 +27,14 @@ const DEFAULT_FORMAT = "ogg_opus";
 
 export class EdgeTTSService {
 	private readonly baseUrl = "https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1";
-	private readonly trustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
+	private readonly trustedClientToken: string;
 	private readonly defaultVoice: string;
 	private readonly defaultFormat: string;
 
 	constructor() {
 		this.defaultVoice = env.EDGE_TTS_VOICE ?? DEFAULT_VOICE;
 		this.defaultFormat = DEFAULT_FORMAT;
+		this.trustedClientToken = env.EDGE_TTS_TRUSTED_TOKEN;
 	}
 
 	async synthesize(text: string, options?: TTSOptions): Promise<TTSResult> {
