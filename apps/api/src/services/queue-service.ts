@@ -23,7 +23,7 @@ import { loggers } from '@/utils/logger';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
-import { and, eq, inArray, lte } from 'drizzle-orm';
+import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 
 /**
  * Response Queue Job Interface
@@ -823,6 +823,18 @@ export async function runConversationCloseCron(): Promise<number> {
 	try {
 		const now = new Date();
 
+		const lockedRows = await db
+			.select({ id: conversations.id })
+			.from(conversations)
+			.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
+			.for('update', { skipLocked: true });
+
+		if (lockedRows.length === 0) {
+			return 0;
+		}
+
+		const lockedIds = lockedRows.map((r) => r.id);
+
 		const result = await db
 			.update(conversations)
 			.set({
@@ -831,7 +843,7 @@ export async function runConversationCloseCron(): Promise<number> {
 				closeJobId: null,
 				updatedAt: now,
 			})
-			.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
+			.where(inArray(conversations.id, lockedIds))
 			.returning({ id: conversations.id });
 
 		const count = result.length;
@@ -855,6 +867,18 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		const now = new Date();
 		const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
+		const lockedRows = await db
+			.select({ id: conversations.id })
+			.from(conversations)
+			.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
+			.for('update', { skipLocked: true });
+
+		if (lockedRows.length === 0) {
+			return 0;
+		}
+
+		const lockedIds = lockedRows.map((r) => r.id);
+
 		const result = await db
 			.update(conversations)
 			.set({
@@ -864,7 +888,7 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 				context: null,
 				updatedAt: now,
 			})
-			.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
+			.where(inArray(conversations.id, lockedIds))
 			.returning({ id: conversations.id });
 
 		const count = result.length;
