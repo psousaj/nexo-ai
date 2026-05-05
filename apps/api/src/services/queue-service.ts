@@ -823,28 +823,30 @@ export async function runConversationCloseCron(): Promise<number> {
 	try {
 		const now = new Date();
 
-		const lockedRows = await db
-			.select({ id: conversations.id })
-			.from(conversations)
-			.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
-			.for('update', { skipLocked: true });
+		const result = await db.transaction(async (tx) => {
+			const lockedRows = await tx
+				.select({ id: conversations.id })
+				.from(conversations)
+				.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
+				.for('update', { skipLocked: true });
 
-		if (lockedRows.length === 0) {
-			return 0;
-		}
+			if (lockedRows.length === 0) {
+				return [];
+			}
 
-		const lockedIds = lockedRows.map((r) => r.id);
+			const lockedIds = lockedRows.map((r) => r.id);
 
-		const result = await db
-			.update(conversations)
-			.set({
-				state: 'closed',
-				closeAt: null,
-				closeJobId: null,
-				updatedAt: now,
-			})
-			.where(inArray(conversations.id, lockedIds))
-			.returning({ id: conversations.id });
+			return tx
+				.update(conversations)
+				.set({
+					state: 'closed',
+					closeAt: null,
+					closeJobId: null,
+					updatedAt: now,
+				})
+				.where(inArray(conversations.id, lockedIds))
+				.returning({ id: conversations.id });
+		});
 
 		const count = result.length;
 
@@ -867,29 +869,31 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		const now = new Date();
 		const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
-		const lockedRows = await db
-			.select({ id: conversations.id })
-			.from(conversations)
-			.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
-			.for('update', { skipLocked: true });
+		const result = await db.transaction(async (tx) => {
+			const lockedRows = await tx
+				.select({ id: conversations.id })
+				.from(conversations)
+				.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
+				.for('update', { skipLocked: true });
 
-		if (lockedRows.length === 0) {
-			return 0;
-		}
+			if (lockedRows.length === 0) {
+				return [];
+			}
 
-		const lockedIds = lockedRows.map((r) => r.id);
+			const lockedIds = lockedRows.map((r) => r.id);
 
-		const result = await db
-			.update(conversations)
-			.set({
-				state: 'closed',
-				closeAt: null,
-				closeJobId: null,
-				context: null,
-				updatedAt: now,
-			})
-			.where(inArray(conversations.id, lockedIds))
-			.returning({ id: conversations.id });
+			return tx
+				.update(conversations)
+				.set({
+					state: 'closed',
+					closeAt: null,
+					closeJobId: null,
+					context: null,
+					updatedAt: now,
+				})
+				.where(inArray(conversations.id, lockedIds))
+				.returning({ id: conversations.id });
+		});
 
 		const count = result.length;
 
