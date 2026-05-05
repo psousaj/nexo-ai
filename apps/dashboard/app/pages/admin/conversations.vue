@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
 import { useQuery } from '@tanstack/vue-query';
-import { Activity, Check, ChevronRight, Clock, Copy, EyeOff, Loader2, MessageCircle, MessageSquare, X } from 'lucide-vue-next';
+import { Activity, Check, ChevronRight, Clock, Copy, EyeOff, Loader2, MessageSquare, X } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 import type { ConversationAudit, ConversationMessage, ConversationSummary, OrchestratorTrace } from '~/types/dashboard';
@@ -141,7 +141,10 @@ const messageCycles = computed<MessageCycle[]>(() => {
 function llmActionBadge(action?: string) {
 	switch (action) {
 		case 'CALL_TOOL':
-			return { label: 'CALL_TOOL', class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
+			return {
+				label: 'CALL_TOOL',
+				class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+			};
 		case 'RESPOND':
 			return { label: 'RESPOND', class: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' };
 		case 'NOOP':
@@ -157,7 +160,9 @@ function confidenceColor(c: number) {
 	return 'bg-rose-400';
 }
 
-const selectedProviderCfg = computed(() => (selectedConv.value ? providerCfg(selectedConv.value.provider) : providerConfig.unknown));
+const selectedProviderCfg = computed(() =>
+	selectedConv.value ? providerCfg(selectedConv.value.provider) : providerConfig.unknown,
+);
 
 // ─── Trace modal ─────────────────────────────────────────────────────────────
 const traceModal = ref<{ cycleIdx: number; cycle: MessageCycle } | null>(null);
@@ -183,7 +188,11 @@ function formatMs(ms: number | undefined | null): string {
 
 function buildCycleText(idx: number, cycle: MessageCycle): string {
 	const trace = getCycleTrace(cycle);
-	const date = cycle.user ? formatTime(cycle.user.createdAt) : cycle.assistant ? formatTime(cycle.assistant.createdAt) : '—';
+	const date = cycle.user
+		? formatTime(cycle.user.createdAt)
+		: cycle.assistant
+			? formatTime(cycle.assistant.createdAt)
+			: '—';
 	const totalMs = trace?.durations?.total_ms;
 	let text = `=== Ciclo ${idx + 1} ===\n`;
 	text += `Data: ${date}\n`;

@@ -1,11 +1,8 @@
-import { Hono } from "hono";
-import type {
-	MultimodalIntakePayload,
-	NormalizedAudioPayload,
-} from "@nexo/shared";
-import { whisperService } from "@/services/stt/whisper.service";
-import { loggers } from "@/utils/logger";
-import { env } from "@/config/env";
+import { Hono } from 'hono';
+import type { MultimodalIntakePayload, NormalizedAudioPayload } from '@nexo/shared';
+import { whisperService } from '@/services/stt/whisper.service';
+import { loggers } from '@/utils/logger';
+import { env } from '@/config/env';
 
 interface IntakeProcessRequest {
 	attachments: MultimodalIntakePayload[];

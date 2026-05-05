@@ -1,6 +1,6 @@
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { ExportResultCode } from '@opentelemetry/core';
 import type { ExportResult } from '@opentelemetry/core';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 
 export interface ExporterConfig {

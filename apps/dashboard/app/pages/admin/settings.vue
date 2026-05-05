@@ -1,138 +1,138 @@
 <script setup lang="ts">
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed } from 'vue'
-import { useDashboard } from '~/composables/useDashboard'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { computed } from 'vue';
+import { useDashboard } from '~/composables/useDashboard';
 
 definePageMeta({
-  middleware: ['role']
-})
+	middleware: ['role'],
+});
 
-const dashboard = useDashboard()
-const toast = useToast()
-const queryClient = useQueryClient()
+const dashboard = useDashboard();
+const toast = useToast();
+const queryClient = useQueryClient();
 
 const { data: settings, isLoading } = useQuery({
-  queryKey: ['whatsapp-settings'],
-  queryFn: () => dashboard.getWhatsAppSettings()
-})
+	queryKey: ['whatsapp-settings'],
+	queryFn: () => dashboard.getWhatsAppSettings(),
+});
 
 const { data: qrCodeData, refetch: refetchQRCode } = useQuery({
-  queryKey: ['whatsapp-qr-code'],
-  queryFn: () => dashboard.getWhatsAppQRCode(),
-  refetchInterval: 4000
-})
+	queryKey: ['whatsapp-qr-code'],
+	queryFn: () => dashboard.getWhatsAppQRCode(),
+	refetchInterval: 4000,
+});
 
 const connectionStatus = computed(() => {
-  const fromQr = qrCodeData.value?.connectionStatus
-  if (fromQr?.status) {
-    return fromQr
-  }
+	const fromQr = qrCodeData.value?.connectionStatus;
+	if (fromQr?.status) {
+		return fromQr;
+	}
 
-  return {
-    status: settings.value?.connectionStatus || 'disconnected',
-    phoneNumber: settings.value?.phoneNumber || null,
-    error: settings.value?.lastError || null
-  }
-})
+	return {
+		status: settings.value?.connectionStatus || 'disconnected',
+		phoneNumber: settings.value?.phoneNumber || null,
+		error: settings.value?.lastError || null,
+	};
+});
 
-const isConnected = computed(() => connectionStatus.value.status === 'connected')
-const isConnecting = computed(() => connectionStatus.value.status === 'connecting')
+const isConnected = computed(() => connectionStatus.value.status === 'connected');
+const isConnecting = computed(() => connectionStatus.value.status === 'connecting');
 const statusLabel = computed(() => {
-  if (isConnected.value) return 'Conectado'
-  if (isConnecting.value) return 'Conectando'
-  if (connectionStatus.value.status === 'error') return 'Erro'
-  return 'Desconectado'
-})
+	if (isConnected.value) return 'Conectado';
+	if (isConnecting.value) return 'Conectando';
+	if (connectionStatus.value.status === 'error') return 'Erro';
+	return 'Desconectado';
+});
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message) return error.message
-  return fallback
-}
+	if (error instanceof Error && error.message) return error.message;
+	return fallback;
+};
 
 const connectMutation = useMutation({
-  mutationFn: async () => dashboard.connectWhatsAppInstance(),
-  onSuccess: async () => {
-    toast.add({
-      title: 'Conexão solicitada',
-      description: 'QR Code atualizado para vinculação do WhatsApp.',
-      color: 'success',
-      icon: 'i-heroicons-check-circle'
-    })
-    await refetchQRCode()
-  },
-  onError: (error: unknown) => {
-    toast.add({
-      title: 'Erro ao conectar',
-      description: getErrorMessage(error, 'Não foi possível iniciar a conexão.'),
-      color: 'error',
-      icon: 'i-heroicons-x-circle'
-    })
-  }
-})
+	mutationFn: async () => dashboard.connectWhatsAppInstance(),
+	onSuccess: async () => {
+		toast.add({
+			title: 'Conexão solicitada',
+			description: 'QR Code atualizado para vinculação do WhatsApp.',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
+		await refetchQRCode();
+	},
+	onError: (error: unknown) => {
+		toast.add({
+			title: 'Erro ao conectar',
+			description: getErrorMessage(error, 'Não foi possível iniciar a conexão.'),
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
+	},
+});
 
 const restartMutation = useMutation({
-  mutationFn: async () => dashboard.restartWhatsAppInstance(),
-  onSuccess: async () => {
-    toast.add({
-      title: 'Instância reiniciada',
-      description: 'Sessão reiniciada e QR Code renovado.',
-      color: 'success',
-      icon: 'i-heroicons-check-circle'
-    })
-    await refetchQRCode()
-    await queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] })
-  },
-  onError: (error: unknown) => {
-    toast.add({
-      title: 'Erro ao reiniciar',
-      description: getErrorMessage(error, 'Não foi possível reiniciar a instância.'),
-      color: 'error',
-      icon: 'i-heroicons-x-circle'
-    })
-  }
-})
+	mutationFn: async () => dashboard.restartWhatsAppInstance(),
+	onSuccess: async () => {
+		toast.add({
+			title: 'Instância reiniciada',
+			description: 'Sessão reiniciada e QR Code renovado.',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
+		await refetchQRCode();
+		await queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] });
+	},
+	onError: (error: unknown) => {
+		toast.add({
+			title: 'Erro ao reiniciar',
+			description: getErrorMessage(error, 'Não foi possível reiniciar a instância.'),
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
+	},
+});
 
 const disconnectMutation = useMutation({
-  mutationFn: async () => dashboard.disconnectWhatsAppInstance(),
-  onSuccess: async () => {
-    toast.add({
-      title: 'Sessão desconectada',
-      description: 'A sessão WhatsApp foi encerrada com sucesso.',
-      color: 'success',
-      icon: 'i-heroicons-check-circle'
-    })
-    await refetchQRCode()
-    await queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] })
-  },
-  onError: (error: unknown) => {
-    toast.add({
-      title: 'Erro ao desconectar',
-      description: getErrorMessage(error, 'Não foi possível desconectar a sessão.'),
-      color: 'error',
-      icon: 'i-heroicons-x-circle'
-    })
-  }
-})
+	mutationFn: async () => dashboard.disconnectWhatsAppInstance(),
+	onSuccess: async () => {
+		toast.add({
+			title: 'Sessão desconectada',
+			description: 'A sessão WhatsApp foi encerrada com sucesso.',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
+		await refetchQRCode();
+		await queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] });
+	},
+	onError: (error: unknown) => {
+		toast.add({
+			title: 'Erro ao desconectar',
+			description: getErrorMessage(error, 'Não foi possível desconectar a sessão.'),
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
+	},
+});
 
 const clearCacheMutation = useMutation({
-  mutationFn: async () => dashboard.clearWhatsAppCache(),
-  onSuccess: () => {
-    toast.add({
-      title: 'Cache limpo',
-      description: 'Cache do provider foi limpo com sucesso.',
-      color: 'success',
-      icon: 'i-heroicons-check-circle'
-    })
-  },
-  onError: (error: unknown) => {
-    toast.add({
-      title: 'Erro ao limpar cache',
-      description: getErrorMessage(error, 'Não foi possível limpar o cache.'),
-      color: 'error',
-      icon: 'i-heroicons-x-circle'
-    })
-  }
-})
+	mutationFn: async () => dashboard.clearWhatsAppCache(),
+	onSuccess: () => {
+		toast.add({
+			title: 'Cache limpo',
+			description: 'Cache do provider foi limpo com sucesso.',
+			color: 'success',
+			icon: 'i-heroicons-check-circle',
+		});
+	},
+	onError: (error: unknown) => {
+		toast.add({
+			title: 'Erro ao limpar cache',
+			description: getErrorMessage(error, 'Não foi possível limpar o cache.'),
+			color: 'error',
+			icon: 'i-heroicons-x-circle',
+		});
+	},
+});
 </script>
 
 <template>

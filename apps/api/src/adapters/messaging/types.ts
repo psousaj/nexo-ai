@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import type { LinkingTokenProvider } from '@/db/schema';
 import type { MultimodalIntakePayload } from '@nexo/shared';
-import { randomUUID } from 'node:crypto';
 
 /**
  * Messaging Provider Adapter Interface

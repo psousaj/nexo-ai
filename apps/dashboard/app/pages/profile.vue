@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { LinkIcon, Loader2, Mail, MessageSquare, Plus, Smartphone, Trash2, User, XCircle } from 'lucide-vue-next';
+import { Link as LinkIcon, Loader2, Mail, MessageSquare, Plus, Smartphone, Trash2, User, XCircle } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 
@@ -143,7 +143,9 @@ const handleSave = async () => {
 const handleDeleteAccount = async () => {
 	if (
 		process.client &&
-		!confirm('Tem certeza que deseja excluir sua conta? Esta ação é irreversível e todos os seus dados serão removidos.')
+		!confirm(
+			'Tem certeza que deseja excluir sua conta? Esta ação é irreversível e todos os seus dados serão removidos.',
+		)
 	)
 		return;
 	try {

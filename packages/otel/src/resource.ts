@@ -40,7 +40,9 @@ export function getResource(config: ResourceConfig): Resource {
 export function getResourceFromEnv(): ResourceConfig {
 	const serviceName = process.env.OTEL_SERVICE_NAME || process.env.npm_package_name || 'nexo-ai-service';
 	const environment =
-		process.env.NODE_ENV || process.env.OTEL_RESOURCE_ATTRIBUTES?.match(/deployment\.environment=([^,]+)/)?.[1] || 'development';
+		process.env.NODE_ENV ||
+		process.env.OTEL_RESOURCE_ATTRIBUTES?.match(/deployment\.environment=([^,]+)/)?.[1] ||
+		'development';
 
 	return {
 		serviceName,
