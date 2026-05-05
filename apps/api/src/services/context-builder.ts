@@ -9,9 +9,9 @@
  */
 
 import { db } from '@/db';
-import { agentMemoryProfiles, users } from '@/db/schema';
+import { agentMemoryProfiles, memoryInsights, memoryItems, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 
 /**
  * Agent context built from user profile
@@ -26,12 +26,73 @@ export interface AgentContext {
 	userContent?: string;
 	toolsContent?: string;
 	memoryContent?: string;
+	/** Structured memory entries (NEX-23) */
+	structuredMemory?: string;
 	/** Assistant personality fields */
 	assistantName?: string;
 	assistantEmoji?: string;
 	assistantCreature?: string;
 	assistantTone?: string;
 	assistantVibe?: string;
+}
+
+// ============================================================================
+// MEMORY CONTENT STRUCTURING (NEX-23)
+// ============================================================================
+
+const MEMORY_CONTENT_MAX_CHARS = 2200;
+const MEMORY_ENTRY_SEPARATOR = '§';
+
+/**
+ * Build structured memory content from memory_items and memory_insights.
+ * Orders by importance/confidence, limits to 2200 chars, uses § separator.
+ *
+ * Format: § [type:confidence] content
+ */
+export async function buildStructuredMemory(userId: string): Promise<string> {
+	// 1. Fetch recent memory items ordered by importance
+	const items = await db.query.memoryItems.findMany({
+		where: eq(memoryItems.userId, userId),
+		orderBy: [desc(memoryItems.importance), desc(memoryItems.createdAt)],
+		limit: 50,
+	});
+
+	// 2. Fetch high-confidence insights
+	const insights = await db.query.memoryInsights.findMany({
+		where: and(
+			eq(memoryInsights.userId, userId),
+			gte(memoryInsights.confidence, 0.6),
+		),
+		orderBy: [desc(memoryInsights.confidence), desc(memoryInsights.importance)],
+		limit: 20,
+	});
+
+	// 3. Format entries
+	const entries: string[] = [];
+
+	for (const item of items) {
+		const confidence = item.confidence ?? 1.0;
+		const entry = `${MEMORY_ENTRY_SEPARATOR} [${item.cognitiveType}:${confidence.toFixed(1)}] ${item.title}`;
+		entries.push(entry);
+	}
+
+	for (const insight of insights) {
+		const entry = `${MEMORY_ENTRY_SEPARATOR} [insight:${insight.confidence.toFixed(1)}] ${insight.summary || insight.content}`;
+		entries.push(entry);
+	}
+
+	// 4. Join and truncate to max chars
+	let result = entries.join('\n');
+	if (result.length > MEMORY_CONTENT_MAX_CHARS) {
+		result = result.slice(0, MEMORY_CONTENT_MAX_CHARS);
+		// Truncate at last complete entry
+		const lastSeparator = result.lastIndexOf(MEMORY_ENTRY_SEPARATOR);
+		if (lastSeparator > 0) {
+			result = result.slice(0, lastSeparator);
+		}
+	}
+
+	return result;
 }
 
 /**
@@ -110,8 +171,15 @@ export async function buildAgentContext(userId: string, sessionKey: string): Pro
 
 	// 6. MEMORY.md equivalent - long-term memory (ONLY in main session)
 	// Prevents context pollution in secondary sessions
-	if (isMainSession && profile?.memoryContent) {
-		sections.push(`\n## Long-term Memory\n${profile.memoryContent}`);
+	if (isMainSession) {
+		// Use structured memory from memory_items + memory_insights (NEX-23)
+		const structuredMemory = await buildStructuredMemory(userId);
+		if (structuredMemory) {
+			sections.push(`\n## Long-term Memory\n${structuredMemory}`);
+		} else if (profile?.memoryContent) {
+			// Fallback to legacy memoryContent if no structured data
+			sections.push(`\n## Long-term Memory\n${profile.memoryContent}`);
+		}
 	}
 
 	// 7. Tools documentation (if present)
