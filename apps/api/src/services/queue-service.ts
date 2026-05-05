@@ -855,8 +855,12 @@ export async function runConversationCloseCron(): Promise<number> {
 		}
 
 		return count;
-	} catch (error) {
-		queueLogger.error({ err: error }, '❌ Erro no cron de fechamento');
+	} catch (error: any) {
+		if (error?.message?.includes('column') || error?.message?.includes('does not exist')) {
+			queueLogger.error({ err: error }, '❌ CRON: Schema mismatch — verifique se migration foi aplicada');
+		} else {
+			queueLogger.error({ err: error }, '❌ Erro no cron de fechamento');
+		}
 		throw error;
 	}
 }
@@ -902,8 +906,12 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		}
 
 		return count;
-	} catch (error) {
-		queueLogger.error({ err: error }, '❌ Erro no timeout de awaiting_confirmation');
+	} catch (error: any) {
+		if (error?.message?.includes('column') || error?.message?.includes('does not exist')) {
+			queueLogger.error({ err: error }, '❌ CRON: Schema mismatch — verifique se migration foi aplicada');
+		} else {
+			queueLogger.error({ err: error }, '❌ Erro no timeout de awaiting_confirmation');
+		}
 		throw error;
 	}
 }

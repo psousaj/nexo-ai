@@ -43,6 +43,8 @@ export default defineConfig({
 		const templatesDest = join('dist', 'templates');
 		const nlpModelSource = join('src', 'services', 'message-analysis', 'training', 'model');
 		const nlpModelDest = join('dist', 'model');
+		const promptsSource = join('src', 'config', 'prompts');
+		const promptsDest = join('dist', 'config', 'prompts');
 
 		if (existsSync(templatesSource)) {
 			cpSync(templatesSource, templatesDest, { recursive: true });
@@ -56,6 +58,13 @@ export default defineConfig({
 			console.log('✓ Modelo NLP copiado para dist/model');
 		} else {
 			console.warn('⚠ Pasta do modelo NLP não encontrada em', nlpModelSource);
+		}
+
+		if (existsSync(promptsSource)) {
+			cpSync(promptsSource, promptsDest, { recursive: true });
+			console.log('✓ Prompts YAML copiados para dist/config/prompts');
+		} else {
+			console.warn('⚠ Pasta de prompts YAML não encontrada em', promptsSource);
 		}
 	},
 });
