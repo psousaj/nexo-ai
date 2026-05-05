@@ -49,6 +49,9 @@ COPY --from=builder /app/packages/otel/node_modules/ packages/otel/node_modules/
 COPY --from=builder /app/packages/shared/node_modules/ packages/shared/node_modules/
 
 COPY --from=builder /app/apps/api/package.json apps/api/
+COPY --from=builder /app/packages/shared/package.json packages/shared/
+COPY --from=builder /app/packages/env/package.json packages/env/
+COPY --from=builder /app/packages/otel/package.json packages/otel/
 
 COPY --from=builder /app/packages/shared/dist/ packages/shared/dist/
 COPY --from=builder /app/packages/env/dist/ packages/env/dist/
