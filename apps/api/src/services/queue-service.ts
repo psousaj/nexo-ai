@@ -14,16 +14,16 @@ import { env } from '@/config/env';
 import { REDIS_BASE_OPTIONS } from '@/config/redis';
 import { db } from '@/db';
 import { conversations, semanticExternalItems } from '@/db/schema';
-import { embeddingService } from '@/services/ai/embedding-service';
 import { dispatchAdapterOutputJob } from '@/services/adapter-output-dispatcher';
+import { embeddingService } from '@/services/ai/embedding-service';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { loggers } from '@/utils/logger';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import { Queue, Worker } from 'bullmq';
+import { and, eq, inArray, lte } from 'drizzle-orm';
 import Redis from 'ioredis';
-import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 
 /**
  * Response Queue Job Interface

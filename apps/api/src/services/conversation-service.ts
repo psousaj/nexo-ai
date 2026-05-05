@@ -8,11 +8,8 @@ import {
 	getRandomMessage,
 } from '@/services/message-analysis/constants/clarification-messages';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import type { AmbiguityAnalysisResult, Language } from '@/services/message-analysis/types/analysis-result.types';
 import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
-import type {
-	AmbiguityAnalysisResult,
-	Language,
-} from '@/services/message-analysis/types/analysis-result.types';
 import { instrumentService } from '@/services/service-instrumentation';
 import type { ConversationContext, ConversationState, MessageMetadata, MessageRole } from '@/types';
 import { loggers } from '@/utils/logger';

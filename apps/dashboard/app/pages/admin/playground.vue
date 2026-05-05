@@ -383,10 +383,13 @@ async function checkConnectivity() {
 	loadingConnectivity.value = true;
 	connectivityResult.value = null;
 	try {
-		const res = await $fetch<{ success: boolean; data: typeof connectivityResult.value }>(`${apiUrl}/admin/playground/connectivity`, {
-			method: 'POST',
-			credentials: 'include',
-		});
+		const res = await $fetch<{ success: boolean; data: typeof connectivityResult.value }>(
+			`${apiUrl}/admin/playground/connectivity`,
+			{
+				method: 'POST',
+				credentials: 'include',
+			},
+		);
 		if (res.success) connectivityResult.value = res.data;
 	} catch (err: any) {
 		connectivityResult.value = {
@@ -424,7 +427,14 @@ const allToolNames = [
 	'get_assistant_name',
 ];
 const promptTestMsg = ref('');
-const promptTestTools = ref<string[]>(['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link', 'search_items']);
+const promptTestTools = ref<string[]>([
+	'save_note',
+	'save_movie',
+	'save_tv_show',
+	'save_video',
+	'save_link',
+	'search_items',
+]);
 const loadingPromptTest = ref(false);
 const promptTestResult = ref<{ llmResponse: string; systemPrompt: string } | null>(null);
 
@@ -433,11 +443,14 @@ async function runPromptTest() {
 	loadingPromptTest.value = true;
 	promptTestResult.value = null;
 	try {
-		const res = await $fetch<{ success: boolean; data: typeof promptTestResult.value }>(`${apiUrl}/admin/playground/prompt-test`, {
-			method: 'POST',
-			credentials: 'include',
-			body: { message: promptTestMsg.value, tools: promptTestTools.value },
-		});
+		const res = await $fetch<{ success: boolean; data: typeof promptTestResult.value }>(
+			`${apiUrl}/admin/playground/prompt-test`,
+			{
+				method: 'POST',
+				credentials: 'include',
+				body: { message: promptTestMsg.value, tools: promptTestTools.value },
+			},
+		);
 		if (res.success) promptTestResult.value = res.data;
 	} catch (err: any) {
 		promptTestResult.value = {

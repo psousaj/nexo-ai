@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Loader2, Save, X } from 'lucide-vue-next';
 import type { MemoryItem } from '~/types/dashboard';
 
 const props = defineProps<{

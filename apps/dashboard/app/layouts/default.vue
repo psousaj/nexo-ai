@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
 import {
-	Bell,
 	Database,
 	FlaskConical,
 	LayoutDashboard,
-	LogOut,
-	Menu,
 	MessageSquare,
 	Settings,
-	ShieldCheck,
 	ToggleRight,
 	UserCircle,
 	Users,
-	X,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
