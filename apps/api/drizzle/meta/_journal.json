@@ -134,6 +134,20 @@
       "when": 1775765100051,
       "tag": "0018_rename_whatsapp_baileys_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777980512262,
+      "tag": "0019_burly_alice",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1777980777290,
+      "tag": "0020_first_senator_kelly",
+      "breakpoints": true
     }
   ]
 }
