@@ -10,6 +10,7 @@
 
 import { db } from '@/db';
 import { agentMemoryProfiles, users } from '@/db/schema';
+import { sanitizeAgentProfileFields, sanitizePromptInput } from '@/services/prompt-sanitizer';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
 
@@ -58,25 +59,81 @@ export async function buildAgentContext(userId: string, sessionKey: string): Pro
 	}
 
 	// Load agent memory profile (if exists)
-	const profile = await db.query.agentMemoryProfiles.findFirst({
+	const rawProfile = await db.query.agentMemoryProfiles.findFirst({
 		where: eq(agentMemoryProfiles.userId, userId),
 	});
+
+	// 🛡️ Sanitize all user-controlled fields before injection
+	const sanitized = rawProfile
+		? sanitizeAgentProfileFields(
+				{
+					soulContent: rawProfile.soulContent,
+					identityContent: rawProfile.identityContent,
+					memoryContent: rawProfile.memoryContent,
+					agentsContent: rawProfile.agentsContent,
+					userContent: rawProfile.userContent,
+					toolsContent: rawProfile.toolsContent,
+				},
+				userId,
+			)
+		: null;
+
+	const profile = rawProfile && sanitized
+		? {
+				...rawProfile,
+				soulContent: sanitized.soulContent ?? rawProfile.soulContent,
+				identityContent: sanitized.identityContent ?? rawProfile.identityContent,
+				memoryContent: sanitized.memoryContent ?? rawProfile.memoryContent,
+				agentsContent: sanitized.agentsContent ?? rawProfile.agentsContent,
+				userContent: sanitized.userContent ?? rawProfile.userContent,
+				toolsContent: sanitized.toolsContent ?? rawProfile.toolsContent,
+			}
+		: rawProfile;
+
+	if (sanitized?.wasSanitized) {
+		loggers.context.warn(
+			{ userId, patterns: sanitized.detectedPatterns },
+			'🛡️ Prompt injection patterns sanitized from profile fields',
+		);
+	}
 
 	// Build system prompt sections
 	const sections: string[] = [];
 
+	// 🛡️ Sanitize user-controlled persona fields too
+	const { cleanText: safeAssistantName } = sanitizePromptInput(
+		user.assistantName || 'NEXO',
+		{ field: 'assistantName', userId },
+	);
+	const { cleanText: safeAssistantTone } = sanitizePromptInput(
+		user.assistantTone || '',
+		{ field: 'assistantTone', userId },
+	);
+	const { cleanText: safeAssistantVibe } = sanitizePromptInput(
+		user.assistantVibe || '',
+		{ field: 'assistantVibe', userId },
+	);
+	const { cleanText: safeAssistantEmoji } = sanitizePromptInput(
+		user.assistantEmoji || '',
+		{ field: 'assistantEmoji', userId },
+	);
+	const { cleanText: safeAssistantCreature } = sanitizePromptInput(
+		user.assistantCreature || '',
+		{ field: 'assistantCreature', userId },
+	);
+
 	// 1. Base identity (always included)
-	const assistantName = user.assistantName || 'NEXO';
+	const assistantName = safeAssistantName || 'NEXO';
 	sections.push(`You are ${assistantName}, a personal AI assistant.`);
 
 	// 2. SOUL.md equivalent - personality (if present)
 	if (profile?.soulContent) {
 		sections.push(`\n## Personality\n${profile.soulContent}`);
-	} else if (user.assistantTone) {
+	} else if (safeAssistantTone) {
 		// Fallback to tone field
-		sections.push(`\n## Personality\nTone: ${user.assistantTone}`);
-		if (user.assistantVibe) {
-			sections.push(`Vibe: ${user.assistantVibe}`);
+		sections.push(`\n## Personality\nTone: ${safeAssistantTone}`);
+		if (safeAssistantVibe) {
+			sections.push(`Vibe: ${safeAssistantVibe}`);
 		}
 	}
 
@@ -86,11 +143,11 @@ export async function buildAgentContext(userId: string, sessionKey: string): Pro
 		identityParts.push(profile.identityContent);
 	} else {
 		identityParts.push(`Name: ${assistantName}`);
-		if (user.assistantEmoji) {
-			identityParts.push(`Emoji: ${user.assistantEmoji}`);
+		if (safeAssistantEmoji) {
+			identityParts.push(`Emoji: ${safeAssistantEmoji}`);
 		}
-		if (user.assistantCreature) {
-			identityParts.push(`Creature: ${user.assistantCreature}`);
+		if (safeAssistantCreature) {
+			identityParts.push(`Creature: ${safeAssistantCreature}`);
 		}
 	}
 	if (identityParts.length > 0) {
