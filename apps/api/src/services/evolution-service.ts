@@ -147,11 +147,12 @@ export class EvolutionService {
       return (await response.json()) as T;
     } catch (error: any) {
       if (error.name === "AbortError") {
-        throw new Error(`Evolution API ${method} ${path} timed out after 15s`);
+        throw new Error(`Evolution API ${method} ${path} timed out after 15s`, { cause: error });
       }
       if (error.message?.includes("fetch failed")) {
         throw new Error(
           `Evolution API ${method} ${path} connection failed — endpoint may be down. Original: ${error.message}`,
+          { cause: error },
         );
       }
       throw error;
