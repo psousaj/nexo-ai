@@ -353,7 +353,10 @@ export function getToolExecutionPolicy(name: ToolName): ToolExecutionPolicy {
  * Filtra nomes de tool por policy.
  * Útil para expor ao LLM apenas tools com execução automática segura.
  */
-export function filterToolNamesByPolicy(toolNames: string[], allowedPolicies: ToolExecutionPolicy[] = ['allow']): ToolName[] {
+export function filterToolNamesByPolicy(
+	toolNames: string[],
+	allowedPolicies: ToolExecutionPolicy[] = ['allow'],
+): ToolName[] {
 	const allowedSet = new Set(allowedPolicies);
 	return toolNames.filter((name): name is ToolName => {
 		if (!(name in TOOL_DEFINITIONS)) return false;

@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import { defineConfig } from 'vitest/config';
 
 const pnpmStore = resolve(__dirname, '../../node_modules/.pnpm/node_modules');
 

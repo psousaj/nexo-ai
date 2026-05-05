@@ -468,10 +468,7 @@ export async function searchSessionTranscripts(options: {
 		createdAt: r.createdAt,
 	}));
 
-	loggers.memory.info(
-		{ userId, query, resultsCount: typedResults.length },
-		'✅ Session search complete',
-	);
+	loggers.memory.info({ userId, query, resultsCount: typedResults.length }, '✅ Session search complete');
 
 	return typedResults;
 }

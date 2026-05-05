@@ -1,9 +1,9 @@
-import {
-	type ChatAction,
-	type MessagingChannel,
-	type MessagingProvider,
-	type OutgoingMessageQueuePayload,
-	type ProviderType,
+import type {
+	ChatAction,
+	MessagingChannel,
+	MessagingProvider,
+	OutgoingMessageQueuePayload,
+	ProviderType,
 } from '@/adapters/messaging/types';
 import { env } from '@/config/env';
 

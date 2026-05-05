@@ -9,7 +9,6 @@ import {
 	getChannelTrialExceededMessage,
 	getRandomMessage,
 } from '@/config/message-templates';
-import { splitMessage } from '@/utils/message-splitter';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { commandHandlerService } from '@/services/command-handler.service';
 import { conversationService } from '@/services/conversation-service';
@@ -25,6 +24,7 @@ import { cancelConversationClose } from '@/services/queue-service';
 import { resolveSessionKey } from '@/services/session-key-resolver';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
+import { splitMessage } from '@/utils/message-splitter';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
 import * as Sentry from '@sentry/core';
 

@@ -112,12 +112,7 @@ async function detectTypeClusters(userId: string): Promise<InferenceResult[]> {
 			count: sql<number>`count(*)::int`,
 		})
 		.from(memoryItems)
-		.where(
-			and(
-				eq(memoryItems.userId, userId),
-				gte(memoryItems.createdAt, windowDate),
-			),
-		)
+		.where(and(eq(memoryItems.userId, userId), gte(memoryItems.createdAt, windowDate)))
 		.groupBy(memoryItems.cognitiveType);
 
 	for (const row of typeCounts) {
@@ -228,10 +223,7 @@ export async function getProactiveSuggestions(userId: string): Promise<Proactive
 
 	// 2. Update lastAccessedAt for surfaced insights
 	for (const insight of recentInsights) {
-		await db
-			.update(memoryInsights)
-			.set({ lastAccessedAt: new Date() })
-			.where(eq(memoryInsights.id, insight.id));
+		await db.update(memoryInsights).set({ lastAccessedAt: new Date() }).where(eq(memoryInsights.id, insight.id));
 	}
 
 	const suggestions: ProactiveSuggestion[] = recentInsights.map((insight) => ({
@@ -278,10 +270,7 @@ async function saveInsight(userId: string, result: InferenceResult): Promise<voi
 /**
  * Mark an insight as superseded by a newer version.
  */
-export async function supersedeInsight(
-	oldInsightId: string,
-	newInsightId: string,
-): Promise<void> {
+export async function supersedeInsight(oldInsightId: string, newInsightId: string): Promise<void> {
 	await db
 		.update(memoryInsights)
 		.set({

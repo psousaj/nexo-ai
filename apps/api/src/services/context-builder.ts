@@ -17,7 +17,7 @@
 import { db } from '@/db';
 import { agentMemoryProfiles, memoryInsights, memoryItems, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte } from 'drizzle-orm';
 
 // ============================================================================
 // PROMPT CACHE (NEX-25)
@@ -105,10 +105,7 @@ export async function buildStructuredMemory(userId: string): Promise<string> {
 
 	// 2. Fetch high-confidence insights
 	const insights = await db.query.memoryInsights.findMany({
-		where: and(
-			eq(memoryInsights.userId, userId),
-			gte(memoryInsights.confidence, 0.6),
-		),
+		where: and(eq(memoryInsights.userId, userId), gte(memoryInsights.confidence, 0.6)),
 		orderBy: [desc(memoryInsights.confidence), desc(memoryInsights.importance)],
 		limit: 20,
 	});

@@ -97,7 +97,7 @@ export class EvolutionService {
     const url = new URL(`${this.baseUrl}${path}`);
     if (query) {
       for (const [key, value] of Object.entries(query)) {
-        if (value && value.trim()) {
+        if (value?.trim()) {
           url.searchParams.set(key, value);
         }
       }

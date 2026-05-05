@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import type { MultimodalIntakePayload } from '@nexo/shared';
+import { Hono } from 'hono';
 
 interface IntakeProcessRequest {
 	attachments: MultimodalIntakePayload[];
