@@ -187,6 +187,13 @@ export class OpenAIGatewayTransport {
 			};
 		} catch (error) {
 			const err = error as any;
+
+			// If error already carries a runtimeRound (e.g. empty_choices), re-throw as-is
+			// to avoid double-recording the error in Sentry
+			if (err?.runtimeRound) {
+				throw error;
+			}
+
 			const headers = normalizeGatewayHeaders(
 				(err?.responseHeaders ?? {}) as Record<string, string | null | undefined>,
 			);
