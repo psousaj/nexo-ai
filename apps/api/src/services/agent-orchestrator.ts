@@ -75,7 +75,7 @@ import { scheduleConversationClose } from "./queue-service";
 import { toolAvailabilityService } from "./tool-availability.service";
 import { filterToolNamesByPolicy } from "./tools/registry";
 import { executeTool } from "./tools";
-import type { ToolContext } from "./tools/ai-sdk-tools";
+import type { ToolContext } from "./tools";
 
 export interface AgentContext {
   userId: string;

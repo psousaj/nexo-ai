@@ -1740,6 +1740,60 @@ export async function save_memory(
 	}
 }
 
+export async function search_book(
+	context: ToolContext,
+	params: { title: string; author?: string },
+): Promise<ToolOutput> {
+	const found = await bookService.searchBook(params.title.trim(), params.author?.trim());
+	if (!found) return { success: false, error: 'Nenhum livro encontrado' };
+	return {
+		success: true,
+		data: {
+			results: [
+				{
+					type: 'book' as const,
+					title: found.title,
+					author: found.authors?.[0],
+					year: found.year,
+					cover_url: found.cover_url,
+					description: found.description,
+					google_books_id: found.google_books_id,
+					isbn: found.isbn,
+					publisher: found.publisher,
+					page_count: found.page_count,
+					genres: found.genres,
+				},
+			],
+		},
+	};
+}
+
+export async function search_music(
+	context: ToolContext,
+	params: { title: string; artist?: string },
+): Promise<ToolOutput> {
+	const found = await spotifyService.searchTrack(params.title.trim(), params.artist?.trim());
+	if (!found) return { success: false, error: 'Nenhuma música encontrada' };
+	return {
+		success: true,
+		data: {
+			results: [
+				{
+					type: 'music' as const,
+					title: found.title,
+					artist: found.artist,
+					album: found.album,
+					album_cover_url: found.album_cover_url,
+					year: found.year,
+					duration_ms: found.duration_ms,
+					spotify_id: found.spotify_id,
+					spotify_url: found.spotify_url,
+				},
+			],
+		},
+	};
+}
+
 export const AVAILABLE_TOOLS = {
 	// Save tools (específicas)
 	save_note,
@@ -1755,6 +1809,10 @@ export const AVAILABLE_TOOLS = {
 	enrich_movie,
 	enrich_tv_show,
 	enrich_video,
+
+	// Search enrichment tools
+	search_book,
+	search_music,
 
 	// Delete tools (determinísticos)
 	delete_memory,

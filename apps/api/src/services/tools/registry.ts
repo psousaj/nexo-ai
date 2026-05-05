@@ -106,6 +106,23 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		category: 'system',
 	},
 
+	// Search enrichment tools
+	search_book: {
+		name: 'search_book',
+		label: 'Buscar Livro',
+		description: 'Busca livro no Google Books',
+		icon: '📚',
+		category: 'system',
+	},
+
+	search_music: {
+		name: 'search_music',
+		label: 'Buscar Música',
+		description: 'Busca música no Spotify',
+		icon: '🎵',
+		category: 'system',
+	},
+
 	// ============================================================================
 	// DELETE TOOLS (System Tools)
 	// ============================================================================
