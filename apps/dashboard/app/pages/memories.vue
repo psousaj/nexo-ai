@@ -1,22 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import {
-	BookOpen,
-	Calendar,
-	Edit3,
-	FileText,
-	Film,
-	Image as ImageIcon,
-	Layers,
-	Link as LinkIcon,
-	Music,
-	Plus,
-	Search,
-	StickyNote,
-	Tag,
-	Trash2,
-	Type,
-} from 'lucide-vue-next';
+import { BookOpen, Calendar, Edit3, FileText, Film, Image as ImageIcon, Layers, Link as LinkIcon, Music, Plus, Search, StickyNote, Tag, Trash2, Type } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import type { MemoryItem } from '~/types/dashboard';
 

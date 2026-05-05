@@ -6,40 +6,25 @@
 			"persistent": false
 		},
 		"build": {
-			"dependsOn": [
-				"^build"
-			],
-			"outputs": [
-				"dist/**",
-				".output/**",
-				".nuxt/**",
-				".docusaurus/**"
-			]
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**", ".output/**", ".nuxt/**", ".docusaurus/**"]
 		},
 		"dev": {
-			"dependsOn": [
-				"^build"
-			],
+			"dependsOn": ["^build"],
 			"cache": false,
 			"persistent": true
 		},
 		"lint": {
-			"dependsOn": [
-				"^build"
-			]
+			"dependsOn": ["^build"]
 		},
 		"typecheck": {
-			"dependsOn": [
-				"^build"
-			]
+			"dependsOn": ["^build"]
 		},
 		"format": {},
 		"format:check": {},
 		"lint:biome": {},
 		"test": {
-			"dependsOn": [
-				"build"
-			]
+			"dependsOn": ["build"]
 		},
 		"clean": {
 			"cache": false

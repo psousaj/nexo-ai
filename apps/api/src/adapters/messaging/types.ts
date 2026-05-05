@@ -167,7 +167,7 @@ export interface IngestMessageQueuePayload {
 /**
  * Métodos de entrega suportados no pipeline de saída canônica
  */
-export type OutgoingDeliveryMethod = 'send_text' | 'send_buttons' | 'send_photo' | 'send_chat_action';
+export type OutgoingDeliveryMethod = 'send_text' | 'send_buttons' | 'send_photo' | 'send_voice' | 'send_chat_action';
 
 /**
  * Payload canônico de saída para adapter-output queue
@@ -180,6 +180,9 @@ export interface OutgoingMessageQueuePayload {
 	buttons?: unknown[];
 	photoUrl?: string;
 	caption?: string;
+	voiceBuffer?: Buffer;
+	voiceMimeType?: string;
+	voiceFilename?: string;
 	chatAction?: ChatAction;
 	options?: Record<string, unknown>;
 	metadata?: {
@@ -435,6 +438,15 @@ export interface MessagingProvider {
 	 * Envia foto com caption e botões
 	 */
 	sendPhoto?(chatId: string, photoUrl: string, caption?: string, buttons?: any[], options?: any): Promise<void>;
+
+	/**
+	 * Envia mensagem de voz (áudio como voice bubble)
+	 * @param chatId - ID do chat/destinatário
+	 * @param audioBuffer - Buffer do áudio (Opus .ogg para Telegram, MP3 para outros)
+	 * @param mimeType - MIME type do áudio (audio/ogg, audio/mpeg, etc)
+	 * @param filename - Nome do arquivo (ex: voice.ogg)
+	 */
+	sendVoice?(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void>;
 
 	/**
 	 * Responde a callback query (remove loading dos botões)

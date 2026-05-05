@@ -197,3 +197,41 @@ export async function dispatchOutgoingChatAction(target: OutgoingDispatchTarget,
 		await provider.sendChatAction(target.externalId, action);
 	}
 }
+
+export async function dispatchOutgoingVoice(
+	target: OutgoingDispatchTarget,
+	audioBuffer: Buffer,
+	mimeType?: string,
+	filename?: string,
+): Promise<void> {
+	const resolvedMimeType = mimeType ?? 'audio/ogg';
+	const resolvedFilename = filename ?? (resolvedMimeType.includes('mpeg') ? 'voice.mp3' : 'voice.ogg');
+
+	if (useSplitDispatch()) {
+		await enqueueAdapterOutput(
+			{
+				providerName: normalizeProviderName(target.providerName),
+				externalId: target.externalId,
+				deliveryMethod: 'send_voice',
+				voiceBuffer: audioBuffer,
+				voiceMimeType: resolvedMimeType,
+				voiceFilename: resolvedFilename,
+				metadata: {
+					conversationId: target.conversationId,
+					userId: target.userId,
+					source: 'api-core',
+				},
+			},
+			target,
+		);
+		return;
+	}
+
+	const provider = await resolveProvider(target);
+	if (provider.sendVoice) {
+		await provider.sendVoice(target.externalId, audioBuffer, resolvedMimeType, resolvedFilename);
+		return;
+	}
+
+	await provider.sendMessage(target.externalId, '[voice message]');
+}

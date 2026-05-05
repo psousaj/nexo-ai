@@ -177,7 +177,13 @@ const systemTools = computed(() => allTools.value.filter((t) => t.category === '
 const userTools = computed(() => allTools.value.filter((t) => t.category === 'user'));
 
 const statCards = [
-	{ key: 'total' as const, label: 'Total', icon: 'i-heroicons-cog-6-tooth', iconClass: 'text-gray-400', valueClass: '' },
+	{
+		key: 'total' as const,
+		label: 'Total',
+		icon: 'i-heroicons-cog-6-tooth',
+		iconClass: 'text-gray-400',
+		valueClass: '',
+	},
 	{
 		key: 'enabled' as const,
 		label: 'Habilitadas',
@@ -185,7 +191,13 @@ const statCards = [
 		iconClass: 'text-green-400',
 		valueClass: 'text-green-600',
 	},
-	{ key: 'disabled' as const, label: 'Desabilitadas', icon: 'i-heroicons-x-circle', iconClass: 'text-red-400', valueClass: 'text-red-600' },
+	{
+		key: 'disabled' as const,
+		label: 'Desabilitadas',
+		icon: 'i-heroicons-x-circle',
+		iconClass: 'text-red-400',
+		valueClass: 'text-red-600',
+	},
 	{
 		key: 'system' as const,
 		label: 'Sistema',

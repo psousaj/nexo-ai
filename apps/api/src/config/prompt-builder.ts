@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { loggers } from '@/utils/logger';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,7 +33,20 @@ function loadYaml(name: string): PromptYaml {
 	if (cached) return cached;
 
 	const filePath = join(PROMPTS_DIR, `${name}.yml`);
-	const raw = readFileSync(filePath, 'utf-8');
+
+	let raw: string;
+	try {
+		raw = readFileSync(filePath, 'utf-8');
+	} catch (err: any) {
+		if (err.code === 'ENOENT') {
+			loggers.app.warn({ filePath }, '⚠️ Prompt YAML not found — using empty fallback');
+			const fallback: PromptYaml = { system: '', content: '' };
+			cache.set(name, fallback);
+			return fallback;
+		}
+		throw err;
+	}
+
 	const parsed = yaml.load(raw) as PromptYaml;
 	cache.set(name, parsed);
 	return parsed;

@@ -12,7 +12,7 @@
 
 import type { ChatCommand, CommandParams } from '@/adapters/messaging/types';
 import { db } from '@/db';
-import { agentSessions, users } from '@/db/schema';
+import { agentSessions, conversations, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
 import { getAgentProfile } from './context-builder';
@@ -295,6 +295,41 @@ const verboseCommand: ChatCommand = {
 };
 
 /**
+ * Command: /voice
+ * Toggle voice mode (TTS responses) per conversation
+ */
+const voiceCommand: ChatCommand = {
+	name: 'voice',
+	description: 'Toggle voice responses on/off',
+	aliases: ['voz', 'audio'],
+	allowedInGroups: false,
+	handler: async (params: CommandParams): Promise<string> => {
+		const { conversationId, userId } = params;
+
+		const conversation = await db.query.conversations.findFirst({
+			where: eq(conversations.id, conversationId),
+		});
+
+		if (!conversation) {
+			return '❌ Conversa não encontrada.';
+		}
+
+		const currentContext = (conversation.context ?? {}) as Record<string, any>;
+		const currentMode = currentContext.voiceMode === true;
+		const newMode = !currentMode;
+
+		await conversationService.updateState(conversationId, conversation.state as any, {
+			...currentContext,
+			voiceMode: newMode,
+		});
+
+		return newMode
+			? '🔊 Modo voz ativado! Respostas serão enviadas como áudio.'
+			: '🔇 Modo voz desativado. Respostas serão apenas em texto.';
+	},
+};
+
+/**
  * Command: /help
  * Show available commands
  */
@@ -320,7 +355,10 @@ const helpCommand: ChatCommand = {
 /help - Esta ajuda
 
 💡 *Dica:* Você pode usar linguagem natural!
-"Salva Interstellar" é o mesmo que /memory Interstellar`;
+"Salva Interstellar" é o mesmo que /memory Interstellar
+
+🔊 *Voz:*
+/voice - Ativar/desativar respostas em áudio`;
 	},
 };
 
@@ -339,6 +377,7 @@ export const chatCommands: Record<string, ChatCommand> = {
 	find: memoryCommand, // Alias
 	think: thinkCommand,
 	verbose: verboseCommand,
+	voice: voiceCommand,
 	help: helpCommand,
 };
 

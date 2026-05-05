@@ -823,16 +823,30 @@ export async function runConversationCloseCron(): Promise<number> {
 	try {
 		const now = new Date();
 
-		const result = await db
-			.update(conversations)
-			.set({
-				state: 'closed',
-				closeAt: null,
-				closeJobId: null,
-				updatedAt: now,
-			})
-			.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
-			.returning({ id: conversations.id });
+		const result = await db.transaction(async (tx) => {
+			const lockedRows = await tx
+				.select({ id: conversations.id })
+				.from(conversations)
+				.where(and(eq(conversations.state, 'waiting_close'), lte(conversations.closeAt, now)))
+				.for('update', { skipLocked: true });
+
+			if (lockedRows.length === 0) {
+				return [];
+			}
+
+			const lockedIds = lockedRows.map((r) => r.id);
+
+			return tx
+				.update(conversations)
+				.set({
+					state: 'closed',
+					closeAt: null,
+					closeJobId: null,
+					updatedAt: now,
+				})
+				.where(inArray(conversations.id, lockedIds))
+				.returning({ id: conversations.id });
+		});
 
 		const count = result.length;
 
@@ -841,8 +855,12 @@ export async function runConversationCloseCron(): Promise<number> {
 		}
 
 		return count;
-	} catch (error) {
-		queueLogger.error({ err: error }, '❌ Erro no cron de fechamento');
+	} catch (error: any) {
+		if (error?.message?.includes('column') || error?.message?.includes('does not exist')) {
+			queueLogger.error({ err: error }, '❌ CRON: Schema mismatch — verifique se migration foi aplicada');
+		} else {
+			queueLogger.error({ err: error }, '❌ Erro no cron de fechamento');
+		}
 		throw error;
 	}
 }
@@ -855,17 +873,31 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		const now = new Date();
 		const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
-		const result = await db
-			.update(conversations)
-			.set({
-				state: 'closed',
-				closeAt: null,
-				closeJobId: null,
-				context: null,
-				updatedAt: now,
-			})
-			.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
-			.returning({ id: conversations.id });
+		const result = await db.transaction(async (tx) => {
+			const lockedRows = await tx
+				.select({ id: conversations.id })
+				.from(conversations)
+				.where(and(eq(conversations.state, 'awaiting_confirmation'), lte(conversations.updatedAt, thirtyMinutesAgo)))
+				.for('update', { skipLocked: true });
+
+			if (lockedRows.length === 0) {
+				return [];
+			}
+
+			const lockedIds = lockedRows.map((r) => r.id);
+
+			return tx
+				.update(conversations)
+				.set({
+					state: 'closed',
+					closeAt: null,
+					closeJobId: null,
+					context: null,
+					updatedAt: now,
+				})
+				.where(inArray(conversations.id, lockedIds))
+				.returning({ id: conversations.id });
+		});
 
 		const count = result.length;
 
@@ -874,8 +906,12 @@ export async function runAwaitingConfirmationTimeoutCron(): Promise<number> {
 		}
 
 		return count;
-	} catch (error) {
-		queueLogger.error({ err: error }, '❌ Erro no timeout de awaiting_confirmation');
+	} catch (error: any) {
+		if (error?.message?.includes('column') || error?.message?.includes('does not exist')) {
+			queueLogger.error({ err: error }, '❌ CRON: Schema mismatch — verifique se migration foi aplicada');
+		} else {
+			queueLogger.error({ err: error }, '❌ Erro no timeout de awaiting_confirmation');
+		}
 		throw error;
 	}
 }

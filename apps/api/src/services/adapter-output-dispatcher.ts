@@ -72,6 +72,29 @@ export async function dispatchAdapterOutputJob(
 			return;
 		}
 
+		case 'send_voice': {
+			if (!payload.voiceBuffer) {
+				throw new Error('voiceBuffer é obrigatório para send_voice');
+			}
+
+			if (provider.sendVoice) {
+				await provider.sendVoice(
+					payload.externalId,
+					payload.voiceBuffer,
+					payload.voiceMimeType ?? 'audio/ogg',
+					payload.voiceFilename,
+				);
+				return;
+			}
+
+			await provider.sendMessage(
+				payload.externalId,
+				payload.text ?? '[voice message]',
+				payload.options,
+			);
+			return;
+		}
+
 		default: {
 			const _exhaustiveCheck: never = payload.deliveryMethod;
 			throw new Error(`Método de saída não suportado: ${_exhaustiveCheck}`);

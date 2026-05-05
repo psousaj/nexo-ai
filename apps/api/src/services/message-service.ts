@@ -19,9 +19,11 @@ import {
 	dispatchOutgoingButtons,
 	dispatchOutgoingChatAction,
 	dispatchOutgoingText,
+	dispatchOutgoingVoice,
 } from '@/services/outgoing-dispatcher.service';
 import { cancelConversationClose } from '@/services/queue-service';
 import { resolveSessionKey } from '@/services/session-key-resolver';
+import { edgeTTSService } from '@/services/tts/edge-tts.service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { splitMessage } from '@/utils/message-splitter';
@@ -558,6 +560,34 @@ export async function processMessage(
 									throw sendError;
 								}
 							});
+
+							// 8. TTS: Se voiceMode ativo, sintetiza e envia áudio
+							const voiceMode = (conversation.context as Record<string, any>)?.voiceMode;
+							if (voiceMode && agentResponse.message && agentResponse.message.trim().length > 0) {
+								await startSpan('messaging.tts', async () => {
+									try {
+										const ttsResult = await edgeTTSService.synthesize(agentResponse.message!);
+										await dispatchOutgoingVoice(
+											{
+												provider,
+												providerName: provider.getProviderName() as any,
+												externalId: incomingMsg.externalId,
+												conversationId: conversation.id,
+												userId: user.id,
+											},
+											ttsResult.audioBuffer,
+											ttsResult.mimeType,
+											ttsResult.filename,
+										);
+										loggers.webhook.info({ audioSize: ttsResult.audioBuffer.length }, '🔊 Voice message enviada via TTS');
+									} catch (ttsError: any) {
+										loggers.webhook.warn(
+											{ err: ttsError },
+											'⚠️ TTS falhou — resposta em texto já foi enviada',
+										);
+									}
+								});
+							}
 						} else if (!agentResponse.skipFallback && agentResponse.state !== 'awaiting_context') {
 							// Fallback apenas se não foi enviado manualmente via adapter
 							// E se não estamos aguardando clarificação (mensagem já foi enviada pelo conversationService)
