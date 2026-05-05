@@ -87,6 +87,9 @@ const envSchema = z.object({
   CF_GATEWAY_MODEL: z.string().default("dynamic/nexo"),
   CF_INTENT_MODEL: z.string().default("dynamic/nexo"),
   CF_EMBED_MODEL: z.string().default("dynamic/embeddings"),
+  WHISPER_MODEL: z.string().default("whisper-1"),
+  EDGE_TTS_VOICE: z.string().default("pt-BR-FranciscaNeural"),
+  EDGE_TTS_TRUSTED_TOKEN: z.string(),
   EMBEDDING_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(4),
   EMBEDDING_TIMEOUT_MS: z.coerce
     .number()

@@ -100,6 +100,32 @@ export class TelegramAdapter implements MessagingProvider {
 		// Check if it's a command
 		const isCommand = text?.startsWith('/');
 
+		// Detect voice/audio messages for multimodal intake
+		const attachments: import('@nexo/shared').MultimodalIntakePayload[] = [];
+		const voiceMessage = message.voice || message.audio;
+		if (voiceMessage) {
+			const fileId = voiceMessage.file_id;
+			const mimeType = voiceMessage.mime_type ?? (message.voice ? 'audio/ogg' : 'audio/mpeg');
+			const fileSize = voiceMessage.file_size;
+			const fileName = message.audio?.file_name ?? undefined;
+
+			if (fileId) {
+				// Use a special telegram-file:// scheme that the intake worker resolves
+				// The intake worker will call getFile API to get the real download URL
+				attachments.push({
+					kind: 'audio',
+					messageId: message.message_id.toString(),
+					userId: message.from?.id?.toString() ?? 'unknown',
+					timestamp: new Date(message.date * 1000),
+					mimeType,
+					url: `telegram-file://${fileId}`,
+					filename: fileName,
+					byteLength: fileSize,
+				});
+				loggers.webhook.info({ fileId, mimeType, fileSize }, '🎤 Telegram voice/audio message detected');
+			}
+		}
+
 		// Telegram usa chat.id como identificador único
 		const chatId = message.chat.id.toString();
 		const chatType = message.chat.type; // 'private', 'group', 'supergroup', 'channel'
@@ -164,6 +190,7 @@ export class TelegramAdapter implements MessagingProvider {
 				botMentioned,
 				messageType,
 				providerPayload,
+				...(attachments.length > 0 ? { attachments } : {}),
 			},
 		};
 	}
@@ -405,6 +432,40 @@ export class TelegramAdapter implements MessagingProvider {
 	}
 
 	/**
+	 * Envia mensagem de voz como voice bubble (áudio Opus .ogg)
+	 */
+	async sendVoice(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void> {
+		return startSpan('messaging.telegram.send_voice', async (_span) => {
+			setAttributes({
+				'messaging.platform': 'telegram',
+				'messaging.chat_id': chatId,
+				'messaging.voice_size': audioBuffer.length,
+			});
+
+			const url = `${this.baseUrl}/bot${this.token}/sendVoice`;
+			const formData = new FormData();
+			const blob = new Blob([audioBuffer], { type: mimeType || 'audio/ogg' });
+			formData.append('voice', blob, filename ?? 'voice.ogg');
+			formData.append('chat_id', chatId);
+
+			loggers.webhook.info({ chatId, voiceSize: audioBuffer.length }, '📤 Enviando voice message via Telegram');
+
+			const response = await fetch(url, {
+				method: 'POST',
+				body: formData,
+			});
+
+			if (!response.ok) {
+				const errorData = (await response.json()) as { error_code?: number; description?: string };
+				loggers.webhook.error({ errorCode: errorData.error_code }, 'Erro ao enviar voice message');
+				throw new Error(`Telegram sendVoice error: ${errorData.description}`);
+			}
+
+			loggers.webhook.info({ chatId }, 'Voice message enviada');
+		});
+	}
+
+	/**
 	 * Responde a callback query (necessário para remover loading dos botões)
 	 */
 	async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
@@ -548,6 +609,26 @@ export class TelegramAdapter implements MessagingProvider {
 			const errorData = (await response.json()) as { error_code?: number; description?: string };
 			throw new Error(`Telegram setWebhook error [${errorData.error_code}]: ${errorData.description}`);
 		}
+	}
+
+	/**
+	 * Resolve Telegram file_id to a downloadable URL.
+	 * Calls getFile API to get the file_path, then constructs the download URL.
+	 */
+	async getFileUrl(fileId: string): Promise<string> {
+		const url = `${this.baseUrl}/bot${this.token}/getFile?file_id=${fileId}`;
+		const response = await fetch(url);
+
+		if (!response.ok) {
+			throw new Error(`Telegram getFile failed: ${response.status}`);
+		}
+
+		const data = (await response.json()) as { ok: boolean; result?: { file_path?: string } };
+		if (!data.ok || !data.result?.file_path) {
+			throw new Error(`Telegram getFile returned no file_path for file_id=${fileId}`);
+		}
+
+		return `${this.baseUrl}/file/bot${this.token}/${data.result.file_path}`;
 	}
 
 	/**
