@@ -1,12 +1,12 @@
 import { loggers } from '@/utils/logger';
 import OpenAI from 'openai';
 import {
+	type RuntimeRound,
 	addRuntimeBlock,
 	buildRuntimeUsageFromOpenAI,
 	createRuntimeRound,
 	mapOpenAIFinishReasonToRuntimeStopReason,
 	normalizeGatewayHeaders,
-	type RuntimeRound,
 } from './runtime-contract';
 
 export interface OpenAIGatewayTransportConfig {

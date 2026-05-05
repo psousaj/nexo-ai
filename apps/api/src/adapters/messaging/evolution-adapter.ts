@@ -153,63 +153,6 @@ export class EvolutionAdapter implements MessagingProvider {
 			callbackData = trimmedText;
 		}
 
-		// Detect audio messages for multimodal intake
-		const audioContent = content?.audioMessage;
-		const attachments: import('@nexo/shared').MultimodalIntakePayload[] = [];
-		if (audioContent) {
-			// Evolution API sends audio with a url field or we can construct it
-			const mediaUrl = audioContent.url
-				? String(audioContent.url)
-				: audioContent.mediaKey
-					? undefined // Needs server-side download — use base64 path in intake worker
-					: undefined;
-
-			if (mediaUrl) {
-				attachments.push({
-					kind: 'audio',
-					messageId: messageId,
-					userId: userId || 'unknown',
-					timestamp: timestamp,
-					mimeType: audioContent.mimetype ?? 'audio/ogg; codecs=opus',
-					url: mediaUrl,
-					byteLength: audioContent.fileLength,
-				});
-				loggers.webhook.info({ mediaUrl, mimeType: audioContent.mimetype }, '🎤 Evolution (WhatsApp) audio message detected');
-			}
-
-			// Replace placeholder text with something meaningful for the agent
-			// when no attachment URL is available (will fall back to error text in intake)
-			if (text === '[Áudio]' && attachments.length > 0) {
-				text = '[Áudio]'; // Keep placeholder; will be replaced by transcription
-			}
-		}
-
-		return {
-			messageId,
-			externalId: remote.raw || '',
-			userId,
-			senderName: message?.pushName,
-			text,
-			timestamp,
-			provider: 'whatsapp',
-			phoneNumber,
-			callbackData,
-			metadata: {
-				isGroupMessage: isGroup,
-				groupId: isGroup ? remote.raw : undefined,
-				messageType: callbackData ? 'callback' : 'text',
-				sourceApi: 'evolution',
-				remoteJid: remote.raw,
-        participantJid: key.participant,
-        providerPayload: JSON.parse(JSON.stringify(payload)) as Record<
-          string,
-          unknown
-        >,
-        ...(attachments.length > 0 ? { attachments } : {}),
-      },
-    };
-  }
-=======
 		return {
 			messageId,
 			externalId: remote.raw || '',
@@ -231,7 +174,6 @@ export class EvolutionAdapter implements MessagingProvider {
 			},
 		};
 	}
->>>>>>> origin/feat/nex-33-34-36-37-38-sentry-bugfixes
 
 	async sendMessage(recipient: string, text: string): Promise<void> {
 		await evolutionService.sendText(recipient, text);
@@ -284,16 +226,6 @@ export class EvolutionAdapter implements MessagingProvider {
 		if (buttons && buttons.length > 0) {
 			await this.sendMessageWithButtons(chatId, caption || 'Escolha uma opção', buttons);
 		}
-	}
-
-	async sendVoice(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void> {
-		const resolvedFilename = filename ?? 'voice.ogg';
-		const resolvedMime = mimeType || 'audio/ogg; codecs=opus';
-		const base64Audio = audioBuffer.toString('base64');
-
-		await evolutionService.sendMediaAudio(chatId, base64Audio, resolvedMime, resolvedFilename);
-
-		loggers.webhook.info({ chatId, voiceSize: audioBuffer.length }, '📤 Voice message enviada via Evolution');
 	}
 
 	buildSessionKey(params: SessionKeyParams): string {

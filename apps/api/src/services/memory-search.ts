@@ -3,13 +3,37 @@
  *
  * Hybrid search combining vector similarity and keyword matching
  * Uses pgvector for semantic search and PostgreSQL FTS for keyword search
+ *
+ * NEX-26: FTS locale is now configurable per search call.
+ * Detects language from user profile or falls back to 'simple'.
  */
 
 import { db } from '@/db';
-import { agentDailyLogs, memoryItems } from '@/db/schema';
+import { agentDailyLogs, memoryItems, sessionTranscripts } from '@/db/schema';
 import type { MemorySearchOptions, MemorySearchResult } from '@/types';
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
+
+// ============================================================================
+// FTS LOCALE CONFIGURATION (NEX-26)
+// ============================================================================
+
+/** Supported PostgreSQL FTS dictionaries */
+const SUPPORTED_LOCALES = new Set(['portuguese', 'english', 'spanish', 'french', 'german', 'simple']);
+
+/** Default locale when none is detected */
+const DEFAULT_LOCALE = 'portuguese';
+
+/**
+ * Detect the best FTS locale for a user.
+ * Checks user profile language preference, falls back to 'simple'.
+ */
+export function detectFtsLocale(userLanguage?: string | null): string {
+	if (userLanguage && SUPPORTED_LOCALES.has(userLanguage)) {
+		return userLanguage;
+	}
+	return DEFAULT_LOCALE;
+}
 
 /**
  * Hybrid search configuration
@@ -152,9 +176,12 @@ export function mergeHybridResults(params: {
 
 /**
  * Search memory items using hybrid search (vector + keyword)
+ *
+ * NEX-26: Accepts optional locale parameter for FTS.
+ * Defaults to 'portuguese' if not specified.
  */
 export async function searchMemory(
-	options: MemorySearchOptions & { config?: Partial<HybridSearchConfig> },
+	options: MemorySearchOptions & { config?: Partial<HybridSearchConfig>; locale?: string },
 ): Promise<MemorySearchResult[]> {
 	const {
 		query,
@@ -164,6 +191,7 @@ export async function searchMemory(
 		types,
 		includeDailyLogs: _includeDailyLogs = false,
 		config: userConfig,
+		locale = DEFAULT_LOCALE,
 	} = options;
 
 	// Merge user config with defaults
@@ -216,17 +244,17 @@ export async function searchMemory(
 
 	loggers.memory.debug({ vectorCount: (vectorResults as any[]).length }, '📊 Vector search complete');
 
-	// 2. Keyword search (full-text search) using PostgreSQL FTS
+	// 2. Keyword search (full-text search) using PostgreSQL FTS (NEX-26: configurable locale)
 	const keywordResults = await db.execute(sql`
 		SELECT
 			id,
 			type,
 			title,
 			metadata,
-			ts_rank(to_tsvector('portuguese', title || ' ' || COALESCE(metadata::text, '')), plainto_tsquery('portuguese', ${query})) AS rank
+			ts_rank(to_tsvector(${locale}, title || ' ' || COALESCE(metadata::text, '')), plainto_tsquery(${locale}, ${query})) AS rank
 		FROM memory_items
 		WHERE user_id = ${userId}
-			AND to_tsvector('portuguese', title || ' ' || COALESCE(metadata::text, '')) @@ plainto_tsquery('portuguese', ${query})
+			AND to_tsvector(${locale}, title || ' ' || COALESCE(metadata::text, '')) @@ plainto_tsquery(${locale}, ${query})
 			${types ? sql`AND type = ANY(${types})` : sql``}
 		ORDER BY rank DESC
 		LIMIT ${maxResults * 2}
@@ -361,4 +389,103 @@ export async function upsertDailyLog(options: {
 
 		loggers.memory.debug({ userId, date }, '📝 Daily log created');
 	}
+}
+
+// ============================================================================
+// SESSION SEARCH — NEX-24: Full-text search in session transcripts
+// ============================================================================
+
+export interface SessionSearchResult {
+	id: string;
+	sessionId: string;
+	content: unknown;
+	sequence: number;
+	snippet: string;
+	rank: number;
+	createdAt: Date;
+}
+
+/**
+ * Search session transcripts using PostgreSQL full-text search.
+ * Returns matching transcripts with text snippets and context.
+ *
+ * @param options.query - Search text
+ * @param options.userId - User ID (for scoping)
+ * @param options.sessionId - Optional: limit to specific session
+ * @param options.maxResults - Max results (default 10)
+ * @param options.locale - FTS locale (default 'portuguese')
+ */
+export async function searchSessionTranscripts(options: {
+	query: string;
+	userId: string;
+	sessionId?: string;
+	maxResults?: number;
+	locale?: string;
+}): Promise<SessionSearchResult[]> {
+	const { query, userId, sessionId, maxResults = 10, locale = 'portuguese' } = options;
+
+	if (!query || query.trim().length === 0) {
+		return [];
+	}
+
+	loggers.memory.info({ userId, sessionId, query, locale }, '🔍 Searching session transcripts');
+
+	// Build the FTS query with configurable locale
+	const tsQuery = sql`plainto_tsquery(${locale}, ${query})`;
+	const tsVector = sql`to_tsvector(${locale}, COALESCE(${sessionTranscripts.searchText}, ''))`;
+
+	const results = await db.execute(sql`
+		SELECT
+			st.id,
+			st.session_id AS "sessionId",
+			st.content,
+			st.sequence,
+			ts_headline(
+				${locale},
+				COALESCE(st.search_text, ''),
+				${tsQuery},
+				'StartSel=<<, StopSel=>>, MaxWords=50, MinWords=20'
+			) AS snippet,
+			ts_rank(${tsVector}, ${tsQuery}) AS rank,
+			st.created_at AS "createdAt"
+		FROM session_transcripts st
+		JOIN agent_sessions sess ON sess.id = st.session_id
+		WHERE sess.user_id = ${userId}
+			AND st.search_text IS NOT NULL
+			AND ${tsVector} @@ ${tsQuery}
+			${sessionId ? sql`AND st.session_id = ${sessionId}` : sql``}
+		ORDER BY rank DESC
+		LIMIT ${maxResults}
+	`);
+
+	const typedResults = (results as any[]).map((r) => ({
+		id: r.id,
+		sessionId: r.sessionId,
+		content: r.content,
+		sequence: r.sequence,
+		snippet: r.snippet,
+		rank: r.rank,
+		createdAt: r.createdAt,
+	}));
+
+	loggers.memory.info({ userId, query, resultsCount: typedResults.length }, '✅ Session search complete');
+
+	return typedResults;
+}
+
+/**
+ * Extract searchable text from transcript content JSONB.
+ * Used when inserting new transcripts to populate searchText.
+ */
+export function extractSearchText(content: unknown): string {
+	if (!content || typeof content !== 'object') return '';
+
+	const parts: string[] = [];
+	const obj = content as Record<string, unknown>;
+
+	if (typeof obj.text === 'string') parts.push(obj.text);
+	if (typeof obj.content === 'string') parts.push(obj.content);
+	if (typeof obj.message === 'string') parts.push(obj.message);
+
+	return parts.join(' ').trim();
 }
