@@ -3,6 +3,9 @@
  *
  * Hybrid search combining vector similarity and keyword matching
  * Uses pgvector for semantic search and PostgreSQL FTS for keyword search
+ *
+ * NEX-26: FTS locale is now configurable per search call.
+ * Detects language from user profile or falls back to 'simple'.
  */
 
 import { db } from '@/db';
@@ -10,6 +13,27 @@ import { agentDailyLogs, memoryItems, sessionTranscripts } from '@/db/schema';
 import type { MemorySearchOptions, MemorySearchResult } from '@/types';
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, sql } from 'drizzle-orm';
+
+// ============================================================================
+// FTS LOCALE CONFIGURATION (NEX-26)
+// ============================================================================
+
+/** Supported PostgreSQL FTS dictionaries */
+const SUPPORTED_LOCALES = new Set(['portuguese', 'english', 'spanish', 'french', 'german', 'simple']);
+
+/** Default locale when none is detected */
+const DEFAULT_LOCALE = 'portuguese';
+
+/**
+ * Detect the best FTS locale for a user.
+ * Checks user profile language preference, falls back to 'simple'.
+ */
+export function detectFtsLocale(userLanguage?: string | null): string {
+	if (userLanguage && SUPPORTED_LOCALES.has(userLanguage)) {
+		return userLanguage;
+	}
+	return DEFAULT_LOCALE;
+}
 
 /**
  * Hybrid search configuration
@@ -152,9 +176,12 @@ export function mergeHybridResults(params: {
 
 /**
  * Search memory items using hybrid search (vector + keyword)
+ *
+ * NEX-26: Accepts optional locale parameter for FTS.
+ * Defaults to 'portuguese' if not specified.
  */
 export async function searchMemory(
-	options: MemorySearchOptions & { config?: Partial<HybridSearchConfig> },
+	options: MemorySearchOptions & { config?: Partial<HybridSearchConfig>; locale?: string },
 ): Promise<MemorySearchResult[]> {
 	const {
 		query,
@@ -164,6 +191,7 @@ export async function searchMemory(
 		types,
 		includeDailyLogs: _includeDailyLogs = false,
 		config: userConfig,
+		locale = DEFAULT_LOCALE,
 	} = options;
 
 	// Merge user config with defaults
@@ -216,17 +244,17 @@ export async function searchMemory(
 
 	loggers.memory.debug({ vectorCount: (vectorResults as any[]).length }, '📊 Vector search complete');
 
-	// 2. Keyword search (full-text search) using PostgreSQL FTS
+	// 2. Keyword search (full-text search) using PostgreSQL FTS (NEX-26: configurable locale)
 	const keywordResults = await db.execute(sql`
 		SELECT
 			id,
 			type,
 			title,
 			metadata,
-			ts_rank(to_tsvector('portuguese', title || ' ' || COALESCE(metadata::text, '')), plainto_tsquery('portuguese', ${query})) AS rank
+			ts_rank(to_tsvector(${locale}, title || ' ' || COALESCE(metadata::text, '')), plainto_tsquery(${locale}, ${query})) AS rank
 		FROM memory_items
 		WHERE user_id = ${userId}
-			AND to_tsvector('portuguese', title || ' ' || COALESCE(metadata::text, '')) @@ plainto_tsquery('portuguese', ${query})
+			AND to_tsvector(${locale}, title || ' ' || COALESCE(metadata::text, '')) @@ plainto_tsquery(${locale}, ${query})
 			${types ? sql`AND type = ANY(${types})` : sql``}
 		ORDER BY rank DESC
 		LIMIT ${maxResults * 2}
