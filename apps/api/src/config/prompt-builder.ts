@@ -85,7 +85,11 @@ export function buildPrompt(name: string, data: Record<string, string> = {}): Bu
 /**
  * Constrói prompt do agente com datetime injetado automaticamente.
  */
-export function buildAgentPrompt(data: { assistantName?: string; deepThinking?: boolean; availableTools?: string[] }): BuiltPrompt {
+export function buildAgentPrompt(data: {
+	assistantName?: string;
+	deepThinking?: boolean;
+	availableTools?: string[];
+}): BuiltPrompt {
 	const availableToolsCsv = data.availableTools?.length ? data.availableTools.join(', ') : 'runtime-managed';
 
 	const templateData: Record<string, string> = {
