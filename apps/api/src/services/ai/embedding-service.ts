@@ -73,41 +73,14 @@ export class EmbeddingService {
 	}
 
 	private async requestEmbedding(input: string): Promise<number[]> {
-		let response: Awaited<ReturnType<OpenAI['embeddings']['create']>>;
-
-		try {
-			response = await this.client.embeddings.create({
-				model: this.model,
-				input,
-			});
-		} catch (error: any) {
-			const status = this.extractStatus(error);
-			const responseBody = error?.error?.message || error?.message || String(error);
-
-			loggers.enrichment.error(
-				{
-					status,
-					model: this.model,
-					responseBody: typeof responseBody === 'string' ? responseBody.slice(0, 500) : undefined,
-					errCode: error?.code,
-				},
-				'❌ Embedding API request failed',
-			);
-
-			throw error;
-		}
+		const response = await this.client.embeddings.create({
+			model: this.model,
+			input,
+		});
 
 		const embedding = response.data[0]?.embedding;
 
 		if (!embedding || !Array.isArray(embedding)) {
-			loggers.enrichment.error(
-				{
-					model: this.model,
-					dataLength: response.data?.length,
-					hasUsage: !!response.usage,
-				},
-				'❌ Embedding API returned invalid shape',
-			);
 			throw new Error('Formato de resposta inválido da API');
 		}
 

@@ -1,12 +1,12 @@
 import { loggers } from '@/utils/logger';
 import OpenAI from 'openai';
 import {
-	type RuntimeRound,
 	addRuntimeBlock,
 	buildRuntimeUsageFromOpenAI,
 	createRuntimeRound,
 	mapOpenAIFinishReasonToRuntimeStopReason,
 	normalizeGatewayHeaders,
+	type RuntimeRound,
 } from './runtime-contract';
 
 export interface OpenAIGatewayTransportConfig {
@@ -136,20 +136,6 @@ export class OpenAIGatewayTransport {
 				completion = await completionRequest;
 			}
 
-			if (!completion.choices || completion.choices.length === 0) {
-				loggers.ai.error(
-					{ model, conversationId: request.conversationId },
-					'❌ Resposta do OpenAI Gateway sem choices',
-				);
-				addRuntimeBlock(runtimeRound, {
-					type: 'error',
-					code: 'empty_choices',
-					message: 'Resposta do provedor não contém choices.',
-					retryable: true,
-				});
-				throw Object.assign(new Error('OpenAI Gateway retornou resposta sem choices'), { runtimeRound });
-			}
-
 			runtimeRound.stopReason = mapOpenAIFinishReasonToRuntimeStopReason(completion.choices[0]?.finish_reason);
 			runtimeRound.usage = buildRuntimeUsageFromOpenAI(completion.usage);
 
@@ -187,13 +173,6 @@ export class OpenAIGatewayTransport {
 			};
 		} catch (error) {
 			const err = error as any;
-
-			// If error already carries a runtimeRound (e.g. empty_choices), re-throw as-is
-			// to avoid double-recording the error in Sentry
-			if (err?.runtimeRound) {
-				throw error;
-			}
-
 			const headers = normalizeGatewayHeaders(
 				(err?.responseHeaders ?? {}) as Record<string, string | null | undefined>,
 			);
