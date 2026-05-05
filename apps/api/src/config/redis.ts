@@ -20,12 +20,53 @@ export const REDIS_BASE_OPTIONS = {
 	...(env.REDIS_TLS ? { tls: {} } : {}),
 };
 
+// ============================================================================
+// IN-MEMORY FALLBACK CACHE
+// Usado quando Redis está indisponível (ENOTFOUND, timeout, etc.)
+// TTL máximo de 5 minutos para evitar memory leak.
+// ============================================================================
+
+const MEMORY_CACHE_MAX_ENTRIES = 500;
+const MEMORY_CACHE_MAX_TTL_MS = 5 * 60 * 1000;
+
+const memoryCache = new Map<string, { value: string; expiresAt: number }>();
+
+function memoryCacheGet(key: string): string | null {
+	const entry = memoryCache.get(key);
+	if (!entry) return null;
+	if (Date.now() > entry.expiresAt) {
+		memoryCache.delete(key);
+		return null;
+	}
+	return entry.value;
+}
+
+function memoryCacheSet(key: string, value: string, ttlSeconds?: number): void {
+	if (memoryCache.size >= MEMORY_CACHE_MAX_ENTRIES) {
+		const oldestKey = memoryCache.keys().next().value;
+		if (oldestKey) memoryCache.delete(oldestKey);
+	}
+	const ttlMs = ttlSeconds ? ttlSeconds * 1000 : MEMORY_CACHE_MAX_TTL_MS;
+	memoryCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+function memoryCacheDelete(key: string): void {
+	memoryCache.delete(key);
+}
+
 let _sharedConnection: Redis | null = null;
+let _connectionHealthy = true;
 
 function getSharedConnection(): Redis {
 	if (!_sharedConnection) {
 		_sharedConnection = new Redis(REDIS_BASE_OPTIONS);
-		_sharedConnection.on('error', (err) => loggers.cache.error({ err }, 'Redis [shared] error'));
+		_sharedConnection.on('error', (err) => {
+			_connectionHealthy = false;
+			loggers.cache.error({ err }, 'Redis [shared] error');
+		});
+		_sharedConnection.on('connect', () => {
+			_connectionHealthy = true;
+		});
 	}
 	return _sharedConnection;
 }
@@ -43,6 +84,27 @@ export function createBullConfig() {
 	return getBullMQConnection();
 }
 
+/**
+ * Verifica se o Redis está respondendo (ping/pong).
+ * Usado como health check periódico.
+ */
+export async function checkRedisHealth(): Promise<{ ok: boolean; latencyMs: number }> {
+	const client = await getRedisClient();
+	if (!client) return { ok: false, latencyMs: 0 };
+
+	const start = Date.now();
+	try {
+		const pong = await client.ping();
+		const latencyMs = Date.now() - start;
+		_connectionHealthy = pong === 'PONG';
+		return { ok: _connectionHealthy, latencyMs };
+	} catch (error) {
+		_connectionHealthy = false;
+		loggers.cache.warn({ err: error }, 'Redis health check failed');
+		return { ok: false, latencyMs: Date.now() - start };
+	}
+}
+
 export async function getRedisClient(): Promise<Redis | null> {
 	if (!env.REDIS_HOST || !env.REDIS_PASSWORD) {
 		loggers.cache.warn('Redis não configurado - cache desabilitado');
@@ -52,7 +114,13 @@ export async function getRedisClient(): Promise<Redis | null> {
 	if (!redis) {
 		try {
 			const client = new Redis(REDIS_BASE_OPTIONS);
-			client.on('error', (err) => loggers.cache.error({ err }, 'Redis [cache] error'));
+			client.on('error', (err) => {
+				_connectionHealthy = false;
+				loggers.cache.error({ err }, 'Redis [cache] error');
+			});
+			client.on('connect', () => {
+				_connectionHealthy = true;
+			});
 			redis = client;
 			loggers.cache.info('Redis conectado para cache');
 		} catch (error) {
@@ -65,11 +133,14 @@ export async function getRedisClient(): Promise<Redis | null> {
 }
 
 /**
- * Cache helper com fallback silencioso
+ * Cache helper com fallback para in-memory quando Redis está indisponível.
  */
 export async function cacheGet<T>(key: string): Promise<T | null> {
 	const client = await getRedisClient();
-	if (!client) return null;
+	if (!client) {
+		const raw = memoryCacheGet(key);
+		return raw ? (JSON.parse(raw) as T) : null;
+	}
 
 	try {
 		const raw = await client.get(key);
@@ -79,14 +150,18 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
 
 		return JSON.parse(raw) as T;
 	} catch (error) {
-		loggers.cache.error({ key, error }, 'Redis GET error');
-		return null;
+		loggers.cache.warn({ key, error }, 'Redis GET error — fallback in-memory');
+		const raw = memoryCacheGet(key);
+		return raw ? (JSON.parse(raw) as T) : null;
 	}
 }
 
 export async function cacheSet<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
 	const client = await getRedisClient();
-	if (!client) return;
+	if (!client) {
+		memoryCacheSet(key, JSON.stringify(value), ttlSeconds);
+		return;
+	}
 
 	try {
 		const payload = JSON.stringify(value);
@@ -99,18 +174,23 @@ export async function cacheSet<T>(key: string, value: T, ttlSeconds?: number): P
 			loggers.cache.debug(`Cache SET: ${key} (sem TTL)`);
 		}
 	} catch (error) {
-		loggers.cache.error({ key, error }, 'Redis SET error');
+		loggers.cache.warn({ key, error }, 'Redis SET error — fallback in-memory');
+		memoryCacheSet(key, JSON.stringify(value), ttlSeconds);
 	}
 }
 
 export async function cacheDelete(key: string): Promise<void> {
 	const client = await getRedisClient();
-	if (!client) return;
+	if (!client) {
+		memoryCacheDelete(key);
+		return;
+	}
 
 	try {
 		await client.del(key);
 		loggers.cache.debug(`Cache DELETE: ${key}`);
 	} catch (error) {
-		loggers.cache.error({ key, error }, 'Redis DELETE error');
+		loggers.cache.warn({ key, error }, 'Redis DELETE error — fallback in-memory');
+		memoryCacheDelete(key);
 	}
 }
