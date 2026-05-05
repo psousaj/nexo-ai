@@ -6,12 +6,58 @@
  *
  * This enables per-user personalization while maintaining NEXO's deterministic
  * runtime control (ADR-011).
+ *
+ * NEX-25: System prompt snapshots are cached per session key to protect
+ * API prefix cache and reduce token costs. Cache is invalidated when:
+ * - Profile changes (soul, identity, agents, user, tools, memory content)
+ * - Memory is written (memory_items or memory_insights insert/update)
+ * - Session is restarted
  */
 
 import { db } from '@/db';
 import { agentMemoryProfiles, memoryInsights, memoryItems, users } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
+
+// ============================================================================
+// PROMPT CACHE (NEX-25)
+// ============================================================================
+
+interface CachedPrompt {
+	systemPrompt: string;
+	context: AgentContext;
+	createdAt: number;
+}
+
+const PROMPT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes safety net
+const promptCache = new Map<string, CachedPrompt>();
+
+/**
+ * Generate a cache key from userId + sessionKey.
+ */
+function getCacheKey(userId: string, sessionKey: string): string {
+	return `${userId}:${sessionKey}`;
+}
+
+/**
+ * Check if a cached prompt is still valid.
+ */
+function isCacheValid(entry: CachedPrompt): boolean {
+	return Date.now() - entry.createdAt < PROMPT_CACHE_TTL_MS;
+}
+
+/**
+ * Invalidate cache for a user (called when profile or memory changes).
+ */
+export function invalidatePromptCache(userId: string): void {
+	const prefix = `${userId}:`;
+	for (const key of promptCache.keys()) {
+		if (key.startsWith(prefix)) {
+			promptCache.delete(key);
+		}
+	}
+	loggers.context.debug({ userId }, '🗑️ Prompt cache invalidated');
+}
 
 /**
  * Agent context built from user profile
@@ -100,8 +146,18 @@ export async function buildStructuredMemory(userId: string): Promise<string> {
  *
  * Loads profile data and constructs a personalized system prompt
  * following OpenClaw's pattern of injecting .md file contents.
+ *
+ * NEX-25: Results are cached per session key to protect API prefix cache.
  */
 export async function buildAgentContext(userId: string, sessionKey: string): Promise<AgentContext> {
+	// Check cache first (NEX-25)
+	const cacheKey = getCacheKey(userId, sessionKey);
+	const cached = promptCache.get(cacheKey);
+	if (cached && isCacheValid(cached)) {
+		loggers.context.debug({ userId, sessionKey }, '📋 Using cached prompt snapshot');
+		return cached.context;
+	}
+
 	loggers.context.info({ userId, sessionKey }, '🔨 Building agent context');
 
 	// Parse session key to determine session type
@@ -201,7 +257,7 @@ export async function buildAgentContext(userId: string, sessionKey: string): Pro
 		'✅ Agent context built',
 	);
 
-	return {
+	const result: AgentContext = {
 		systemPrompt,
 		agentsContent: profile?.agentsContent ?? undefined,
 		soulContent: profile?.soulContent ?? undefined,
@@ -215,6 +271,15 @@ export async function buildAgentContext(userId: string, sessionKey: string): Pro
 		assistantTone: user.assistantTone || undefined,
 		assistantVibe: user.assistantVibe || undefined,
 	};
+
+	// Store in cache (NEX-25)
+	promptCache.set(cacheKey, {
+		systemPrompt,
+		context: result,
+		createdAt: Date.now(),
+	});
+
+	return result;
 }
 
 /**
@@ -265,6 +330,9 @@ export async function updateAgentProfile(
 			...profile,
 		});
 	}
+
+	// Invalidate prompt cache (NEX-25)
+	invalidatePromptCache(userId);
 
 	loggers.context.info({ userId }, '✏️ Agent profile updated');
 }
