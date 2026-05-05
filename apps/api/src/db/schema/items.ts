@@ -1,8 +1,20 @@
 import type { ItemMetadata, ItemType } from '@/types';
 import { relations } from 'drizzle-orm';
-import { foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core';
+import { foreignKey, index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core';
 import { semanticExternalItems } from './semantic-external-items';
 import { users } from './users';
+
+/**
+ * Cognitive memory types — classifies how a memory item relates to the user's cognition
+ */
+export const cognitiveTypeEnum = pgEnum('cognitive_type', [
+	'event', // Something that happened (episodic)
+	'fact', // A concrete fact (semantic)
+	'preference', // User preference or taste
+	'pattern', // Recurring behavior or pattern
+	'insight', // Derived insight from multiple memories
+	'note', // Generic note (default)
+]);
 
 /**
  * Memory Items - Memórias únicas do usuário
@@ -26,11 +38,23 @@ export const memoryItems = pgTable(
 		embedding: vector('embedding', { dimensions: 384 }),
 		/** Referência para cache semântico externo (reuso de metadata/embedding) */
 		semanticExternalItemId: uuid('semantic_external_item_id'),
+		// --- Cognitive memory fields (NEX-21) ---
+		/** Tipo cognitivo: como esta memória se conecta com a cognição do usuário */
+		cognitiveType: cognitiveTypeEnum('cognitive_type').default('note').notNull(),
+		/** Nível de confiança desta memória (0-1) */
+		confidence: real('confidence').default(1.0).notNull(),
+		/** Nível de importância desta memória (0-1) */
+		importance: real('importance').default(0.5).notNull(),
+		/** Fonte: user (digitado), system (automático), inference (derivado) */
+		source: text('source').default('user').notNull(),
+		/** Versão da memória (incrementada a cada atualização significativa) */
+		version: integer('version').default(1).notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 	},
 	(table) => ({
 		userIdIdx: index('memory_items_user_id_idx').on(table.userId),
 		typeIdx: index('memory_items_type_idx').on(table.type),
+		cognitiveTypeIdx: index('memory_items_cognitive_type_idx').on(table.cognitiveType),
 		metadataIdx: index('memory_items_metadata_idx').using('gin', table.metadata),
 		/** Índice para busca vetorial */
 		embeddingIdx: index('memory_items_embedding_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
