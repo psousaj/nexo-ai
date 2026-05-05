@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
 import { useQuery } from '@tanstack/vue-query';
+import { Activity, Check, ChevronRight, Clock, Copy, EyeOff, Loader2, MessageSquare, X } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 import type { ConversationAudit, ConversationMessage, ConversationSummary, OrchestratorTrace } from '~/types/dashboard';

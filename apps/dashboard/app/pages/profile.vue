@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { Mail, MessageSquare, Smartphone } from 'lucide-vue-next';
+import { Link as LinkIcon, Loader2, Mail, MessageSquare, Plus, Smartphone, Trash2, User, XCircle } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 

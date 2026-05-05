@@ -14,7 +14,7 @@ import {
 	Title,
 	Tooltip,
 } from 'chart.js';
-import { Activity, Database, MessageSquare, Users } from 'lucide-vue-next';
+import { Activity, Database, Download, Filter, MessageSquare, Users } from 'lucide-vue-next';
 import { computed, markRaw, onMounted } from 'vue';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
