@@ -46,11 +46,44 @@ docs
 README.md
 LICENSE
 CHANGELOG.md
+*.md
 
 # Apps not needed for API build
 apps/dashboard
 apps/landing
 apps/old-dashboard
 
+# Build outputs (will be rebuilt in Docker)
+dist
+
+# Tests
+tests
+test
+__tests__
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+vitest.config.*
+
+# CI/CD
+.github
+.changeset
+
+# Config files not needed for build
+.prettierrc
+.prettierignore
+.eslint*
+.eslintrc*
+biome.json
+
 # Turbo cache
 .turbo
+
+# Scripts (not needed in runtime for API)
+apps/api/scripts
+
+# Local data
+*.db
+*.sqlite
+.drizzle
