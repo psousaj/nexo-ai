@@ -149,10 +149,11 @@ describe('EdgeTTSService', () => {
 	});
 
 	it('synthesizes audio and returns Buffer + mimeType + filename', async () => {
-		const fakeAudio = Buffer.alloc(200, 0xAA);
+		const fakeAudio = Buffer.alloc(200, 0xaa);
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: true,
-			arrayBuffer: async () => fakeAudio.buffer.slice(fakeAudio.byteOffset, fakeAudio.byteOffset + fakeAudio.byteLength),
+			arrayBuffer: async () =>
+				fakeAudio.buffer.slice(fakeAudio.byteOffset, fakeAudio.byteOffset + fakeAudio.byteLength),
 		});
 
 		const { EdgeTTSService } = await import('@/services/tts/edge-tts.service');
@@ -171,10 +172,11 @@ describe('EdgeTTSService', () => {
 	});
 
 	it('uses mp3 format when specified', async () => {
-		const fakeAudio = Buffer.alloc(200, 0xBB);
+		const fakeAudio = Buffer.alloc(200, 0xbb);
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: true,
-			arrayBuffer: async () => fakeAudio.buffer.slice(fakeAudio.byteOffset, fakeAudio.byteOffset + fakeAudio.byteLength),
+			arrayBuffer: async () =>
+				fakeAudio.buffer.slice(fakeAudio.byteOffset, fakeAudio.byteOffset + fakeAudio.byteLength),
 		});
 
 		const { EdgeTTSService } = await import('@/services/tts/edge-tts.service');
@@ -201,7 +203,8 @@ describe('EdgeTTSService', () => {
 		const tinyAudio = Buffer.alloc(10, 0x00);
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: true,
-			arrayBuffer: async () => tinyAudio.buffer.slice(tinyAudio.byteOffset, tinyAudio.byteOffset + tinyAudio.byteLength),
+			arrayBuffer: async () =>
+				tinyAudio.buffer.slice(tinyAudio.byteOffset, tinyAudio.byteOffset + tinyAudio.byteLength),
 		});
 
 		const { EdgeTTSService } = await import('@/services/tts/edge-tts.service');
@@ -473,9 +476,9 @@ describe('/voice command', () => {
 
 		vi.spyOn(conversationService, 'updateState').mockImplementation(mockUpdateState);
 
-		const { db } = await import('@/db');
-		const { eq } = await import('drizzle-orm');
-		const { conversations } = await import('@/db/schema');
+		const { db: _db } = await import('@/db');
+		const { eq: _eq } = await import('drizzle-orm');
+		const { conversations: _conversations } = await import('@/db/schema');
 
 		const mockConv = {
 			id: 'conv-1',
@@ -494,11 +497,7 @@ describe('/voice command', () => {
 		});
 
 		expect(result).toContain('ativado');
-		expect(mockUpdateState).toHaveBeenCalledWith(
-			'conv-1',
-			'idle',
-			expect.objectContaining({ voiceMode: true }),
-		);
+		expect(mockUpdateState).toHaveBeenCalledWith('conv-1', 'idle', expect.objectContaining({ voiceMode: true }));
 	});
 
 	it('toggles voiceMode off when already on', async () => {
@@ -525,10 +524,6 @@ describe('/voice command', () => {
 		});
 
 		expect(result).toContain('desativado');
-		expect(mockUpdateState).toHaveBeenCalledWith(
-			'conv-1',
-			'idle',
-			expect.objectContaining({ voiceMode: false }),
-		);
+		expect(mockUpdateState).toHaveBeenCalledWith('conv-1', 'idle', expect.objectContaining({ voiceMode: false }));
 	});
 });

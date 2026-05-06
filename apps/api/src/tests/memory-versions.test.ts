@@ -4,7 +4,7 @@
  * Validates the memory_versions table exists with proper columns
  * for audit trail of memory item changes.
  */
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('memory_versions table (NEX-31)', () => {
 	afterEach(() => {

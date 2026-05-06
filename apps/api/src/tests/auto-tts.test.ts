@@ -6,7 +6,7 @@
  * 2. autoTts field exists on user_preferences schema
  * 3. The field defaults to false
  */
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('auto-tts preference (NEX-18)', () => {
 	beforeEach(() => {
@@ -21,9 +21,7 @@ describe('auto-tts preference (NEX-18)', () => {
 		const { userPreferences } = await import('@/db/schema/user-preferences');
 		expect(userPreferences).toBeDefined();
 		// The autoTts column should be defined on the table
-		const columnNames = Object.keys(
-			(userPreferences as any)[Symbol.for('drizzle:Columns')] ?? {},
-		);
+		const _columnNames = Object.keys((userPreferences as any)[Symbol.for('drizzle:Columns')] ?? {});
 		// Fallback: verify the table object has autoTts property through introspection
 		const tableObj = userPreferences as Record<string, unknown>;
 		const hasAutoTts = 'autoTts' in tableObj || Object.keys(tableObj).some((k) => k.includes('auto'));
@@ -36,10 +34,10 @@ describe('auto-tts preference (NEX-18)', () => {
 		const columnDef = (userPreferences as Record<string, unknown>).autoTts;
 		expect(columnDef).toBeDefined();
 		// Drizzle column stores default in internal __... properties
-		const hasDefault =
+		const _hasDefault =
 			typeof (columnDef as any).default === 'boolean' ||
 			typeof (columnDef as any).defaultValue === 'boolean' ||
-			Symbol.for('drizzle:Provider') in (columnDef as any || {});
+			Symbol.for('drizzle:Provider') in ((columnDef as any) || {});
 		// At minimum, the column exists and is a Drizzle column object
 		expect(typeof columnDef).toBe('object');
 	});

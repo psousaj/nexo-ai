@@ -193,7 +193,7 @@ async function detectPreferencePatterns(userId: string): Promise<InferenceResult
 /**
  * Detect behavioral patterns from memory titles and metadata.
  */
-async function detectBehavioralPatterns(userId: string): Promise<InferenceResult[]> {
+async function detectBehavioralPatterns(_userId: string): Promise<InferenceResult[]> {
 	// Behavioral patterns require more sophisticated analysis
 	// For now, return empty — can be enhanced with LLM calls
 	return [];

@@ -1761,7 +1761,7 @@ export async function save_memory(
 }
 
 export async function search_book(
-	context: ToolContext,
+	_context: ToolContext,
 	params: { title: string; author?: string },
 ): Promise<ToolOutput> {
 	const found = await bookService.searchBook(params.title.trim(), params.author?.trim());
@@ -1789,7 +1789,7 @@ export async function search_book(
 }
 
 export async function search_music(
-	context: ToolContext,
+	_context: ToolContext,
 	params: { title: string; artist?: string },
 ): Promise<ToolOutput> {
 	const found = await spotifyService.searchTrack(params.title.trim(), params.artist?.trim());

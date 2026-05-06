@@ -1,6 +1,5 @@
-import { env } from "@/config/env";
-import { loggers } from "@/utils/logger";
-import { instrumentService } from "@/services/service-instrumentation";
+import { env } from '@/config/env';
+import { instrumentService } from '@/services/service-instrumentation';
 
 export interface TranscriptionResult {
 	text: string;
@@ -16,7 +15,7 @@ export class WhisperService {
 	constructor() {
 		this.baseURL = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`;
 		this.apiKey = env.CLOUDFLARE_API_TOKEN;
-		this.model = env.WHISPER_MODEL ?? "whisper-1";
+		this.model = env.WHISPER_MODEL ?? 'whisper-1';
 	}
 
 	async transcribeAudio(params: {
@@ -27,21 +26,21 @@ export class WhisperService {
 	}): Promise<TranscriptionResult> {
 		const formData = new FormData();
 		const blob = new Blob([params.audioBuffer], { type: params.mimeType });
-		formData.append("file", blob, params.filename);
-		formData.append("model", this.model);
+		formData.append('file', blob, params.filename);
+		formData.append('model', this.model);
 
 		if (params.languageHint) {
-			formData.append("language", params.languageHint);
+			formData.append('language', params.languageHint);
 		}
 
-		formData.append("response_format", "verbose_json");
+		formData.append('response_format', 'verbose_json');
 
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 30_000);
 
 		try {
 			const response = await fetch(`${this.baseURL}/audio/transcriptions`, {
-				method: "POST",
+				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${this.apiKey}`,
 				},
@@ -56,13 +55,13 @@ export class WhisperService {
 
 			const result = (await response.json()) as Record<string, unknown>;
 			return {
-				text: (result.text as string)?.trim() ?? "",
+				text: (result.text as string)?.trim() ?? '',
 				language: result.language as string | undefined,
 				duration: result.duration as number | undefined,
 			};
 		} catch (error: unknown) {
-			if (error instanceof Error && error.name === "AbortError") {
-				throw new Error("Whisper API transcription timed out after 30s");
+			if (error instanceof Error && error.name === 'AbortError') {
+				throw new Error('Whisper API transcription timed out after 30s');
 			}
 			throw error;
 		} finally {
@@ -80,14 +79,14 @@ export class WhisperService {
 				throw new Error(`Failed to download audio: ${audioResponse.status}`);
 			}
 			const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-			const contentType = audioResponse.headers.get("content-type") ?? "audio/ogg";
-			const extension = contentType.includes("webm")
-				? "webm"
-				: contentType.includes("mp4")
-					? "mp4"
-					: contentType.includes("mpeg")
-						? "mp3"
-						: "ogg";
+			const contentType = audioResponse.headers.get('content-type') ?? 'audio/ogg';
+			const extension = contentType.includes('webm')
+				? 'webm'
+				: contentType.includes('mp4')
+					? 'mp4'
+					: contentType.includes('mpeg')
+						? 'mp3'
+						: 'ogg';
 
 			clearTimeout(timeout);
 			return await this.transcribeAudio({
@@ -97,8 +96,8 @@ export class WhisperService {
 				languageHint: params.languageHint,
 			});
 		} catch (error: unknown) {
-			if (error instanceof Error && error.name === "AbortError") {
-				throw new Error("Audio download timed out after 15s");
+			if (error instanceof Error && error.name === 'AbortError') {
+				throw new Error('Audio download timed out after 15s');
 			}
 			throw error;
 		} finally {
@@ -107,4 +106,4 @@ export class WhisperService {
 	}
 }
 
-export const whisperService = instrumentService("whisper-stt", new WhisperService());
+export const whisperService = instrumentService('whisper-stt', new WhisperService());

@@ -221,12 +221,7 @@ export class EvolutionAdapter implements MessagingProvider {
 		}
 	}
 
-	async sendVoice(
-		chatId: string,
-		audioBuffer: Buffer,
-		mimeType?: string,
-		filename?: string,
-	): Promise<void> {
+	async sendVoice(chatId: string, audioBuffer: Buffer, mimeType?: string, filename?: string): Promise<void> {
 		const base64Audio = audioBuffer.toString('base64');
 		await evolutionService.sendMediaAudio(
 			chatId,

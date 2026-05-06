@@ -87,11 +87,7 @@ export async function dispatchAdapterOutputJob(
 				return;
 			}
 
-			await provider.sendMessage(
-				payload.externalId,
-				payload.text ?? '[voice message]',
-				payload.options,
-			);
+			await provider.sendMessage(payload.externalId, payload.text ?? '[voice message]', payload.options);
 			return;
 		}
 

@@ -27,7 +27,7 @@ export const REDIS_BASE_OPTIONS = {
 // ============================================================================
 
 const MEMORY_CACHE_MAX_ENTRIES = 500;
-const MEMORY_CACHE_MAX_TTL_MS = 5 * 60 * 1000;
+const _MEMORY_CACHE_MAX_TTL_MS = 5 * 60 * 1000;
 
 // LRU cache: Map preserves insertion order.
 // On get() we delete+reinsert to move the entry to the end (most recently used).

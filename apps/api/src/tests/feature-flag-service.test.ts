@@ -18,8 +18,6 @@ const {
 	mockDbInsert,
 	mockDbUpdate,
 	mockDbSelect,
-	mockDbSelectFeatureFlags,
-	mockDbSelectGlobalTools,
 	mockToolServiceInitialize,
 	mockToolServiceUpdateTool,
 	mockInMemoryProviderInstance,

@@ -163,14 +163,17 @@ export function sanitizePromptInput(text: string, context?: { field: string; use
 /**
  * Batch sanitize all profile fields before injecting into system prompt
  */
-export function sanitizeAgentProfileFields(fields: {
-	soulContent?: string | null;
-	identityContent?: string | null;
-	memoryContent?: string | null;
-	agentsContent?: string | null;
-	userContent?: string | null;
-	toolsContent?: string | null;
-}, userId?: string): {
+export function sanitizeAgentProfileFields(
+	fields: {
+		soulContent?: string | null;
+		identityContent?: string | null;
+		memoryContent?: string | null;
+		agentsContent?: string | null;
+		userContent?: string | null;
+		toolsContent?: string | null;
+	},
+	userId?: string,
+): {
 	soulContent?: string;
 	identityContent?: string;
 	memoryContent?: string;
@@ -180,7 +183,14 @@ export function sanitizeAgentProfileFields(fields: {
 	wasSanitized: boolean;
 	detectedPatterns: string[];
 } {
-	const fieldNames = ['soulContent', 'identityContent', 'memoryContent', 'agentsContent', 'userContent', 'toolsContent'] as const;
+	const fieldNames = [
+		'soulContent',
+		'identityContent',
+		'memoryContent',
+		'agentsContent',
+		'userContent',
+		'toolsContent',
+	] as const;
 	const result: Record<string, string | undefined> = {};
 	let anySanitized = false;
 	const allPatterns: string[] = [];

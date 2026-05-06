@@ -21,10 +21,10 @@ import {
 	dispatchOutgoingText,
 	dispatchOutgoingVoice,
 } from '@/services/outgoing-dispatcher.service';
+import { preferencesService } from '@/services/preferences-service';
 import { cancelConversationClose } from '@/services/queue-service';
 import { resolveSessionKey } from '@/services/session-key-resolver';
 import { edgeTTSService } from '@/services/tts/edge-tts.service';
-import { preferencesService } from '@/services/preferences-service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { splitMessage } from '@/utils/message-splitter';
@@ -590,12 +590,12 @@ export async function processMessage(
 											ttsResult.mimeType,
 											ttsResult.filename,
 										);
-										loggers.webhook.info({ audioSize: ttsResult.audioBuffer.length }, '🔊 Voice message enviada via TTS');
-									} catch (ttsError: any) {
-										loggers.webhook.warn(
-											{ err: ttsError },
-											'⚠️ TTS falhou — resposta em texto já foi enviada',
+										loggers.webhook.info(
+											{ audioSize: ttsResult.audioBuffer.length },
+											'🔊 Voice message enviada via TTS',
 										);
+									} catch (ttsError: any) {
+										loggers.webhook.warn({ err: ttsError }, '⚠️ TTS falhou — resposta em texto já foi enviada');
 									}
 								});
 							}

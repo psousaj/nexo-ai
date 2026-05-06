@@ -15,11 +15,11 @@ import { env } from '@/config/env';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
 import {
+	AttachmentBuilder,
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
 	Client,
 	type Message as DiscordMessage,
-	AttachmentBuilder,
 	EmbedBuilder,
 	GatewayIntentBits,
 	type Interaction,
@@ -917,7 +917,7 @@ export class DiscordAdapter implements MessagingProvider {
 		}
 	}
 
-	async sendVoice(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void> {
+	async sendVoice(chatId: string, audioBuffer: Buffer, _mimeType: string, filename?: string): Promise<void> {
 		try {
 			const channel = await client.channels.fetch(chatId);
 			if (!channel || !channel.isTextBased()) throw new Error('Invalid channel');
