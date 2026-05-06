@@ -1,6 +1,9 @@
+import type OpenAI from 'openai';
+import type { RuntimeRound } from './runtime-contract';
+
 export type AIProviderType = 'cloudflare' | 'openai' | 'deepseek';
 
-export type ModelContextType = 'chat' | 'embedding' | 'intent' | 'stt' | 'ttl';
+export type ModelContextType = 'chat' | 'embedding' | 'intent' | 'stt' | 'tts';
 
 export interface ModelRegistryEntry {
 	id: number;
@@ -43,8 +46,8 @@ export interface CallLLMParams {
 
 export interface AIProvider {
 	callLLM(params: CallLLMParams): Promise<{
-		round: import('./runtime-contract').RuntimeRound;
-		completion: import('openai').OpenAI.Chat.Completions.ChatCompletion;
+		round: RuntimeRound;
+		completion: OpenAI.Chat.Completions.ChatCompletion;
 	}>;
 	getName(): string;
 	getType(): AIProviderType;
