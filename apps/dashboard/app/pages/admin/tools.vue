@@ -68,7 +68,7 @@
 						<div class="min-w-0">
 							<div class="flex items-center gap-2">
 								<p class="font-medium truncate">{{ tool.label }}</p>
-								<UBadge :color="tool.category === 'system' ? 'amber' : 'purple'" variant="subtle" size="xs">
+								<UBadge :color="tool.category === 'system' ? 'warning' : 'info'" variant="subtle" size="xs">
 									{{ tool.category === 'system' ? 'sistema' : 'plugável' }}
 								</UBadge>
 							</div>
