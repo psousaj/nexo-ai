@@ -15,7 +15,12 @@ export class MultiProviderService {
 	private initialized = false;
 
 	constructor() {
-		this.initializeProviders();
+		this.initializeProviders().catch((err) => {
+			loggers.ai.warn(
+				err,
+				'⚠️ MultiProviderService: falha na inicialização eager dos providers. Será re-tentada na primeira chamada.',
+			);
+		});
 	}
 
 	private async initializeProviders(): Promise<void> {
