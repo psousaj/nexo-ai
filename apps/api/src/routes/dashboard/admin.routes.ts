@@ -3,6 +3,9 @@ import { env } from '@/config/env';
 import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { adminService } from '@/services/admin-service';
 import { embeddingService } from '@/services/ai/embedding-service';
+import { llmService } from '@/services/ai/index';
+import { modelRegistryService } from '@/services/ai/model-registry';
+import type { AIProviderType } from '@/services/ai/types';
 import { evolutionService } from '@/services/evolution-service';
 import { featureFlagService } from '@/services/feature-flag.service';
 import { getSystemTools } from '@/services/tools/registry';
@@ -453,13 +456,12 @@ export const adminRoutes = new Hono()
 			}
 
 			const { buildAgentPrompt } = await import('@/config/prompt-builder');
-			const { llmService } = await import('@/services/ai');
 
 			const systemPrompt = buildAgentPrompt({
 				assistantName: 'Nexo',
 				availableTools: tools,
 			}).system;
-			const llmResponse = await llmService.callLLM({
+			const { message: reply } = await llmService.callLLM({
 				message,
 				history: [],
 				systemPrompt,
@@ -468,11 +470,91 @@ export const adminRoutes = new Hono()
 			return c.json({
 				success: true,
 				data: {
-					llmResponse: typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse, null, 2),
+					llmResponse: reply,
 					systemPrompt,
 				},
 			});
 		} catch (error: any) {
 			return c.json({ success: false, error: error?.message ?? 'Erro interno' }, 500);
 		}
+	})
+	// ============================================================================
+	// AI Provider Management (multi-provider — NEX-53)
+	// ============================================================================
+	.get('/ai/providers', async (c) => {
+		const enabled = llmService.getEnabledProviders();
+		const availability: Record<string, boolean> = {};
+		for (const type of enabled) {
+			const provider = llmService.getProvider(type);
+			availability[type] = provider ? await provider.isAvailable() : false;
+		}
+
+		const models = await modelRegistryService.getEnabledModels();
+
+		return c.json({
+			providers: [
+				{
+					type: 'cloudflare',
+					enabled: enabled.includes('cloudflare'),
+					available: availability.cloudflare ?? false,
+					label: 'Cloudflare AI Gateway',
+				},
+				{
+					type: 'openai',
+					enabled: enabled.includes('openai'),
+					available: availability.openai ?? false,
+					label: 'OpenAI',
+				},
+				{
+					type: 'deepseek',
+					enabled: enabled.includes('deepseek'),
+					available: availability.deepseek ?? false,
+					label: 'DeepSeek',
+				},
+			],
+			models,
+		});
+	})
+	.get('/ai/models', async (c) => {
+		const provider = c.req.query('provider');
+		const context = c.req.query('context');
+		const q = c.req.query('q');
+		const models = await modelRegistryService.searchModels({
+			query: q,
+			provider: provider as AIProviderType | undefined,
+			contextType: context as any,
+		});
+		return c.json(models);
+	})
+	.post('/ai/models', async (c) => {
+		const body = await c.req.json();
+		const model = await modelRegistryService.addModel(body);
+		return c.json(model, 201);
+	})
+	.post('/ai/models/search', async (c) => {
+		const body = await c.req.json();
+		const models = await modelRegistryService.searchModels({
+			query: body.query,
+			provider: body.provider,
+			contextType: body.contextType,
+		});
+		return c.json(models);
+	})
+	.patch('/ai/models/:id', async (c) => {
+		const id = Number(c.req.param('id'));
+		const body = await c.req.json();
+		const model = await modelRegistryService.updateModel(id, body);
+		return c.json(model);
+	})
+	.delete('/ai/models/:id', async (c) => {
+		const id = Number(c.req.param('id'));
+		await modelRegistryService.removeModel(id);
+		return c.json({ success: true });
+	})
+	.post('/ai/test/:provider', async (c) => {
+		const type = c.req.param('provider') as AIProviderType;
+		const provider = llmService.getProvider(type);
+		if (!provider) return c.json({ available: false, error: 'Provider not configured' }, 400);
+		const available = await provider.isAvailable();
+		return c.json({ available, provider: type });
 	});
