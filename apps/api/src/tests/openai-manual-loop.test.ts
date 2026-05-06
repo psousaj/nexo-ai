@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 describe('runOpenAIManualLoop', () => {
 	it('executa tool call e conclui com resposta textual', async () => {
-		const transport = {
-			createChatCompletion: vi
+		const provider = {
+			callLLM: vi
 				.fn()
 				.mockResolvedValueOnce({
 					completion: {
@@ -65,7 +65,7 @@ describe('runOpenAIManualLoop', () => {
 					conversationId: 'conv-1',
 				} as any,
 			},
-			{ transport: transport as any, executeTool },
+			{ provider: provider as any, executeTool },
 		);
 
 		expect(executeTool).toHaveBeenCalledWith(
@@ -79,8 +79,8 @@ describe('runOpenAIManualLoop', () => {
 	});
 
 	it('retorna erro de policy para tool fora da allowlist sem executar callback', async () => {
-		const transport = {
-			createChatCompletion: vi
+		const provider = {
+			callLLM: vi
 				.fn()
 				.mockResolvedValueOnce({
 					completion: {
@@ -135,7 +135,7 @@ describe('runOpenAIManualLoop', () => {
 					conversationId: 'conv-1',
 				} as any,
 			},
-			{ transport: transport as any, executeTool: executeTool as any },
+			{ provider: provider as any, executeTool: executeTool as any },
 		);
 
 		expect(executeTool).not.toHaveBeenCalled();

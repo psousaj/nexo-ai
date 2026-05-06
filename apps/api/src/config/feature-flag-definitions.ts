@@ -51,13 +51,6 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		category: 'pivot',
 		defaultEnabled: env.MULTIMODAL_IMAGE,
 	},
-	{
-		key: 'nexo.pivot.provider-split',
-		label: 'Provider Split',
-		description: 'Divide processamento entre providers de IA',
-		category: 'pivot',
-		defaultEnabled: env.PROVIDER_SPLIT,
-	},
 ];
 
 // ============================================================================
@@ -121,8 +114,6 @@ export const FLAG = {
 	TOOL_SCHEMA_V2: 'nexo.pivot.tool-schema-v2',
 	MULTIMODAL_AUDIO: 'nexo.pivot.multimodal-audio',
 	MULTIMODAL_IMAGE: 'nexo.pivot.multimodal-image',
-	PROVIDER_SPLIT: 'nexo.pivot.provider-split',
-
 	// Channels
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',

@@ -57,9 +57,6 @@ vi.mock('@/services/tools', () => ({
 }));
 
 vi.mock('@/services/ai', () => ({
-	OpenAIGatewayTransport: vi.fn().mockImplementation(() => ({
-		createChatCompletion: vi.fn(),
-	})),
 	runOpenAIManualLoop: mockRunOpenAIManualLoop,
 	summarizeRuntimeRounds: vi.fn().mockReturnValue({
 		roundCount: 1,
@@ -69,7 +66,15 @@ vi.mock('@/services/ai', () => ({
 		gatewayHeaders: {},
 	}),
 	buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
-	llmService: { callLLM: vi.fn() },
+	llmService: {
+		callLLM: vi.fn(),
+		getProvider: vi.fn().mockReturnValue({
+			callLLM: vi.fn(),
+			getName: () => 'cloudflare-mock',
+			getType: () => 'cloudflare',
+			isAvailable: vi.fn().mockResolvedValue(true),
+		}),
+	},
 }));
 
 vi.mock('@/services/service-instrumentation', () => ({

@@ -1,11 +1,8 @@
 import type {
 	ChatAction,
-	MessagingChannel,
 	MessagingProvider,
-	OutgoingMessageQueuePayload,
 	ProviderType,
 } from '@/adapters/messaging/types';
-import { env } from '@/config/env';
 
 export interface OutgoingDispatchTarget {
 	providerName: ProviderType;
@@ -14,21 +11,6 @@ export interface OutgoingDispatchTarget {
 	conversationId?: string;
 	userId?: string;
 	traceId?: string;
-}
-
-function isMessagingChannelValue(value: string): value is MessagingChannel {
-	return value === 'whatsapp' || value === 'telegram' || value === 'discord';
-}
-
-function normalizeProviderName(value: string): MessagingChannel {
-	if (!isMessagingChannelValue(value)) {
-		throw new Error(`Canal inválido para despacho de saída: ${value}`);
-	}
-	return value;
-}
-
-function useSplitDispatch(): boolean {
-	return env.PROVIDER_SPLIT;
 }
 
 async function resolveProvider(target: OutgoingDispatchTarget): Promise<MessagingProvider> {
@@ -45,41 +27,11 @@ async function resolveProvider(target: OutgoingDispatchTarget): Promise<Messagin
 	return provider;
 }
 
-async function enqueueAdapterOutput(
-	payload: OutgoingMessageQueuePayload,
-	target: OutgoingDispatchTarget,
-): Promise<void> {
-	const { queueAdapterOutput } = await import('@/services/queue-service');
-
-	await queueAdapterOutput(payload, {
-		traceId: target.traceId,
-	});
-}
-
 export async function dispatchOutgoingText(
 	target: OutgoingDispatchTarget,
 	text: string,
 	options?: Record<string, unknown>,
 ): Promise<void> {
-	if (useSplitDispatch()) {
-		await enqueueAdapterOutput(
-			{
-				providerName: normalizeProviderName(target.providerName),
-				externalId: target.externalId,
-				deliveryMethod: 'send_text',
-				text,
-				options,
-				metadata: {
-					conversationId: target.conversationId,
-					userId: target.userId,
-					source: 'api-core',
-				},
-			},
-			target,
-		);
-		return;
-	}
-
 	const provider = await resolveProvider(target);
 	if (typeof options === 'undefined') {
 		await provider.sendMessage(target.externalId, text);
@@ -95,26 +47,6 @@ export async function dispatchOutgoingButtons(
 	buttons: unknown[],
 	options?: Record<string, unknown>,
 ): Promise<void> {
-	if (useSplitDispatch()) {
-		await enqueueAdapterOutput(
-			{
-				providerName: normalizeProviderName(target.providerName),
-				externalId: target.externalId,
-				deliveryMethod: 'send_buttons',
-				text,
-				buttons,
-				options,
-				metadata: {
-					conversationId: target.conversationId,
-					userId: target.userId,
-					source: 'api-core',
-				},
-			},
-			target,
-		);
-		return;
-	}
-
 	const provider = await resolveProvider(target);
 	if (provider.sendMessageWithButtons) {
 		await provider.sendMessageWithButtons(target.externalId, text, buttons, options);
@@ -136,28 +68,6 @@ export async function dispatchOutgoingPhoto(
 	buttons?: unknown[],
 	options?: Record<string, unknown>,
 ): Promise<void> {
-	if (useSplitDispatch()) {
-		await enqueueAdapterOutput(
-			{
-				providerName: normalizeProviderName(target.providerName),
-				externalId: target.externalId,
-				deliveryMethod: 'send_photo',
-				text: caption,
-				photoUrl,
-				caption,
-				buttons,
-				options,
-				metadata: {
-					conversationId: target.conversationId,
-					userId: target.userId,
-					source: 'api-core',
-				},
-			},
-			target,
-		);
-		return;
-	}
-
 	const provider = await resolveProvider(target);
 	if (provider.sendPhoto) {
 		await provider.sendPhoto(target.externalId, photoUrl, caption, buttons, options);
@@ -174,24 +84,6 @@ export async function dispatchOutgoingPhoto(
 }
 
 export async function dispatchOutgoingChatAction(target: OutgoingDispatchTarget, action: ChatAction): Promise<void> {
-	if (useSplitDispatch()) {
-		await enqueueAdapterOutput(
-			{
-				providerName: normalizeProviderName(target.providerName),
-				externalId: target.externalId,
-				deliveryMethod: 'send_chat_action',
-				chatAction: action,
-				metadata: {
-					conversationId: target.conversationId,
-					userId: target.userId,
-					source: 'api-core',
-				},
-			},
-			target,
-		);
-		return;
-	}
-
 	const provider = await resolveProvider(target);
 	if (provider.sendChatAction) {
 		await provider.sendChatAction(target.externalId, action);
@@ -206,26 +98,6 @@ export async function dispatchOutgoingVoice(
 ): Promise<void> {
 	const resolvedMimeType = mimeType ?? 'audio/ogg';
 	const resolvedFilename = filename ?? (resolvedMimeType.includes('mpeg') ? 'voice.mp3' : 'voice.ogg');
-
-	if (useSplitDispatch()) {
-		await enqueueAdapterOutput(
-			{
-				providerName: normalizeProviderName(target.providerName),
-				externalId: target.externalId,
-				deliveryMethod: 'send_voice',
-				voiceBuffer: audioBuffer,
-				voiceMimeType: resolvedMimeType,
-				voiceFilename: resolvedFilename,
-				metadata: {
-					conversationId: target.conversationId,
-					userId: target.userId,
-					source: 'api-core',
-				},
-			},
-			target,
-		);
-		return;
-	}
 
 	const provider = await resolveProvider(target);
 	if (provider.sendVoice) {

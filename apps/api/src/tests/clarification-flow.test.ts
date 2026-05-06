@@ -91,9 +91,28 @@ vi.mock('@/services/ai', () => ({
 		callLLM: vi.fn().mockResolvedValue({
 			message:
 				'{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"Por favor, escolha uma opção válida.","tone_profile":"neutral"}}',
-			metadata: {},
+			round: {
+				context: { conversationId: 'test', userId: 'test', model: 'test', gatewayBaseUrl: '' },
+				blocks: [],
+				stopReason: 'end_turn',
+			},
+		}),
+		getProvider: vi.fn().mockReturnValue({
+			callLLM: vi.fn(),
+			getName: () => 'cloudflare-mock',
+			getType: () => 'cloudflare',
+			isAvailable: vi.fn().mockResolvedValue(true),
 		}),
 	},
+	runOpenAIManualLoop: vi.fn(),
+	summarizeRuntimeRounds: vi.fn().mockReturnValue({
+		roundCount: 1,
+		toolUseBlocks: 0,
+		stopReasons: ['end_turn'],
+		totalTokens: 0,
+		gatewayHeaders: {},
+	}),
+	buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
 }));
 
 vi.mock('@/config/env', () => ({

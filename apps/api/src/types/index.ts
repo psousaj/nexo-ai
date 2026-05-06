@@ -140,7 +140,7 @@ export interface ConversationContext {
 }
 
 // Re-export AI types from ai service
-export type { AIResponse, Message, AIProvider, AIProviderType } from '@/services/ai/types';
+export type { AIProvider, AIProviderType } from '@/services/ai/types';
 
 // ============================================================================
 // ORCHESTRATION TRACE TYPES
