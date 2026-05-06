@@ -294,7 +294,7 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		category: 'user',
 	},
 
-		save_image: {
+	save_image: {
 		name: 'save_image',
 		label: 'Salvar Imagem',
 		description: 'Salva imagem com extração de metadados EXIF',

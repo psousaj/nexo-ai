@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { AIProvider, AIProviderType } from '@/services/ai/types';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('AIProvider interface (multi-provider)', () => {
 	it('should define contract for all provider types', () => {

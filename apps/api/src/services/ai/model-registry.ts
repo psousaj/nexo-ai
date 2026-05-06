@@ -13,10 +13,7 @@ export class ModelRegistryService {
 
 		if (params?.query) {
 			conditions.push(
-				or(
-					ilike(modelRegistry.modelId, `%${params.query}%`),
-					ilike(modelRegistry.displayName, `%${params.query}%`),
-				),
+				or(ilike(modelRegistry.modelId, `%${params.query}%`), ilike(modelRegistry.displayName, `%${params.query}%`)),
 			);
 		}
 		if (params?.provider) {

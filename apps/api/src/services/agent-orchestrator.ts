@@ -49,12 +49,7 @@ import type { MessageMetadata, OrchestratorTrace } from '@/types';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { decideAgentAction } from './agent-action-routing';
-import {
-	buildRuntimeObservabilityAttributes,
-	llmService,
-	runOpenAIManualLoop,
-	summarizeRuntimeRounds,
-} from './ai';
+import { buildRuntimeObservabilityAttributes, llmService, runOpenAIManualLoop, summarizeRuntimeRounds } from './ai';
 import { executeIntentClassificationTask } from './ai/intent-classification-task';
 import { buildRuntimeContext } from './ai/runtime-context-builder';
 import { conversationService } from './conversation-service';
@@ -624,12 +619,18 @@ export class AgentOrchestrator {
 			let selectedProvider: ReturnType<typeof llmService.getProvider> = undefined;
 			for (const pType of enabledProviders) {
 				const p = llmService.getProvider(pType);
-				if (p) { selectedProvider = p; break; }
+				if (p) {
+					selectedProvider = p;
+					break;
+				}
 			}
 			if (!selectedProvider) {
-				throw new Error(
-					'No AI providers configured. Set API keys via Admin > AI Providers (BYOK).',
-				);
+				loggers.ai.warn('⚠️ No AI providers configured. Set API keys via Admin > AI Providers (BYOK).');
+				return {
+					message: 'Desculpe, não consigo processar isso agora.',
+					state: 'idle' as ConversationState,
+					toolsUsed: [],
+				};
 			}
 
 			try {

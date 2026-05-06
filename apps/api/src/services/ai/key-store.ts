@@ -35,11 +35,7 @@ export class KeyStore {
 	}
 
 	async getKey(provider: AIProviderType): Promise<KeyEntry | null> {
-		const row = await db
-			.select()
-			.from(providerKeys)
-			.where(eq(providerKeys.provider, provider))
-			.limit(1);
+		const row = await db.select().from(providerKeys).where(eq(providerKeys.provider, provider)).limit(1);
 
 		if (row.length === 0) return null;
 
@@ -56,17 +52,11 @@ export class KeyStore {
 	}
 
 	async hasKey(provider: AIProviderType): Promise<boolean> {
-		const row = await db
-			.select()
-			.from(providerKeys)
-			.where(eq(providerKeys.provider, provider))
-			.limit(1);
+		const row = await db.select().from(providerKeys).where(eq(providerKeys.provider, provider)).limit(1);
 		return row.length > 0;
 	}
 
-	async listKeys(): Promise<
-		Array<{ provider: string; fingerprint: string | null; config: Record<string, string> }>
-	> {
+	async listKeys(): Promise<Array<{ provider: string; fingerprint: string | null; config: Record<string, string> }>> {
 		const rows = await db.select().from(providerKeys);
 		return rows.map((r) => ({
 			provider: r.provider,

@@ -151,9 +151,12 @@ async function deleteModel(id: number) {
                 <UBadge
                   v-if="p.enabled && p.available"
                   color="success" variant="subtle" size="xs"
-                >Connected</UBadge>
-                <UBadge v-else-if="p.enabled" color="warning" variant="subtle" size="xs"
-                >Not configured</UBadge>
+                >
+Connected
+</UBadge>
+                <UBadge v-else-if="p.enabled" color="warning" variant="subtle" size="xs">
+Not configured
+</UBadge>
                 <UBadge v-else color="neutral" variant="subtle" size="xs">Disabled</UBadge>
               </div>
               <p class="text-sm text-gray-500 mt-1">{{ p.type }}</p>

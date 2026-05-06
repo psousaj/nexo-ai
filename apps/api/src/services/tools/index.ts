@@ -1834,10 +1834,7 @@ export async function save_skill(
 	};
 }
 
-export async function load_skill(
-	context: ToolContext,
-	params: { name: string },
-): Promise<ToolOutput> {
+export async function load_skill(context: ToolContext, params: { name: string }): Promise<ToolOutput> {
 	const { skillsService } = await import('@/services/skills/skills.service');
 	const skill = await skillsService.loadSkill(params.name.trim(), context.userId);
 	if (!skill) return { success: false, error: `Skill "${params.name}" não encontrada` };

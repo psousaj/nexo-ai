@@ -1,4 +1,3 @@
-import { env } from '@/config/env';
 import { buildAgentPrompt } from '@/config/prompt-builder';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
@@ -8,6 +7,7 @@ import { DeepSeekProvider } from './deepseek-provider';
 import { keyStore } from './key-store';
 import { modelRegistryService } from './model-registry';
 import { OpenAIProvider } from './openai-provider';
+import { createRuntimeRound } from './runtime-contract';
 import type { AIProvider, AIProviderType, CallLLMParams } from './types';
 
 export class MultiProviderService {
@@ -25,11 +25,7 @@ export class MultiProviderService {
 		if (cfKey?.key) {
 			this.providers.set(
 				'cloudflare',
-				new CloudflareProvider(
-					cfKey.config.accountId || '',
-					cfKey.config.gatewayId || 'nexo-ai-gateway',
-					cfKey.key,
-				),
+				new CloudflareProvider(cfKey.config.accountId || '', cfKey.config.gatewayId || 'nexo-ai-gateway', cfKey.key),
 			);
 		}
 
@@ -86,11 +82,14 @@ export class MultiProviderService {
 
 			const models = await modelRegistryService.getEnabledModels(undefined, contextType);
 			if (models.length === 0) {
-				throw new Error('No enabled AI models found in registry. Seed the model_registry table.');
+				loggers.ai.warn('⚠️ No enabled AI models found in registry. Seed the model_registry table.');
+				return {
+					message: 'Desculpe, não consigo processar isso agora.',
+					round: createRuntimeRound({ conversationId: '', userId: '', model: 'none', gatewayBaseUrl: '' }),
+				};
 			}
 
 			let lastError: Error | null = null;
-			let attemptedProviders = 0;
 
 			for (const model of models) {
 				const provider = this.providers.get(model.provider as AIProviderType);
@@ -99,7 +98,6 @@ export class MultiProviderService {
 					continue;
 				}
 
-				attemptedProviders++;
 				try {
 					setAttributes({ 'llm.provider': model.provider, 'llm.model': model.modelId });
 
@@ -132,10 +130,7 @@ export class MultiProviderService {
 				} catch (error: any) {
 					lastError = error;
 					setAttributes({ 'llm.provider_failed': model.provider, 'llm.model_failed': model.modelId });
-					loggers.ai.warn(
-						`⚠️ Provider ${model.provider}/${model.modelId} failed: ${error.message}. Trying next...`,
-					);
-					continue;
+					loggers.ai.warn(`⚠️ Provider ${model.provider}/${model.modelId} failed: ${error.message}. Trying next...`);
 				}
 			}
 
@@ -143,11 +138,17 @@ export class MultiProviderService {
 				throw lastError;
 			}
 			const enabledProviderKeys = this.getEnabledProviders();
-			throw new Error(
-				enabledProviderKeys.length === 0
-					? 'No AI providers configured. Set API keys via Admin > AI Providers (BYOK).'
-					: `No AI models from configured providers (${enabledProviderKeys.join(', ')}) matched the requested context type "${contextType}". Check the model_registry table.`,
-			);
+			if (enabledProviderKeys.length === 0) {
+				loggers.ai.warn('⚠️ No AI providers configured. Set API keys via Admin > AI Providers (BYOK).');
+			} else {
+				loggers.ai.warn(
+					`No AI models from configured providers (${enabledProviderKeys.join(', ')}) matched the requested context type "${contextType}". Check the model_registry table.`,
+				);
+			}
+			return {
+				message: 'Desculpe, não consigo processar isso agora.',
+				round: createRuntimeRound({ conversationId: '', userId: '', model: 'none', gatewayBaseUrl: '' }),
+			};
 		});
 	}
 

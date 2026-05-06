@@ -1,5 +1,5 @@
-import { env } from '@/config/env';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { env } from '@/config/env';
 
 function getMasterKey(): Buffer {
 	const hex = env.BYOK_ENCRYPTION_KEY;

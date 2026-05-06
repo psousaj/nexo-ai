@@ -1,8 +1,4 @@
-import type {
-	ChatAction,
-	MessagingProvider,
-	ProviderType,
-} from '@/adapters/messaging/types';
+import type { ChatAction, MessagingProvider, ProviderType } from '@/adapters/messaging/types';
 
 export interface OutgoingDispatchTarget {
 	providerName: ProviderType;

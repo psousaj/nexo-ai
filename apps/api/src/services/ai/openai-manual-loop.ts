@@ -2,8 +2,8 @@ import type { ToolContext, ToolOutput } from '@/services/tools';
 import type { ToolName } from '@/types';
 import { loggers } from '@/utils/logger';
 import type OpenAI from 'openai';
-import type { AIProvider, CallLLMParams } from './types';
 import type { RuntimeRound } from './runtime-contract';
+import type { AIProvider } from './types';
 
 type MinimalTool = Extract<ToolName, 'save_note' | 'save_link' | 'search_items'>;
 

@@ -8,8 +8,7 @@
 import { db } from '@/db';
 import { agentSkills } from '@/db/schema';
 import { instrumentService } from '@/services/service-instrumentation';
-import { loggers } from '@/utils/logger';
-import { eq, or, sql } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import { BUILT_IN_SKILLS, type SkillDefinition } from './built-in-skills';
 
 interface AgentSkill {
@@ -28,7 +27,13 @@ class SkillsService {
 	/**
 	 * Salva uma skill (user-defined) no banco
 	 */
-	async saveSkill(userId: string, name: string, content: string, description?: string, triggers?: string[]): Promise<AgentSkill> {
+	async saveSkill(
+		userId: string,
+		name: string,
+		content: string,
+		description?: string,
+		triggers?: string[],
+	): Promise<AgentSkill> {
 		const existing = await db
 			.select()
 			.from(agentSkills)
@@ -135,8 +140,7 @@ class SkillsService {
 		if (skills.length === 0) return '';
 
 		const sections = skills.map(
-			(skill) =>
-				`## Skill: ${skill.name}\n**Descrição:** ${skill.description}\n\n${skill.content}`,
+			(skill) => `## Skill: ${skill.name}\n**Descrição:** ${skill.description}\n\n${skill.content}`,
 		);
 
 		return `\n\n## Skills Carregadas\n${sections.join('\n\n---\n\n')}`;
@@ -144,4 +148,3 @@ class SkillsService {
 }
 
 export const skillsService = instrumentService('skills', new SkillsService());
-
