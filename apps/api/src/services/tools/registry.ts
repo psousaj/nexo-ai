@@ -294,12 +294,32 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		category: 'user',
 	},
 
-	save_image: {
+		save_image: {
 		name: 'save_image',
 		label: 'Salvar Imagem',
 		description: 'Salva imagem com extração de metadados EXIF',
 		icon: '🖼️',
 		category: 'user',
+	},
+
+	// ============================================================================
+	// SKILLS TOOLS (NEX-30)
+	// ============================================================================
+
+	save_skill: {
+		name: 'save_skill',
+		label: 'Salvar Skill',
+		description: 'Cria ou atualiza um fluxo reutilizável (skill)',
+		icon: '📋',
+		category: 'user',
+	},
+
+	load_skill: {
+		name: 'load_skill',
+		label: 'Carregar Skill',
+		description: 'Carrega uma skill por nome (built-in ou user-defined)',
+		icon: '📂',
+		category: 'system',
 	},
 };
 
@@ -317,6 +337,7 @@ const USER_TOOL_NAMES: ToolName[] = [
 	'save_book',
 	'save_music',
 	'save_image',
+	'save_skill',
 ];
 
 export function getSystemTools(): ToolDefinition[] {
@@ -377,4 +398,42 @@ export function isSystemTool(name: ToolName): boolean {
  */
 export function getAllTools(): ToolDefinition[] {
 	return Object.values(TOOL_DEFINITIONS);
+}
+
+/**
+ * Auto-discovery: valida que todas as tools registradas no TOOL_DEFINITIONS
+ * possuem implementação correspondente no AVAILABLE_TOOLS do index.ts.
+ *
+ * Retorna tool names que estão na registry mas sem implementação (órfãs),
+ * ou presentes no AVAILABLE_TOOLS mas sem registro no TOOL_DEFINITIONS.
+ */
+export async function discoverTools(): Promise<{
+	orphans: string[]; // No registry but no implementation
+	unregistered: string[]; // Has implementation but no registry entry
+	allGood: boolean;
+}> {
+	const { AVAILABLE_TOOLS } = await import('./index');
+	const availableNames = Object.keys(AVAILABLE_TOOLS) as (keyof typeof AVAILABLE_TOOLS)[];
+	const registryNames = new Set(Object.keys(TOOL_DEFINITIONS));
+
+	const orphans: string[] = [];
+	const unregistered: string[] = [];
+
+	for (const name of availableNames) {
+		if (!registryNames.has(name)) {
+			unregistered.push(name);
+		}
+	}
+
+	for (const name of registryNames) {
+		if (!AVAILABLE_TOOLS[name as keyof typeof AVAILABLE_TOOLS]) {
+			orphans.push(name);
+		}
+	}
+
+	return {
+		orphans,
+		unregistered,
+		allGood: orphans.length === 0 && unregistered.length === 0,
+	};
 }

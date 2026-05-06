@@ -18,7 +18,7 @@
 		/>
 
 		<!-- Stats -->
-		<div v-if="stats" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+		<div v-if="stats" class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<UCard v-for="stat in statCards" :key="stat.label">
 				<div class="flex items-center justify-between">
 					<div>
@@ -43,92 +43,52 @@
 			<UButton variant="ghost" icon="i-heroicons-arrow-path" :loading="isLoading" @click="loadTools"> Recarregar </UButton>
 		</div>
 
-		<!-- System Tools -->
+		<!-- All Tools (flat list, no system/user separation) -->
 		<UCard>
 			<template #header>
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2">
-						<UIcon name="i-heroicons-shield-exclamation" class="w-5 h-5 text-amber-600" />
-						<h2 class="text-xl font-semibold">Tools de Sistema</h2>
-					</div>
-					<UBadge color="warning" variant="subtle">Toggleáveis com risco</UBadge>
+				<div class="flex items-center gap-2">
+					<UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5 text-gray-600" />
+					<h2 class="text-xl font-semibold">Todas as Tools</h2>
 				</div>
 			</template>
 
-			<UAlert
-				color="warning"
-				icon="i-heroicons-exclamation-triangle"
-				title="Atenção: Tools de Sistema"
-				description="Desabilitar tools de sistema pode causar bugs, instabilidade ou perda de funcionalidades críticas do assistente."
-				class="mb-4"
-			/>
-
 			<div class="space-y-3">
 				<div
-					v-for="tool in systemTools"
+					v-for="tool in allTools"
 					:key="tool.name"
-					class="rounded-lg border border-amber-200 dark:border-amber-800 overflow-hidden"
-					:class="tool.enabled ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'"
+					class="flex items-center justify-between p-4 rounded-lg border"
+					:class="
+						tool.enabled
+							? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
+							: 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/10'
+					"
 				>
-					<div class="flex items-center justify-between p-4">
-						<div class="flex items-center gap-3">
-							<span class="text-2xl">{{ tool.icon }}</span>
-							<div>
-								<div class="flex items-center gap-2">
-									<p class="font-medium">{{ tool.label }}</p>
-									<UBadge color="warning" variant="subtle" size="xs">sistema</UBadge>
-								</div>
-								<p class="text-sm text-gray-600 dark:text-gray-400">{{ tool.description }}</p>
+					<div class="flex items-center gap-3 min-w-0">
+						<span class="text-2xl shrink-0">{{ tool.icon }}</span>
+						<div class="min-w-0">
+							<div class="flex items-center gap-2">
+								<p class="font-medium truncate">{{ tool.label }}</p>
+								<UBadge :color="tool.category === 'system' ? 'warning' : 'info'" variant="subtle" size="xs">
+									{{ tool.category === 'system' ? 'sistema' : 'plugável' }}
+								</UBadge>
 							</div>
+							<p class="text-sm text-gray-600 dark:text-gray-400">{{ tool.description }}</p>
 						</div>
+					</div>
 
+					<div class="flex items-center gap-2 shrink-0">
+						<UIcon
+							v-if="!tool.enabled"
+							name="i-heroicons-exclamation-circle"
+							class="w-4 h-4 text-red-500"
+							:title="tool.category === 'system' ? 'Tool de sistema desabilitada' : 'Tool desabilitada'"
+						/>
 						<USwitch
 							:model-value="tool.enabled"
 							:loading="updatingTool === tool.name"
 							@update:model-value="toggleTool(tool.name, $event)"
 						/>
 					</div>
-
-					<div v-if="!tool.enabled" class="px-4 pb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-						<UIcon name="i-heroicons-exclamation-circle" class="w-4 h-4 shrink-0" />
-						<span>Esta tool de sistema está <strong>desabilitada</strong> — funcionalidades críticas podem estar indisponíveis.</span>
-					</div>
-				</div>
-			</div>
-		</UCard>
-
-		<!-- User Tools (Toggleable) -->
-		<UCard>
-			<template #header>
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2">
-						<UIcon name="i-heroicons-puzzle-piece" class="w-5 h-5 text-purple-600" />
-						<h2 class="text-xl font-semibold">Tools de Usuário</h2>
-					</div>
-					<UBadge color="secondary" variant="subtle">Plugáveis</UBadge>
-				</div>
-			</template>
-
-			<div class="space-y-3">
-				<div
-					v-for="tool in userTools"
-					:key="tool.name"
-					class="flex items-center justify-between p-4 rounded-lg border"
-					:class="
-						tool.enabled
-							? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
-							: 'border-gray-200 dark:border-gray-700'
-					"
-				>
-					<div class="flex items-center gap-3">
-						<span class="text-2xl">{{ tool.icon }}</span>
-						<div>
-							<p class="font-medium">{{ tool.label }}</p>
-							<p class="text-sm text-gray-600 dark:text-gray-400">{{ tool.description }}</p>
-						</div>
-					</div>
-
-					<USwitch :model-value="tool.enabled" :loading="updatingTool === tool.name" @update:model-value="toggleTool(tool.name, $event)" />
 				</div>
 			</div>
 		</UCard>
@@ -172,10 +132,6 @@ const updatingTool = ref<string | null>(null);
 const allTools = ref<ToolWithStatus[]>([]);
 const stats = ref<ToolsResponse['data']['stats'] | null>(null);
 
-// Computed
-const systemTools = computed(() => allTools.value.filter((t) => t.category === 'system'));
-const userTools = computed(() => allTools.value.filter((t) => t.category === 'user'));
-
 const statCards = [
 	{
 		key: 'total' as const,
@@ -197,13 +153,6 @@ const statCards = [
 		icon: 'i-heroicons-x-circle',
 		iconClass: 'text-red-400',
 		valueClass: 'text-red-600',
-	},
-	{
-		key: 'system' as const,
-		label: 'Sistema',
-		icon: 'i-heroicons-shield-exclamation',
-		iconClass: 'text-amber-400',
-		valueClass: 'text-amber-600',
 	},
 ];
 

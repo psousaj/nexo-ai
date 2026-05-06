@@ -14,7 +14,7 @@ import { toolService } from '@/services/tools/tool.service';
 import { loggers } from '@/utils/logger';
 
 const CACHE_KEY = 'tool_availability:global';
-const CACHE_TTL = 3600; // 1 hora
+const CACHE_TTL = 900; // 15 minutos (reduzido de 1h como safety net)
 
 export interface ToolAvailabilityResult {
 	/** Nomes das tools habilitadas globalmente (strings do DB). */

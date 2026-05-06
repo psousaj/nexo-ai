@@ -32,6 +32,7 @@ import {
 	get_assistant_name,
 	list_calendar_events,
 	list_todos,
+	load_skill,
 	memory_get,
 	memory_search,
 	resolve_context_reference,
@@ -42,6 +43,7 @@ import {
 	save_movie,
 	save_music,
 	save_note,
+	save_skill,
 	save_tv_show,
 	save_video,
 	schedule_reminder,
@@ -416,6 +418,30 @@ function buildAllTools(context: ToolContext) {
 				url: z.string().describe('URL para analisar'),
 			}),
 			execute: async ({ url }) => analyze_url(context, { url }),
+		}),
+
+		// ====================================================================
+		// SKILLS TOOLS (NEX-30)
+		// ====================================================================
+
+		save_skill: tool({
+			description: 'Cria ou atualiza um fluxo reutilizável (skill) na memória do usuário',
+			inputSchema: z.object({
+				name: z.string().describe('Nome da skill (ex: "debugging-flow", "daily-review")'),
+				content: z.string().describe('Conteúdo em Markdown com steps, pitfalls e verification'),
+				description: z.string().optional().describe('Descrição curta da skill'),
+				triggers: z.array(z.string()).optional().describe('Palavras-chave que ativam esta skill'),
+			}),
+			execute: async ({ name, content, description, triggers }) =>
+				save_skill(context, { name, content, description, triggers }),
+		}),
+
+		load_skill: tool({
+			description: 'Carrega uma skill por nome (built-in ou user-defined) para uso no contexto atual',
+			inputSchema: z.object({
+				name: z.string().describe('Nome da skill a carregar'),
+			}),
+			execute: async ({ name }) => load_skill(context, { name }),
 		}),
 	};
 }
