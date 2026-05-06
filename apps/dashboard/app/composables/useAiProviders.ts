@@ -76,17 +76,26 @@ export function useAiProviders() {
 
 	const addModelMutation = useMutation({
 		mutationFn: (data: Partial<Model>) => api.post('/admin/ai/models', data),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai', 'models'] }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai', 'models'] });
+			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
+		},
 	});
 
 	const updateModelMutation = useMutation({
 		mutationFn: ({ id, ...data }: { id: number } & Partial<Model>) => api.patch(`/admin/ai/models/${id}`, data),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai', 'models'] }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai', 'models'] });
+			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
+		},
 	});
 
 	const deleteModelMutation = useMutation({
 		mutationFn: (id: number) => api.delete(`/admin/ai/models/${id}`),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai', 'models'] }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai', 'models'] });
+			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
+		},
 	});
 
 	const testProviderMutation = useMutation({
