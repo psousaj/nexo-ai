@@ -1814,6 +1814,39 @@ export async function search_music(
 	};
 }
 
+// ── Skills Tools (NEX-30) ───────────────────────────────────────────────────
+
+export async function save_skill(
+	context: ToolContext,
+	params: { name: string; content: string; description?: string; triggers?: string[] },
+): Promise<ToolOutput> {
+	const { skillsService } = await import('@/services/skills/skills.service');
+	const skill = await skillsService.saveSkill(
+		context.userId,
+		params.name.trim(),
+		params.content.trim(),
+		params.description?.trim(),
+		params.triggers,
+	);
+	return {
+		success: true,
+		data: { skill: { name: skill.name, description: skill.description, version: skill.version } },
+	};
+}
+
+export async function load_skill(
+	context: ToolContext,
+	params: { name: string },
+): Promise<ToolOutput> {
+	const { skillsService } = await import('@/services/skills/skills.service');
+	const skill = await skillsService.loadSkill(params.name.trim(), context.userId);
+	if (!skill) return { success: false, error: `Skill "${params.name}" não encontrada` };
+	return {
+		success: true,
+		data: { skill },
+	};
+}
+
 export const AVAILABLE_TOOLS = {
 	// Save tools (específicas)
 	save_note,
@@ -1866,6 +1899,10 @@ export const AVAILABLE_TOOLS = {
 	save_book,
 	save_music,
 	save_image,
+
+	// Skills (NEX-30)
+	save_skill,
+	load_skill,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;

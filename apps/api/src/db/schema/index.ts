@@ -24,3 +24,5 @@ export * from './integrations';
 export * from './whatsapp-settings';
 // Feature flags (pivot + channel)
 export * from './feature-flags';
+// Skills system (NEX-30)
+export * from './agent-skills';

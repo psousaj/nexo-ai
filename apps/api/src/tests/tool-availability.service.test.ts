@@ -82,7 +82,7 @@ describe('ToolAvailabilityService', () => {
 			expect(mockCacheSet).toHaveBeenCalledWith(
 				'tool_availability:global',
 				{ tools: ['save_note', 'save_movie', 'search_items'] },
-				3600,
+				900,
 			);
 		});
 
