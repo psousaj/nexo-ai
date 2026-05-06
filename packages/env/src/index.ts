@@ -93,6 +93,12 @@ const envSchema = z.object({
 	EMBEDDING_RETRY_MAX_DELAY_MS: z.coerce.number().int().min(500).max(60000).default(8000),
 
 	// --------------------------------------------------------------------------
+	// AI Multi-Provider — OpenAI, DeepSeek
+	// --------------------------------------------------------------------------
+	OPENAI_API_KEY: z.string().optional(),
+	DEEPSEEK_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
 	// Observability — OpenTelemetry + Jaeger
 	// --------------------------------------------------------------------------
 	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
@@ -126,7 +132,6 @@ const envSchema = z.object({
 	TOOL_SCHEMA_V2: boolFromEnv.default('false'),
 	MULTIMODAL_AUDIO: boolFromEnv.default('false'),
 	MULTIMODAL_IMAGE: boolFromEnv.default('false'),
-	PROVIDER_SPLIT: boolFromEnv.default('false'),
 
 	// --------------------------------------------------------------------------
 	// Email (Resend)
@@ -177,7 +182,6 @@ export const API_ENV_KEYS = [
 	'PORT',
 	'CORS_ORIGINS',
 	'LOG_LEVEL',
-	'PROVIDER_SPLIT',
 	'DISCORD_BOT_TOKEN',
 ] as const;
 
@@ -189,7 +193,6 @@ export function getApiEnv(source: Env = env): ApiEnv {
 		PORT: source.PORT,
 		CORS_ORIGINS: source.CORS_ORIGINS,
 		LOG_LEVEL: source.LOG_LEVEL,
-		PROVIDER_SPLIT: source.PROVIDER_SPLIT,
 		DISCORD_BOT_TOKEN: source.DISCORD_BOT_TOKEN,
 	};
 }
