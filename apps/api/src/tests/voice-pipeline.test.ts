@@ -476,9 +476,7 @@ describe('/voice command', () => {
 
 		vi.spyOn(conversationService, 'updateState').mockImplementation(mockUpdateState);
 
-		const { db: _db } = await import('@/db');
-		const { eq: _eq } = await import('drizzle-orm');
-		const { conversations: _conversations } = await import('@/db/schema');
+		const { db } = await import('@/db');
 
 		const mockConv = {
 			id: 'conv-1',

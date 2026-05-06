@@ -34,8 +34,6 @@ const {
 		mockDbInsert: vi.fn(),
 		mockDbUpdate: vi.fn(),
 		mockDbSelect: vi.fn(),
-		mockDbSelectFeatureFlags: vi.fn(),
-		mockDbSelectGlobalTools: vi.fn(),
 		mockToolServiceInitialize: vi.fn(),
 		mockToolServiceUpdateTool: vi.fn(),
 		mockInMemoryProviderInstance,

@@ -55,12 +55,6 @@ import {
 // Re-export ToolContext for consumers
 export type { ToolContext } from './index';
 
-const _CURRENT_YEAR = new Date().getFullYear();
-
-function _clamp(val: number, min: number, max: number): number {
-	return Math.min(Math.max(val, min), max);
-}
-
 // ============================================================================
 // TOOL FACTORY
 // ============================================================================
