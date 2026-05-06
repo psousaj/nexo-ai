@@ -6,6 +6,7 @@ import { embeddingService } from '@/services/ai/embedding-service';
 import { llmService } from '@/services/ai/index';
 import { keyStore } from '@/services/ai/key-store';
 import { modelRegistryService } from '@/services/ai/model-registry';
+import { providerRegistryService } from '@/services/ai/provider-registry';
 import type { AIProviderType } from '@/services/ai/types';
 import { evolutionService } from '@/services/evolution-service';
 import { featureFlagService } from '@/services/feature-flag.service';
@@ -483,36 +484,27 @@ export const adminRoutes = new Hono()
 	// AI Provider Management (multi-provider — NEX-53)
 	// ============================================================================
 	.get('/ai/providers', async (c) => {
+		const entries = await providerRegistryService.listAll();
 		const enabled = llmService.getEnabledProviders();
 		const availability: Record<string, boolean> = {};
-		for (const type of enabled) {
-			const provider = llmService.getProvider(type);
-			availability[type] = provider ? await provider.isAvailable() : false;
+
+		for (const t of enabled) {
+			const provider = llmService.getProvider(t);
+			availability[t] = provider ? await provider.isAvailable() : false;
 		}
 
 		const models = await modelRegistryService.getEnabledModels();
 
 		return c.json({
-			providers: [
-				{
-					type: 'cloudflare',
-					enabled: enabled.includes('cloudflare'),
-					available: availability.cloudflare ?? false,
-					label: 'Cloudflare AI Gateway',
-				},
-				{
-					type: 'openai',
-					enabled: enabled.includes('openai'),
-					available: availability.openai ?? false,
-					label: 'OpenAI',
-				},
-				{
-					type: 'deepseek',
-					enabled: enabled.includes('deepseek'),
-					available: availability.deepseek ?? false,
-					label: 'DeepSeek',
-				},
-			],
+			providers: entries.map((e) => ({
+				id: e.id,
+				type: e.type,
+				enabled: e.enabled,
+				available: e.enabled ? availability[e.type] ?? false : false,
+				label: e.label,
+				priority: e.priority,
+				config: e.config,
+			})),
 			models,
 		});
 	})
@@ -558,6 +550,28 @@ export const adminRoutes = new Hono()
 		if (!provider) return c.json({ available: false, error: 'Provider not configured' }, 400);
 		const available = await provider.isAvailable();
 		return c.json({ available, provider: type });
+	})
+	// Dynamic provider CRUD
+	.post('/ai/providers', async (c) => {
+		const body = await c.req.json();
+		if (!body.type || !body.label) {
+			return c.json({ error: 'type and label are required' }, 400);
+		}
+		const entry = await providerRegistryService.create(body);
+		return c.json(entry, 201);
+	})
+	.patch('/ai/providers/:id', async (c) => {
+		const id = Number(c.req.param('id'));
+		const body = await c.req.json();
+		const entry = await providerRegistryService.update(id, body);
+		if (!entry) return c.json({ error: 'Provider not found' }, 404);
+		return c.json(entry);
+	})
+	.delete('/ai/providers/:id', async (c) => {
+		const id = Number(c.req.param('id'));
+		await providerRegistryService.remove(id);
+		await llmService.reload();
+		return c.json({ success: true });
 	})
 	// BYOK — manage provider API keys (encrypted at rest)
 	.get('/ai/keys', async (c) => {

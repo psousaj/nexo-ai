@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import api from '~/utils/api';
 
-interface Provider {
+interface ProviderEntry {
+	id: number;
 	type: string;
+	label: string;
 	enabled: boolean;
 	available: boolean;
-	label: string;
+	priority: number;
+	config: Record<string, string>;
 }
 
 interface Model {
@@ -46,6 +49,31 @@ export function useAiProviders() {
 			queryFn: () => api.get('/admin/ai/keys').then((r) => r.data),
 		});
 
+	const addProviderMutation = useMutation({
+		mutationFn: (data: { type: string; label: string; priority?: number; config?: Record<string, string> }) =>
+			api.post('/admin/ai/providers', data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
+		},
+	});
+
+	const updateProviderMutation = useMutation({
+		mutationFn: ({ id, ...data }: { id: number; label?: string; enabled?: boolean; priority?: number; config?: Record<string, string> }) =>
+			api.patch(`/admin/ai/providers/${id}`, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
+			queryClient.invalidateQueries({ queryKey: ['ai', 'keys'] });
+		},
+	});
+
+	const deleteProviderMutation = useMutation({
+		mutationFn: (id: number) => api.delete(`/admin/ai/providers/${id}`),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
+			queryClient.invalidateQueries({ queryKey: ['ai', 'keys'] });
+		},
+	});
+
 	const addModelMutation = useMutation({
 		mutationFn: (data: Partial<Model>) => api.post('/admin/ai/models', data),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai', 'models'] }),
@@ -62,7 +90,8 @@ export function useAiProviders() {
 	});
 
 	const testProviderMutation = useMutation({
-		mutationFn: (type: string) => api.post(`/admin/ai/test/${type}`),
+		mutationFn: ({ type, providerId }: { type: string; providerId: number }) =>
+			api.post(`/admin/ai/test/${type}`),
 	});
 
 	const setKeyMutation = useMutation({
@@ -80,6 +109,9 @@ export function useAiProviders() {
 		providersQuery,
 		modelsQuery,
 		keysQuery,
+		addProviderMutation,
+		updateProviderMutation,
+		deleteProviderMutation,
 		addModelMutation,
 		updateModelMutation,
 		deleteModelMutation,

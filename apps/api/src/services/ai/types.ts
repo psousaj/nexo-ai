@@ -1,7 +1,18 @@
 import type OpenAI from 'openai';
 import type { RuntimeRound } from './runtime-contract';
 
-export type AIProviderType = 'cloudflare' | 'openai' | 'deepseek';
+export type AIProviderType = 'cloudflare' | 'openai' | 'deepseek' | 'custom';
+
+export interface ProviderEntry {
+	id: number;
+	type: AIProviderType;
+	label: string;
+	enabled: boolean;
+	priority: number;
+	config: Record<string, string>;
+	createdAt: Date;
+	updatedAt: Date;
+}
 
 export type ModelContextType = 'chat' | 'embedding' | 'intent' | 'stt' | 'tts';
 

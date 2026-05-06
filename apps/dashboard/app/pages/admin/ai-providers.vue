@@ -6,21 +6,37 @@ definePageMeta({
 
 const toast = useToast();
 const searchQuery = ref('');
-const showAddDialog = ref(false);
+const showAddProviderDialog = ref(false);
+const showEditProviderDialog = ref(false);
+const showAddModelDialog = ref(false);
 const showKeyDialog = ref(false);
-const keyProvider = ref<string>('');
+const keyProviderId = ref<number | null>(null);
+const keyProviderLabel = ref('');
+const keyProviderType = ref('');
+const editingProvider = ref<any>(null);
 const testing = ref<Record<string, boolean>>({});
+
+const newProvider = ref({
+  type: 'openai' as string,
+  label: '',
+  priority: 0,
+  config: {} as Record<string, string>,
+});
+
 const newModel = ref({
   provider: 'openai',
   modelId: '',
   displayName: '',
-  contextTypes: ['chat'],
+  contextTypes: ['chat'] as string[],
   priority: 0,
 });
 
 const {
   providersQuery,
   keysQuery,
+  addProviderMutation,
+  updateProviderMutation,
+  deleteProviderMutation,
   addModelMutation,
   updateModelMutation,
   deleteModelMutation,
@@ -32,7 +48,7 @@ const {
 const { data: providersData, isLoading } = providersQuery();
 const { data: keysData } = keysQuery();
 
-const providers = computed(() => providersData.value?.providers ?? []);
+const providers = computed(() => (providersData.value?.providers ?? []) as any[]);
 const keys = computed(() => keysData.value ?? []);
 
 const modelColumns = [
@@ -56,52 +72,133 @@ const filteredModels = computed(() => {
   );
 });
 
-function providerFingerprint(type: string): string | null {
-  const entry = keys.value.find((k: any) => k.provider === type);
+const providerTypes = [
+  { label: 'Cloudflare AI Gateway', value: 'cloudflare' },
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'Custom (OpenAI-compatible)', value: 'custom' },
+];
+
+function providerTypeLabel(type: string): string {
+  return providerTypes.find((p) => p.value === type)?.label ?? type;
+}
+
+function providerFingerprint(type: string, id: number): string | null {
+  const entry = keys.value.find((k: any) => k.provider === String(id));
   return entry?.fingerprint ?? null;
+}
+
+function hasKey(id: number): boolean {
+  return keys.value.some((k: any) => k.provider === String(id));
 }
 
 function isCloudflare(type: string): boolean {
   return type === 'cloudflare';
 }
 
-function openKeyDialog(type: string) {
-  keyProvider.value = type;
+function isCustom(type: string): boolean {
+  return type === 'custom';
+}
+
+function providerColor(type: string): string {
+  const colors: Record<string, string> = {
+    cloudflare: 'orange',
+    openai: 'green',
+    deepseek: 'blue',
+    custom: 'purple',
+  };
+  return colors[type] ?? 'neutral';
+}
+
+function openKeyDialog(p: any) {
+  keyProviderId.value = p.id;
+  keyProviderLabel.value = p.label;
+  keyProviderType.value = p.type;
   showKeyDialog.value = true;
 }
 
 async function saveKey() {
+  if (!keyProviderId.value) return;
   const config: Record<string, string> = {};
-  if (isCloudflare(keyProvider.value)) {
+  if (isCloudflare(keyProviderType.value)) {
     config.accountId = keyForm.value.accountId || '';
     config.gatewayId = keyForm.value.gatewayId || 'nexo-ai-gateway';
   }
+  if (isCustom(keyProviderType.value)) {
+    config.apiBase = keyForm.value.apiBase || '';
+  }
   await setKeyMutation.mutateAsync({
-    provider: keyProvider.value,
+    provider: String(keyProviderId.value),
     key: keyForm.value.apiKey,
     config,
   });
   showKeyDialog.value = false;
-  toast.add({ title: 'API Key saved', description: `${keyProvider.value} provider configured.`, color: 'success', icon: 'i-heroicons-check-circle' });
+  toast.add({ title: 'API Key saved', description: `${keyProviderLabel.value} configured.`, color: 'success', icon: 'i-heroicons-check-circle' });
 }
 
-async function removeKey(provider: string) {
-  await deleteKeyMutation.mutateAsync(provider);
-  toast.add({ title: 'Key removed', description: `${provider} API key deleted.`, color: 'success', icon: 'i-heroicons-check-circle' });
+async function removeKey(providerId: number) {
+  await deleteKeyMutation.mutateAsync(String(providerId));
+  toast.add({ title: 'Key removed', description: 'API key deleted.', color: 'success', icon: 'i-heroicons-check-circle' });
 }
 
-const keyForm = ref({ apiKey: '', accountId: '', gatewayId: '' });
+const keyForm = ref({ apiKey: '', accountId: '', gatewayId: '', apiBase: '' });
 
-async function testProvider(type: string) {
-  testing.value[type] = true;
-  try {
-    await testProviderMutation.mutateAsync(type);
-    toast.add({ title: 'Connection successful', description: `${type} is reachable.`, color: 'success', icon: 'i-heroicons-check-circle' });
-  } catch {
-    toast.add({ title: 'Connection failed', description: `Could not reach ${type}.`, color: 'error', icon: 'i-heroicons-x-circle' });
-  } finally {
-    testing.value[type] = false;
+async function testProvider(p: any) {
+  if (!hasKey(p.id)) {
+    toast.add({ title: 'No API key', description: 'Set an API key before testing.', color: 'warning', icon: 'i-heroicons-exclamation-triangle' });
+    return;
   }
+  testing.value[p.type] = true;
+  try {
+    await testProviderMutation.mutateAsync({ type: p.type, providerId: p.id });
+    toast.add({ title: 'Connected', description: `${p.label} is reachable.`, color: 'success', icon: 'i-heroicons-check-circle' });
+  } catch {
+    toast.add({ title: 'Connection failed', description: `Could not reach ${p.label}.`, color: 'error', icon: 'i-heroicons-x-circle' });
+  } finally {
+    testing.value[p.type] = false;
+  }
+}
+
+async function addProvider() {
+  if (!newProvider.value.label.trim()) {
+    toast.add({ title: 'Required', description: 'Provider label is required.', color: 'error', icon: 'i-heroicons-exclamation-triangle' });
+    return;
+  }
+  await addProviderMutation.mutateAsync(newProvider.value);
+  showAddProviderDialog.value = false;
+  newProvider.value = { type: 'openai', label: '', priority: 0, config: {} };
+  toast.add({ title: 'Provider added', description: 'Configure an API key to enable it.', color: 'success', icon: 'i-heroicons-check-circle' });
+}
+
+function openEditProvider(p: any) {
+  editingProvider.value = p;
+  newProvider.value.type = p.type;
+  newProvider.value.label = p.label;
+  newProvider.value.priority = p.priority;
+  newProvider.value.config = p.config || {};
+  showEditProviderDialog.value = true;
+}
+
+async function saveEditProvider() {
+  if (!editingProvider.value) return;
+  await updateProviderMutation.mutateAsync({
+    id: editingProvider.value.id,
+    label: newProvider.value.label,
+    priority: newProvider.value.priority,
+    config: newProvider.value.config,
+  });
+  showEditProviderDialog.value = false;
+  editingProvider.value = null;
+  toast.add({ title: 'Provider updated', color: 'success', icon: 'i-heroicons-check-circle' });
+}
+
+async function toggleProvider(p: any) {
+  await updateProviderMutation.mutateAsync({ id: p.id, enabled: !p.enabled });
+}
+
+async function deleteProvider(p: any) {
+  await deleteProviderMutation.mutateAsync(p.id);
+  toast.add({ title: 'Provider removed', description: `${p.label} deleted.`, color: 'success', icon: 'i-heroicons-check-circle' });
 }
 
 async function toggleModel(row: any) {
@@ -110,119 +207,277 @@ async function toggleModel(row: any) {
 
 async function addModel() {
   await addModelMutation.mutateAsync(newModel.value);
-  showAddDialog.value = false;
+  showAddModelDialog.value = false;
   newModel.value = { provider: 'openai', modelId: '', displayName: '', contextTypes: ['chat'], priority: 0 };
-  toast.add({ title: 'Model added', description: 'The AI model has been registered.', color: 'success', icon: 'i-heroicons-check-circle' });
+  toast.add({ title: 'Model added', color: 'success', icon: 'i-heroicons-check-circle' });
 }
 
 async function deleteModel(id: number) {
   await deleteModelMutation.mutateAsync(id);
-  toast.add({ title: 'Model removed', description: 'The AI model has been deleted.', color: 'success', icon: 'i-heroicons-check-circle' });
+  toast.add({ title: 'Model removed', color: 'success', icon: 'i-heroicons-check-circle' });
 }
 </script>
 
 <template>
   <div class="space-y-6">
-    <div>
-      <h2 class="text-3xl font-black text-gray-900 dark:text-white">AI Providers</h2>
-      <p class="text-gray-600 dark:text-gray-400 mt-1">
-        Manage AI providers and configure models. BYOK: Bring Your Own Key.
-      </p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-3xl font-black text-gray-900 dark:text-white">AI Providers</h2>
+        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">
+          Manage AI providers and configure models. BYOK: Bring Your Own Key.
+        </p>
+      </div>
     </div>
 
     <div v-if="isLoading" class="space-y-4">
-      <USkeleton v-for="i in 3" :key="i" class="h-32" />
+      <USkeleton v-for="i in 3" :key="i" class="h-28 rounded-xl" />
     </div>
 
     <template v-else>
-      <UCard>
-        <template #header>
+      <!-- Providers Section -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-cpu-chip" class="w-5 h-5 text-gray-600" />
-            <h2 class="text-xl font-semibold">Providers</h2>
+            <UIcon name="i-heroicons-cpu-chip" class="w-5 h-5 text-gray-500" />
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Providers</h3>
+            <UBadge size="xs" variant="subtle" color="neutral">{{ providers.length }}</UBadge>
           </div>
-        </template>
+          <UButton
+            color="primary"
+            size="sm"
+            icon="i-heroicons-plus"
+            @click="showAddProviderDialog = true"
+          >
+            Add Provider
+          </UButton>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div v-for="p in providers" :key="p.type" class="border rounded-lg p-4">
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="text-lg font-medium">{{ p.label }}</span>
-                <UBadge
-                  v-if="p.enabled && p.available"
-                  color="success" variant="subtle" size="xs"
+        <div v-if="providers.length === 0" class="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-12 text-center">
+          <UIcon name="i-heroicons-cpu-chip" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+          <p class="text-gray-500 dark:text-gray-400 font-medium">No providers configured</p>
+          <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Add your first AI provider to get started.</p>
+          <UButton color="primary" class="mt-4" @click="showAddProviderDialog = true">Add Provider</UButton>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div
+            v-for="p in providers"
+            :key="p.id"
+            class="relative bg-white dark:bg-gray-900 border rounded-xl p-5 transition-shadow hover:shadow-md"
+            :class="[
+              p.enabled
+                ? 'border-gray-200 dark:border-gray-700'
+                : 'border-gray-100 dark:border-gray-800 opacity-60'
+            ]"
+          >
+            <!-- Top row: color accent + label + status + actions -->
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                  :class="{
+                    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': p.type === 'cloudflare',
+                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': p.type === 'openai',
+                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': p.type === 'deepseek',
+                    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400': p.type === 'custom',
+                  }"
                 >
-Connected
-</UBadge>
-                <UBadge v-else-if="p.enabled" color="warning" variant="subtle" size="xs">
-Not configured
-</UBadge>
-                <UBadge v-else color="neutral" variant="subtle" size="xs">Disabled</UBadge>
+                  <UIcon
+                    :name="p.type === 'cloudflare' ? 'i-heroicons-cloud' : p.type === 'custom' ? 'i-heroicons-wrench-screwdriver' : 'i-heroicons-cpu-chip'"
+                    class="w-5 h-5"
+                  />
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-gray-900 dark:text-white text-sm">{{ p.label }}</span>
+                    <UTooltip :text="p.enabled ? 'Enabled' : 'Disabled'">
+                      <USwitch
+                        :model-value="p.enabled"
+                        size="xs"
+                        @update:model-value="toggleProvider(p)"
+                        @click.stop
+                      />
+                    </UTooltip>
+                  </div>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">{{ p.type }}</span>
+                    <UBadge
+                      v-if="p.enabled"
+                      :color="hasKey(p.id) ? 'success' : 'warning'"
+                      variant="subtle"
+                      size="xs"
+                    >
+                      {{ hasKey(p.id) ? 'Configured' : 'No key' }}
+                    </UBadge>
+                    <UBadge v-else color="neutral" variant="subtle" size="xs">Disabled</UBadge>
+                  </div>
+                </div>
               </div>
-              <p class="text-sm text-gray-500 mt-1">{{ p.type }}</p>
-              <p v-if="providerFingerprint(p.type)" class="text-xs text-gray-400 mt-1 font-mono">
-                fp:{{ providerFingerprint(p.type) }}
-              </p>
+
+              <UDropdown :items="[
+                [{ label: 'Edit', icon: 'i-heroicons-pencil-square', click: () => openEditProvider(p) }],
+                [{ label: 'Delete', icon: 'i-heroicons-trash', color: 'error', click: () => deleteProvider(p) }],
+              ]" :popper="{ placement: 'bottom-end' }">
+                <UButton color="neutral" variant="ghost" size="xs" icon="i-heroicons-ellipsis-vertical" />
+              </UDropdown>
             </div>
-            <div class="flex gap-2 mt-3">
-              <UButton size="xs" color="neutral" variant="outline" @click="openKeyDialog(p.type)">
-                Set API Key
+
+            <!-- Fingerprint -->
+            <p v-if="providerFingerprint(p.type, p.id)" class="text-[10px] text-gray-400 dark:text-gray-500 font-mono mb-3 truncate">
+              fp:{{ providerFingerprint(p.type, p.id) }}
+            </p>
+
+            <!-- Actions -->
+            <div class="flex gap-2">
+              <UButton
+                size="xs"
+                :color="hasKey(p.id) ? 'neutral' : 'primary'"
+                variant="outline"
+                @click="openKeyDialog(p)"
+              >
+                {{ hasKey(p.id) ? 'Change Key' : 'Set API Key' }}
               </UButton>
-              <UButton v-if="providerFingerprint(p.type)" size="xs" color="error" variant="ghost" @click="removeKey(p.type)">
-                Remove
+              <UButton
+                v-if="hasKey(p.id)"
+                size="xs"
+                color="error"
+                variant="ghost"
+                @click="removeKey(p.id)"
+              >
+                Remove Key
               </UButton>
-              <UButton size="xs" color="neutral" variant="outline" :loading="testing[p.type]" @click="testProvider(p.type)">
+              <div class="flex-1" />
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="outline"
+                :loading="testing[p.type]"
+                :disabled="!p.enabled && !hasKey(p.id)"
+                @click="testProvider(p)"
+              >
                 Test
               </UButton>
             </div>
           </div>
         </div>
-      </UCard>
+      </div>
 
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between w-full">
-            <h2 class="text-lg font-semibold">Models</h2>
-            <UButton color="primary" @click="showAddDialog = true">+ Add Model</UButton>
+      <!-- Models Section -->
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-cube" class="w-5 h-5 text-gray-500" />
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Models</h3>
+            <UBadge size="xs" variant="subtle" color="neutral">{{ filteredModels.length }}</UBadge>
           </div>
-        </template>
-        <div class="mb-4">
-          <UInput v-model="searchQuery" placeholder="Search models..." icon="i-heroicons-magnifying-glass" />
+          <UButton color="primary" size="sm" icon="i-heroicons-plus" @click="showAddModelDialog = true">
+            Add Model
+          </UButton>
         </div>
-        <UTable :data="filteredModels" :columns="modelColumns">
-          <template #contextTypes-cell="{ row }">
-            <div class="flex gap-1 flex-wrap">
-              <UBadge v-for="ctx in (row.original as any).contextTypes" :key="ctx" size="xs" variant="subtle">{{ ctx }}</UBadge>
-            </div>
-          </template>
-          <template #enabled-cell="{ row }">
-            <USwitch :model-value="(row.original as any).enabled" @update:model-value="toggleModel(row.original)" />
-          </template>
-          <template #actions-cell="{ row }">
-            <UButton color="error" variant="ghost" size="xs" icon="i-heroicons-trash" @click="deleteModel((row.original as any).id)" />
-          </template>
-        </UTable>
-      </UCard>
+        <div class="px-5 py-3">
+          <UInput v-model="searchQuery" placeholder="Search models..." icon="i-heroicons-magnifying-glass" size="sm" />
+        </div>
+        <div class="overflow-x-auto">
+          <UTable :data="filteredModels" :columns="modelColumns" class="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider [&_th]:text-gray-500">
+            <template #contextTypes-cell="{ row }">
+              <div class="flex gap-1 flex-wrap">
+                <UBadge v-for="ctx in (row.original as any).contextTypes" :key="ctx" size="xs" variant="subtle">{{ ctx }}</UBadge>
+              </div>
+            </template>
+            <template #enabled-cell="{ row }">
+              <USwitch :model-value="(row.original as any).enabled" size="xs" @update:model-value="toggleModel(row.original)" />
+            </template>
+            <template #actions-cell="{ row }">
+              <UButton color="error" variant="ghost" size="xs" icon="i-heroicons-trash" @click="deleteModel((row.original as any).id)" />
+            </template>
+          </UTable>
+        </div>
+      </div>
     </template>
 
-    <UModal v-model:open="showKeyDialog">
-      <UCard>
+    <!-- Add Provider Dialog -->
+    <UModal v-model:open="showAddProviderDialog">
+      <UCard class="w-full max-w-md">
         <template #header>
-          <h3 class="text-lg font-semibold">Set API Key — {{ keyProvider }}</h3>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-cpu-chip" class="w-5 h-5 text-primary-600" />
+            <h3 class="text-lg font-semibold">Add Provider</h3>
+          </div>
+        </template>
+        <div class="space-y-4">
+          <UFormField label="Provider Type" required>
+            <USelect v-model="newProvider.type" :items="providerTypes" value-field="value" label-field="label" />
+          </UFormField>
+          <UFormField label="Label" required>
+            <UInput v-model="newProvider.label" placeholder="e.g. My OpenRouter" />
+          </UFormField>
+          <UFormField label="Priority">
+            <UInput v-model.number="newProvider.priority" type="number" placeholder="0 (highest first)" />
+          </UFormField>
+          <template v-if="isCustom(newProvider.type)">
+            <UFormField label="API Base URL" required>
+              <UInput v-model="newProvider.config.apiBase" placeholder="https://api.example.com/v1" />
+            </UFormField>
+          </template>
+          <div class="flex justify-end gap-2 pt-2">
+            <UButton color="neutral" variant="outline" @click="showAddProviderDialog = false">Cancel</UButton>
+            <UButton color="primary" @click="addProvider">Add Provider</UButton>
+          </div>
+        </div>
+      </UCard>
+    </UModal>
+
+    <!-- Edit Provider Dialog -->
+    <UModal v-model:open="showEditProviderDialog">
+      <UCard class="w-full max-w-md">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-pencil-square" class="w-5 h-5 text-primary-600" />
+            <h3 class="text-lg font-semibold">Edit Provider</h3>
+          </div>
+        </template>
+        <div class="space-y-4">
+          <UFormField label="Label">
+            <UInput v-model="newProvider.label" placeholder="Provider label" />
+          </UFormField>
+          <UFormField label="Priority">
+            <UInput v-model.number="newProvider.priority" type="number" placeholder="0 (highest first)" />
+          </UFormField>
+          <div class="flex justify-end gap-2 pt-2">
+            <UButton color="neutral" variant="outline" @click="showEditProviderDialog = false">Cancel</UButton>
+            <UButton color="primary" @click="saveEditProvider">Save</UButton>
+          </div>
+        </div>
+      </UCard>
+    </UModal>
+
+    <!-- API Key Dialog -->
+    <UModal v-model:open="showKeyDialog">
+      <UCard class="w-full max-w-md">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-key" class="w-5 h-5 text-amber-500" />
+            <h3 class="text-lg font-semibold">Set API Key — {{ keyProviderLabel }}</h3>
+          </div>
         </template>
         <div class="space-y-4">
           <UFormField label="API Key" required>
             <UInput v-model="keyForm.apiKey" type="password" placeholder="sk-..." />
           </UFormField>
-          <template v-if="isCloudflare(keyProvider)">
+          <template v-if="isCloudflare(keyProviderType)">
             <UFormField label="Cloudflare Account ID" required>
               <UInput v-model="keyForm.accountId" placeholder="abc123..." />
             </UFormField>
-            <UFormField label="Cloudflare Gateway ID">
+            <UFormField label="Gateway ID">
               <UInput v-model="keyForm.gatewayId" placeholder="nexo-ai-gateway" />
             </UFormField>
           </template>
-          <div class="flex justify-end gap-2 mt-4">
+          <template v-if="isCustom(keyProviderType)">
+            <UFormField label="API Base URL">
+              <UInput v-model="keyForm.apiBase" placeholder="https://api.example.com/v1" />
+            </UFormField>
+          </template>
+          <div class="flex justify-end gap-2 pt-2">
             <UButton color="neutral" variant="outline" @click="showKeyDialog = false">Cancel</UButton>
             <UButton color="primary" @click="saveKey">Save Key</UButton>
           </div>
@@ -230,14 +485,18 @@ Not configured
       </UCard>
     </UModal>
 
-    <UModal v-model:open="showAddDialog">
-      <UCard>
+    <!-- Add Model Dialog -->
+    <UModal v-model:open="showAddModelDialog">
+      <UCard class="w-full max-w-md">
         <template #header>
-          <h3 class="text-lg font-semibold">Add Model</h3>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-cube" class="w-5 h-5 text-primary-600" />
+            <h3 class="text-lg font-semibold">Add Model</h3>
+          </div>
         </template>
         <div class="space-y-4">
           <UFormField label="Provider" required>
-            <USelect v-model="newModel.provider" :items="['cloudflare', 'openai', 'deepseek']" />
+            <USelect v-model="newModel.provider" :items="providers.filter((p: any) => p.enabled).map((p: any) => ({ label: p.label, value: p.type }))" />
           </UFormField>
           <UFormField label="Model ID" required>
             <UInput v-model="newModel.modelId" placeholder="e.g. gpt-4o" />
@@ -249,10 +508,10 @@ Not configured
             <USelect v-model="newModel.contextTypes" :items="['chat', 'embedding', 'intent', 'stt', 'tts']" multiple />
           </UFormField>
           <UFormField label="Priority">
-            <UInput v-model.number="newModel.priority" type="number" />
+            <UInput v-model.number="newModel.priority" type="number" placeholder="0" />
           </UFormField>
-          <div class="flex justify-end gap-2 mt-4">
-            <UButton color="neutral" variant="outline" @click="showAddDialog = false">Cancel</UButton>
+          <div class="flex justify-end gap-2 pt-2">
+            <UButton color="neutral" variant="outline" @click="showAddModelDialog = false">Cancel</UButton>
             <UButton color="primary" @click="addModel">Add</UButton>
           </div>
         </div>

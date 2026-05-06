@@ -30,3 +30,5 @@ export * from './agent-skills';
 export * from './model-registry';
 // BYOK provider key storage (NEX-53)
 export * from './provider-keys';
+// Dynamic AI provider registry
+export * from './providers';
