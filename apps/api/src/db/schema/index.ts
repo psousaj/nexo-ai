@@ -26,3 +26,5 @@ export * from './whatsapp-settings';
 export * from './feature-flags';
 // Skills system (NEX-30)
 export * from './agent-skills';
+// AI multi-provider model registry (NEX-53)
+export * from './model-registry';
