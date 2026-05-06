@@ -151,79 +151,45 @@ describe('OpenAIGatewayTransport', () => {
 		);
 	});
 
-	it('deve lançar erro com runtimeRound quando choices é vazio', async () => {
+	it('deve resolver graciosamente quando choices é vazio', async () => {
 		mockOpenAIInstance.chat.completions.create.mockResolvedValueOnce({
 			choices: [],
 			usage: { prompt_tokens: 5, completion_tokens: 0, total_tokens: 5 },
 		});
 
-		await expect(
-			transport.createChatCompletion({
-				conversationId: 'conv-1',
-				userId: 'user-1',
-				messages: [{ role: 'user', content: 'oi' }],
-			}),
-		).rejects.toThrow('OpenAI Gateway retornou resposta sem choices');
+		const response = await transport.createChatCompletion({
+			conversationId: 'conv-1',
+			userId: 'user-1',
+			messages: [{ role: 'user', content: 'oi' }],
+		});
 
-		try {
-			await transport.createChatCompletion({
-				conversationId: 'conv-1',
-				userId: 'user-1',
-				messages: [{ role: 'user', content: 'oi' }],
-			});
-		} catch (error: any) {
-			expect(error.runtimeRound).toBeDefined();
-			expect(error.runtimeRound.blocks).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({ type: 'error', code: 'empty_choices' }),
-				]),
-			);
-		}
+		expect(response.round.stopReason).toBe('unknown');
+		expect(response.round.usage).toEqual({
+			inputTokens: 5,
+			outputTokens: 0,
+			totalTokens: 5,
+		});
+		// No text or tool blocks added (no message to process)
 	});
 
-	it('deve lançar erro com runtimeRound quando choices[0].message é null', async () => {
+	it('deve resolver graciosamente quando choices[0].message é null', async () => {
 		mockOpenAIInstance.chat.completions.create.mockResolvedValueOnce({
 			choices: [{ finish_reason: 'stop', message: null }],
 			usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
 		});
 
-		await expect(
-			transport.createChatCompletion({
-				conversationId: 'conv-1',
-				userId: 'user-1',
-				messages: [{ role: 'user', content: 'oi' }],
-			}),
-		).rejects.toThrow();
-
-		try {
-			await transport.createChatCompletion({
-				conversationId: 'conv-1',
-				userId: 'user-1',
-				messages: [{ role: 'user', content: 'oi' }],
-			});
-		} catch (error: any) {
-			expect(error.runtimeRound).toBeDefined();
-		}
-	});
-
-	it('deve bypassar catch genérico quando erro já possui runtimeRound', async () => {
-		mockOpenAIInstance.chat.completions.create.mockResolvedValueOnce({
-			choices: [],
-			usage: { prompt_tokens: 5, completion_tokens: 0, total_tokens: 5 },
+		const response = await transport.createChatCompletion({
+			conversationId: 'conv-1',
+			userId: 'user-1',
+			messages: [{ role: 'user', content: 'oi' }],
 		});
 
-		try {
-			await transport.createChatCompletion({
-				conversationId: 'conv-1',
-				userId: 'user-1',
-				messages: [{ role: 'user', content: 'oi' }],
-			});
-		} catch (error: any) {
-			// Should have exactly 1 error block (empty_choices), not 2
-			const errorBlocks = error.runtimeRound.blocks.filter((b: any) => b.type === 'error');
-			expect(errorBlocks).toHaveLength(1);
-			expect(errorBlocks[0].code).toBe('empty_choices');
-		}
+		expect(response.round.stopReason).toBe('end_turn');
+		expect(response.round.usage).toEqual({
+			inputTokens: 5,
+			outputTokens: 1,
+			totalTokens: 6,
+		});
+		// No text or tool blocks since message is null
 	});
->>>>>>> origin/development
 });

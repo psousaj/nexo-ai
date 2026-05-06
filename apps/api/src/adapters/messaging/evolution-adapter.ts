@@ -221,6 +221,21 @@ export class EvolutionAdapter implements MessagingProvider {
 		}
 	}
 
+	async sendVoice(
+		chatId: string,
+		audioBuffer: Buffer,
+		mimeType?: string,
+		filename?: string,
+	): Promise<void> {
+		const base64Audio = audioBuffer.toString('base64');
+		await evolutionService.sendMediaAudio(
+			chatId,
+			base64Audio,
+			mimeType || 'audio/ogg; codecs=opus',
+			filename || 'voice.ogg',
+		);
+	}
+
 	async sendPhoto(chatId: string, photoUrl: string, caption?: string, buttons?: any[]): Promise<void> {
 		await evolutionService.sendMediaImage(chatId, photoUrl, caption);
 		if (buttons && buttons.length > 0) {

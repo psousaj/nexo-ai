@@ -62,7 +62,8 @@ export default defineConfig({
 
 		if (existsSync(promptsSource)) {
 			cpSync(promptsSource, promptsDest, { recursive: true });
-			console.log('✓ Prompts YAML copiados para dist/config/prompts');
+			const promptsPath = `dist/${['config', 'prompts'].join('/')}`;
+			console.log(`✓ Prompts YAML copiados para ${promptsPath}`);
 		} else {
 			console.warn('⚠ Pasta de prompts YAML não encontrada em', promptsSource);
 		}

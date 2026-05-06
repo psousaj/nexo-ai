@@ -290,6 +290,23 @@ export class EvolutionService {
     });
   }
 
+  async sendMediaAudio(
+    recipient: string,
+    base64Audio: string,
+    mimeType: string,
+    fileName: string,
+  ): Promise<void> {
+    await this.request("POST", `/message/sendMedia/${this.instanceName}`, {
+      body: {
+        number: this.normalizeRecipient(recipient),
+        mediatype: "audio",
+        mimetype: mimeType || "audio/ogg",
+        media: base64Audio,
+        fileName: fileName || "voice.ogg",
+      },
+    });
+  }
+
   async sendList(
     recipient: string,
     params: {

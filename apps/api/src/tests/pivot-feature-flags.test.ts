@@ -27,7 +27,7 @@ describe('Pivot feature flags', () => {
 		expect(flags).toEqual({
 			CONVERSATION_FREE: true,
 			TOOL_SCHEMA_V2: false,
-			MULTIMODAL_AUDIO: false,
+			MULTIMODAL_AUDIO: true,
 			MULTIMODAL_IMAGE: false,
 			PROVIDER_SPLIT: false,
 		});
