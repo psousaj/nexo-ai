@@ -61,6 +61,7 @@ export class MultiProviderService {
 			}
 
 			let lastError: Error | null = null;
+			let attemptedProviders = 0;
 
 			for (const model of models) {
 				const provider = this.providers.get(model.provider as AIProviderType);
@@ -69,6 +70,7 @@ export class MultiProviderService {
 					continue;
 				}
 
+				attemptedProviders++;
 				try {
 					setAttributes({ 'llm.provider': model.provider, 'llm.model': model.modelId });
 
@@ -108,7 +110,15 @@ export class MultiProviderService {
 				}
 			}
 
-			throw lastError ?? new Error('All AI providers exhausted');
+			if (lastError) {
+				throw lastError;
+			}
+			const enabledProviderKeys = this.getEnabledProviders();
+			throw new Error(
+				enabledProviderKeys.length === 0
+					? 'No AI providers configured. Set CLOUDFLARE_API_TOKEN, OPENAI_API_KEY, or DEEPSEEK_API_KEY to enable at least one model from the registry.'
+					: `No AI models from configured providers (${enabledProviderKeys.join(', ')}) matched the requested context type "${contextType}". Check the model_registry table.`,
+			);
 		});
 	}
 

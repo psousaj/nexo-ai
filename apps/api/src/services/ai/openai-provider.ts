@@ -46,6 +46,9 @@ export class OpenAIProvider implements AIProvider {
         max_tokens: params.maxTokens,
         tools: params.tools as OpenAI.Chat.ChatCompletionTool[] | undefined,
         tool_choice: params.toolChoice as OpenAI.Chat.ChatCompletionToolChoiceOption | undefined,
+        response_format: params.responseFormat === 'json_object'
+          ? { type: 'json_object' as const }
+          : undefined,
       });
 
       runtimeRound.stopReason = mapOpenAIFinishReasonToRuntimeStopReason(completion.choices[0]?.finish_reason);

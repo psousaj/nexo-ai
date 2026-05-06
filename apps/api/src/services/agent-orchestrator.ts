@@ -619,6 +619,19 @@ export class AgentOrchestrator {
 			// ============================================================================
 			const llmStart = performance.now();
 			const toolsUsed: string[] = [];
+
+			const enabledProviders = llmService.getEnabledProviders();
+			let selectedProvider: ReturnType<typeof llmService.getProvider> = undefined;
+			for (const pType of enabledProviders) {
+				const p = llmService.getProvider(pType);
+				if (p) { selectedProvider = p; break; }
+			}
+			if (!selectedProvider) {
+				throw new Error(
+					'No AI providers configured. Set CLOUDFLARE_API_TOKEN, OPENAI_API_KEY, or DEEPSEEK_API_KEY.',
+				);
+			}
+
 			try {
 				const manualResult = await runOpenAIManualLoop(
 					{
@@ -632,7 +645,7 @@ export class AgentOrchestrator {
 						maxRounds: 6,
 					},
 					{
-						provider: llmService.getProvider('cloudflare')!,
+						provider: selectedProvider,
 						executeTool: async (toolName, toolCtx, params) => executeTool(toolName, toolCtx, params),
 					},
 				);
