@@ -29,6 +29,9 @@ export const REDIS_BASE_OPTIONS = {
 const MEMORY_CACHE_MAX_ENTRIES = 500;
 const MEMORY_CACHE_MAX_TTL_MS = 5 * 60 * 1000;
 
+// LRU cache: Map preserves insertion order.
+// On get() we delete+reinsert to move the entry to the end (most recently used).
+// On eviction we drop the first key (least recently used).
 const memoryCache = new Map<string, { value: string; expiresAt: number }>();
 
 function memoryCacheGet(key: string): string | null {
@@ -38,15 +41,21 @@ function memoryCacheGet(key: string): string | null {
 		memoryCache.delete(key);
 		return null;
 	}
+	// LRU: reinsert to move to end (most recently used)
+	memoryCache.delete(key);
+	memoryCache.set(key, entry);
 	return entry.value;
 }
 
 function memoryCacheSet(key: string, value: string, ttlSeconds?: number): void {
+	// Enforce max TTL of 5 minutes
+	const cappedTtl = ttlSeconds ? Math.min(ttlSeconds, 300) : 300;
+	const ttlMs = cappedTtl * 1000;
+
 	if (memoryCache.size >= MEMORY_CACHE_MAX_ENTRIES) {
 		const oldestKey = memoryCache.keys().next().value;
 		if (oldestKey) memoryCache.delete(oldestKey);
 	}
-	const ttlMs = ttlSeconds ? ttlSeconds * 1000 : MEMORY_CACHE_MAX_TTL_MS;
 	memoryCache.set(key, { value, expiresAt: Date.now() + ttlMs });
 }
 

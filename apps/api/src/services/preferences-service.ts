@@ -44,6 +44,7 @@ export class PreferencesService {
 			privacyShareAnalytics: boolean;
 			appearanceTheme: string;
 			appearanceLanguage: string;
+			autoTts: boolean;
 		}>,
 	): Promise<void> {
 		const existing = await db

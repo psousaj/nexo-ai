@@ -18,6 +18,7 @@ import { eq } from 'drizzle-orm';
 import { getAgentProfile } from './context-builder';
 import { conversationService } from './conversation-service';
 import { searchMemory } from './memory-search';
+import { preferencesService } from './preferences-service';
 
 /**
  * Format memory search results for display
@@ -296,16 +297,36 @@ const verboseCommand: ChatCommand = {
 
 /**
  * Command: /voice
- * Toggle voice mode (TTS responses) per conversation
+ * Toggle voice mode (TTS responses) per conversation or globally per user
+ *
+ * Usage:
+ *   /voice        — toggle per-conversation
+ *   /voice on     — enable per-conversation
+ *   /voice off    — disable per-conversation
+ *   /voice global — toggle user-level auto-TTS preference
  */
 const voiceCommand: ChatCommand = {
 	name: 'voice',
-	description: 'Toggle voice responses on/off',
+	description: 'Toggle voice responses on/off. Use "global" for user-level auto-TTS.',
 	aliases: ['voz', 'audio'],
 	allowedInGroups: false,
 	handler: async (params: CommandParams): Promise<string> => {
-		const { conversationId, userId } = params;
+		const { conversationId, userId, args } = params;
 
+		// ── Global auto-TTS toggle ────────────────────────────────────────────
+		if (args?.trim().toLowerCase() === 'global') {
+			const prefs = await preferencesService.getPreferences(userId);
+			const current = prefs?.autoTts ?? false;
+			const newValue = !current;
+
+			await preferencesService.updatePreferences(userId, { autoTts: newValue });
+
+			return newValue
+				? '🌍 Auto-TTS ativado globalmente! Todas as conversas terão resposta em áudio automaticamente.'
+				: '🌍 Auto-TTS desativado. Use /voice para ativar por conversa.';
+		}
+
+		// ── Per-conversation toggle ──────────────────────────────────────────
 		const conversation = await db.query.conversations.findFirst({
 			where: eq(conversations.id, conversationId),
 		});
@@ -316,7 +337,16 @@ const voiceCommand: ChatCommand = {
 
 		const currentContext = (conversation.context ?? {}) as Record<string, any>;
 		const currentMode = currentContext.voiceMode === true;
-		const newMode = !currentMode;
+		const textArg = args?.trim().toLowerCase();
+
+		let newMode: boolean;
+		if (textArg === 'on') {
+			newMode = true;
+		} else if (textArg === 'off') {
+			newMode = false;
+		} else {
+			newMode = !currentMode;
+		}
 
 		await conversationService.updateState(conversationId, conversation.state as any, {
 			...currentContext,
@@ -358,7 +388,8 @@ const helpCommand: ChatCommand = {
 "Salva Interstellar" é o mesmo que /memory Interstellar
 
 🔊 *Voz:*
-/voice - Ativar/desativar respostas em áudio`;
+/voice - Ativar/desativar respostas em áudio
+/voice global - Auto-TTS global (todas as conversas)`;
 	},
 };
 

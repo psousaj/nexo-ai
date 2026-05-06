@@ -24,6 +24,7 @@ import {
 import { cancelConversationClose } from '@/services/queue-service';
 import { resolveSessionKey } from '@/services/session-key-resolver';
 import { edgeTTSService } from '@/services/tts/edge-tts.service';
+import { preferencesService } from '@/services/preferences-service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
 import { splitMessage } from '@/utils/message-splitter';
@@ -562,7 +563,17 @@ export async function processMessage(
 							});
 
 							// 8. TTS: Se voiceMode ativo, sintetiza e envia áudio
-							const voiceMode = (conversation.context as Record<string, any>)?.voiceMode;
+							const ctx = (conversation.context ?? {}) as Record<string, any>;
+							let voiceMode = ctx.voiceMode;
+							// Fallback para auto-TTS global do usuário se não configurado por conversa
+							if (voiceMode === undefined || voiceMode === null) {
+								try {
+									const prefs = await preferencesService.getPreferences(user.id);
+									voiceMode = prefs?.autoTts ?? false;
+								} catch {
+									voiceMode = false;
+								}
+							}
 							if (voiceMode && agentResponse.message && agentResponse.message.trim().length > 0) {
 								await startSpan('messaging.tts', async () => {
 									try {

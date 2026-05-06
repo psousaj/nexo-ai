@@ -17,6 +17,7 @@ export * from './session-transcripts';
 export * from './agent-daily-logs';
 // Cognitive memory (NEX-21)
 export * from './memory-insights';
+export * from './memory-versions';
 // Integration tables
 export * from './integrations';
 // WhatsApp settings
