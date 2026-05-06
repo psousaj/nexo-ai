@@ -68,6 +68,7 @@ vi.mock('@/services/ai', () => ({
 	buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
 	llmService: {
 		callLLM: vi.fn(),
+		getEnabledProviders: vi.fn().mockReturnValue(['cloudflare']),
 		getProvider: vi.fn().mockReturnValue({
 			callLLM: vi.fn(),
 			getName: () => 'cloudflare-mock',
