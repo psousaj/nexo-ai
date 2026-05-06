@@ -5,34 +5,63 @@ import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { CloudflareProvider } from './cloudflare-provider';
 import { DeepSeekProvider } from './deepseek-provider';
+import { keyStore } from './key-store';
 import { modelRegistryService } from './model-registry';
 import { OpenAIProvider } from './openai-provider';
 import type { AIProvider, AIProviderType, CallLLMParams } from './types';
 
 export class MultiProviderService {
 	private providers = new Map<AIProviderType, AIProvider>();
+	private initialized = false;
 
 	constructor() {
 		this.initializeProviders();
 	}
 
-	private initializeProviders(): void {
-		if (env.CLOUDFLARE_API_TOKEN && env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_GATEWAY_ID) {
+	private async initializeProviders(): Promise<void> {
+		if (this.initialized) return;
+
+		const cfKey = await keyStore.getKey('cloudflare');
+		if (cfKey?.key) {
 			this.providers.set(
 				'cloudflare',
-				new CloudflareProvider(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN),
+				new CloudflareProvider(
+					cfKey.config.accountId || '',
+					cfKey.config.gatewayId || 'nexo-ai-gateway',
+					cfKey.key,
+				),
 			);
 		}
-		if (env.OPENAI_API_KEY) {
-			this.providers.set('openai', new OpenAIProvider(env.OPENAI_API_KEY));
+
+		const oaKey = await keyStore.getKey('openai');
+		if (oaKey?.key) {
+			this.providers.set('openai', new OpenAIProvider(oaKey.key));
 		}
-		if (env.DEEPSEEK_API_KEY) {
-			this.providers.set('deepseek', new DeepSeekProvider(env.DEEPSEEK_API_KEY));
+
+		const dsKey = await keyStore.getKey('deepseek');
+		if (dsKey?.key) {
+			this.providers.set('deepseek', new DeepSeekProvider(dsKey.key));
 		}
-		loggers.ai.info(`🤖 MultiProviderService inicializado com ${this.providers.size} provider(s)`);
+
+		this.initialized = true;
+		loggers.ai.info(`🤖 MultiProviderService inicializado com ${this.providers.size} provider(s) via BYOK`);
+	}
+
+	private async ensureInitialized(): Promise<void> {
+		if (!this.initialized) await this.initializeProviders();
 	}
 
 	async callLLM(params: {
+		message: string;
+		history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+		systemPrompt?: string;
+		contextType?: 'chat' | 'intent';
+	}): Promise<{ message: string; round: import('./runtime-contract').RuntimeRound }> {
+		await this.ensureInitialized();
+		return this._callLLM(params);
+	}
+
+	private async _callLLM(params: {
 		message: string;
 		history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 		systemPrompt?: string;
@@ -116,7 +145,7 @@ export class MultiProviderService {
 			const enabledProviderKeys = this.getEnabledProviders();
 			throw new Error(
 				enabledProviderKeys.length === 0
-					? 'No AI providers configured. Set CLOUDFLARE_API_TOKEN, OPENAI_API_KEY, or DEEPSEEK_API_KEY to enable at least one model from the registry.'
+					? 'No AI providers configured. Set API keys via Admin > AI Providers (BYOK).'
 					: `No AI models from configured providers (${enabledProviderKeys.join(', ')}) matched the requested context type "${contextType}". Check the model_registry table.`,
 			);
 		});

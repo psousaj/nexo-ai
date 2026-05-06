@@ -628,7 +628,7 @@ export class AgentOrchestrator {
 			}
 			if (!selectedProvider) {
 				throw new Error(
-					'No AI providers configured. Set CLOUDFLARE_API_TOKEN, OPENAI_API_KEY, or DEEPSEEK_API_KEY.',
+					'No AI providers configured. Set API keys via Admin > AI Providers (BYOK).',
 				);
 			}
 

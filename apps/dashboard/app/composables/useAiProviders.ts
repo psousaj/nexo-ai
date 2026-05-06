@@ -19,6 +19,12 @@ interface Model {
   contextTypes: string[];
 }
 
+interface KeyEntry {
+  provider: string;
+  fingerprint: string | null;
+  config: Record<string, string>;
+}
+
 export function useAiProviders() {
   const queryClient = useQueryClient();
 
@@ -32,6 +38,12 @@ export function useAiProviders() {
     useQuery({
       queryKey: ['ai', 'models', params],
       queryFn: () => api.get('/admin/ai/models', { params }).then((r) => r.data),
+    });
+
+  const keysQuery = () =>
+    useQuery({
+      queryKey: ['ai', 'keys'],
+      queryFn: () => api.get('/admin/ai/keys').then((r) => r.data),
     });
 
   const addModelMutation = useMutation({
@@ -54,12 +66,26 @@ export function useAiProviders() {
     mutationFn: (type: string) => api.post(`/admin/ai/test/${type}`),
   });
 
+  const setKeyMutation = useMutation({
+    mutationFn: (data: { provider: string; key: string; config?: Record<string, string> }) =>
+      api.post(`/admin/ai/keys/${data.provider}`, { key: data.key, config: data.config }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai', 'keys'] }),
+  });
+
+  const deleteKeyMutation = useMutation({
+    mutationFn: (provider: string) => api.delete(`/admin/ai/keys/${provider}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai', 'keys'] }),
+  });
+
   return {
     providersQuery,
     modelsQuery,
+    keysQuery,
     addModelMutation,
     updateModelMutation,
     deleteModelMutation,
     testProviderMutation,
+    setKeyMutation,
+    deleteKeyMutation,
   };
 }

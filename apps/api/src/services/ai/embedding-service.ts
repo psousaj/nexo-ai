@@ -23,7 +23,9 @@ export class EmbeddingService {
 
 	constructor() {
 		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN || !env.CLOUDFLARE_GATEWAY_ID) {
-			throw new Error('Cloudflare credentials não configuradas para Embeddings');
+			loggers.enrichment.warn('⚠️ Cloudflare credentials not configured for EmbeddingService (BYOK: set via Admin)');
+			this.client = null as any;
+			return;
 		}
 
 		const baseURL = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`;
@@ -109,6 +111,10 @@ export class EmbeddingService {
 	 */
 	async generateEmbedding(text: string): Promise<number[]> {
 		try {
+			if (!this.client) {
+				throw new Error('EmbeddingService not configured — set Cloudflare credentials via Admin > AI Providers (BYOK)');
+			}
+
 			// Validar entrada
 			if (!text || text.trim().length === 0) {
 				throw new Error('Texto vazio - não pode gerar embedding');

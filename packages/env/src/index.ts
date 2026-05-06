@@ -75,11 +75,11 @@ const envSchema = z.object({
 	EVOLUTION_WEBHOOK_PATH: z.string().default('/webhook/whatsapp/evolution'),
 
 	// --------------------------------------------------------------------------
-	// Cloudflare AI Gateway
+	// Cloudflare AI Gateway (BYOK: credentials now managed via admin UI)
 	// --------------------------------------------------------------------------
-	CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
-	CLOUDFLARE_API_TOKEN: z.string().min(1),
-	CLOUDFLARE_GATEWAY_ID: z.string().default('nexo-ai-gateway'),
+	CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+	CLOUDFLARE_API_TOKEN: z.string().optional(),
+	CLOUDFLARE_GATEWAY_ID: z.string().optional(),
 	CF_GATEWAY_MODEL: z.string().default('dynamic/nexo'),
 	CF_INTENT_MODEL: z.string().default('dynamic/nexo'),
 	CF_EMBED_MODEL: z.string().default('dynamic/embeddings'),
@@ -93,10 +93,9 @@ const envSchema = z.object({
 	EMBEDDING_RETRY_MAX_DELAY_MS: z.coerce.number().int().min(500).max(60000).default(8000),
 
 	// --------------------------------------------------------------------------
-	// AI Multi-Provider — OpenAI, DeepSeek
+	// BYOK Encryption (master key for provider API key encryption at rest)
 	// --------------------------------------------------------------------------
-	OPENAI_API_KEY: z.string().optional(),
-	DEEPSEEK_API_KEY: z.string().optional(),
+	BYOK_ENCRYPTION_KEY: z.string().min(64, 'BYOK_ENCRYPTION_KEY must be 64 hex characters (32 bytes)'),
 
 	// --------------------------------------------------------------------------
 	// Observability — OpenTelemetry + Jaeger

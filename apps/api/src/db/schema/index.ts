@@ -28,3 +28,5 @@ export * from './feature-flags';
 export * from './agent-skills';
 // AI multi-provider model registry (NEX-53)
 export * from './model-registry';
+// BYOK provider key storage (NEX-53)
+export * from './provider-keys';

@@ -4,6 +4,7 @@ import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
 import { adminService } from '@/services/admin-service';
 import { embeddingService } from '@/services/ai/embedding-service';
 import { llmService } from '@/services/ai/index';
+import { keyStore } from '@/services/ai/key-store';
 import { modelRegistryService } from '@/services/ai/model-registry';
 import type { AIProviderType } from '@/services/ai/types';
 import { evolutionService } from '@/services/evolution-service';
@@ -557,4 +558,21 @@ export const adminRoutes = new Hono()
 		if (!provider) return c.json({ available: false, error: 'Provider not configured' }, 400);
 		const available = await provider.isAvailable();
 		return c.json({ available, provider: type });
+	})
+	// BYOK — manage provider API keys (encrypted at rest)
+	.get('/ai/keys', async (c) => {
+		const keys = await keyStore.listKeys();
+		return c.json(keys);
+	})
+	.post('/ai/keys/:provider', async (c) => {
+		const provider = c.req.param('provider') as AIProviderType;
+		const body = await c.req.json();
+		if (!body.key) return c.json({ error: 'key is required' }, 400);
+		await keyStore.setKey(provider, body.key, body.config ?? {});
+		return c.json({ success: true, provider });
+	})
+	.delete('/ai/keys/:provider', async (c) => {
+		const provider = c.req.param('provider') as AIProviderType;
+		await keyStore.deleteKey(provider);
+		return c.json({ success: true });
 	});
