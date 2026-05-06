@@ -224,176 +224,88 @@ async function deleteModel(id: number) {
       <div>
         <h2 class="text-3xl font-black text-gray-900 dark:text-white">AI Providers</h2>
         <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-          Manage AI providers and configure models. BYOK: Bring Your Own Key.
+          Manage AI providers and configure models.
         </p>
       </div>
     </div>
 
-    <div v-if="isLoading" class="space-y-4">
-      <USkeleton v-for="i in 3" :key="i" class="h-28 rounded-xl" />
-    </div>
-
-    <template v-else>
-      <!-- Providers Section -->
-      <div>
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-cpu-chip" class="w-5 h-5 text-gray-500" />
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Providers</h3>
-            <UBadge size="xs" variant="subtle" color="neutral">{{ providers.length }}</UBadge>
-          </div>
-          <UButton
-            color="primary"
-            size="sm"
-            icon="i-heroicons-plus"
-            @click="showAddProviderDialog = true"
-          >
-            Add Provider
-          </UButton>
+    <UTabs :items="[
+      { label: 'Operação', icon: 'i-heroicons-cog-6-tooth', slot: 'operation' },
+      { label: 'Cadastro de Modelos', icon: 'i-heroicons-cube', slot: 'models' }
+    ]">
+      <template #operation>
+        <div v-if="isLoading" class="space-y-4">
+          <USkeleton v-for="i in 3" :key="i" class="h-28 rounded-xl" />
         </div>
-
-        <div v-if="providers.length === 0" class="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-12 text-center">
-          <UIcon name="i-heroicons-cpu-chip" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-          <p class="text-gray-500 dark:text-gray-400 font-medium">No providers configured</p>
-          <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">Add your first AI provider to get started.</p>
-          <UButton color="primary" class="mt-4" @click="showAddProviderDialog = true">Add Provider</UButton>
-        </div>
-
         <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div
             v-for="p in providers"
             :key="p.id"
             class="relative bg-white dark:bg-gray-900 border rounded-xl p-5 transition-shadow hover:shadow-md"
-            :class="[
-              p.enabled
-                ? 'border-gray-200 dark:border-gray-700'
-                : 'border-gray-100 dark:border-gray-800 opacity-60'
-            ]"
+            :class="[p.enabled ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-60']"
           >
-            <!-- Top row: color accent + label + status + actions -->
             <div class="flex items-start justify-between mb-4">
               <div class="flex items-center gap-3">
                 <div
                   class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                  :class="{
-                    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400': p.type === 'cloudflare',
-                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': p.type === 'openai',
-                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': p.type === 'deepseek',
-                    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400': p.type === 'custom',
-                  }"
+                  :class="[
+                    `bg-${getProviderMeta(p.type).color}-100 text-${getProviderMeta(p.type).color}-700 dark:bg-${getProviderMeta(p.type).color}-900/30 dark:text-${getProviderMeta(p.type).color}-400`
+                  ]"
                 >
-                  <UIcon
-                    :name="p.type === 'cloudflare' ? 'i-heroicons-cloud' : p.type === 'custom' ? 'i-heroicons-wrench-screwdriver' : 'i-heroicons-cpu-chip'"
-                    class="w-5 h-5"
-                  />
+                  <UIcon :name="getProviderMeta(p.type).icon" class="w-5 h-5" />
                 </div>
                 <div>
                   <div class="flex items-center gap-2">
                     <span class="font-semibold text-gray-900 dark:text-white text-sm">{{ p.label }}</span>
-                    <UTooltip :text="p.enabled ? 'Enabled' : 'Disabled'">
-                      <USwitch
-                        :model-value="p.enabled"
-                        size="xs"
-                        @update:model-value="toggleProvider(p)"
-                        @click.stop
-                      />
-                    </UTooltip>
+                    <USwitch :model-value="p.enabled" size="xs" @update:model-value="toggleProvider(p)" />
                   </div>
                   <div class="flex items-center gap-2 mt-0.5">
                     <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">{{ p.type }}</span>
-                    <UBadge
-                      v-if="p.enabled"
-                      :color="hasKey(p.id) ? 'success' : 'warning'"
-                      variant="subtle"
-                      size="xs"
-                    >
-                      {{ hasKey(p.id) ? 'Configured' : 'No key' }}
-                    </UBadge>
-                    <UBadge v-else color="neutral" variant="subtle" size="xs">Disabled</UBadge>
                   </div>
                 </div>
               </div>
-
               <UDropdown :items="[
                 [{ label: 'Edit', icon: 'i-heroicons-pencil-square', click: () => openEditProvider(p) }],
                 [{ label: 'Delete', icon: 'i-heroicons-trash', color: 'error', click: () => deleteProvider(p) }],
-              ]" :popper="{ placement: 'bottom-end' }">
+              ]">
                 <UButton color="neutral" variant="ghost" size="xs" icon="i-heroicons-ellipsis-vertical" />
               </UDropdown>
             </div>
-
-            <!-- Fingerprint -->
-            <p v-if="providerFingerprint(p.type, p.id)" class="text-[10px] text-gray-400 dark:text-gray-500 font-mono mb-3 truncate">
-              fp:{{ providerFingerprint(p.type, p.id) }}
-            </p>
-
-            <!-- Actions -->
+            
             <div class="flex gap-2">
-              <UButton
-                size="xs"
-                :color="hasKey(p.id) ? 'neutral' : 'primary'"
-                variant="outline"
-                @click="openKeyDialog(p)"
-              >
+              <UButton size="xs" :color="hasKey(p.id) ? 'neutral' : 'primary'" variant="outline" @click="openKeyDialog(p)">
                 {{ hasKey(p.id) ? 'Change Key' : 'Set API Key' }}
               </UButton>
-              <UButton
-                v-if="hasKey(p.id)"
-                size="xs"
-                color="error"
-                variant="ghost"
-                @click="removeKey(p.id)"
-              >
-                Remove Key
-              </UButton>
               <div class="flex-1" />
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="outline"
-                :loading="testing[p.type]"
-                :disabled="!p.enabled && !hasKey(p.id)"
-                @click="testProvider(p)"
-              >
-                Test
-              </UButton>
+              <UButton size="xs" color="neutral" variant="outline" :loading="testing[p.type]" @click="testProvider(p)">Test</UButton>
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
-      <!-- Models Section -->
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-cube" class="w-5 h-5 text-gray-500" />
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Models</h3>
-            <UBadge size="xs" variant="subtle" color="neutral">{{ filteredModels.length }}</UBadge>
+      <template #models>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+            <h3 class="font-semibold text-gray-900 dark:text-white">Registered Models</h3>
+            <UButton color="primary" size="sm" icon="i-heroicons-plus" @click="showAddModelDialog = true">Add Model</UButton>
           </div>
-          <UButton color="primary" size="sm" icon="i-heroicons-plus" @click="showAddModelDialog = true">
-            Add Model
-          </UButton>
-        </div>
-        <div class="px-5 py-3">
-          <UInput v-model="searchQuery" placeholder="Search models..." icon="i-heroicons-magnifying-glass" size="sm" />
-        </div>
-        <div class="overflow-x-auto">
-          <UTable :data="filteredModels" :columns="modelColumns" class="[&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider [&_th]:text-gray-500">
+          <div class="px-5 py-3 border-b">
+            <UInput v-model="searchQuery" placeholder="Search models..." icon="i-heroicons-magnifying-glass" size="sm" />
+          </div>
+          <UTable :data="filteredModels" :columns="modelColumns">
             <template #contextTypes-cell="{ row }">
-              <div class="flex gap-1 flex-wrap">
-                <UBadge v-for="ctx in (row.original as any).contextTypes" :key="ctx" size="xs" variant="subtle">{{ ctx }}</UBadge>
-              </div>
+              <UBadge v-for="ctx in row.original.contextTypes" :key="ctx" size="xs" variant="subtle">{{ ctx }}</UBadge>
             </template>
             <template #enabled-cell="{ row }">
-              <USwitch :model-value="(row.original as any).enabled" size="xs" @update:model-value="toggleModel(row.original)" />
+              <USwitch :model-value="row.original.enabled" size="xs" @update:model-value="toggleModel(row.original)" />
             </template>
             <template #actions-cell="{ row }">
-              <UButton color="error" variant="ghost" size="xs" icon="i-heroicons-trash" @click="deleteModel((row.original as any).id)" />
+              <UButton color="error" variant="ghost" size="xs" icon="i-heroicons-trash" @click="deleteModel(row.original.id)" />
             </template>
           </UTable>
         </div>
-      </div>
-    </template>
+      </template>
+    </UTabs>
 
     <!-- Add Provider Dialog -->
     <UModal v-model:open="showAddProviderDialog">
