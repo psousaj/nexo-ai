@@ -1,40 +1,52 @@
-/**
- * Types para o sistema de AI multi-provider
- */
+export type AIProviderType = 'cloudflare' | 'openai' | 'deepseek';
 
-export interface Message {
-	role: 'user' | 'assistant';
-	content: string;
+export type ModelContextType = 'chat' | 'embedding' | 'intent' | 'stt' | 'ttl';
+
+export interface ModelRegistryEntry {
+	id: number;
+	provider: AIProviderType;
+	modelId: string;
+	displayName: string | null;
+	enabled: boolean;
+	priority: number;
+	isDefault: boolean;
+	contextTypes: ModelContextType[];
+	createdAt: Date;
+	updatedAt: Date;
 }
 
-import type { AgentLLMResponse } from '@/types';
-
-export interface AIResponse {
-	// Resposta em texto bruto (pode ser JSON string)
-	message: string;
-	// Tool calls legado (ainda usado por Gemini SDK)
-	tool_calls?: Array<{
-		id: string;
+export interface CallLLMParams {
+	model: string;
+	messages: Array<{
+		role: 'system' | 'user' | 'assistant' | 'tool';
+		content: string;
+		tool_call_id?: string;
+		tool_calls?: Array<{
+			id: string;
+			type: 'function';
+			function: { name: string; arguments: string };
+		}>;
+	}>;
+	temperature?: number;
+	maxTokens?: number;
+	tools?: Array<{
 		type: 'function';
 		function: {
 			name: string;
-			arguments: string;
+			description: string;
+			parameters: Record<string, unknown>;
 		};
 	}>;
-	// JSON parsed (AgentLLMResponse) - será preenchido pelo service
-	parsedResponse?: AgentLLMResponse;
+	toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+	responseFormat?: 'text' | 'json_object';
 }
 
 export interface AIProvider {
-	/**
-	 * Chama o LLM com contexto da conversação
-	 */
-	callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse>;
-
-	/**
-	 * Retorna o nome do provider (para logs)
-	 */
+	callLLM(params: CallLLMParams): Promise<{
+		round: import('./runtime-contract').RuntimeRound;
+		completion: import('openai').OpenAI.Chat.Completions.ChatCompletion;
+	}>;
 	getName(): string;
+	getType(): AIProviderType;
+	isAvailable(): Promise<boolean>;
 }
-
-export type AIProviderType = 'ai-gateway';
