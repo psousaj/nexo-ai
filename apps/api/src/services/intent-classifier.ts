@@ -1,5 +1,5 @@
 import { env } from '@/config/env';
-import { INTENT_CLASSIFIER_PROMPT } from '@/config/prompts';
+import { buildIntentClassifierPrompt } from '@/config/prompt-builder';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import type { IntentAnalysisResult } from '@/services/message-analysis/types/analysis-result.types';
 import { instrumentService } from '@/services/service-instrumentation';
@@ -52,7 +52,7 @@ export interface IntentResult {
 	entities?: {
 		query?: string;
 		selection?: number | number[]; // Suporta múltiplas seleções
-		itemType?: 'movie' | 'tv_show' | 'video' | 'link' | 'note'; // Tipo específico mencionado
+		itemType?: 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memory'; // Tipo específico mencionado
 		url?: string;
 		refersToPrevious?: boolean;
 		target?: 'all' | 'item' | 'selection'; // Alvo da ação
@@ -67,18 +67,17 @@ export interface IntentResult {
  */
 export class IntentClassifier {
 	private client?: OpenAI;
-	// DeepSeek R1 retorna <think> tags, use Llama para JSON puro
-	private model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+	private model = env.CF_INTENT_MODEL;
 
 	constructor() {
-		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
-			loggers.ai.warn('⚠️ Cloudflare não configurado para Intent Classifier, usando fallback regex');
+		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN || !env.CLOUDFLARE_GATEWAY_ID) {
+			loggers.ai.warn('⚠️ Cloudflare AI Gateway não configurado para Intent Classifier, usando fallback regex');
 		} else {
 			this.client = new OpenAI({
 				apiKey: env.CLOUDFLARE_API_TOKEN,
-				baseURL: `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
+				baseURL: `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/compat`,
 			});
-			loggers.ai.info('✅ Cloudflare Workers AI configurado');
+			loggers.ai.info('✅ Cloudflare AI Gateway configurado para Intent Classifier');
 		}
 	}
 
@@ -129,7 +128,11 @@ export class IntentClassifier {
 						'intent.final_confidence': neuralResult.confidence,
 					});
 					loggers.ai.info(
-						{ intent: neuralResult.intent, confidence: neuralResult.confidence.toFixed(2), method: 'neural' },
+						{
+							intent: neuralResult.intent,
+							confidence: neuralResult.confidence.toFixed(2),
+							method: 'neural',
+						},
 						'⚡ Fast path: classificação neural',
 					);
 					return this.mapNeuralToIntentResult(neuralResult, message);
@@ -246,6 +249,50 @@ export class IntentClassifier {
 		// Extrair query limpa se for busca ou info
 		let query = neural.entities?.query || originalMessage.trim();
 		if (intent === 'search_content') {
+			// Guard contra falsos positivos em mensagens longas sem contexto de memória.
+			// "Me mostra aí uns carrinhos até 30k" bate no neural ("mostra aí então")
+			// mas não é uma busca de itens salvos.
+			// Mensagens curtas ("busca terror", 12 chars) e com keywords de memória são legítimas.
+			const lowerOriginal = originalMessage.toLowerCase();
+			const memoryContextWords = [
+				'salvei',
+				'guardei',
+				'tenho',
+				'meus',
+				'minhas',
+				'minha',
+				'salvos',
+				'salvas',
+				'filmes',
+				'séries',
+				'notas',
+				'links',
+				'videos',
+				'vídeos',
+				'itens',
+				'coleção',
+				'lista',
+			];
+			const hasMemoryContext = memoryContextWords.some((kw) => lowerOriginal.includes(kw));
+			const isLong = originalMessage.length > 60;
+
+			if (isLong && !hasMemoryContext) {
+				loggers.ai.info(
+					{
+						neural_intent: neural.intent,
+						neural_confidence: neural.confidence,
+						msg_length: originalMessage.length,
+					},
+					'⚠️ Falso positivo search_content: mensagem longa sem contexto de memória, encaminhando para LLM',
+				);
+				return {
+					intent: 'unknown',
+					action: 'unknown',
+					confidence: 0.5,
+					entities: { query: originalMessage.trim() },
+				};
+			}
+
 			// Se o NLP já decidiu que é "listar tudo" (search.all), confiar nessa decisão
 			// em vez de tentar extrair query do texto (o que causa "então" virar query)
 			query =
@@ -279,6 +326,7 @@ export class IntentClassifier {
 	 */
 	private async classifyWithLLM(message: string): Promise<IntentResult> {
 		loggers.ai.info({ messageSnippet: message.substring(0, 50) }, '🎯 Classificando com LLM');
+		const classifierPrompt = buildIntentClassifierPrompt();
 
 		try {
 			const response = await this.client!.chat.completions.create({
@@ -286,7 +334,7 @@ export class IntentClassifier {
 				messages: [
 					{
 						role: 'system',
-						content: INTENT_CLASSIFIER_PROMPT,
+						content: classifierPrompt,
 					},
 					{
 						role: 'user',
@@ -370,7 +418,11 @@ export class IntentClassifier {
 				},
 			};
 			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
+				{
+					intent: result.intent,
+					action: result.action,
+					confidence: result.confidence,
+				},
 				'🎯 Intenção detectada (regex)',
 			);
 			return result;
@@ -389,7 +441,11 @@ export class IntentClassifier {
 		const deleteResult = this.isDeleteRequest(lowerMsg);
 		if (deleteResult) {
 			loggers.ai.info(
-				{ intent: deleteResult.intent, action: deleteResult.action, confidence: deleteResult.confidence },
+				{
+					intent: deleteResult.intent,
+					action: deleteResult.action,
+					confidence: deleteResult.confidence,
+				},
 				'🎯 Intenção detectada (regex)',
 			);
 			return deleteResult;
@@ -406,7 +462,11 @@ export class IntentClassifier {
 				entities: { query },
 			};
 			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
+				{
+					intent: result.intent,
+					action: result.action,
+					confidence: result.confidence,
+				},
 				'🎯 Intenção detectada (regex)',
 			);
 			return result;
@@ -467,7 +527,11 @@ export class IntentClassifier {
 				},
 			};
 			loggers.ai.info(
-				{ intent: result.intent, action: result.action, confidence: result.confidence },
+				{
+					intent: result.intent,
+					action: result.action,
+					confidence: result.confidence,
+				},
 				'🎯 Intenção detectada (regex)',
 			);
 			return result;
@@ -488,7 +552,11 @@ export class IntentClassifier {
 		const updateResult = this.isUpdateSettings(lowerMsg, message);
 		if (updateResult) {
 			loggers.ai.info(
-				{ intent: updateResult.intent, action: updateResult.action, confidence: updateResult.confidence },
+				{
+					intent: updateResult.intent,
+					action: updateResult.action,
+					confidence: updateResult.confidence,
+				},
 				'🎯 Intenção detectada (regex)',
 			);
 			return updateResult;
@@ -575,12 +643,8 @@ export class IntentClassifier {
 
 		const searchKeywords = [
 			'o que eu salvei',
-			'o que tenho',
-			'mostra',
-			'lista',
-			'busca',
-			'procura',
-			'encontra',
+			'o que tenho salvo',
+			'o que tenho guardado',
 			'filmes salvos',
 			'séries salvas',
 			'meus filmes',
@@ -588,9 +652,38 @@ export class IntentClassifier {
 			'ver lista',
 			'minha lista',
 			'que eu guardei',
+			'que eu salvei',
 		];
 
-		return searchKeywords.some((kw) => msg.includes(kw));
+		// Palavras-chave que só viram busca quando combinadas com contexto de memória salva
+		const searchWithMemoryContext = ['mostra', 'lista', 'busca', 'procura', 'encontra'];
+
+		const memoryContextKeywords = [
+			'salvei',
+			'guardei',
+			'tenho',
+			'meus',
+			'minhas',
+			'minha',
+			'salvos',
+			'salvas',
+			'filmes',
+			'séries',
+			'notas',
+			'links',
+			'videos',
+			'vídeos',
+			'itens',
+		];
+
+		if (searchKeywords.some((kw) => msg.includes(kw))) {
+			return true;
+		}
+
+		// "mostra/busca/lista/procura" só dispara busca se houver contexto de memória salva
+		const hasSearchVerb = searchWithMemoryContext.some((kw) => msg.includes(kw));
+		const hasMemoryContext = memoryContextKeywords.some((kw) => msg.includes(kw));
+		return hasSearchVerb && hasMemoryContext;
 	}
 
 	/**
@@ -875,12 +968,15 @@ export class IntentClassifier {
 	/**
 	 * Extrai tipo de item mencionado (nota, filme, série...)
 	 */
-	private extractItemType(msg: string): 'movie' | 'tv_show' | 'video' | 'link' | 'note' | undefined {
-		const typePatterns: Record<string, 'movie' | 'tv_show' | 'video' | 'link' | 'note'> = {
+	private extractItemType(msg: string): 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memory' | undefined {
+		const typePatterns: Record<string, 'movie' | 'tv_show' | 'video' | 'link' | 'note' | 'memory'> = {
 			nota: 'note',
 			notas: 'note',
 			lembrete: 'note',
 			lembretes: 'note',
+			memoria: 'memory',
+			memorias: 'memory',
+			memory: 'memory',
 			filme: 'movie',
 			filmes: 'movie',
 			série: 'tv_show',

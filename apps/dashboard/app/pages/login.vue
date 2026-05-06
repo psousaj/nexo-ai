@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { LayoutGrid, Loader2, Lock, Mail } from 'lucide-vue-next';
 import api from '@/utils/api';
+// biome-ignore lint/correctness/noUnusedImports: Components are consumed in the template section.
+import { LayoutGrid, Loader2, Lock, Mail } from 'lucide-vue-next';
 import { useAuthStore } from '~/stores/auth';
 
 definePageMeta({
@@ -10,7 +11,6 @@ definePageMeta({
 const authClient = useAuthClient();
 const authStore = useAuthStore();
 const route = useRoute();
-const router = useRouter();
 
 // Código de vinculação enviado pelo bot (WhatsApp/Telegram) no query param
 const linkingToken = computed(() => route.query.vinculate_code as string | undefined);
@@ -32,6 +32,7 @@ const consumeLinkingToken = async () => {
 	}
 };
 
+// biome-ignore lint/correctness/noUnusedVariables: Used by @submit handler in the template.
 const handleLogin = async () => {
 	isLoading.value = true;
 	error.value = '';
@@ -77,20 +78,23 @@ const handleLogin = async () => {
 		} else {
 			error.value = 'Resposta inesperada do servidor';
 		}
-	} catch (e) {
+	} catch {
 		error.value = 'Não foi possível conectar ao servidor';
 	} finally {
 		isLoading.value = false;
 	}
 };
 
+// biome-ignore lint/correctness/noUnusedVariables: Used by social login buttons in the template.
 const loginWithSocial = async (provider: 'google' | 'discord') => {
 	isLoading.value = true;
 	try {
 		console.log('🔗 Login social com:', provider);
 		// Passa o token de vinculação no callbackURL para que seja consumido após o OAuth
 		const callbackBase = process.client ? `${window.location.origin}/` : '/';
-		const callbackURL = linkingToken.value ? `${callbackBase}?vinculate_code=${linkingToken.value}` : `${callbackBase}?auth=success`;
+		const callbackURL = linkingToken.value
+			? `${callbackBase}?vinculate_code=${linkingToken.value}`
+			: `${callbackBase}?auth=success`;
 		await authClient.signIn.social({ provider, callbackURL });
 	} catch (e) {
 		console.error('Erro no login social:', e);
@@ -101,6 +105,7 @@ const loginWithSocial = async (provider: 'google' | 'discord') => {
 };
 
 // Link para signup preservando o token
+// biome-ignore lint/correctness/noUnusedVariables: Used by NuxtLink :to in the template.
 const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=${linkingToken.value}` : '/signup'));
 </script>
 
@@ -149,7 +154,7 @@ const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=
 								placeholder="exemplo@email.com"
 								class="w-full pl-12 pr-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
 								required
-							/>
+							>
 						</div>
 					</div>
 
@@ -163,7 +168,7 @@ const signupLink = computed(() => (linkingToken.value ? `/signup?vinculate_code=
 								placeholder="••••••••"
 								class="w-full pl-12 pr-4 py-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl focus:ring-2 focus:ring-primary-500 transition-all outline-none"
 								required
-							/>
+							>
 						</div>
 					</div>
 

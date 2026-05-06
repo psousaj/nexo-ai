@@ -1,6 +1,10 @@
 # ADR-006: Meta WhatsApp Business API Oficial
 
-**Status**: accepted
+**Status**: superseded
+
+**Superseded by**: [ADR-021](021-evolution-only-whatsapp-runtime.md)
+
+> Registro histórico. O runtime atual do projeto é Evolution-only.
 
 **Data**: 2026-01-05
 

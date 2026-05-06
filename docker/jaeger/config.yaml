@@ -1,0 +1,68 @@
+# Jaeger 2.x configuration (OpenTelemetry Collector format)
+# SPM enabled via SpanMetrics Connector → Prometheus
+
+extensions:
+  jaeger_storage:
+    backends:
+      badger_store:
+        badger:
+          ephemeral: false
+          directories:
+            keys: /badger/key
+            values: /badger/data
+          span_store_ttl: 72h
+    metric_backends:
+      my_metrics_store:
+        prometheus:
+          endpoint: http://prometheus:9090
+          normalize_calls: true
+          normalize_duration: true
+
+  jaeger_query:
+    storage:
+      traces: badger_store
+      metrics: my_metrics_store
+    ui:
+      config_file: /etc/jaeger/ui-config.json
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: badger_store
+
+  # Expose SpanMetrics on :8889 for Prometheus to scrape
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+connectors:
+  spanmetrics:
+    namespace: traces_span_metrics
+
+processors:
+  batch:
+
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter, spanmetrics]
+    metrics/spanmetrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus]
+  telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+    logs:
+      level: info

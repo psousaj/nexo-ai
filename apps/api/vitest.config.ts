@@ -1,7 +1,11 @@
 import { resolve } from 'node:path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
+const pnpmStore = resolve(__dirname, '../../node_modules/.pnpm/node_modules');
+
 export default defineConfig({
+	plugins: [tsconfigPaths()],
 	test: {
 		environment: 'node',
 		globals: true,
@@ -15,7 +19,11 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			'@': resolve(__dirname, './src'),
+			// pnpm strict mode: resolve unhoisted packages from pnpm virtual store
+			'@sentry/core': resolve(pnpmStore, '@sentry/core'),
+			'@sentry/node': resolve(pnpmStore, '@sentry/node'),
+			'js-yaml': resolve(pnpmStore, 'js-yaml'),
 		},
+		dedupe: ['@sentry/core', '@sentry/node', 'js-yaml'],
 	},
 });

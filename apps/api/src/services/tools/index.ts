@@ -8,8 +8,23 @@
 import { conversationService } from '@/services/conversation-service';
 import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessages';
 import { enrichmentService } from '@/services/enrichment';
+import { bookService } from '@/services/enrichment/book-service';
+import { braveSearchService } from '@/services/enrichment/brave-search-service';
+import { imageMetadataService } from '@/services/enrichment/image-metadata-service';
+import { openGraphService } from '@/services/enrichment/opengraph-service';
+import { spotifyService } from '@/services/enrichment/spotify-service';
 import { itemService } from '@/services/item-service';
-import type { LinkMetadata, MovieMetadata, NoteMetadata, TVShowMetadata, VideoMetadata } from '@/types';
+import type {
+	BookMetadata,
+	ImageMetadata,
+	LinkMetadata,
+	MemoryMetadata,
+	MovieMetadata,
+	MusicMetadata,
+	NoteMetadata,
+	TVShowMetadata,
+	VideoMetadata,
+} from '@/types';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 
@@ -1191,6 +1206,614 @@ export async function resolve_context_reference(
 // REGISTRO DE TOOLS
 // ============================================================================
 
+// ============================================================================
+// WEB SEARCH TOOL
+// ============================================================================
+
+/**
+ * Tool: web_search
+ * Busca na web via Brave Search API (read-only).
+ * Retorna resultados ao orchestrator para 2ª chamada LLM.
+ */
+export async function web_search(
+	_context: ToolContext,
+	params: {
+		query: string;
+		count?: number;
+	},
+): Promise<ToolOutput> {
+	if (!params.query?.trim()) {
+		return { success: false, error: 'Query vazia' };
+	}
+
+	try {
+		const results = await braveSearchService.search(params.query, params.count ?? 5);
+
+		if (results.length === 0) {
+			return {
+				success: false,
+				error: 'Nenhum resultado encontrado para a busca',
+			};
+		}
+
+		return {
+			success: true,
+			data: {
+				type: 'web_search' as const,
+				query: params.query,
+				results,
+			},
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao buscar na web',
+		};
+	}
+}
+
+// ============================================================================
+// ANALYZE URL TOOL
+// ============================================================================
+
+export type UrlContentType = 'movie' | 'tv_show' | 'music' | 'video' | 'book' | 'image' | 'link';
+export type TypeCategory = 'enrichable' | 'text';
+
+interface UrlAnalysisResult {
+	detected_type: UrlContentType;
+	type_category: TypeCategory;
+	title?: string;
+	metadata?: Record<string, unknown>;
+}
+
+const TYPE_CATEGORY: Record<UrlContentType, TypeCategory> = {
+	movie: 'enrichable',
+	tv_show: 'enrichable',
+	music: 'enrichable',
+	video: 'enrichable',
+	book: 'enrichable',
+	image: 'text',
+	link: 'text',
+};
+
+function detectTypeFromUrl(urlStr: string): UrlContentType | null {
+	try {
+		const url = new URL(urlStr);
+		const hostname = url.hostname.replace(/^www\./, '');
+		const pathname = url.pathname;
+
+		// IMAGE — extensão direta
+		if (/\.(jpg|jpeg|png|gif|webp|svg|avif)(\?|$)/i.test(urlStr)) return 'image';
+
+		// IMAGE hosts
+		if (/^(i\.)?imgur\.com/.test(hostname)) return 'image';
+		if (hostname === 'unsplash.com' && pathname.startsWith('/photos/')) return 'image';
+		if (hostname === 'pexels.com' && pathname.startsWith('/photo/')) return 'image';
+		if (hostname === 'flickr.com' && pathname.startsWith('/photos/')) return 'image';
+		if (hostname === 'pinterest.com' && pathname.startsWith('/pin/')) return 'image';
+
+		// VIDEO
+		if (hostname === 'youtube.com' && (pathname.startsWith('/watch') || pathname.startsWith('/shorts/')))
+			return 'video';
+		if (hostname === 'youtu.be') return 'video';
+		if (hostname === 'vimeo.com') return 'video';
+		if (hostname === 'dailymotion.com' && pathname.startsWith('/video/')) return 'video';
+		if (hostname === 'twitch.tv' && pathname.includes('/videos/')) return 'video';
+		if (hostname === 'kick.com' && pathname.includes('/video/')) return 'video';
+		if (hostname === 'tiktok.com' && pathname.includes('/video/')) return 'video';
+		if (hostname === 'instagram.com' && (pathname.startsWith('/reel/') || pathname.startsWith('/p/'))) return 'video';
+
+		// MUSIC
+		if (hostname === 'open.spotify.com' && /\/(track|album|artist|playlist)\//.test(pathname)) return 'music';
+		if (hostname === 'music.apple.com') return 'music';
+		if (hostname === 'music.youtube.com') return 'music';
+		if (hostname === 'soundcloud.com') return 'music';
+		if (hostname === 'deezer.com' && /\/(track|album|artist)\//.test(pathname)) return 'music';
+		if (hostname === 'tidal.com' && /\/(track|album|artist)\//.test(pathname)) return 'music';
+		if (hostname === 'genius.com' && pathname.endsWith('-lyrics')) return 'music';
+		if (hostname === 'letras.mus.br') return 'music';
+
+		// BOOK
+		if (hostname === 'goodreads.com' && pathname.startsWith('/book/')) return 'book';
+		if ((hostname === 'amazon.com.br' || hostname === 'amazon.com') && pathname.startsWith('/dp/')) return 'book';
+		if (hostname === 'books.google.com' || (hostname === 'google.com' && pathname.startsWith('/books/'))) return 'book';
+		if (hostname === 'skoob.com.br' && pathname.startsWith('/livro/')) return 'book';
+		if (hostname === 'audible.com' && pathname.startsWith('/pd/')) return 'book';
+
+		// TV SHOW
+		if (hostname === 'themoviedb.org' && pathname.startsWith('/tv/')) return 'tv_show';
+		if (hostname === 'thetvdb.com' && pathname.startsWith('/series/')) return 'tv_show';
+		if (hostname === 'tv.apple.com' && pathname.startsWith('/show/')) return 'tv_show';
+		if (hostname === 'netflix.com' && pathname.startsWith('/title/')) return 'tv_show'; // can be movie too, but tv is more common
+		if (hostname === 'hbomax.com' && pathname.startsWith('/series/')) return 'tv_show';
+		if (hostname === 'disneyplus.com' && pathname.startsWith('/series/')) return 'tv_show';
+		if (hostname === 'globoplay.globo.com' && pathname.includes('/t/')) return 'tv_show';
+
+		// MOVIE
+		if (hostname === 'imdb.com' && pathname.startsWith('/title/')) return 'movie'; // Could be movie or tv, movie is majority
+		if (hostname === 'themoviedb.org' && pathname.startsWith('/movie/')) return 'movie';
+		if (hostname === 'letterboxd.com' && pathname.startsWith('/film/')) return 'movie';
+		if (hostname === 'rottentomatoes.com' && pathname.startsWith('/m/')) return 'movie';
+		if (hostname === 'metacritic.com' && pathname.startsWith('/movie/')) return 'movie';
+		if (hostname === 'adorocinema.com' && pathname.startsWith('/filmes/')) return 'movie';
+		if (hostname === 'tv.apple.com' && pathname.startsWith('/movie/')) return 'movie';
+
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Tool: analyze_url
+ * Detecta tipo de conteúdo de uma URL via pattern matching + OpenGraph metadata.
+ * Tool interna — LLM chama quando recebe URL sem contexto.
+ */
+export async function analyze_url(
+	_context: ToolContext,
+	params: {
+		url: string;
+	},
+): Promise<ToolOutput> {
+	if (!params.url?.trim()) {
+		return { success: false, error: 'URL vazia' };
+	}
+
+	try {
+		const detectedByPattern = detectTypeFromUrl(params.url);
+
+		// Busca OG metadata para título e descrição
+		const ogMetadata = await openGraphService.fetchMetadata(params.url);
+
+		const detected_type: UrlContentType = detectedByPattern ?? 'link';
+		const type_category: TypeCategory = TYPE_CATEGORY[detected_type];
+
+		const result: UrlAnalysisResult = {
+			detected_type,
+			type_category,
+			title: ogMetadata.og_title,
+			metadata: {
+				url: params.url,
+				og_title: ogMetadata.og_title,
+				og_description: ogMetadata.og_description,
+				og_image: ogMetadata.og_image,
+				domain: ogMetadata.domain,
+			},
+		};
+
+		loggers.tools.info(
+			{ url: params.url, detected_type, type_category, title: result.title },
+			'🔗 analyze_url resultado',
+		);
+
+		return {
+			success: true,
+			data: result,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao analisar URL',
+		};
+	}
+}
+
+// ============================================================================
+// SAVE BOOK
+// ============================================================================
+
+/**
+ * Tool: save_book
+ * Busca livro no Google Books e retorna candidatos para confirmação.
+ * Fluxo: search → candidatos → usuário confirma → save.
+ */
+export async function save_book(
+	context: ToolContext,
+	params: {
+		title: string;
+		author?: string;
+		year?: number;
+		// Quando vem de confirmação com metadata já preenchida
+		google_books_id?: string;
+		isbn?: string;
+		cover_url?: string;
+		publisher?: string;
+		page_count?: number;
+		genres?: string[];
+		description?: string;
+	},
+): Promise<ToolOutput> {
+	if (!params.title?.trim()) {
+		return { success: false, error: 'Título vazio' };
+	}
+
+	try {
+		// Se já tem google_books_id = veio de confirmação, salva direto
+		if (params.google_books_id) {
+			const metadata: BookMetadata = {
+				title: params.title,
+				authors: params.author ? [params.author] : [],
+				year: params.year,
+				publisher: params.publisher,
+				page_count: params.page_count,
+				genres: params.genres ?? [],
+				description: params.description,
+				cover_url: params.cover_url,
+				isbn: params.isbn,
+				google_books_id: params.google_books_id,
+			};
+
+			const result = await itemService.createItem({
+				userId: context.userId,
+				type: 'book',
+				title: params.title,
+				metadata,
+			});
+
+			if (result.isDuplicate && result.existingItem) {
+				return {
+					success: false,
+					error: 'duplicate',
+					message: `⚠️ Este livro já foi salvo em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+				};
+			}
+
+			return {
+				success: true,
+				data: { id: result.item?.id, title: params.title },
+			};
+		}
+
+		// Sem google_books_id: busca no Google Books e retorna candidatos
+		const found = await bookService.searchBook(params.title, params.author);
+
+		if (!found) {
+			// Fallback: salva sem enriquecimento
+			loggers.tools.warn({ title: params.title }, '⚠️ Google Books sem resultado, salvando livro sem metadata');
+			const result = await itemService.createItem({
+				userId: context.userId,
+				type: 'book',
+				title: params.title,
+				metadata: {
+					title: params.title,
+					authors: params.author ? [params.author] : [],
+					genres: [],
+					google_books_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
+				} as BookMetadata,
+			});
+			return {
+				success: true,
+				data: { id: result.item?.id, title: params.title },
+			};
+		}
+
+		// Retorna candidato único para confirmação pelo orchestrator
+		return {
+			success: true,
+			data: {
+				results: [
+					{
+						type: 'book' as const,
+						title: found.title,
+						author: found.authors?.[0],
+						year: found.year,
+						cover_url: found.cover_url,
+						description: found.description,
+						google_books_id: found.google_books_id,
+						isbn: found.isbn,
+						publisher: found.publisher,
+						page_count: found.page_count,
+						genres: found.genres,
+					},
+				],
+			},
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao salvar livro',
+		};
+	}
+}
+
+// ============================================================================
+// SAVE MUSIC
+// ============================================================================
+
+/**
+ * Tool: save_music
+ * Busca música no Spotify e retorna candidato para confirmação.
+ * Fluxo: search → candidato → usuário confirma → save.
+ */
+export async function save_music(
+	context: ToolContext,
+	params: {
+		title: string;
+		artist?: string;
+		// Quando vem de confirmação com metadata já preenchida
+		spotify_id?: string;
+		album?: string;
+		album_cover_url?: string;
+		year?: number;
+		duration_ms?: number;
+		spotify_url?: string;
+	},
+): Promise<ToolOutput> {
+	if (!params.title?.trim()) {
+		return { success: false, error: 'Título vazio' };
+	}
+
+	try {
+		// Se já tem spotify_id = veio de confirmação, salva direto
+		if (params.spotify_id) {
+			const metadata: MusicMetadata = {
+				title: params.title,
+				artist: params.artist ?? '',
+				artists: params.artist ? [params.artist] : [],
+				album: params.album ?? 'Unknown album',
+				album_cover_url: params.album_cover_url,
+				year: params.year,
+				duration_ms: params.duration_ms ?? 0,
+				genres: [],
+				spotify_id: params.spotify_id,
+				spotify_url: params.spotify_url ?? `https://open.spotify.com/track/${params.spotify_id}`,
+			};
+
+			const result = await itemService.createItem({
+				userId: context.userId,
+				type: 'music',
+				title: params.title,
+				metadata,
+			});
+
+			if (result.isDuplicate && result.existingItem) {
+				return {
+					success: false,
+					error: 'duplicate',
+					message: `⚠️ Esta música já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+				};
+			}
+
+			return {
+				success: true,
+				data: { id: result.item?.id, title: params.title },
+			};
+		}
+
+		// Sem spotify_id: busca no Spotify e retorna candidato
+		const found = await spotifyService.searchTrack(params.title, params.artist);
+
+		if (!found) {
+			loggers.tools.warn({ title: params.title }, '⚠️ Spotify sem resultado, salvando música sem metadata');
+			const result = await itemService.createItem({
+				userId: context.userId,
+				type: 'music',
+				title: params.title,
+				metadata: {
+					title: params.title,
+					artist: params.artist ?? '',
+					artists: params.artist ? [params.artist] : [],
+					album: 'Unknown album',
+					duration_ms: 0,
+					genres: [],
+					spotify_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
+					spotify_url: 'https://open.spotify.com',
+				} as MusicMetadata,
+			});
+			return {
+				success: true,
+				data: { id: result.item?.id, title: params.title },
+			};
+		}
+
+		// Retorna candidato para confirmação pelo orchestrator
+		return {
+			success: true,
+			data: {
+				results: [
+					{
+						type: 'music' as const,
+						title: found.title,
+						artist: found.artist,
+						album: found.album,
+						album_cover_url: found.album_cover_url,
+						year: found.year,
+						duration_ms: found.duration_ms,
+						spotify_id: found.spotify_id,
+						spotify_url: found.spotify_url,
+					},
+				],
+			},
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao salvar música',
+		};
+	}
+}
+
+// ============================================================================
+// SAVE IMAGE
+// ============================================================================
+
+/**
+ * Tool: save_image
+ * Extrai metadados de URL de imagem via HEAD request e retorna para confirmação.
+ * Fluxo: HEAD → metadata preview → usuário confirma → save.
+ */
+export async function save_image(
+	context: ToolContext,
+	params: {
+		url: string;
+		description?: string;
+	},
+): Promise<ToolOutput> {
+	if (!params.url?.trim()) {
+		return { success: false, error: 'URL vazia' };
+	}
+
+	try {
+		const metadata = await imageMetadataService.extractMetadata(params.url);
+
+		if (!metadata) {
+			// Fallback: salva sem metadata de imagem
+			const result = await itemService.createItem({
+				userId: context.userId,
+				type: 'image',
+				title: params.description || params.url,
+				metadata: {
+					url: params.url,
+					description: params.description,
+				} as ImageMetadata,
+			});
+			return {
+				success: true,
+				data: { id: result.item?.id, title: params.description || params.url },
+			};
+		}
+
+		// Retorna preview para confirmação pelo orchestrator
+		return {
+			success: true,
+			data: {
+				results: [
+					{
+						type: 'image' as const,
+						url: params.url,
+						description: params.description,
+						format: metadata.format,
+						size_bytes: metadata.size_bytes,
+						source_domain: metadata.source_domain,
+					},
+				],
+			},
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao salvar imagem',
+		};
+	}
+}
+
+// ============================================================================
+// SAVE MEMORY
+// ============================================================================
+
+/**
+ * Tool: save_memory
+ * Salva memória avulsa (quote, ideia, pensamento) sem categoria definida.
+ * Retorna preview para confirmação.
+ */
+export async function save_memory(
+	context: ToolContext,
+	params: {
+		content: string;
+		semantic_type?: string;
+		tags?: string[];
+		source?: string;
+	},
+): Promise<ToolOutput> {
+	if (!params.content?.trim()) {
+		return { success: false, error: 'Conteúdo vazio' };
+	}
+
+	try {
+		const result = await itemService.createItem({
+			userId: context.userId,
+			type: 'memory',
+			title: params.content.slice(0, 100),
+			metadata: {
+				content: params.content,
+				semantic_type: params.semantic_type,
+				tags: params.tags,
+				source: params.source,
+				created_via: 'chat',
+			} as MemoryMetadata,
+		});
+
+		if (result.isDuplicate && result.existingItem) {
+			return {
+				success: false,
+				error: 'duplicate',
+				message: `⚠️ Esta memória já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+			};
+		}
+
+		if (!result.item) {
+			return {
+				success: false,
+				error: 'Erro ao criar memória no banco de dados',
+			};
+		}
+
+		return {
+			success: true,
+			data: { id: result.item.id, title: result.item.title },
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : 'Erro ao salvar memória',
+		};
+	}
+}
+
+export async function search_book(
+	_context: ToolContext,
+	params: { title: string; author?: string },
+): Promise<ToolOutput> {
+	const found = await bookService.searchBook(params.title.trim(), params.author?.trim());
+	if (!found) return { success: false, error: 'Nenhum livro encontrado' };
+	return {
+		success: true,
+		data: {
+			results: [
+				{
+					type: 'book' as const,
+					title: found.title,
+					author: found.authors?.[0],
+					year: found.year,
+					cover_url: found.cover_url,
+					description: found.description,
+					google_books_id: found.google_books_id,
+					isbn: found.isbn,
+					publisher: found.publisher,
+					page_count: found.page_count,
+					genres: found.genres,
+				},
+			],
+		},
+	};
+}
+
+export async function search_music(
+	_context: ToolContext,
+	params: { title: string; artist?: string },
+): Promise<ToolOutput> {
+	const found = await spotifyService.searchTrack(params.title.trim(), params.artist?.trim());
+	if (!found) return { success: false, error: 'Nenhuma música encontrada' };
+	return {
+		success: true,
+		data: {
+			results: [
+				{
+					type: 'music' as const,
+					title: found.title,
+					artist: found.artist,
+					album: found.album,
+					album_cover_url: found.album_cover_url,
+					year: found.year,
+					duration_ms: found.duration_ms,
+					spotify_id: found.spotify_id,
+					spotify_url: found.spotify_url,
+				},
+			],
+		},
+	};
+}
+
 export const AVAILABLE_TOOLS = {
 	// Save tools (específicas)
 	save_note,
@@ -1206,6 +1829,10 @@ export const AVAILABLE_TOOLS = {
 	enrich_movie,
 	enrich_tv_show,
 	enrich_video,
+
+	// Search enrichment tools
+	search_book,
+	search_music,
 
 	// Delete tools (determinísticos)
 	delete_memory,
@@ -1230,26 +1857,15 @@ export const AVAILABLE_TOOLS = {
 	// Context resolution
 	resolve_context_reference,
 
-	// Novos tipos (stubs — serão implementados na Fase 9)
-	save_memo: async (_ctx: ToolContext, _params: { content: string; source?: string }): Promise<ToolOutput> => ({
-		success: false,
-		error: 'Esta ferramenta ainda não está disponível',
-	}),
-	save_book: async (
-		_ctx: ToolContext,
-		_params: { title: string; author?: string; year?: number },
-	): Promise<ToolOutput> => ({
-		success: false,
-		error: 'Esta ferramenta ainda não está disponível',
-	}),
-	save_music: async (_ctx: ToolContext, _params: { title: string; artist?: string }): Promise<ToolOutput> => ({
-		success: false,
-		error: 'Esta ferramenta ainda não está disponível',
-	}),
-	save_image: async (_ctx: ToolContext, _params: { url: string; description?: string }): Promise<ToolOutput> => ({
-		success: false,
-		error: 'Esta ferramenta ainda não está disponível',
-	}),
+	// Web search (read-only, system tool)
+	web_search,
+	analyze_url,
+
+	// Novos tipos de conteúdo
+	save_memory,
+	save_book,
+	save_music,
+	save_image,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;

@@ -32,6 +32,10 @@ export const userPreferences = pgTable(
 		appearanceTheme: text('appearance_theme').default('dark'),
 		appearanceLanguage: text('appearance_language').default('pt-BR'),
 
+		// Voz
+		/** Se true, todas as respostas incluem áudio automaticamente (Auto-TTS) */
+		autoTts: boolean('auto_tts').default(false),
+
 		createdAt: timestamp('created_at').defaultNow(),
 		updatedAt: timestamp('updated_at').defaultNow(),
 	},

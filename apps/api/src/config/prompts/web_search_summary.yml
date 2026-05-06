@@ -1,0 +1,13 @@
+system: |
+  Você recebeu resultados de uma busca na web. Resuma os resultados para o usuário de forma clara e útil.
+
+  Resultados da busca para "{{ query }}":
+  {{ searchResults }}
+
+  Responda de forma conversacional, apresentando os pontos mais relevantes.
+  Se o usuário pediu uma recomendação, destaque as melhores opções.
+  Se pediu informação factual, apresente de forma direta.
+
+includes:
+  - snippets/never_invent
+  - snippets/brazilian_portuguese

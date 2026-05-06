@@ -1,22 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import {
-	BookOpen,
-	Calendar,
-	Edit3,
-	FileText,
-	Film,
-	Image as ImageIcon,
-	Layers,
-	Link as LinkIcon,
-	Music,
-	Plus,
-	Search,
-	StickyNote,
-	Tag,
-	Trash2,
-	Type,
-} from 'lucide-vue-next';
+import { BookOpen, Calendar, Edit3, FileText, Film, Image as ImageIcon, Layers, Link as LinkIcon, Music, Plus, Search, StickyNote, Tag, Trash2, Type } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import type { MemoryItem } from '~/types/dashboard';
 
@@ -37,7 +21,7 @@ const iconMap: Record<string, any> = {
 	image: ImageIcon,
 	note: StickyNote,
 	video: Layers,
-	memo: Type,
+	memory: Type,
 	book: BookOpen,
 	music: Music,
 };
@@ -49,7 +33,7 @@ const categories: Array<{ label: string; value: string | undefined; icon: any }>
 	{ label: 'Vídeos', value: 'video', icon: Layers },
 	{ label: 'Links', value: 'link', icon: LinkIcon },
 	{ label: 'Notas', value: 'note', icon: StickyNote },
-	{ label: 'Memos', value: 'memo', icon: Type },
+	{ label: 'Memórias', value: 'memory', icon: Type },
 	{ label: 'Livros', value: 'book', icon: BookOpen },
 	{ label: 'Músicas', value: 'music', icon: Music },
 	{ label: 'Imagens', value: 'image', icon: ImageIcon },
@@ -145,11 +129,11 @@ const filteredMemories = computed(() => memories.value || []);
 						type="text"
 						placeholder="Buscar..."
 						class="pl-10 pr-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all w-48 md:w-72 outline-none"
-					/>
+					>
 				</div>
 				<button
-					@click="isAddModalOpen = true"
 					class="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary-600/20 hover:scale-[1.02] active:scale-95 transition-all"
+					@click="isAddModalOpen = true"
 				>
 					<Plus class="w-4 h-4" /> Nova
 				</button>
@@ -161,13 +145,13 @@ const filteredMemories = computed(() => memories.value || []);
 			<button
 				v-for="cat in categories"
 				:key="cat.label"
-				@click="selectedType = cat.value"
 				:class="[
 					'px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5 transition-all',
 					selectedType === cat.value
 						? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
 						: 'bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 text-surface-500 hover:border-primary-500',
 				]"
+				@click="selectedType = cat.value"
 			>
 				<component :is="cat.icon" class="w-3.5 h-3.5" />
 				{{ cat.label }}
@@ -175,7 +159,7 @@ const filteredMemories = computed(() => memories.value || []);
 		</div>
 
 		<div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-pulse">
-			<div v-for="i in 3" :key="i" class="h-64 bg-surface-100 dark:bg-surface-800 rounded-2xl"></div>
+			<div v-for="i in 3" :key="i" class="h-64 bg-surface-100 dark:bg-surface-800 rounded-2xl" />
 		</div>
 
 		<!-- Memories Grid -->
@@ -193,14 +177,14 @@ const filteredMemories = computed(() => memories.value || []);
 					</div>
 					<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 						<button
-							@click="handleEdit(memory)"
 							class="p-2 text-surface-400 hover:text-primary-600 bg-surface-50 dark:bg-surface-800 rounded-lg transition-colors"
+							@click="handleEdit(memory)"
 						>
 							<Edit3 class="w-4 h-4" />
 						</button>
 						<button
-							@click="handleDeleteClick(memory)"
 							class="p-2 text-surface-400 hover:text-rose-600 bg-surface-50 dark:bg-surface-800 rounded-lg transition-colors"
+							@click="handleDeleteClick(memory)"
 						>
 							<Trash2 class="w-4 h-4" />
 						</button>

@@ -1,6 +1,6 @@
 import { getProvider } from '@/adapters/messaging';
 import { env } from '@/config/env';
-import { getChannelLinkSuccessMessage } from '@/config/prompts';
+import { getChannelLinkSuccessMessage } from '@/config/message-templates';
 import { db } from '@/db';
 import { type MessagingChannel, accounts as betterAuthAccounts, messagingChannelEnum, userChannels } from '@/db/schema';
 import { accountLinkingService } from '@/services/account-linking-service';

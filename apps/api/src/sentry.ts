@@ -6,6 +6,11 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 const sentryLog = logger.child({ context: 'SENTRY' });
 
 export function initializeSentry() {
+	if (!env.SENTRY_ENABLED) {
+		sentryLog.warn('SENTRY_ENABLED=false - Sentry desativado');
+		return;
+	}
+
 	if (!env.SENTRY_DSN) {
 		sentryLog.warn('SENTRY_DSN não configurado - Sentry desativado');
 		return;
@@ -112,7 +117,11 @@ export const sentryLogger = {
 	},
 	error: (message: string, error?: Error | unknown, data?: Record<string, any>) => {
 		if (error instanceof Error) {
-			Sentry.logger.error(message, { ...data, error: error.message, stack: error.stack });
+			Sentry.logger.error(message, {
+				...data,
+				error: error.message,
+				stack: error.stack,
+			});
 		} else {
 			Sentry.logger.error(message, { ...data, error: String(error) });
 		}
@@ -188,7 +197,10 @@ export function incrementCounter(key: string, amount = 1, tags?: Record<string, 
  * Helper simplificado para timing (em ms, usando distribution)
  */
 export function recordTiming(key: string, durationMs: number, tags?: Record<string, string>) {
-	Sentry.metrics.distribution(key, durationMs, { unit: 'millisecond', attributes: tags });
+	Sentry.metrics.distribution(key, durationMs, {
+		unit: 'millisecond',
+		attributes: tags,
+	});
 }
 
 export async function shutdownSentry(timeoutMs = 3000): Promise<void> {

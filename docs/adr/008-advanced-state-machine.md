@@ -1,11 +1,11 @@
 # ADR-008: Advanced State Machine Architecture
 
-**Status**: postponed (until v1.0+)
+**Status**: accepted (implementado em v0.4.0+)
 
 **Data**: 2026-01-07  
-**Atualizado**: 2026-01-10
+**Atualizado**: 2026-03-01
 
-**Decisão por**: Análise de complexidade atual vs futuro
+**Nota**: originalmente "postponed", mas a state machine completa com 11 estados foi implementada.
 
 ---
 
@@ -14,14 +14,7 @@
 Atualmente o Nexo AI usa uma state machine **manual e simples** para gerenciar conversações:
 
 ```typescript
-type ConversationState =
-  | "idle"
-  | "awaiting_confirmation"
-  | "enriching"
-  | "saving"
-  | "batch_processing"
-  | "awaiting_batch_item"
-  | "error";
+type ConversationState = 'idle' | 'awaiting_confirmation' | 'enriching' | 'saving' | 'batch_processing' | 'awaiting_batch_item' | 'error';
 ```
 
 Transições são diretas via `conversationService.updateState()`, sem validação ou type-safety nas transições.
@@ -31,12 +24,14 @@ Transições são diretas via `conversationService.updateState()`, sem validaç�
 **Decisão:** ADIAR migração para XState até v1.0+ ou quando atingir critérios abaixo.
 
 **Estado atual (v0.2.0):**
+
 - ✅ 7 estados (abaixo do threshold de 10)
 - ✅ Batch processing funcional com estado manual
 - ✅ Transições funcionam bem
 - ✅ Complexidade gerenciável
 
 **Quando migrar:**
+
 - Sistema atingir > 10 estados
 - Necessidade de nested states em produção
 - Necessidade de parallel states nativos
@@ -87,71 +82,66 @@ Adicionar camada de validação **sem dependências externas**:
 
 ```typescript
 // conversation-state-machine.ts
-type State =
-  | "idle"
-  | "awaiting_confirmation"
-  | "enriching"
-  | "saving"
-  | "error";
+type State = 'idle' | 'awaiting_confirmation' | 'enriching' | 'saving' | 'error';
 
 type Event =
-  | { type: "DETECT_CONTENT"; contentType: ItemType; query: string }
-  | { type: "CONFIRM_SELECTION"; index: number }
-  | { type: "MULTIPLE_RESULTS"; candidates: any[] }
-  | { type: "ENRICH_START"; itemType: ItemType }
-  | { type: "ENRICH_SUCCESS"; metadata: any }
-  | { type: "SAVE_START" }
-  | { type: "SAVE_SUCCESS" }
-  | { type: "ERROR"; message: string }
-  | { type: "RESET" };
+	| { type: 'DETECT_CONTENT'; contentType: ItemType; query: string }
+	| { type: 'CONFIRM_SELECTION'; index: number }
+	| { type: 'MULTIPLE_RESULTS'; candidates: any[] }
+	| { type: 'ENRICH_START'; itemType: ItemType }
+	| { type: 'ENRICH_SUCCESS'; metadata: any }
+	| { type: 'SAVE_START' }
+	| { type: 'SAVE_SUCCESS' }
+	| { type: 'ERROR'; message: string }
+	| { type: 'RESET' };
 
 // Matriz de transições válidas
-const transitions: Record<State, Partial<Record<Event["type"], State>>> = {
-  idle: {
-    DETECT_CONTENT: "awaiting_confirmation",
-  },
-  awaiting_confirmation: {
-    CONFIRM_SELECTION: "enriching",
-    MULTIPLE_RESULTS: "awaiting_confirmation", // mantém estado
-    ERROR: "error",
-    RESET: "idle",
-  },
-  enriching: {
-    ENRICH_SUCCESS: "saving",
-    ERROR: "error",
-    RESET: "idle",
-  },
-  saving: {
-    SAVE_SUCCESS: "idle",
-    ERROR: "error",
-  },
-  error: {
-    DETECT_CONTENT: "idle",
-    RESET: "idle",
-  },
+const transitions: Record<State, Partial<Record<Event['type'], State>>> = {
+	idle: {
+		DETECT_CONTENT: 'awaiting_confirmation',
+	},
+	awaiting_confirmation: {
+		CONFIRM_SELECTION: 'enriching',
+		MULTIPLE_RESULTS: 'awaiting_confirmation', // mantém estado
+		ERROR: 'error',
+		RESET: 'idle',
+	},
+	enriching: {
+		ENRICH_SUCCESS: 'saving',
+		ERROR: 'error',
+		RESET: 'idle',
+	},
+	saving: {
+		SAVE_SUCCESS: 'idle',
+		ERROR: 'error',
+	},
+	error: {
+		DETECT_CONTENT: 'idle',
+		RESET: 'idle',
+	},
 };
 
 // Validador de transições
 function canTransition(from: State, event: Event): boolean {
-  return transitions[from]?.[event.type] !== undefined;
+	return transitions[from]?.[event.type] !== undefined;
 }
 
 function transition(currentState: State, event: Event): State {
-  const nextState = transitions[currentState][event.type];
+	const nextState = transitions[currentState][event.type];
 
-  if (!nextState) {
-    throw new Error(`Invalid transition: ${currentState} + ${event.type}`);
-  }
+	if (!nextState) {
+		throw new Error(`Invalid transition: ${currentState} + ${event.type}`);
+	}
 
-  console.log(`State transition: ${currentState} → ${nextState}`);
-  return nextState;
+	console.log(`State transition: ${currentState} → ${nextState}`);
+	return nextState;
 }
 
 // Usage
 const newState = transition(conversation.state, {
-  type: "DETECT_CONTENT",
-  contentType: "movie",
-  query: "Matrix",
+	type: 'DETECT_CONTENT',
+	contentType: 'movie',
+	query: 'Matrix',
 });
 
 await conversationService.updateState(conversationId, newState, context);
@@ -174,67 +164,67 @@ Migrar para [XState](https://xstate.js.org/) quando atingir **2+ cenários**:
 #### Cenário A: Nested States (Substates)
 
 ```typescript
-import { createMachine } from "xstate";
+import { createMachine } from 'xstate';
 
 const conversationMachine = createMachine({
-  id: "conversation",
-  initial: "idle",
-  states: {
-    idle: {
-      on: { DETECT_CONTENT: "processing" },
-    },
+	id: 'conversation',
+	initial: 'idle',
+	states: {
+		idle: {
+			on: { DETECT_CONTENT: 'processing' },
+		},
 
-    // ✨ Nested state
-    processing: {
-      initial: "classifying",
-      states: {
-        classifying: {
-          invoke: {
-            src: "classifyContent",
-            onDone: { target: "searching" },
-            onError: { target: "#conversation.error" },
-          },
-        },
-        searching: {
-          invoke: {
-            src: "searchExternal",
-            onDone: [
-              { target: "singleResult", cond: "isSingleResult" },
-              { target: "multipleResults", cond: "isMultipleResults" },
-              { target: "noResults" },
-            ],
-          },
-        },
-        singleResult: {
-          on: { CONFIRM: "#conversation.enriching" },
-        },
-        multipleResults: {
-          on: {
-            SELECT: { target: "singleResult", actions: "setSelection" },
-          },
-        },
-        noResults: {
-          on: { RETRY: "classifying" },
-        },
-      },
-    },
+		// ✨ Nested state
+		processing: {
+			initial: 'classifying',
+			states: {
+				classifying: {
+					invoke: {
+						src: 'classifyContent',
+						onDone: { target: 'searching' },
+						onError: { target: '#conversation.error' },
+					},
+				},
+				searching: {
+					invoke: {
+						src: 'searchExternal',
+						onDone: [
+							{ target: 'singleResult', cond: 'isSingleResult' },
+							{ target: 'multipleResults', cond: 'isMultipleResults' },
+							{ target: 'noResults' },
+						],
+					},
+				},
+				singleResult: {
+					on: { CONFIRM: '#conversation.enriching' },
+				},
+				multipleResults: {
+					on: {
+						SELECT: { target: 'singleResult', actions: 'setSelection' },
+					},
+				},
+				noResults: {
+					on: { RETRY: 'classifying' },
+				},
+			},
+		},
 
-    enriching: {
-      on: { SUCCESS: "saving" },
-    },
+		enriching: {
+			on: { SUCCESS: 'saving' },
+		},
 
-    saving: {
-      invoke: {
-        src: "saveItem",
-        onDone: "idle",
-        onError: "error",
-      },
-    },
+		saving: {
+			invoke: {
+				src: 'saveItem',
+				onDone: 'idle',
+				onError: 'error',
+			},
+		},
 
-    error: {
-      on: { RETRY: "idle" },
-    },
-  },
+		error: {
+			on: { RETRY: 'idle' },
+		},
+	},
 });
 ```
 
@@ -242,66 +232,66 @@ const conversationMachine = createMachine({
 
 ```typescript
 const enrichmentMachine = createMachine({
-  id: "enrichment",
-  type: "parallel",
+	id: 'enrichment',
+	type: 'parallel',
 
-  states: {
-    // ✨ Estado paralelo 1
-    tmdbEnrichment: {
-      initial: "idle",
-      states: {
-        idle: { on: { START: "loading" } },
-        loading: {
-          invoke: {
-            src: "fetchTMDB",
-            onDone: { target: "success", actions: "saveTMDBData" },
-            onError: "error",
-          },
-        },
-        success: { type: "final" },
-        error: { on: { RETRY: "loading" } },
-      },
-    },
+	states: {
+		// ✨ Estado paralelo 1
+		tmdbEnrichment: {
+			initial: 'idle',
+			states: {
+				idle: { on: { START: 'loading' } },
+				loading: {
+					invoke: {
+						src: 'fetchTMDB',
+						onDone: { target: 'success', actions: 'saveTMDBData' },
+						onError: 'error',
+					},
+				},
+				success: { type: 'final' },
+				error: { on: { RETRY: 'loading' } },
+			},
+		},
 
-    // ✨ Estado paralelo 2
-    streamingEnrichment: {
-      initial: "idle",
-      states: {
-        idle: { on: { START: "loading" } },
-        loading: {
-          invoke: {
-            src: "fetchStreaming",
-            onDone: { target: "success", actions: "saveStreamingData" },
-            onError: "error",
-          },
-        },
-        success: { type: "final" },
-        error: { on: { RETRY: "loading" } },
-      },
-    },
+		// ✨ Estado paralelo 2
+		streamingEnrichment: {
+			initial: 'idle',
+			states: {
+				idle: { on: { START: 'loading' } },
+				loading: {
+					invoke: {
+						src: 'fetchStreaming',
+						onDone: { target: 'success', actions: 'saveStreamingData' },
+						onError: 'error',
+					},
+				},
+				success: { type: 'final' },
+				error: { on: { RETRY: 'loading' } },
+			},
+		},
 
-    // ✨ Estado paralelo 3
-    aiEnrichment: {
-      initial: "idle",
-      states: {
-        idle: { on: { START: "generating" } },
-        generating: {
-          invoke: {
-            src: "generateTags",
-            onDone: { target: "success", actions: "saveTags" },
-            onError: "error",
-          },
-        },
-        success: { type: "final" },
-        error: {},
-      },
-    },
-  },
+		// ✨ Estado paralelo 3
+		aiEnrichment: {
+			initial: 'idle',
+			states: {
+				idle: { on: { START: 'generating' } },
+				generating: {
+					invoke: {
+						src: 'generateTags',
+						onDone: { target: 'success', actions: 'saveTags' },
+						onError: 'error',
+					},
+				},
+				success: { type: 'final' },
+				error: {},
+			},
+		},
+	},
 
-  // Quando TODOS os substates atingirem "final" ou "success"
-  onDone: {
-    target: "completed",
-  },
+	// Quando TODOS os substates atingirem "final" ou "success"
+	onDone: {
+		target: 'completed',
+	},
 });
 ```
 
@@ -309,97 +299,96 @@ const enrichmentMachine = createMachine({
 
 ```typescript
 const itemSavingMachine = createMachine(
-  {
-    id: "itemSaving",
-    initial: "validating",
+	{
+		id: 'itemSaving',
+		initial: 'validating',
 
-    context: {
-      item: null,
-      isEnriched: false,
-      userConfirmed: false,
-      isDuplicate: false,
-    },
+		context: {
+			item: null,
+			isEnriched: false,
+			userConfirmed: false,
+			isDuplicate: false,
+		},
 
-    states: {
-      validating: {
-        invoke: {
-          src: "checkDuplicate",
-          onDone: [
-            {
-              target: "warning",
-              cond: "isDuplicate", // ✨ Guard
-              actions: "setDuplicateFlag",
-            },
-            { target: "ready" },
-          ],
-        },
-      },
+		states: {
+			validating: {
+				invoke: {
+					src: 'checkDuplicate',
+					onDone: [
+						{
+							target: 'warning',
+							cond: 'isDuplicate', // ✨ Guard
+							actions: 'setDuplicateFlag',
+						},
+						{ target: 'ready' },
+					],
+				},
+			},
 
-      warning: {
-        on: {
-          OVERRIDE: {
-            target: "ready",
-            // ✨ Guard: só permite se usuário é admin
-            cond: (ctx, event) => event.userRole === "admin",
-          },
-          CANCEL: "idle",
-        },
-      },
+			warning: {
+				on: {
+					OVERRIDE: {
+						target: 'ready',
+						// ✨ Guard: só permite se usuário é admin
+						cond: (ctx, event) => event.userRole === 'admin',
+					},
+					CANCEL: 'idle',
+				},
+			},
 
-      ready: {
-        // ✨ Action ao entrar no estado
-        entry: ["logReadyState", "notifyUser"],
+			ready: {
+				// ✨ Action ao entrar no estado
+				entry: ['logReadyState', 'notifyUser'],
 
-        on: {
-          SAVE: {
-            target: "saving",
-            // ✨ Guards compostos
-            cond: (ctx) =>
-              ctx.isEnriched && ctx.userConfirmed && !ctx.isDuplicate,
-          },
-        },
-      },
+				on: {
+					SAVE: {
+						target: 'saving',
+						// ✨ Guards compostos
+						cond: (ctx) => ctx.isEnriched && ctx.userConfirmed && !ctx.isDuplicate,
+					},
+				},
+			},
 
-      saving: {
-        // ✨ Action ao sair do estado
-        exit: ["clearCache"],
+			saving: {
+				// ✨ Action ao sair do estado
+				exit: ['clearCache'],
 
-        invoke: {
-          src: "saveToDatabase",
-          onDone: {
-            target: "success",
-            actions: ["trackAnalytics", "sendNotification"], // ✨ Multiple actions
-          },
-          onError: "error",
-        },
-      },
+				invoke: {
+					src: 'saveToDatabase',
+					onDone: {
+						target: 'success',
+						actions: ['trackAnalytics', 'sendNotification'], // ✨ Multiple actions
+					},
+					onError: 'error',
+				},
+			},
 
-      success: {
-        type: "final",
-        // ✨ Action final
-        entry: "resetConversation",
-      },
+			success: {
+				type: 'final',
+				// ✨ Action final
+				entry: 'resetConversation',
+			},
 
-      error: {
-        on: {
-          RETRY: "validating",
-        },
-      },
-    },
-  },
-  {
-    guards: {
-      isDuplicate: (ctx) => ctx.isDuplicate,
-    },
-    actions: {
-      logReadyState: () => console.log("Item ready to save"),
-      notifyUser: (ctx) => console.log("Notifying user..."),
-      clearCache: () => console.log("Clearing cache..."),
-      trackAnalytics: () => console.log("Tracking event..."),
-      sendNotification: () => console.log("Sending notification..."),
-      resetConversation: () => console.log("Resetting conversation..."),
-    },
-  }
+			error: {
+				on: {
+					RETRY: 'validating',
+				},
+			},
+		},
+	},
+	{
+		guards: {
+			isDuplicate: (ctx) => ctx.isDuplicate,
+		},
+		actions: {
+			logReadyState: () => console.log('Item ready to save'),
+			notifyUser: (ctx) => console.log('Notifying user...'),
+			clearCache: () => console.log('Clearing cache...'),
+			trackAnalytics: () => console.log('Tracking event...'),
+			sendNotification: () => console.log('Sending notification...'),
+			resetConversation: () => console.log('Resetting conversation...'),
+		},
+	},
 );
 ```
 
@@ -407,57 +396,57 @@ const itemSavingMachine = createMachine(
 
 ```typescript
 const editingMachine = createMachine({
-  id: "editing",
-  initial: "viewing",
+	id: 'editing',
+	initial: 'viewing',
 
-  states: {
-    viewing: {
-      on: { EDIT: "editing" },
-    },
+	states: {
+		viewing: {
+			on: { EDIT: 'editing' },
+		},
 
-    editing: {
-      // ✨ History state: lembra último substate
-      type: "history",
-      history: "deep",
+		editing: {
+			// ✨ History state: lembra último substate
+			type: 'history',
+			history: 'deep',
 
-      initial: "editingTitle",
-      states: {
-        editingTitle: {
-          on: {
-            NEXT: "editingMetadata",
-            SAVE: "#editing.saving",
-          },
-        },
-        editingMetadata: {
-          on: {
-            BACK: "editingTitle", // volta
-            NEXT: "editingTags",
-            SAVE: "#editing.saving",
-          },
-        },
-        editingTags: {
-          on: {
-            BACK: "editingMetadata",
-            SAVE: "#editing.saving",
-          },
-        },
-        saving: {
-          invoke: {
-            src: "saveChanges",
-            onDone: "#editing.viewing",
-            onError: "#editing.error",
-          },
-        },
-      },
-    },
+			initial: 'editingTitle',
+			states: {
+				editingTitle: {
+					on: {
+						NEXT: 'editingMetadata',
+						SAVE: '#editing.saving',
+					},
+				},
+				editingMetadata: {
+					on: {
+						BACK: 'editingTitle', // volta
+						NEXT: 'editingTags',
+						SAVE: '#editing.saving',
+					},
+				},
+				editingTags: {
+					on: {
+						BACK: 'editingMetadata',
+						SAVE: '#editing.saving',
+					},
+				},
+				saving: {
+					invoke: {
+						src: 'saveChanges',
+						onDone: '#editing.viewing',
+						onError: '#editing.error',
+					},
+				},
+			},
+		},
 
-    error: {
-      on: {
-        // ✨ Volta para o último estado de edição
-        BACK: "editing.hist",
-      },
-    },
-  },
+		error: {
+			on: {
+				// ✨ Volta para o último estado de edição
+				BACK: 'editing.hist',
+			},
+		},
+	},
 });
 ```
 

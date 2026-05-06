@@ -131,7 +131,7 @@
 								<span class="text-green-600 dark:text-green-400">
 									[{{ embeddingResult.data.sample.first5.map((v: number) => v.toFixed(6)).join(', ') }}]
 								</span>
-								<br />
+								<br>
 								<span class="text-gray-400">últimos 5: &nbsp; </span>
 								<span class="text-blue-600 dark:text-blue-400">
 									[{{ embeddingResult.data.sample.last5.map((v: number) => v.toFixed(6)).join(', ') }}]
@@ -246,7 +246,7 @@
 												: ''
 										"
 									>
-										<input type="checkbox" :value="tool" v-model="promptTestTools" class="sr-only" />
+										<input v-model="promptTestTools" type="checkbox" :value="tool" class="sr-only">
 										{{ tool }}
 									</label>
 								</div>
@@ -264,7 +264,7 @@
 						</div>
 
 						<!-- Direita: resultado -->
-						<div class="space-y-3" v-if="promptTestResult">
+						<div v-if="promptTestResult" class="space-y-3">
 							<div class="space-y-2">
 								<p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resposta do LLM</p>
 								<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 font-mono text-xs overflow-auto max-h-60">
@@ -383,10 +383,13 @@ async function checkConnectivity() {
 	loadingConnectivity.value = true;
 	connectivityResult.value = null;
 	try {
-		const res = await $fetch<{ success: boolean; data: typeof connectivityResult.value }>(`${apiUrl}/admin/playground/connectivity`, {
-			method: 'POST',
-			credentials: 'include',
-		});
+		const res = await $fetch<{ success: boolean; data: typeof connectivityResult.value }>(
+			`${apiUrl}/admin/playground/connectivity`,
+			{
+				method: 'POST',
+				credentials: 'include',
+			},
+		);
 		if (res.success) connectivityResult.value = res.data;
 	} catch (err: any) {
 		connectivityResult.value = {
@@ -412,7 +415,7 @@ const allToolNames = [
 	'save_tv_show',
 	'save_video',
 	'save_link',
-	'save_memo',
+	'save_memory',
 	'save_book',
 	'save_music',
 	'save_image',
@@ -424,7 +427,14 @@ const allToolNames = [
 	'get_assistant_name',
 ];
 const promptTestMsg = ref('');
-const promptTestTools = ref<string[]>(['save_note', 'save_movie', 'save_tv_show', 'save_video', 'save_link', 'search_items']);
+const promptTestTools = ref<string[]>([
+	'save_note',
+	'save_movie',
+	'save_tv_show',
+	'save_video',
+	'save_link',
+	'search_items',
+]);
 const loadingPromptTest = ref(false);
 const promptTestResult = ref<{ llmResponse: string; systemPrompt: string } | null>(null);
 
@@ -433,11 +443,14 @@ async function runPromptTest() {
 	loadingPromptTest.value = true;
 	promptTestResult.value = null;
 	try {
-		const res = await $fetch<{ success: boolean; data: typeof promptTestResult.value }>(`${apiUrl}/admin/playground/prompt-test`, {
-			method: 'POST',
-			credentials: 'include',
-			body: { message: promptTestMsg.value, tools: promptTestTools.value },
-		});
+		const res = await $fetch<{ success: boolean; data: typeof promptTestResult.value }>(
+			`${apiUrl}/admin/playground/prompt-test`,
+			{
+				method: 'POST',
+				credentials: 'include',
+				body: { message: promptTestMsg.value, tools: promptTestTools.value },
+			},
+		);
 		if (res.success) promptTestResult.value = res.data;
 	} catch (err: any) {
 		promptTestResult.value = {

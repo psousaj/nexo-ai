@@ -1,0 +1,14 @@
+services:
+  evolution-api:
+    container_name: nexo_evolution_api
+    image: atendai/evolution-api:v2.1.1
+    restart: unless-stopped
+    env_file:
+      - ./evolution/.env
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+
+volumes:
+  evolution_instances:

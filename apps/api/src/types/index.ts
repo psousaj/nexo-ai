@@ -10,7 +10,7 @@ import type {
 	ItemMetadata,
 	ItemType,
 	LinkMetadata,
-	MemoMetadata,
+	MemoryMetadata,
 	MovieMetadata,
 	MusicMetadata,
 	NoteMetadata,
@@ -25,7 +25,7 @@ export type {
 	VideoMetadata,
 	LinkMetadata,
 	NoteMetadata,
-	MemoMetadata,
+	MemoryMetadata,
 	BookMetadata,
 	MusicMetadata,
 	ImageMetadata,
@@ -163,6 +163,21 @@ export interface OrchestratorTrace {
 	tools_used?: string[];
 	/** Schema version do contrato LLM */
 	schema_version?: string;
+	/** Estado da task interna de classificação de intenção */
+	classifier_task?: {
+		status: 'completed' | 'failed';
+		duration_ms: number;
+		error?: string;
+	};
+	/** Resumo de observabilidade da execução por rodadas canônicas */
+	runtime?: {
+		rounds: number;
+		tool_uses: number;
+		stop_reasons?: string[];
+		total_tokens?: number;
+		gateway_provider?: string;
+		gateway_model?: string;
+	};
 	/** Durações das etapas em milissegundos */
 	durations?: {
 		intent_ms?: number;

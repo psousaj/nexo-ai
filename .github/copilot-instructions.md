@@ -46,7 +46,6 @@ pnpm run test:ui
 pnpm run test -- src/tests/intent-classifier.test.ts
 
 pnpm run lint:biome
-pnpm run lint:biome:fix
 pnpm run format:check
 ```
 
@@ -100,23 +99,44 @@ Database shape to keep in mind:
 7. **Service singleton pattern**: services are exported as instantiated singletons and reused across routes/adapters.
 8. **Server management expectation**: check whether dev servers are already running before restarting to avoid unnecessary disruption.
 
+## Additional development guardrails
+
+1. Validate assumptions and call out inconsistencies before implementing changes.
+2. Prefer existing solutions and established patterns before introducing new abstractions.
+3. Ask for confirmation when requirements are ambiguous or a change significantly expands scope.
+4. Avoid redundant or ornamental changes; keep implementation focused on business value.
+
 ## Mandatory execution workflow (for refactors/features)
 
 Use this strict loop for delivery:
 
-1. implement one feature
-2. add/update tests for that feature
-3. run tests until green
-4. only then move to next feature
+1. create/use one dedicated branch for the current planning cycle
+2. implement one feature from the current milestone/task
+3. add/update tests for that feature
+4. run tests until green
+5. commit that completed feature/task
+6. repeat for the next milestone/task until planning is complete
+7. ensure the final result is on the target feature branch
+8. notify user that it is ready
 
 Required pattern: **feature -> tests -> green -> next**.
+
+## WARNING (ALL AI AGENTS)
+
+- Always execute work in small, explicit tasks.
+- Mandatory git loop for every task: **tasks -> test -> commit**.
+- **Never run `git push` automatically.**
+- If the user explicitly asks for push/PR actions, execute them.
+- Each planning cycle must run in one dedicated branch.
+- Keep implementation inside that dedicated branch until all planned milestones/tasks are complete.
 
 Additional rules:
 
 - Operate in a loop until all milestones and planned features are complete.
 - Commit after each completed feature/iteration (never batch many unrelated features in one commit).
 - Use a dedicated refactor branch (recommended: `refactor/conversational-memory-pivot`).
-- Open and keep an incremental PR updated for GitHub review after each green feature block.
+- Keep the planning branch as the source of truth until all milestones are done.
+- Open and keep an incremental PR updated for GitHub review after each green feature block when requested by the user.
 
 ## Source files used for these instructions
 

@@ -96,12 +96,29 @@ vi.mock('@/services/ai', () => ({
 	},
 }));
 
+vi.mock('@/config/env', () => ({
+	env: {
+		MANUAL_RUNTIME_LOOP: false,
+		CF_GATEWAY_MODEL: 'dynamic/nexo',
+		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
+		CLOUDFLARE_GATEWAY_ID: 'gw-test',
+		CLOUDFLARE_API_TOKEN: 'token-test',
+	},
+}));
+
 vi.mock('@/utils/json-parser', () => ({
 	parseAgentDecisionV2FromLLM: vi.fn().mockReturnValue({
 		schema_version: '2.0',
 		action: 'RESPOND',
-		reasoning_intent: { category: 'conversation', confidence: 0.9, trigger: 'natural_language' },
-		response: { text: 'Por favor, escolha uma opção válida.', tone_profile: 'neutral' },
+		reasoning_intent: {
+			category: 'conversation',
+			confidence: 0.9,
+			trigger: 'natural_language',
+		},
+		response: {
+			text: 'Por favor, escolha uma opção válida.',
+			tone_profile: 'neutral',
+		},
 		tool_call: null,
 	}),
 	isValidAgentResponse: vi.fn().mockReturnValue(true),

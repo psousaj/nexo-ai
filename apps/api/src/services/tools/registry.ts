@@ -7,12 +7,15 @@
 
 import type { ToolName } from './index';
 
+export type ToolExecutionPolicy = 'allow' | 'ask' | 'deny';
+
 export interface ToolDefinition {
 	name: ToolName;
 	label: string; // Nome amigável para exibição
 	description: string; // Descrição curta
 	icon: string; // Emoji para o dashboard
 	category: 'system' | 'user'; // system = sempre habilitada, user = plugável
+	executionPolicy?: ToolExecutionPolicy; // default = allow
 	defaultEnabled?: boolean; // undefined = true; false = desabilitada por padrão (Em breve)
 	oauthRequired?: 'google' | 'microsoft'; // preparação futura para gate por OAuth
 }
@@ -103,6 +106,23 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		category: 'system',
 	},
 
+	// Search enrichment tools
+	search_book: {
+		name: 'search_book',
+		label: 'Buscar Livro',
+		description: 'Busca livro no Google Books',
+		icon: '📚',
+		category: 'system',
+	},
+
+	search_music: {
+		name: 'search_music',
+		label: 'Buscar Música',
+		description: 'Busca música no Spotify',
+		icon: '🎵',
+		category: 'system',
+	},
+
 	// ============================================================================
 	// DELETE TOOLS (System Tools)
 	// ============================================================================
@@ -113,6 +133,7 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Remove item específico',
 		icon: '🗑️',
 		category: 'system',
+		executionPolicy: 'ask',
 	},
 
 	delete_all_memories: {
@@ -121,6 +142,7 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Remove todos os itens salvos',
 		icon: '🧹',
 		category: 'system',
+		executionPolicy: 'ask',
 	},
 
 	// ============================================================================
@@ -224,12 +246,32 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 	},
 
 	// ============================================================================
-	// NOVOS TIPOS DE CONTEÚDO — defaultEnabled: true para memo, false para demais
+	// WEB SEARCH + URL ANALYSIS (System Tools — sempre habilitadas)
 	// ============================================================================
 
-	save_memo: {
-		name: 'save_memo',
-		label: 'Salvar Memo',
+	web_search: {
+		name: 'web_search',
+		label: 'Busca na Web',
+		description: 'Busca na internet via Brave Search (read-only)',
+		icon: '🌐',
+		category: 'system',
+	},
+
+	analyze_url: {
+		name: 'analyze_url',
+		label: 'Analisar URL',
+		description: 'Detecta tipo de conteúdo de uma URL (ferramenta interna)',
+		icon: '🔗',
+		category: 'system',
+	},
+
+	// ============================================================================
+	// NOVOS TIPOS DE CONTEÚDO — defaultEnabled: true para memory, false para demais
+	// ============================================================================
+
+	save_memory: {
+		name: 'save_memory',
+		label: 'Salvar Memória',
 		description: 'Salva memória avulsa sem categoria (pensamento, quote, ideia)',
 		icon: '🗒️',
 		category: 'user',
@@ -242,7 +284,6 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Salva livro com metadados do Google Books',
 		icon: '📚',
 		category: 'user',
-		defaultEnabled: false,
 	},
 
 	save_music: {
@@ -251,7 +292,6 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Salva música com metadados do Spotify',
 		icon: '🎵',
 		category: 'user',
-		defaultEnabled: false,
 	},
 
 	save_image: {
@@ -260,7 +300,6 @@ const TOOL_DEFINITIONS: Record<ToolName, ToolDefinition> = {
 		description: 'Salva imagem com extração de metadados EXIF',
 		icon: '🖼️',
 		category: 'user',
-		defaultEnabled: false,
 	},
 };
 
@@ -274,7 +313,7 @@ const USER_TOOL_NAMES: ToolName[] = [
 	'save_tv_show',
 	'save_video',
 	'save_link',
-	'save_memo',
+	'save_memory',
 	'save_book',
 	'save_music',
 	'save_image',
@@ -298,6 +337,32 @@ export function getUserTools(): ToolDefinition[] {
  */
 export function getToolDefinition(name: ToolName): ToolDefinition | undefined {
 	return TOOL_DEFINITIONS[name];
+}
+
+/**
+ * Retorna a policy de execução da tool.
+ * - allow: pode executar automaticamente
+ * - ask: requer confirmação determinística fora do loop de tool-calling
+ * - deny: não pode ser exposta/execução bloqueada
+ */
+export function getToolExecutionPolicy(name: ToolName): ToolExecutionPolicy {
+	return TOOL_DEFINITIONS[name]?.executionPolicy ?? 'allow';
+}
+
+/**
+ * Filtra nomes de tool por policy.
+ * Útil para expor ao LLM apenas tools com execução automática segura.
+ */
+export function filterToolNamesByPolicy(
+	toolNames: string[],
+	allowedPolicies: ToolExecutionPolicy[] = ['allow'],
+): ToolName[] {
+	const allowedSet = new Set(allowedPolicies);
+	return toolNames.filter((name): name is ToolName => {
+		if (!(name in TOOL_DEFINITIONS)) return false;
+		const policy = getToolExecutionPolicy(name as ToolName);
+		return allowedSet.has(policy);
+	});
 }
 
 /**

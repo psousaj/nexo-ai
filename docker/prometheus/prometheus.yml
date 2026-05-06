@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # SpanMetrics gerados pelo Jaeger (connector spanmetrics → exporter prometheus)
+  - job_name: 'jaeger-spanmetrics'
+    static_configs:
+      - targets: ['jaeger:8889']
+
+  # Telemetria interna do Jaeger (health, metricstore latency, etc.)
+  - job_name: 'jaeger-internal'
+    static_configs:
+      - targets: ['jaeger:8888']
+
+  # Prometheus auto-monitora a si mesmo
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

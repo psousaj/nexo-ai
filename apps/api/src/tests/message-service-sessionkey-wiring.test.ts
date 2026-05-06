@@ -1,15 +1,8 @@
 import type { IncomingMessage, MessagingProvider } from '@/adapters/messaging';
-import { ERROR_MESSAGES } from '@/config/prompts';
+import { ERROR_MESSAGES } from '@/config/message-templates';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { processMessage } from '@/services/message-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-
-vi.mock('@langfuse/tracing', () => ({
-	startObservation: vi.fn(() => ({
-		update: vi.fn().mockReturnThis(),
-		end: vi.fn(),
-	})),
-}));
 
 vi.mock('@nexo/otel/tracing', () => ({
 	startSpan: vi.fn(async (_name: string, fn: () => Promise<unknown>) => await fn()),

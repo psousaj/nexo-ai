@@ -28,7 +28,7 @@ export const useDashboard = () => {
 		return (items as any[]).map((item: any) => ({
 			id: item.id,
 			title: item.title,
-			content: item.metadata?.full_content || item.title,
+			content: item.metadata?.full_content || item.metadata?.content || item.title,
 			type: item.type as ItemType,
 			category: item.type,
 			platform: item.metadata?.platform || 'Web',
@@ -36,11 +36,19 @@ export const useDashboard = () => {
 		}));
 	};
 
-	const createMemory = async (payload: { title: string; type: ItemType; content: string }): Promise<any> => {
+	const createMemory = async (payload: {
+		title: string;
+		type: ItemType;
+		content: string;
+	}): Promise<any> => {
 		const metadata: any = {};
 		if (payload.type === 'link') metadata.url = payload.content;
-		if (payload.type === 'note' || payload.type === 'text') {
+		if (payload.type === 'note') {
 			metadata.full_content = payload.content;
+		}
+		if (payload.type === 'memory') {
+			metadata.content = payload.content;
+			metadata.created_via = 'api';
 		}
 
 		const { data } = await api.post('/memories', {
@@ -57,7 +65,11 @@ export const useDashboard = () => {
 	): Promise<{ success: boolean }> => {
 		const updates: Record<string, any> = {};
 		if (payload.title) updates.title = payload.title;
-		if (payload.content) updates.metadata = { full_content: payload.content };
+		if (payload.content)
+			updates.metadata = {
+				full_content: payload.content,
+				content: payload.content,
+			};
 
 		const { data } = await api.patch<{ success: boolean }>(`/memories/${id}`, updates);
 		return data;
@@ -83,9 +95,10 @@ export const useDashboard = () => {
 	};
 
 	const getConversationMessages = async (conversationId: string): Promise<ConversationAudit> => {
-		const { data } = await api.get<{ success: boolean; data: ConversationAudit }>(
-			`/admin/conversations/${conversationId}/messages`,
-		);
+		const { data } = await api.get<{
+			success: boolean;
+			data: ConversationAudit;
+		}>(`/admin/conversations/${conversationId}/messages`);
 		return data.data;
 	};
 
@@ -126,7 +139,10 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const linkTelegram = async (): Promise<{ link: string; vinculateCode: string }> => {
+	const linkTelegram = async (): Promise<{
+		link: string;
+		vinculateCode: string;
+	}> => {
 		const { data } = await api.post('/user/link/telegram');
 		return data;
 	};
@@ -136,7 +152,10 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const linkDiscordBot = async (): Promise<{ token: string; botUsername: string }> => {
+	const linkDiscordBot = async (): Promise<{
+		token: string;
+		botUsername: string;
+	}> => {
 		const { data } = await api.post('/user/link/discord-bot');
 		return data;
 	};
@@ -157,10 +176,10 @@ export const useDashboard = () => {
 	// WhatsApp Settings
 	const getWhatsAppSettings = async (): Promise<{
 		id: string;
-		activeApi: 'meta' | 'baileys';
-		baileysPhoneNumber?: string;
+		activeApi?: 'evolution';
+		phoneNumber?: string;
 		metaPhoneNumberId?: string;
-		baileysConnectionStatus?: string;
+		connectionStatus?: 'connecting' | 'connected' | 'disconnected' | 'error';
 		lastError?: string;
 		updatedAt: string;
 		createdAt: string;
@@ -169,28 +188,41 @@ export const useDashboard = () => {
 		return data;
 	};
 
-	const setWhatsAppApi = async (whatsappApi: 'meta' | 'baileys'): Promise<{ success: boolean; activeApi: string }> => {
-		const { data } = await api.post('/admin/whatsapp-settings/api', { api: whatsappApi });
-		return data;
-	};
-
-	const clearWhatsAppCache = async (): Promise<{ success: boolean; message: string }> => {
+	const clearWhatsAppCache = async (): Promise<{
+		success: boolean;
+		message: string;
+	}> => {
 		const { data } = await api.post('/admin/whatsapp-settings/cache/clear');
 		return data;
 	};
 
-	const getWhatsAppQRCode = async (): Promise<{ qrCode: string | null; connectionStatus?: any }> => {
+	const getWhatsAppQRCode = async (): Promise<{
+		qrCode: string | null;
+		pairingCode?: string | null;
+		connectionStatus?: any;
+	}> => {
 		const { data } = await api.get('/admin/whatsapp-settings/qr-code');
 		return data;
 	};
 
-	const disconnectBaileys = async (): Promise<any> => {
-		const { data } = await api.post('/admin/whatsapp-settings/baileys/disconnect');
+	const connectWhatsAppInstance = async (): Promise<{
+		success: boolean;
+		qrCode?: string | null;
+		pairingCode?: string | null;
+		connectionStatus?: any;
+		error?: string;
+	}> => {
+		const { data } = await api.post('/admin/whatsapp-settings/evolution/connect');
 		return data;
 	};
 
-	const restartBaileys = async (): Promise<any> => {
-		const { data } = await api.post('/admin/whatsapp-settings/baileys/restart');
+	const disconnectWhatsAppInstance = async (): Promise<any> => {
+		const { data } = await api.post('/admin/whatsapp-settings/evolution/disconnect');
+		return data;
+	};
+
+	const restartWhatsAppInstance = async (): Promise<any> => {
+		const { data } = await api.post('/admin/whatsapp-settings/evolution/restart');
 		return data;
 	};
 
@@ -236,11 +268,11 @@ export const useDashboard = () => {
 		consumeLinkingToken,
 		unlinkAccount,
 		getWhatsAppSettings,
-		setWhatsAppApi,
 		clearWhatsAppCache,
 		getWhatsAppQRCode,
-		disconnectBaileys,
-		restartBaileys,
+		connectWhatsAppInstance,
+		disconnectWhatsAppInstance,
+		restartWhatsAppInstance,
 		getDiscordBotInfo,
 		checkDiscordBotStatus,
 	};

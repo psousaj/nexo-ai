@@ -1,8 +1,8 @@
+import { decideAgentAction } from '@/services/agent-action-routing';
+import type { IntentResult } from '@/services/intent-classifier';
 import type { ConversationState } from '@/types';
+import { isValidAgentResponse, normalizeAgentResponse, parseJSONFromLLM } from '@/utils/json-parser';
 import { describe, expect, test, vi } from 'vitest';
-import { decideAgentAction } from '../services/agent-action-routing';
-import type { IntentResult } from '../services/intent-classifier';
-import { isValidAgentResponse, normalizeAgentResponse, parseJSONFromLLM } from '../utils/json-parser';
 
 const { mockMetricIncrement } = vi.hoisted(() => ({
 	mockMetricIncrement: vi.fn(),

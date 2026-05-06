@@ -21,40 +21,53 @@
  * - Redige respostas
  */
 
-import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
+import { env } from '@/config/env';
 import {
-	AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT,
 	CANCELLATION_PROMPT,
 	CASUAL_GREETINGS,
 	CHOOSE_AGAIN_MESSAGES,
 	ERROR_MESSAGES,
 	NO_ITEMS_FOUND,
 	SAVE_SUCCESS,
-	applyAgentDecisionV2Contract,
 	formatItemsList,
-	getAgentSystemPrompt,
 	getRandomMessage as getRandomResponse,
-} from '@/config/prompts';
+} from '@/config/message-templates';
+import { getPivotFeatureFlags } from '@/config/pivot-feature-flags';
+import { buildClarificationPrompt } from '@/config/prompt-builder';
 import { setSentryContext } from '@/sentry';
+import { type RuntimeInternalTaskBlock, addRuntimeBlock, createRuntimeRound } from '@/services/ai/runtime-contract';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
+import {
+	dispatchOutgoingButtons,
+	dispatchOutgoingChatAction,
+	dispatchOutgoingPhoto,
+	dispatchOutgoingText,
+} from '@/services/outgoing-dispatcher.service';
 import { instrumentService } from '@/services/service-instrumentation';
-import { userService } from '@/services/user-service';
-import type { AgentDecisionV2, ConversationState, ToolName } from '@/types';
+import type { ConversationState, ToolName } from '@/types';
 import type { MessageMetadata, OrchestratorTrace } from '@/types';
-import { parseAgentDecisionV2FromLLM } from '@/utils/json-parser';
 import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { decideAgentAction } from './agent-action-routing';
-import { canExecuteAgentDecisionV2Tool } from './agent-decision-v2-side-effect-gate';
-import { llmService } from './ai';
-import { buildAgentContext } from './context-builder'; // OpenClaw pattern
+import {
+	OpenAIGatewayTransport,
+	buildRuntimeObservabilityAttributes,
+	llmService,
+	runOpenAIManualLoop,
+	summarizeRuntimeRounds,
+} from './ai';
+import { executeIntentClassificationTask } from './ai/intent-classification-task';
+import { buildRuntimeContext } from './ai/runtime-context-builder';
 import { conversationService } from './conversation-service';
 import { cancellationMessages, confirmationMessages, getRandomMessage } from './conversation/messageTemplates';
-import { type IntentResult, intentClassifier } from './intent-classifier';
+import { evaluateExecutionReadiness } from './execution-readiness';
+import type { IntentResult } from './intent-classifier';
 import { itemService } from './item-service';
 import { scheduleConversationClose } from './queue-service';
 import { toolAvailabilityService } from './tool-availability.service';
-import { type ToolContext, executeTool } from './tools';
+import { executeTool } from './tools';
+import type { ToolContext } from './tools';
+import { filterToolNamesByPolicy } from './tools/registry';
 
 export interface AgentContext {
 	userId: string;
@@ -84,6 +97,26 @@ export interface AgentResponse {
  */
 export class AgentOrchestrator {
 	private readonly MAX_CLARIFICATION_ATTEMPTS = 4;
+	private openAITransport: OpenAIGatewayTransport | null = null;
+
+	private getManualRuntimeModel(): string {
+		return env.CF_GATEWAY_MODEL;
+	}
+
+	private getOpenAITransport(): OpenAIGatewayTransport {
+		if (!this.openAITransport) {
+			this.openAITransport = new OpenAIGatewayTransport({
+				accountId: env.CLOUDFLARE_ACCOUNT_ID,
+				gatewayId: env.CLOUDFLARE_GATEWAY_ID,
+				apiToken: env.CLOUDFLARE_API_TOKEN,
+				model: this.getManualRuntimeModel(),
+				basePath: 'compat',
+				collectLog: true,
+			});
+		}
+
+		return this.openAITransport;
+	}
 
 	private buildMessagePersistOptions(context: AgentContext, includeProviderMessage = false) {
 		return {
@@ -136,7 +169,11 @@ export class AgentOrchestrator {
 			// A0. TRATAR ESTADO OFF_TOPIC_CHAT
 			if (conversation.state === 'off_topic_chat') {
 				// Re-classifica intenção para ver se usuário voltou ao escopo
-				const intent = await intentClassifier.classify(context.message);
+				const offTopicIntentTask = await executeIntentClassificationTask({
+					message: context.message,
+					phase: 'off_topic_reentry',
+				});
+				const intent = offTopicIntentTask.intent;
 
 				// Se intenção for clara (confiança alta), reseta para idle e processa normalmente
 				if (intent.intent !== 'unknown' && intent.confidence >= 0.85) {
@@ -149,7 +186,7 @@ export class AgentOrchestrator {
 					// Continua para o fluxo normal de processamento
 				} else {
 					// Continua em off_topic, responde com mensagem amigável aleatória
-					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
+					const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/message-templates');
 					const responseMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
 					await conversationService.addMessage(
@@ -215,24 +252,29 @@ export class AgentOrchestrator {
 
 			// 1. CLASSIFICAR INTENÇÃO (determinístico)
 			const startTotal = performance.now();
-			const startIntent = performance.now();
-			const intent = await intentClassifier.classify(context.message);
-			const endIntent = performance.now();
+			const intentTask = await executeIntentClassificationTask({
+				message: context.message,
+				phase: 'main',
+			});
+			const intent = intentTask.intent;
+			const classifierTaskBlock = intentTask.block;
+			const intentDurationMs = intentTask.durationMs;
 			loggers.ai.info(
 				{
 					intent: intent.intent,
 					confidence: intent.confidence,
-					duration: `${(endIntent - startIntent).toFixed(0)}*ms*`,
+					duration: `${intentDurationMs}*ms*`,
 				},
 				'🧠 Intenção detectada',
 			);
 
-			// 2. CHECAR AMBIGUIDADE (APENAS se intent for desconhecido ou baixa confiança)
-			// Se neural/LLM classificou com confiança, NÃO pedir clarificação
+			// 2. ANALISAR TOM + AMBIGUIDADE
+			// Ambiguidade é usada tanto no gate de prontidão quanto na clarificação para intents fracos.
 			const intentIsKnown = intent.intent !== 'unknown' && intent.confidence >= 0.85;
 
 			// Analisa tom para evitar tratar perguntas como itens ambíguos
 			const tone = messageAnalyzer.checkTone(context.message);
+			const ambiguity = messageAnalyzer.checkAmbiguity(context.message);
 			const isQuestion = tone.isQuestion;
 
 			if (conversation.state === 'idle' && intent.intent !== 'casual_chat' && !intentIsKnown && !isQuestion) {
@@ -247,6 +289,8 @@ export class AgentOrchestrator {
 					context.message,
 					context.externalId,
 					providerType,
+					undefined,
+					ambiguity,
 				);
 				const endAmbiguous = performance.now();
 
@@ -269,7 +313,26 @@ export class AgentOrchestrator {
 			}
 
 			// 3. DECIDIR AÇÃO BASEADO EM INTENÇÃO + ESTADO
-			const action = await this.decideAction(intent, conversation.state);
+			let action = await this.decideAction(intent, conversation.state);
+
+			const readiness = evaluateExecutionReadiness({
+				state: conversation.state,
+				intent,
+				tone,
+				ambiguity,
+			});
+
+			if (!readiness.allowDirectExecution && action !== 'handle_with_llm') {
+				loggers.ai.info(
+					{
+						intent: intent.intent,
+						action,
+						reasons: readiness.reasons,
+					},
+					'🧭 Gate de prontidão: desviando para LLM antes de tools',
+				);
+				action = 'handle_with_llm';
+			}
 
 			// 4. EXECUTAR AÇÃO
 			loggers.ai.info(
@@ -302,7 +365,7 @@ export class AgentOrchestrator {
 					break;
 
 				case 'handle_with_llm':
-					response = await this.handleWithLLM(context, intent, conversation);
+					response = await this.handleWithLLM(context, intent, conversation, classifierTaskBlock);
 					break;
 
 				case 'handle_confirmation':
@@ -336,11 +399,17 @@ export class AgentOrchestrator {
 				intent: intent.intent,
 				confidence: intent.confidence,
 				action,
+				classifier_task: {
+					status: classifierTaskBlock.status === 'completed' ? 'completed' : 'failed',
+					duration_ms: intentDurationMs,
+					error: classifierTaskBlock.error,
+				},
+				runtime: response.trace?.runtime,
 				llm_action: response.trace?.llm_action,
 				tools_used: response.toolsUsed,
 				schema_version: response.trace?.schema_version,
 				durations: {
-					intent_ms: Math.round(endIntent - startIntent),
+					intent_ms: intentDurationMs,
 					action_ms: Math.round(endAction - startAction),
 					llm_ms: response.trace?.durations?.llm_ms,
 					total_ms: totalMs,
@@ -414,14 +483,22 @@ export class AgentOrchestrator {
 	}
 
 	/**
-	 * Delega para LLM (planner/writer)
+	 * Delega para LLM com runtime manual no OpenAI SDK + Cloudflare Gateway.
 	 *
-	 * LLM retorna JSON seguindo AgentLLMResponse schema.
-	 * Runtime processa e decide o que fazer.
+	 * O runtime manual gerencia explicitamente:
+	 * - Rodadas de tool calling
+	 * - Execução de tools com policy gate
+	 * - Injeção de resultados e término por stop reason
+	 *
+	 * Mantém contrato canônico de blocos para observabilidade e auditoria.
 	 */
-	private async handleWithLLM(context: AgentContext, intent: IntentResult, conversation: any): Promise<AgentResponse> {
+	private async handleWithLLM(
+		context: AgentContext,
+		intent: IntentResult,
+		conversation: any,
+		classifierTaskBlock?: RuntimeInternalTaskBlock,
+	): Promise<AgentResponse> {
 		return startSpan('agent.handle_with_llm', async (_span) => {
-			const MAX_CONTRACT_RETRIES = 3;
 			const toolContext: ToolContext = {
 				userId: context.userId,
 				conversationId: context.conversationId,
@@ -429,8 +506,15 @@ export class AgentOrchestrator {
 				externalId: context.externalId,
 			};
 
-			// Busca tools disponíveis uma vez (usada tanto no gate quanto no prompt)
+			// Busca tools disponíveis (CASL gate)
 			const { tools: availableToolNames } = await toolAvailabilityService.getAvailableTools();
+			// Policy gate: LLM recebe apenas tools com execução automática (allow)
+			const safeToolNames = filterToolNamesByPolicy(availableToolNames, ['allow']);
+			const blockedByPolicy = availableToolNames.filter((toolName) => !safeToolNames.includes(toolName as ToolName));
+
+			if (blockedByPolicy.length > 0) {
+				loggers.ai.debug({ blockedByPolicy }, '🔐 Tools bloqueadas por policy (ask/deny) no loop LLM');
+			}
 
 			// 🚨 GATE PRÉ-LLM: Detecta padrão de lembrete e clarifica ANTES de chamar LLM
 			if (intent.entities?.reminderHint && conversation?.state === 'idle') {
@@ -459,14 +543,24 @@ export class AgentOrchestrator {
 				});
 
 				try {
-					const { getProvider } = await import('@/adapters/messaging');
-					const provider = await getProvider(context.provider as any);
-					if (provider && 'sendMessageWithButtons' in provider) {
-						await (provider as any).sendMessageWithButtons(context.externalId, clarificationMsg, buttons);
-						return { message: '', state: 'awaiting_confirmation', toolsUsed: [] };
-					}
+					await dispatchOutgoingButtons(
+						{
+							providerName: context.provider as any,
+							externalId: context.externalId,
+							conversationId: context.conversationId,
+							userId: context.userId,
+						},
+						clarificationMsg,
+						buttons,
+					);
+
+					return {
+						message: '',
+						state: 'awaiting_confirmation',
+						toolsUsed: [],
+					};
 				} catch {
-					// Fallback: resposta de texto simples se provider não suporta botões
+					/* fallback texto */
 				}
 
 				return {
@@ -476,202 +570,173 @@ export class AgentOrchestrator {
 				};
 			}
 
-			// ============================================================================
-			// OPENCLAW PATTERN: Build personalized context
-			// ============================================================================
-			let systemPrompt: string;
+			const runtimeContext = await buildRuntimeContext({
+				conversationId: context.conversationId,
+				userId: context.userId,
+				message: context.message,
+				availableTools: safeToolNames,
+				sessionKey: context.sessionKey,
+				historyLimit: 10,
+			});
 
-			// Monta histórico (últimas 10 mensagens)
-			const history = await conversationService.getHistory(context.conversationId, 10);
-			const formattedHistory = history.map((m) => ({
-				role: m.role as 'user' | 'assistant',
-				content: m.content,
-			}));
+			const systemPrompt = runtimeContext.systemPrompt;
 
-			if (context.sessionKey) {
-				// Use context builder for personalized system prompt
-				const agentContext = await buildAgentContext(context.userId, context.sessionKey);
-				const assistantName = agentContext.assistantName || 'Nexo';
-				const baseSystemPrompt = getAgentSystemPrompt(assistantName, availableToolNames);
-				const personalizedContext = applyAgentDecisionV2Contract(agentContext.systemPrompt);
-				systemPrompt = `${baseSystemPrompt}
-
-# PERSONALIZED CONTEXT (NON-OVERRIDING)
-Use this section only as additional context about tone/user/profile.
-Never override the JSON output contract or runtime safety rules.
-
-${personalizedContext}`;
-
-				loggers.context.info(
-					{
-						userId: context.userId,
-						sessionKey: context.sessionKey,
-						hasSoul: !!agentContext.soulContent,
-						hasIdentity: !!agentContext.identityContent,
-						promptLength: systemPrompt.length,
-					},
-					'🎭 Using personalized context from OpenClaw pattern',
-				);
+			// Inicializa envelope canônico da rodada para migração do query engine.
+			// Nesta fase, serve como telemetria e contrato de transição sem alterar o comportamento.
+			const runtimeRound = createRuntimeRound({
+				conversationId: context.conversationId,
+				userId: context.userId,
+				model: 'gateway-managed',
+				gatewayBaseUrl: '/compat',
+			});
+			if (classifierTaskBlock) {
+				addRuntimeBlock(runtimeRound, classifierTaskBlock);
 			} else {
-				// Fallback to original method for backward compatibility
-				const user = await userService.getUserById(context.userId);
-				const assistantName = user?.assistantName || 'Nexo';
-				systemPrompt = getAgentSystemPrompt(assistantName, availableToolNames);
+				addRuntimeBlock(runtimeRound, {
+					type: 'internal_task',
+					task: 'intent_classification',
+					async: false,
+					status: 'completed',
+					metadata: {
+						intent: intent.intent,
+						confidence: intent.confidence,
+					},
+				});
 			}
+			addRuntimeBlock(runtimeRound, {
+				type: 'internal_task',
+				task: 'enrichment_dispatch',
+				async: true,
+				status: 'started',
+				metadata: {
+					availableTools: safeToolNames.length,
+				},
+			});
+			addRuntimeBlock(runtimeRound, {
+				type: 'internal_task',
+				task: 'context_injection',
+				async: false,
+				status: 'completed',
+				metadata: {
+					assistantName: runtimeContext.assistantName,
+					historyBlocks: runtimeContext.historyBlocks.length,
+					hasSessionKey: !!context.sessionKey,
+				},
+			});
+			loggers.ai.debug(
+				{
+					runtimeRoundContext: runtimeRound.context,
+					runtimeBlocks: runtimeRound.blocks.length,
+				},
+				'🧱 Runtime round initialized',
+			);
+
 			// ============================================================================
-
+			// CALL LLM (Manual runtime + OpenAI Gateway)
+			// ============================================================================
+			const llmStart = performance.now();
 			const toolsUsed: string[] = [];
-			const nextState: ConversationState = 'idle';
-			let lastContractError: Error | null = null;
-			let lastInvalidOutput = '';
+			try {
+				const manualResult = await runOpenAIManualLoop(
+					{
+						conversationId: context.conversationId,
+						userId: context.userId,
+						systemPrompt,
+						messages: runtimeContext.openAIMessages,
+						availableTools: safeToolNames,
+						toolContext,
+						model: this.getManualRuntimeModel(),
+						maxRounds: 6,
+					},
+					{
+						transport: this.getOpenAITransport(),
+						executeTool: async (toolName, toolCtx, params) => executeTool(toolName, toolCtx, params),
+					},
+				);
 
-			for (let attempt = 1; attempt <= MAX_CONTRACT_RETRIES; attempt++) {
-				let llmMessage = '';
-				let responseMessage = '';
+				const llmDurationMs = Math.round(performance.now() - llmStart);
+				const runtimeSummary = summarizeRuntimeRounds(manualResult.roundsData);
+				toolsUsed.push(...manualResult.toolsUsed);
 
-				try {
-					const repairDetails =
-						attempt === 1
-							? ''
-							: `\n\n# CONTRACT ERROR CONTEXT\n- Required schema_version: 2.0\n- Previous invalid output (truncated): ${lastInvalidOutput.substring(0, 220)}\n- Validation error: ${(lastContractError?.message || 'unknown error').substring(0, 180)}`;
+				setAttributes(buildRuntimeObservabilityAttributes(runtimeSummary, 'runtime.manual'));
 
-					const llmStart = performance.now();
-					const llmResponse = await llmService.callLLM({
-						message: context.message,
-						history: formattedHistory,
-						systemPrompt:
-							attempt === 1
-								? systemPrompt
-								: `${systemPrompt}\n\n${AGENT_OUTPUT_CONTRACT_REPAIR_PROMPT}${repairDetails}`,
-					});
+				loggers.ai.info(
+					{
+						toolsUsed: manualResult.toolsUsed,
+						rounds: manualResult.rounds,
+						textLength: manualResult.text.length,
+						runtimeStopReasons: runtimeSummary.stopReasons,
+						runtimeTotalTokens: runtimeSummary.totalTokens,
+						gatewayHeaders: runtimeSummary.gatewayHeaders,
+						duration: `${llmDurationMs}ms`,
+					},
+					'✅ Manual runtime respondeu',
+				);
 
-					const llmDurationMs = Math.round(performance.now() - llmStart);
-					llmMessage = llmResponse.message?.trim() || '';
-
-					if (llmMessage.startsWith('😅') || llmMessage.startsWith('⚠️') || llmMessage.startsWith('❌')) {
-						throw new Error('LLM retornou mensagem de erro em vez de JSON');
-					}
-
-					const agentDecision: AgentDecisionV2 = parseAgentDecisionV2FromLLM(llmMessage);
-
-					loggers.ai.info(
-						{ action: agentDecision.action, schemaVersion: agentDecision.schema_version, attempt },
-						'🤖 LLM action (schema v2)',
-					);
-
-					switch (agentDecision.action) {
-						case 'CALL_TOOL': {
-							if (!agentDecision.tool_call) {
-								throw new Error('action=CALL_TOOL requer tool_call');
-							}
-
-							const toolName = agentDecision.tool_call.name;
-							const gateDecision = canExecuteAgentDecisionV2Tool(agentDecision);
-
-							if (!gateDecision.allow) {
-								loggers.ai.warn(
-									{
-										tool: toolName,
-										action: agentDecision.action,
-										deterministicPath: agentDecision.guardrails?.deterministic_path ?? null,
-										gateReason: gateDecision.reason,
-									},
-									'⚠️ AgentDecisionV2 bloqueado pelo deterministic side-effect gate',
-								);
-								responseMessage =
-									'⚠️ Por segurança, não executei essa ação automática. Pode confirmar de forma mais específica?';
-								break;
-							}
-
-							loggers.ai.info({ tool: toolName }, '🔧 Executando tool');
-							const result = await executeTool(toolName as any, toolContext, agentDecision.tool_call.arguments || {});
-
-							toolsUsed.push(toolName);
-
-							if (result.success) {
-								if (result.data?.results && result.data.results.length > 0) {
-									if (result.data.results.length === 1) {
-										return await this.sendFinalConfirmation(context, conversation, result.data.results[0]);
-									}
-									return await this.sendCandidatesWithButtons(context, conversation, result.data.results);
-								}
-								if (result.message) {
-									responseMessage = result.message || '';
-								} else {
-									responseMessage = getSuccessMessageForTool(toolName, result.data);
-								}
-							} else {
-								loggers.ai.error({ tool: toolName, err: result.error }, '❌ Tool falhou (detalhes acima)');
-
-								if (result.error === 'duplicate') {
-									responseMessage = result.message || '⚠️ Este item já foi salvo anteriormente.';
-								} else if (result.message) {
-									responseMessage = result.message;
-								} else {
-									responseMessage = result.error || '❌ Ops, algo deu errado. Tenta de novo?';
-								}
-							}
-							break;
-						}
-
-						case 'RESPOND':
-							responseMessage = agentDecision.response?.text || 'Ok!';
-							break;
-
-						case 'NOOP':
-							loggers.ai.info('🚫 NOOP - mensagem hostil/spam, ignorando silenciosamente');
-							responseMessage = '';
-							break;
-
-						default:
-							loggers.ai.error({ action: agentDecision.action }, '❌ Action desconhecida');
-							responseMessage = 'Desculpe, não entendi o que fazer.';
-					}
-					return {
-						message: responseMessage,
-						state: nextState,
-						toolsUsed,
-						trace: {
-							llm_action: agentDecision.action as 'CALL_TOOL' | 'RESPOND' | 'NOOP',
-							schema_version: agentDecision.schema_version,
-							durations: { llm_ms: llmDurationMs },
+				return {
+					message: manualResult.text,
+					state: 'idle' as ConversationState,
+					toolsUsed,
+					trace: {
+						llm_action: toolsUsed.length > 0 ? 'CALL_TOOL' : 'RESPOND',
+						schema_version: '2.0',
+						runtime: {
+							rounds: runtimeSummary.roundCount,
+							tool_uses: runtimeSummary.toolUseBlocks,
+							stop_reasons: runtimeSummary.stopReasons,
+							total_tokens: runtimeSummary.totalTokens,
+							gateway_provider: runtimeSummary.gatewayHeaders?.cfAigProvider,
+							gateway_model: runtimeSummary.gatewayHeaders?.cfAigModel,
 						},
-					};
-				} catch (parseError) {
-					lastContractError = parseError instanceof Error ? parseError : new Error(String(parseError));
-					lastInvalidOutput = llmMessage;
+						durations: { llm_ms: llmDurationMs },
+					},
+				};
+			} catch (error) {
+				const err = error as any;
+				const runtimeHeaders = err?.runtimeRound?.gatewayHeaders;
+				const errMsg = error instanceof Error ? error.message : String(error);
+				const errName = (error as any)?.name ? String((error as any).name) : '';
+				const isGatewayUnavailable =
+					errMsg.includes('Bad Request') ||
+					errMsg.includes('Internal Server Error') ||
+					errName.includes('APICallError') ||
+					errMsg.includes('maxRetriesExceeded');
 
-					loggers.ai.error(
+				if (isGatewayUnavailable) {
+					loggers.ai.warn(
 						{
-							err: lastContractError,
-							attempt,
-							maxAttempts: MAX_CONTRACT_RETRIES,
-							originalMessage: llmMessage.substring(0, 200),
+							err: error,
+							statusCode: err?.statusCode,
+							url: err?.url,
+							responseBody: err?.responseBody,
+							gatewayHeaders: runtimeHeaders,
 						},
-						'❌ LLMParseError: falha ao parsear resposta do LLM como AgentLLMResponse',
+						'⚠️ Runtime manual indisponivel',
 					);
-
-					if (attempt < MAX_CONTRACT_RETRIES) {
-						loggers.ai.warn(
-							{ attempt: attempt + 1, maxAttempts: MAX_CONTRACT_RETRIES },
-							'🔁 Reenviando para LLM em modo de recuperação de contrato JSON',
-						);
-						continue;
-					}
-
 					return {
-						message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
-						state: nextState,
+						message:
+							'Estou com instabilidade temporaria no servico de IA. Tenta novamente em instantes ou me mande um comando mais especifico (ex: "buscar X" ou "salvar nota Y").',
+						state: 'idle' as ConversationState,
 						toolsUsed,
 					};
 				}
-			}
 
-			return {
-				message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
-				state: nextState,
-				toolsUsed,
-			};
+				loggers.ai.error(
+					{
+						err: error,
+						statusCode: err?.statusCode,
+						url: err?.url,
+						responseBody: err?.responseBody,
+						gatewayHeaders: runtimeHeaders,
+					},
+					'❌ Manual runtime error',
+				);
+				return {
+					message: 'Desculpe, tive um problema ao processar sua mensagem. Pode tentar de novo?',
+					state: 'idle' as ConversationState,
+					toolsUsed,
+				};
+			}
 		});
 	}
 
@@ -729,7 +794,11 @@ ${personalizedContext}`;
 
 		// DEBUG: Log para verificar callbackData
 		loggers.ai.info(
-			{ callbackData: context.callbackData, provider: context.provider, state: conversation.state },
+			{
+				callbackData: context.callbackData,
+				provider: context.provider,
+				state: conversation.state,
+			},
 			'🐛 [DEBUG] handleConfirmation',
 		);
 
@@ -783,7 +852,9 @@ ${personalizedContext}`;
 			} as any);
 
 			// Lista itens após salvar
-			const listResult = await executeTool('search_items', toolContext, { limit: 5 });
+			const listResult = await executeTool('search_items', toolContext, {
+				limit: 5,
+			});
 			const itemsList =
 				listResult.success && listResult.data?.length > 0
 					? `\n\n📋 Últimos itens salvos:\n${listResult.data
@@ -800,15 +871,19 @@ ${personalizedContext}`;
 
 		// Se usuário pediu para escolher novamente
 		if (context.callbackData === 'choose_again') {
-			// Mensagem aleatória de feedback (centralizada em config/prompts)
+			// Mensagem aleatória de feedback (centralizada em config/message-templates)
 			const randomMsg = getRandomResponse(CHOOSE_AGAIN_MESSAGES);
 
 			// Envia mensagem de feedback antes de mostrar a lista
-			const { getProvider } = await import('@/adapters/messaging');
-			const feedbackProvider = await getProvider(context.provider as any);
-			if (feedbackProvider) {
-				await feedbackProvider.sendMessage(context.externalId, randomMsg);
-			}
+			await dispatchOutgoingText(
+				{
+					providerName: context.provider as any,
+					externalId: context.externalId,
+					conversationId: context.conversationId,
+					userId: context.userId,
+				},
+				randomMsg,
+			);
 
 			// Volta para lista de candidatos
 			await conversationService.updateState(conversation.id, 'awaiting_confirmation', {
@@ -870,7 +945,9 @@ ${personalizedContext}`;
 
 			if (result.success) {
 				// Lista itens após salvar
-				const listResult = await executeTool('search_items', toolContext, { limit: 5 });
+				const listResult = await executeTool('search_items', toolContext, {
+					limit: 5,
+				});
 				const itemsList =
 					listResult.success && listResult.data?.length > 0
 						? `\n\n📋 Últimos 5 itens salvos:\n${listResult.data
@@ -977,7 +1054,7 @@ ${personalizedContext}`;
 		// 2. Usa action do intent para escolher categoria
 		else if (intent.action === 'thank') {
 			// Agradecimento: verifica se acabou de executar algo
-			const { CASUAL_RESPONSES } = await import('@/config/prompts');
+			const { CASUAL_RESPONSES } = await import('@/config/message-templates');
 			const history = await conversationService.getHistory(context.conversationId, 3);
 			const lastAssistantMsg = history.find((m) => m.role === 'assistant');
 
@@ -988,7 +1065,7 @@ ${personalizedContext}`;
 				response = 'De nada! 😊'; // Fallback neutro
 			}
 		} else if (intent.action === 'greet') {
-			const { CASUAL_RESPONSES } = await import('@/config/prompts');
+			const { CASUAL_RESPONSES } = await import('@/config/message-templates');
 			response = CASUAL_RESPONSES.greetings[Math.floor(Math.random() * CASUAL_RESPONSES.greetings.length)];
 		} else {
 			// Fallback genérico
@@ -1122,24 +1199,22 @@ ${personalizedContext}`;
 			],
 		];
 
-		const { getProvider } = await import('@/adapters/messaging');
-		const provider = await getProvider(context.provider as any);
+		await dispatchOutgoingButtons(
+			{
+				providerName: context.provider as any,
+				externalId: context.externalId,
+				conversationId: context.conversationId,
+				userId: context.userId,
+			},
+			warningMsg,
+			confirmButtons,
+		);
 
-		if (provider && 'sendMessageWithButtons' in provider) {
-			await (provider as any).sendMessageWithButtons(context.externalId, warningMsg, confirmButtons);
-			return {
-				message: '',
-				state: 'awaiting_confirmation',
-				toolsUsed: [],
-				skipFallback: true,
-			};
-		}
-
-		// Fallback: texto simples
 		return {
-			message: warningMsg,
+			message: '',
 			state: 'awaiting_confirmation',
 			toolsUsed: [],
+			skipFallback: true,
 		};
 	}
 
@@ -1289,7 +1364,11 @@ ${personalizedContext}`;
 			try {
 				const nlpResult = await messageAnalyzer.classifyIntent(message);
 				loggers.ai.info(
-					{ intent: nlpResult.intent, confidence: nlpResult.confidence, action: nlpResult.action },
+					{
+						intent: nlpResult.intent,
+						confidence: nlpResult.confidence,
+						action: nlpResult.action,
+					},
 					'🧠 NLP Classification',
 				);
 
@@ -1509,7 +1588,7 @@ ${personalizedContext}`;
 		if (attempts >= this.MAX_CLARIFICATION_ATTEMPTS) {
 			loggers.ai.info({ attempts }, '🛑 Limite de clarificações atingido, entrando em off_topic');
 
-			const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/prompts');
+			const { OFF_TOPIC_MESSAGES, getRandomMessage } = await import('@/config/message-templates');
 			const offTopicMessage = getRandomMessage(OFF_TOPIC_MESSAGES);
 
 			await conversationService.updateState(conversation.id, 'off_topic_chat', {
@@ -1579,12 +1658,13 @@ ${personalizedContext}`;
 		originalMessage: string,
 		attempt: number,
 	): Promise<string> {
-		const { CLARIFICATION_CONVERSATIONAL_PROMPT } = await import('@/config/prompts');
-
-		const prompt = CLARIFICATION_CONVERSATIONAL_PROMPT.replace('{original_message}', originalMessage)
-			.replace('{user_response}', context.message)
-			.replace('{attempt}', String(attempt))
-			.replace('{max_attempts}', String(this.MAX_CLARIFICATION_ATTEMPTS));
+		const prompt = buildClarificationPrompt({
+			assistantName: 'Nexo',
+			originalMessage,
+			userResponse: context.message,
+			attempt,
+			maxAttempts: this.MAX_CLARIFICATION_ATTEMPTS,
+		});
 
 		const response = await llmService.callLLM({
 			message: context.message,
@@ -1647,25 +1727,22 @@ ${personalizedContext}`;
 			buttons.push(candidateButtons.slice(i, i + 3));
 		}
 
-		const { getProvider } = await import('@/adapters/messaging');
-		const provider = await getProvider(context.provider as any);
-
-		if (provider && 'sendMessageWithButtons' in provider) {
-			await (provider as any).sendMessageWithButtons(context.externalId, message, buttons);
-
-			return {
-				message: '',
-				state: 'awaiting_confirmation',
-				toolsUsed: [],
-				skipFallback: true,
-			};
-		}
-
-		// Fallback: mensagem texto simples
-		return {
+		await dispatchOutgoingButtons(
+			{
+				providerName: context.provider as any,
+				externalId: context.externalId,
+				conversationId: context.conversationId,
+				userId: context.userId,
+			},
 			message,
+			buttons,
+		);
+
+		return {
+			message: '',
 			state: 'awaiting_confirmation',
 			toolsUsed: [],
+			skipFallback: true,
 		};
 	}
 
@@ -1718,16 +1795,31 @@ ${personalizedContext}`;
 		];
 
 		// Obtém provider dinamicamente do contexto
-		const { getProvider } = await import('@/adapters/messaging');
-		const provider = await getProvider(context.provider as any);
-
-		// Se tiver poster E provider suporta sendPhoto → envia foto com botões
-		if (posterUrl && provider && 'sendPhoto' in provider) {
+		// Se tiver poster, prioriza saída com mídia
+		if (posterUrl) {
 			loggers.ai.info({ posterUrl, title: selected.title, provider: context.provider }, '🖼️ Enviando foto do TMDB');
-			if ('sendChatAction' in provider) {
-				await (provider as any).sendChatAction(context.externalId, 'upload_photo');
-			}
-			await (provider as any).sendPhoto(context.externalId, posterUrl, caption, confirmButtons);
+
+			await dispatchOutgoingChatAction(
+				{
+					providerName: context.provider as any,
+					externalId: context.externalId,
+					conversationId: context.conversationId,
+					userId: context.userId,
+				},
+				'upload_photo',
+			);
+
+			await dispatchOutgoingPhoto(
+				{
+					providerName: context.provider as any,
+					externalId: context.externalId,
+					conversationId: context.conversationId,
+					userId: context.userId,
+				},
+				posterUrl,
+				caption,
+				confirmButtons,
+			);
 
 			return {
 				message: '',
@@ -1737,57 +1829,24 @@ ${personalizedContext}`;
 			};
 		}
 
-		// Sem poster mas provider suporta botões → envia texto com botões
-		if (provider && 'sendMessageWithButtons' in provider) {
-			await (provider as any).sendMessageWithButtons(context.externalId, caption, confirmButtons);
+		// Sem poster: envia texto com botões
+		await dispatchOutgoingButtons(
+			{
+				providerName: context.provider as any,
+				externalId: context.externalId,
+				conversationId: context.conversationId,
+				userId: context.userId,
+			},
+			caption,
+			confirmButtons,
+		);
 
-			return {
-				message: '',
-				state: 'awaiting_final_confirmation',
-				toolsUsed: [],
-				skipFallback: true,
-			};
-		}
-
-		// Provider não suporta botões → envia mensagem de texto simples
 		return {
-			message: caption,
+			message: '',
 			state: 'awaiting_final_confirmation',
 			toolsUsed: [],
+			skipFallback: true,
 		};
-	}
-}
-
-/**
- * Gera mensagem amigável baseada na tool executada
- */
-function getSuccessMessageForTool(tool: string, data?: any): string {
-	switch (tool) {
-		case 'save_note':
-			return '✅ Nota salva!';
-		case 'save_movie':
-			return '✅ Filme salvo!';
-		case 'save_tv_show':
-			return '✅ Série salva!';
-		case 'save_video':
-			return '✅ Vídeo salvo!';
-		case 'save_link':
-			return '✅ Link salvo!';
-		case 'search_items': {
-			const count = data?.count || 0;
-			if (count === 0) {
-				return 'Não encontrei nada 😕';
-			}
-			return formatItemsList(data.items, count);
-		}
-		case 'delete_memory':
-			return '✅ Item deletado!';
-		case 'delete_all_memories': {
-			const deleted = data?.deleted_count || 0;
-			return deleted > 0 ? `✅ ${deleted} item(ns) deletado(s)` : 'Nada para deletar';
-		}
-		default:
-			return '✅ Feito!';
 	}
 }
 

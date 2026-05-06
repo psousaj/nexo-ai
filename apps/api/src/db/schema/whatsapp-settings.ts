@@ -4,33 +4,29 @@ import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
  * WhatsApp Settings
  *
  * Global settings for WhatsApp integration.
- * Controls which API provider to use (Meta or Baileys).
+ * Mantém metadados operacionais do provider Evolution.
  */
 export const whatsappSettings = pgTable('whatsapp_settings', {
 	id: text('id').primaryKey().default('global'),
 	/**
-	 * activeApi - Which WhatsApp API to use
-	 * 'meta' - Official Meta WhatsApp Business API (cloud-hosted)
-	 * 'baileys' - Unofficial Baileys API (self-hosted WebSocket, OpenClaw-style)
+	 * Campo legado para compatibilidade com dashboard antigo.
+	 * Na arquitetura atual, sempre deve permanecer como 'evolution'.
 	 */
-	activeApi: text('active_api').$type<'meta' | 'baileys'>().notNull().default('meta'),
+	activeApi: text('active_api').$type<'evolution'>().notNull().default('evolution'),
 	/**
-	 * baileysPhoneNumber - Phone number connected to Baileys
-	 * Stored when Baileys is successfully paired
+	 * phoneNumber - Phone number connected to instance
 	 */
-	baileysPhoneNumber: text('baileys_phone_number'),
+	phoneNumber: text('phone_number'),
 	/**
 	 * metaPhoneNumberId - Phone Number ID from Meta API
 	 * Retrieved from Meta WhatsApp Business API configuration
 	 */
 	metaPhoneNumberId: text('meta_phone_number_id'),
 	/**
-	 * baileysConnectionStatus - Current Baileys connection status
+	 * connectionStatus - Current WhatsApp connection status
 	 * 'connecting', 'connected', 'disconnected', 'error'
 	 */
-	baileysConnectionStatus: text('baileys_connection_status').$type<
-		'connecting' | 'connected' | 'disconnected' | 'error'
-	>(),
+	connectionStatus: text('connection_status').$type<'connecting' | 'connected' | 'disconnected' | 'error'>(),
 	/**
 	 * lastError - Last error message (if any)
 	 */

@@ -58,13 +58,6 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		category: 'pivot',
 		defaultEnabled: env.PROVIDER_SPLIT,
 	},
-	{
-		key: 'nexo.pivot.elysia-runtime',
-		label: 'Elysia Runtime',
-		description: 'Usa runtime Elysia (experimental)',
-		category: 'pivot',
-		defaultEnabled: env.ELYSIA_RUNTIME,
-	},
 ];
 
 // ============================================================================
@@ -88,16 +81,9 @@ const channelFlagDefinitions: FeatureFlagDefinition[] = [
 	{
 		key: 'nexo.channel.whatsapp',
 		label: 'WhatsApp',
-		description: 'Habilita canal WhatsApp (Meta API)',
+		description: 'Habilita canal WhatsApp (Evolution API)',
 		category: 'channel',
 		defaultEnabled: true,
-	},
-	{
-		key: 'nexo.channel.whatsapp-baileys',
-		label: 'WhatsApp (Baileys)',
-		description: 'Habilita canal WhatsApp via Baileys (não-oficial)',
-		category: 'channel',
-		defaultEnabled: false,
 	},
 ];
 
@@ -136,12 +122,11 @@ export const FLAG = {
 	MULTIMODAL_AUDIO: 'nexo.pivot.multimodal-audio',
 	MULTIMODAL_IMAGE: 'nexo.pivot.multimodal-image',
 	PROVIDER_SPLIT: 'nexo.pivot.provider-split',
-	ELYSIA_RUNTIME: 'nexo.pivot.elysia-runtime',
+
 	// Channels
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',
 	CHANNEL_WHATSAPP: 'nexo.channel.whatsapp',
-	CHANNEL_WHATSAPP_BAILEYS: 'nexo.channel.whatsapp-baileys',
 	// Tools
 	TOOL_SAVE_NOTE: 'nexo.tool.save-note',
 	TOOL_SAVE_MOVIE: 'nexo.tool.save-movie',

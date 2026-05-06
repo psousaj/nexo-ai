@@ -28,7 +28,11 @@ export interface TracingOptions {
  * });
  * ```
  */
-export async function startSpan<T>(name: string, fn: (span: Span) => Promise<T> | T, options?: TracingOptions): Promise<T> {
+export async function startSpan<T>(
+	name: string,
+	fn: (span: Span) => Promise<T> | T,
+	options?: TracingOptions,
+): Promise<T> {
 	const tracer = trace.getTracer('nexo-ai');
 
 	return tracer.startActiveSpan(

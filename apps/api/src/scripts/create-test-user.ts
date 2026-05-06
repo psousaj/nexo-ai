@@ -1,7 +1,7 @@
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { authPlugin } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
-import { users } from '../db/schema';
-import { authPlugin } from '../lib/auth';
 
 async function createTestUser() {
 	const email = 'teste@crudbox.tech';

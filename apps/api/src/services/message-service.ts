@@ -8,25 +8,37 @@ import {
 	getChannelSignupRequiredMessage,
 	getChannelTrialExceededMessage,
 	getRandomMessage,
-} from '@/config/prompts';
+} from '@/config/message-templates';
 import { agentOrchestrator } from '@/services/agent-orchestrator';
 import { commandHandlerService } from '@/services/command-handler.service';
 import { conversationService } from '@/services/conversation-service';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
 import { applyMultimodalRuntime } from '@/services/multimodal-runtime';
 import { onboardingService } from '@/services/onboarding-service';
+import {
+	dispatchOutgoingButtons,
+	dispatchOutgoingChatAction,
+	dispatchOutgoingText,
+	dispatchOutgoingVoice,
+} from '@/services/outgoing-dispatcher.service';
+import { preferencesService } from '@/services/preferences-service';
 import { cancelConversationClose } from '@/services/queue-service';
 import { resolveSessionKey } from '@/services/session-key-resolver';
+import { edgeTTSService } from '@/services/tts/edge-tts.service';
 import { userService } from '@/services/user-service';
 import { loggers } from '@/utils/logger';
-import { startObservation } from '@langfuse/tracing';
+import { splitMessage } from '@/utils/message-splitter';
 import { recordException, setAttributes, startSpan } from '@nexo/otel/tracing';
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/core';
 
 export const userTimeouts = new Map<string, number>();
 
 interface ProcessMessageOptions {
 	shouldNotifyUserOnProcessingError?: boolean;
+}
+
+function getDashboardUrl(): string {
+	return env.DASHBOARD_URL ?? env.APP_URL ?? 'http://localhost:5173';
 }
 
 /**
@@ -98,23 +110,6 @@ export async function processMessage(
 			},
 		},
 		async () => {
-			const rootObservation = startObservation(
-				'message-processing',
-				{
-					input: {
-						provider: provider.getProviderName(),
-						externalId: incomingMsg.externalId,
-						messageId: incomingMsg.messageId,
-						callbackData: incomingMsg.callbackData || null,
-						message: messageText || '',
-					},
-					metadata: {
-						source: 'message-service',
-					},
-				},
-				{ asType: 'span' },
-			);
-
 			try {
 				const result = await startSpan('message.process', async (_span) => {
 					setAttributes({
@@ -125,7 +120,11 @@ export async function processMessage(
 					});
 
 					loggers.webhook.info(
-						{ provider: provider.getProviderName(), externalId: incomingMsg.externalId, message: messageText },
+						{
+							provider: provider.getProviderName(),
+							externalId: incomingMsg.externalId,
+							message: messageText,
+						},
 						'📥 Mensagem recebida (Worker)',
 					);
 
@@ -165,10 +164,21 @@ export async function processMessage(
 								await userService.linkAccountToUser(oauthUserId, incomingMsg.provider as any, identityId, {
 									username: incomingMsg.senderName,
 								});
-								const { getChannelLinkSuccessMessage } = await import('@/config/prompts');
-								await provider.sendMessage(incomingMsg.externalId, getChannelLinkSuccessMessage(providerForGuard));
+								const { getChannelLinkSuccessMessage } = await import('@/config/message-templates');
+								await dispatchOutgoingText(
+									{
+										provider,
+										providerName: providerForGuard,
+										externalId: incomingMsg.externalId,
+									},
+									getChannelLinkSuccessMessage(providerForGuard),
+								);
 								loggers.webhook.info(
-									{ provider: providerForGuard, identityId, userId: oauthUserId },
+									{
+										provider: providerForGuard,
+										identityId,
+										userId: oauthUserId,
+									},
 									'✅ Canal auto-vinculado via OAuth',
 								);
 								return;
@@ -179,20 +189,36 @@ export async function processMessage(
 								{ provider: providerForGuard, identityId },
 								'⛔ Usuário sem cadastro - nenhum ghost user criado',
 							);
-							const isLocalhost = env.DASHBOARD_URL.includes('localhost') || env.DASHBOARD_URL.includes('127.0.0.1');
-							let signupLink = `${env.DASHBOARD_URL}/signup`;
+							const dashboardUrl = getDashboardUrl();
+							const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
+							let signupLink = `${dashboardUrl}/signup`;
 							if (!isLocalhost) {
 								const { accountLinkingService } = await import('@/services/account-linking-service');
 								const token = await accountLinkingService.generatePreSignupToken(identityId, incomingMsg.provider);
-								signupLink = `${env.DASHBOARD_URL}/signup?vinculate_code=${token}`;
+								signupLink = `${dashboardUrl}/signup?vinculate_code=${token}`;
 							}
 							const notRegisteredMsg = getChannelNotRegisteredMessage(providerForGuard, signupLink);
 							if (providerForGuard === 'telegram' && !isLocalhost) {
 								const buttons = [[{ text: '🔗 Criar conta no Nexo AI', url: signupLink }]];
-								await (provider as any).sendMessageWithButtons(incomingMsg.externalId, notRegisteredMsg, buttons);
+								await dispatchOutgoingButtons(
+									{
+										provider,
+										providerName: providerForGuard,
+										externalId: incomingMsg.externalId,
+									},
+									notRegisteredMsg,
+									buttons,
+								);
 							} else {
 								const suffix = isLocalhost ? '\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)' : '';
-								await provider.sendMessage(incomingMsg.externalId, `${notRegisteredMsg}${suffix}`);
+								await dispatchOutgoingText(
+									{
+										provider,
+										providerName: providerForGuard,
+										externalId: incomingMsg.externalId,
+									},
+									`${notRegisteredMsg}${suffix}`,
+								);
 							}
 							return;
 						}
@@ -219,12 +245,23 @@ export async function processMessage(
 							});
 
 							userId = user.id;
-							setAttributes({ 'user.id': user.id, 'user.offense_count': user.offenseCount || 0 });
+							setAttributes({
+								'user.id': user.id,
+								'user.offense_count': user.offenseCount || 0,
+							});
 
 							const timeoutMinutes = await applyTimeout(user.id, incomingMsg.externalId);
 							setAttributes({ 'timeout.minutes': timeoutMinutes });
 
-							await provider.sendMessage(incomingMsg.externalId, TIMEOUT_MESSAGE(timeoutMinutes));
+							await dispatchOutgoingText(
+								{
+									provider,
+									providerName: provider.getProviderName() as any,
+									externalId: incomingMsg.externalId,
+									userId: user.id,
+								},
+								TIMEOUT_MESSAGE(timeoutMinutes),
+							);
 							return;
 						}
 
@@ -282,7 +319,7 @@ export async function processMessage(
 							setAttributes({ 'message.status': 'onboarding_blocked' });
 
 							const { accountLinkingService } = await import('@/services/account-linking-service');
-							const dashboardUrl = `${env.DASHBOARD_URL}/signup`;
+							const dashboardUrl = `${getDashboardUrl()}/signup`;
 							const isLocalhost = dashboardUrl.includes('localhost') || dashboardUrl.includes('127.0.0.1');
 							const providerName = provider.getProviderName();
 
@@ -323,16 +360,48 @@ export async function processMessage(
 										if (providerName === 'telegram') {
 											// Se for localhost, envia texto simples (Telegram não aceita localhost em botões)
 											if (isLocalhost) {
-												await provider.sendMessage(
-													incomingMsg.externalId,
+												await dispatchOutgoingText(
+													{
+														provider,
+														providerName,
+														externalId: incomingMsg.externalId,
+														conversationId: conversation.id,
+														userId: user.id,
+													},
 													`${trialMessage}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`,
 												);
 											} else {
-												const buttons = [[{ text: '🔗 Clique aqui para criar conta', url: signupLink }]];
-												await (provider as any).sendMessageWithButtons(incomingMsg.externalId, trialMessage, buttons);
+												const buttons = [
+													[
+														{
+															text: '🔗 Clique aqui para criar conta',
+															url: signupLink,
+														},
+													],
+												];
+												await dispatchOutgoingButtons(
+													{
+														provider,
+														providerName,
+														externalId: incomingMsg.externalId,
+														conversationId: conversation.id,
+														userId: user.id,
+													},
+													trialMessage,
+													buttons,
+												);
 											}
 										} else {
-											await provider.sendMessage(incomingMsg.externalId, trialMessage);
+											await dispatchOutgoingText(
+												{
+													provider,
+													providerName,
+													externalId: incomingMsg.externalId,
+													conversationId: conversation.id,
+													userId: user.id,
+												},
+												trialMessage,
+											);
 										}
 										return;
 									}
@@ -355,20 +424,48 @@ export async function processMessage(
 									if (providerName === 'telegram') {
 										// Se for localhost, envia texto simples (Telegram não aceita localhost em botões)
 										if (isLocalhost) {
-											await provider.sendMessage(
-												incomingMsg.externalId,
+											await dispatchOutgoingText(
+												{
+													provider,
+													providerName,
+													externalId: incomingMsg.externalId,
+													conversationId: conversation.id,
+													userId: user.id,
+												},
 												`${signupRequiredMessage}\n\n⚠️ (URL local - configure DASHBOARD_URL público no .env)`,
 											);
 										} else {
-											const buttons = [[{ text: '🔗 Clique aqui para cadastrar', url: signupLink }]];
-											await (provider as any).sendMessageWithButtons(
-												incomingMsg.externalId,
+											const buttons = [
+												[
+													{
+														text: '🔗 Clique aqui para cadastrar',
+														url: signupLink,
+													},
+												],
+											];
+											await dispatchOutgoingButtons(
+												{
+													provider,
+													providerName,
+													externalId: incomingMsg.externalId,
+													conversationId: conversation.id,
+													userId: user.id,
+												},
 												signupRequiredMessage,
 												buttons,
 											);
 										}
 									} else {
-										await provider.sendMessage(incomingMsg.externalId, signupRequiredMessage);
+										await dispatchOutgoingText(
+											{
+												provider,
+												providerName,
+												externalId: incomingMsg.externalId,
+												conversationId: conversation.id,
+												userId: user.id,
+											},
+											signupRequiredMessage,
+										);
 									}
 									return;
 								}
@@ -386,7 +483,16 @@ export async function processMessage(
 
 						// Envia indicador "digitando..." para o usuário enquanto processa IA
 						if (provider.getProviderName() === 'telegram') {
-							await (provider as any).sendChatAction(incomingMsg.externalId, 'typing');
+							await dispatchOutgoingChatAction(
+								{
+									provider,
+									providerName: provider.getProviderName() as any,
+									externalId: incomingMsg.externalId,
+									conversationId: conversation.id,
+									userId: user.id,
+								},
+								'typing',
+							);
 						}
 
 						// 6. PROCESSA COM AGENT ORCHESTRATOR
@@ -410,7 +516,7 @@ export async function processMessage(
 							});
 						});
 
-						// 7. ENVIA RESPOSTA
+						// 7. ENVIA RESPOSTA (com auto-split para mensagens longas)
 						if (agentResponse.message && agentResponse.message.trim().length > 0) {
 							await startSpan('messaging.send', async () => {
 								setAttributes({
@@ -420,8 +526,29 @@ export async function processMessage(
 								});
 
 								try {
-									await provider.sendMessage(incomingMsg.externalId, agentResponse.message);
-									loggers.webhook.info({ charCount: agentResponse.message.length }, '📤 Resposta enviada');
+									const maxLen = provider.getMaxMessageLength?.() ?? 4096;
+									const parts = splitMessage(agentResponse.message, maxLen);
+
+									for (const part of parts) {
+										await dispatchOutgoingText(
+											{
+												provider,
+												providerName: provider.getProviderName() as any,
+												externalId: incomingMsg.externalId,
+												conversationId: conversation.id,
+												userId: user.id,
+											},
+											part,
+										);
+									}
+
+									loggers.webhook.info(
+										{
+											charCount: agentResponse.message.length,
+											parts: parts.length,
+										},
+										'📤 Resposta enviada',
+									);
 								} catch (sendError: any) {
 									// Se erro de rede (ETIMEDOUT, ECONNREFUSED), não tenta fallback
 									if (sendError.cause?.code === 'ETIMEDOUT' || sendError.cause?.code === 'ECONNREFUSED') {
@@ -434,6 +561,44 @@ export async function processMessage(
 									throw sendError;
 								}
 							});
+
+							// 8. TTS: Se voiceMode ativo, sintetiza e envia áudio
+							const ctx = (conversation.context ?? {}) as Record<string, any>;
+							let voiceMode = ctx.voiceMode;
+							// Fallback para auto-TTS global do usuário se não configurado por conversa
+							if (voiceMode === undefined || voiceMode === null) {
+								try {
+									const prefs = await preferencesService.getPreferences(user.id);
+									voiceMode = prefs?.autoTts ?? false;
+								} catch {
+									voiceMode = false;
+								}
+							}
+							if (voiceMode && agentResponse.message && agentResponse.message.trim().length > 0) {
+								await startSpan('messaging.tts', async () => {
+									try {
+										const ttsResult = await edgeTTSService.synthesize(agentResponse.message!);
+										await dispatchOutgoingVoice(
+											{
+												provider,
+												providerName: provider.getProviderName() as any,
+												externalId: incomingMsg.externalId,
+												conversationId: conversation.id,
+												userId: user.id,
+											},
+											ttsResult.audioBuffer,
+											ttsResult.mimeType,
+											ttsResult.filename,
+										);
+										loggers.webhook.info(
+											{ audioSize: ttsResult.audioBuffer.length },
+											'🔊 Voice message enviada via TTS',
+										);
+									} catch (ttsError: any) {
+										loggers.webhook.warn({ err: ttsError }, '⚠️ TTS falhou — resposta em texto já foi enviada');
+									}
+								});
+							}
 						} else if (!agentResponse.skipFallback && agentResponse.state !== 'awaiting_context') {
 							// Fallback apenas se não foi enviado manualmente via adapter
 							// E se não estamos aguardando clarificação (mensagem já foi enviada pelo conversationService)
@@ -441,7 +606,16 @@ export async function processMessage(
 
 							const fallbackMsg = getRandomMessage(FALLBACK_MESSAGES);
 							try {
-								await provider.sendMessage(incomingMsg.externalId, fallbackMsg);
+								await dispatchOutgoingText(
+									{
+										provider,
+										providerName: provider.getProviderName() as any,
+										externalId: incomingMsg.externalId,
+										conversationId: conversation.id,
+										userId: user.id,
+									},
+									fallbackMsg,
+								);
 								loggers.webhook.info({ fallback: fallbackMsg }, '🚫 NOOP/Empty - enviando fallback');
 							} catch (sendError: any) {
 								// Se erro de rede, apenas loga e retorna
@@ -485,7 +659,16 @@ export async function processMessage(
 						) {
 							try {
 								const errorMsg = getRandomMessage(ERROR_MESSAGES);
-								await provider.sendMessage(incomingMsg.externalId, errorMsg);
+								await dispatchOutgoingText(
+									{
+										provider,
+										providerName: provider.getProviderName() as any,
+										externalId: incomingMsg.externalId,
+										conversationId,
+										userId,
+									},
+									errorMsg,
+								);
 							} catch (_sendError) {
 								// Ignora erro de envio de falha
 							}
@@ -501,30 +684,8 @@ export async function processMessage(
 					}
 				});
 
-				rootObservation
-					.update({
-						output: {
-							status: 'success',
-							provider: provider.getProviderName(),
-							externalId: incomingMsg.externalId,
-						},
-					})
-					.end();
-
 				return result;
 			} catch (error) {
-				rootObservation
-					.update({
-						output: {
-							status: 'error',
-							provider: provider.getProviderName(),
-							externalId: incomingMsg.externalId,
-						},
-						level: 'ERROR',
-						statusMessage: error instanceof Error ? error.message : String(error),
-					})
-					.end();
-
 				Sentry.captureException(error, {
 					tags: {
 						provider: provider.getProviderName(),

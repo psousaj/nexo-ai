@@ -1,111 +1,53 @@
 # ============================================
-# Stage 1: Build
+# Base
 # ============================================
-FROM node:22-alpine AS builder
+FROM node:22-alpine AS base
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN npm install -g pnpm@9.15.4
 
 WORKDIR /app
 
-# Copia configs do monorepo (pnpm workspace, lockfile, turbo)
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+# ============================================
+# Stage 1: Dependencies
+# ============================================
+FROM base AS deps
 
-# Copia package.json de cada workspace necessário
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/env/package.json packages/env/
 COPY packages/otel/package.json packages/otel/
 COPY packages/typescript-config/package.json packages/typescript-config/
-COPY packages/eslint-config/package.json packages/eslint-config/
-COPY packages/prettier-config/package.json packages/prettier-config/
 
-# Copia patches do pnpm (ex: Platform.MACOS fix do Baileys)
-COPY patches/ patches/
-
-# Instala dependências (todas, incluindo dev para build)
 RUN pnpm install --frozen-lockfile
 
-# Garante que tsup está acessível para packages internos
-RUN npm install -g tsup
+# ============================================
+# Stage 2: Build
+# ============================================
+FROM deps AS builder
 
-# Copia source code dos packages e da API
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-# Build packages primeiro (shared, env, auth), depois API
 RUN pnpm build --filter=@nexo/api
-
-# Treina modelo NLP (necessário em runtime)
-RUN cd apps/api && pnpm train:nexo
+RUN pnpm deploy --filter=@nexo/api --prod /deploy
 
 # ============================================
-# Stage 2: Runner
+# Stage 3: Runner (minimal)
 # ============================================
 FROM node:22-alpine AS runner
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-
-# Create a group and user
 RUN addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
 
 WORKDIR /app
 
-RUN chown -R appuser:appgroup /app
-RUN chmod -R 770 /app
-
-# Copia configs do monorepo
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-
-# Copia package.json de cada workspace
-COPY apps/api/package.json apps/api/
-COPY packages/shared/package.json packages/shared/
-COPY packages/env/package.json packages/env/
-COPY packages/otel/package.json packages/otel/
-COPY packages/typescript-config/package.json packages/typescript-config/
-COPY packages/eslint-config/package.json packages/eslint-config/
-COPY packages/prettier-config/package.json packages/prettier-config/
-
-# Copia patches do pnpm (ex: Platform.MACOS fix do Baileys)
-COPY patches/ patches/
-
-# Instala apenas dependências de produção
-RUN pnpm install --frozen-lockfile --prod
-
-# Verifica se o patch Platform.MACOS foi aplicado corretamente
-RUN grep -q "Platform.MACOS" node_modules/.pnpm/$(ls node_modules/.pnpm | grep "whiskeysockets+baileys" | head -1)/node_modules/@whiskeysockets/baileys/lib/Utils/validate-connection.js \
-    && echo "[patch] ✅ Platform.MACOS aplicado com sucesso" \
-    || (echo "[patch] ❌ ERRO: patch Platform.MACOS NÃO foi aplicado!" && exit 1)
-
-
-# Copia builds dos packages (dist/ de cada um)
-COPY --from=builder /app/packages/shared/dist/ packages/shared/dist/
-COPY --from=builder /app/packages/env/dist/ packages/env/dist/
-COPY --from=builder /app/packages/otel/dist/ packages/otel/dist/
-
-# Copia build da API + modelo treinado
-COPY --from=builder /app/apps/api/dist/ apps/api/dist/
-COPY --from=builder /app/apps/api/package.json apps/api/package.json
-COPY --from=builder /app/apps/api/src/services/message-analysis/training/model/ apps/api/src/services/message-analysis/training/model/
+COPY --chown=appuser:appgroup --from=builder /deploy .
 
 ENV NODE_ENV=production
+ENV NEXO_MODEL_PATH=/app/dist/model/nexo-model.nlp
+
 EXPOSE 3001
 
-# Diretório para persistir credenciais do Baileys (montado como volume no Railway)
-RUN mkdir -p /data/baileys-auth
-RUN chown -R appuser:appgroup /data/baileys-auth
-RUN chmod 770 /data/baileys-auth
-
-# Hardening: remove shell e loga resultado
-RUN set -eux; \
-	echo "[hardening] tentando remover /bin/sh"; \
-	id; \
-	ls -l /bin/sh; \
-	rm -v /bin/sh; \
-	echo "[hardening] /bin/sh removido com sucesso"; \
-	if [ -e /bin/sh ]; then echo "[hardening] ERRO: /bin/sh ainda existe"; exit 1; else echo "[hardening] verificação final OK: /bin/sh ausente"; fi
-
-# Switch to the non-root user
 USER appuser
 
-CMD ["node", "apps/api/dist/index.js"]
-
+CMD ["node", "dist/index.js"]

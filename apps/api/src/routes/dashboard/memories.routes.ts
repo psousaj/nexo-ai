@@ -11,6 +11,7 @@ export const memoriesRoutes = new Hono<AuthContext>()
 			'query',
 			z.object({
 				category: z.string().optional(),
+				type: z.string().optional(),
 				search: z.string().optional(),
 				limit: z.string().optional(),
 			}),
@@ -22,7 +23,8 @@ export const memoriesRoutes = new Hono<AuthContext>()
 				return c.json({ error: 'Unauthorized' }, 401);
 			}
 
-			const { category, search, limit } = c.req.valid('query');
+			const { category, type, search, limit } = c.req.valid('query');
+			const typeFilter = type || category;
 
 			// Se tiver search, usa searchItems
 			if (search) {
@@ -37,7 +39,7 @@ export const memoriesRoutes = new Hono<AuthContext>()
 			// Caso contrário, lista simples (com filtro de tipo se category for tipo)
 			const items = await itemService.listItems({
 				userId: userState.id,
-				type: category as any,
+				type: typeFilter as any,
 				limit: limit ? Number.parseInt(limit) : 20,
 			});
 
@@ -49,7 +51,7 @@ export const memoriesRoutes = new Hono<AuthContext>()
 		zValidator(
 			'json',
 			z.object({
-				type: z.enum(['movie', 'tv_show', 'video', 'link', 'note']),
+				type: z.enum(['movie', 'tv_show', 'video', 'link', 'note', 'memory', 'book', 'music', 'image']),
 				title: z.string(),
 				metadata: z.any().optional(),
 			}),

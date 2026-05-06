@@ -61,8 +61,10 @@ export interface NoteMetadata {
 	created_via?: 'chat' | 'api';
 }
 
-export interface MemoMetadata {
+export interface MemoryMetadata {
 	content: string;
+	semantic_type?: string;
+	tags?: string[];
 	source?: string;
 	created_via?: 'chat' | 'api';
 }
@@ -115,7 +117,7 @@ export type ItemMetadata =
 	| VideoMetadata
 	| LinkMetadata
 	| NoteMetadata
-	| MemoMetadata
+	| MemoryMetadata
 	| BookMetadata
 	| MusicMetadata
 	| ImageMetadata;

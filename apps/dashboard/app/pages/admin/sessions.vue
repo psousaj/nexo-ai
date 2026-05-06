@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
+import { Activity, Eye, ExternalLink, Key, MessageSquare, Search, Users } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { api } from '~/utils/api';
 
@@ -190,7 +191,7 @@ function parseSessionKey(key: string) {
 					type="text"
 					placeholder="Buscar sessões..."
 					class="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg focus:border-primary-500 focus:ring-0 text-sm"
-				/>
+				>
 			</div>
 
 			<select
@@ -217,7 +218,7 @@ function parseSessionKey(key: string) {
 
 		<!-- Sessions List -->
 		<div v-if="isLoading" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-			<div v-for="i in 6" :key="i" class="h-48 bg-surface-100 dark:bg-surface-800 rounded-2xl animate-pulse"></div>
+			<div v-for="i in 6" :key="i" class="h-48 bg-surface-100 dark:bg-surface-800 rounded-2xl animate-pulse" />
 		</div>
 
 		<div v-else class="space-y-4">
@@ -292,7 +293,7 @@ function parseSessionKey(key: string) {
 			<div class="bg-white dark:bg-surface-900 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
 				<div class="flex items-center justify-between mb-6">
 					<h3 class="text-xl font-black text-surface-900 dark:text-white">Detalhes da Sessão</h3>
-					<button @click="selectedSession = null" class="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg">
+					<button class="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg" @click="selectedSession = null">
 						✕
 					</button>
 				</div>

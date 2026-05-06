@@ -1,9 +1,8 @@
 import { env } from '@/config/env';
-import { getAgentSystemPrompt } from '@/config/prompts';
-import { getLangfuse } from '@/services/langfuse';
+import { buildAgentPrompt } from '@/config/prompt-builder';
 import { instrumentService } from '@/services/service-instrumentation';
 import { loggers } from '@/utils/logger';
-import { getCurrentTraceId, setAttributes, startSpan } from '@nexo/otel/tracing';
+import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { CloudflareAIGatewayProvider } from './cloudflare-ai-gateway-provider';
 import type { AIResponse, Message } from './types';
 
@@ -18,7 +17,7 @@ import type { AIResponse, Message } from './types';
 export class AIService {
 	private provider: CloudflareAIGatewayProvider;
 
-	constructor(accountId: string, gatewayId: string, cfApiToken: string, defaultModel = 'dynamic/cloudflare') {
+	constructor(accountId: string, gatewayId: string, cfApiToken: string, defaultModel = env.CF_GATEWAY_MODEL) {
 		this.provider = new CloudflareAIGatewayProvider(accountId, gatewayId, cfApiToken, defaultModel);
 		loggers.ai.info('🤖 AI Service inicializado com AI Gateway');
 	}
@@ -27,10 +26,14 @@ export class AIService {
 	 * Chama o LLM com contexto da conversação
 	 * Retry e fallback são gerenciados pelo AI Gateway
 	 */
-	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
+	async callLLM(params: {
+		message: string;
+		history?: Message[];
+		systemPrompt?: string;
+	}): Promise<AIResponse> {
 		return startSpan('llm.call', async (_span) => {
 			const { systemPrompt, ...rest } = params;
-			const prompt = systemPrompt || getAgentSystemPrompt('Nexo');
+			const prompt = systemPrompt || buildAgentPrompt({ assistantName: 'Nexo' }).system;
 
 			setAttributes({
 				'llm.message_length': params.message.length,
@@ -40,26 +43,6 @@ export class AIService {
 
 			loggers.ai.info(`📩 Mensagem: "${params.message.substring(0, 100)}${params.message.length > 100 ? '...' : ''}"`);
 			loggers.ai.info(`📜 Histórico: ${params.history?.length || 0} mensagens`);
-
-			// Langfuse integration
-			const langfuse = getLangfuse();
-			const traceId = getCurrentTraceId();
-			let generation: any = null;
-
-			if (langfuse) {
-				generation = langfuse
-					.trace({
-						name: 'llm_call',
-						id: traceId,
-					})
-					.generation({
-						model: (this.provider as any).model || 'dynamic/cloudflare',
-						metadata: {
-							provider: 'cloudflare',
-							messageLength: params.message.length,
-						},
-					});
-			}
 
 			const response = await this.provider.callLLM({
 				...rest,
@@ -74,18 +57,6 @@ export class AIService {
 				'llm.total_tokens': usage?.totalTokens || 0,
 				'llm.response_length': response.message?.length || 0,
 			});
-
-			// Langfuse - Completion
-			if (generation && usage) {
-				generation.end({
-					completion: response.message,
-					usage: {
-						promptTokens: usage.promptTokens,
-						completionTokens: usage.completionTokens,
-						totalTokens: usage.totalTokens,
-					},
-				});
-			}
 
 			return response;
 		});
@@ -113,3 +84,52 @@ export const llmService = instrumentService(
 	new AIService(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_GATEWAY_ID, env.CLOUDFLARE_API_TOKEN),
 );
 export type { AIProvider, AIResponse, Message } from './types';
+export { OpenAIGatewayTransport } from './openai-gateway-transport';
+export type {
+	OpenAIGatewayRequest,
+	OpenAIGatewayResponse,
+	OpenAIGatewayTransportConfig,
+} from './openai-gateway-transport';
+export {
+	buildManualLoopTools,
+	runOpenAIManualLoop,
+	type OpenAIManualLoopDependencies,
+	type OpenAIManualLoopRequest,
+	type OpenAIManualLoopResult,
+} from './openai-manual-loop';
+export {
+	buildRuntimeContext,
+	type RuntimeContextBuilderRequest,
+	type RuntimeContextBuilderResult,
+	type RuntimeHistoryBlock,
+} from './runtime-context-builder';
+export {
+	executeIntentClassificationTask,
+	type IntentClassificationPhase,
+	type IntentClassificationTaskRequest,
+	type IntentClassificationTaskResult,
+} from './intent-classification-task';
+export {
+	executeEmbeddingTask,
+	type EmbeddingTaskRequest,
+	type EmbeddingTaskResult,
+} from './embedding-task';
+export {
+	buildRuntimeObservabilityAttributes,
+	summarizeRuntimeRounds,
+	type RuntimeRoundsSummary,
+} from './runtime-observability';
+export type {
+	RuntimeErrorBlock,
+	RuntimeGatewayHeaders,
+	RuntimeInternalTaskBlock,
+	RuntimeInternalTaskName,
+	RuntimeInternalTaskStatus,
+	RuntimeRound,
+	RuntimeRoundBlock,
+	RuntimeRoundContext,
+	RuntimeStopReason,
+	RuntimeToolResultBlock,
+	RuntimeToolUseBlock,
+	RuntimeUsage,
+} from './runtime-contract';

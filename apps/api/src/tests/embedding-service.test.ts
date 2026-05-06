@@ -30,10 +30,11 @@ describe('EmbeddingService', () => {
 			const result = await service.generateEmbedding('Texto de teste');
 
 			expect(result).toEqual(mockEmbedding);
-			expect(createMock).toHaveBeenCalledWith({
-				model: 'dynamic/embeddings',
-				input: 'Texto de teste',
-			});
+			expect(createMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					input: 'Texto de teste',
+				}),
+			);
 		});
 
 		it('deve truncar texto longo antes de enviar para a API', async () => {
@@ -46,10 +47,11 @@ describe('EmbeddingService', () => {
 
 			await service.generateEmbedding(longText);
 
-			expect(createMock).toHaveBeenCalledWith({
-				model: 'dynamic/embeddings',
-				input: expectedText,
-			});
+			expect(createMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					input: expectedText,
+				}),
+			);
 		});
 
 		it('deve lançar erro para texto vazio', async () => {

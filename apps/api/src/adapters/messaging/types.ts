@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { LinkingTokenProvider } from '@/db/schema';
 import type { MultimodalIntakePayload } from '@nexo/shared';
 
@@ -9,6 +10,21 @@ import type { MultimodalIntakePayload } from '@nexo/shared';
  */
 
 export type ProviderType = LinkingTokenProvider;
+
+/**
+ * Canais de messaging suportados no runtime de chat
+ */
+export type MessagingChannel = Extract<ProviderType, 'whatsapp' | 'telegram' | 'discord'>;
+
+/**
+ * Versão atual do envelope canônico entre ingress/workers/adapters
+ */
+export const MESSAGING_ENVELOPE_VERSION = '1.0' as const;
+
+/**
+ * Tipos de evento canônico suportados
+ */
+export type CanonicalMessageEventType = 'incoming.message.received' | 'outgoing.message.dispatch';
 
 /**
  * Chat action type for activity indicators
@@ -70,12 +86,12 @@ export interface MessageMetadata {
 	/** Message type (text, command, etc) */
 	messageType: 'text' | 'command' | 'callback' | 'unknown';
 	/** Origem específica da API quando provider=whatsapp */
-	sourceApi?: 'meta' | 'baileys';
+	sourceApi?: 'evolution';
 	/** JID remoto original (quando aplicável) */
 	remoteJid?: string;
 	/** Participante original em grupos (quando aplicável) */
 	participantJid?: string;
-	/** Payload bruto do provider para casos avançados (ex: getMessage no Baileys) */
+	/** Payload bruto do provider para casos avançados */
 	providerPayload?: Record<string, unknown>;
 	/** Attachments multimodais mapeados para intake-worker (opcional) */
 	attachments?: MultimodalIntakePayload[];
@@ -123,6 +139,186 @@ export interface IncomingMessage {
 
 	/** Message metadata (groups, mentions, etc) */
 	metadata?: MessageMetadata;
+}
+
+/**
+ * Envelope canônico versionado para eventos de messaging
+ */
+export interface CanonicalMessageEnvelope<TPayload = Record<string, unknown>> {
+	version: typeof MESSAGING_ENVELOPE_VERSION;
+	eventType: CanonicalMessageEventType;
+	channel: MessagingChannel;
+	eventId: string;
+	idempotencyKey: string;
+	occurredAt: string;
+	traceId?: string;
+	payload: TPayload;
+}
+
+/**
+ * Payload canônico de ingestão para processamento de mensagem
+ */
+export interface IngestMessageQueuePayload {
+	incomingMsg: IncomingMessage;
+	providerName: MessagingChannel;
+	providerApi?: 'evolution';
+}
+
+/**
+ * Métodos de entrega suportados no pipeline de saída canônica
+ */
+export type OutgoingDeliveryMethod = 'send_text' | 'send_buttons' | 'send_photo' | 'send_voice' | 'send_chat_action';
+
+/**
+ * Payload canônico de saída para adapter-output queue
+ */
+export interface OutgoingMessageQueuePayload {
+	providerName: MessagingChannel;
+	externalId: string;
+	deliveryMethod: OutgoingDeliveryMethod;
+	text?: string;
+	buttons?: unknown[];
+	photoUrl?: string;
+	caption?: string;
+	voiceBuffer?: Buffer;
+	voiceMimeType?: string;
+	voiceFilename?: string;
+	chatAction?: ChatAction;
+	options?: Record<string, unknown>;
+	metadata?: {
+		conversationId?: string;
+		userId?: string;
+		source?: string;
+	};
+}
+
+/**
+ * Job canônico da fila adapter-output
+ */
+export type AdapterOutputQueueJob = CanonicalMessageEnvelope<OutgoingMessageQueuePayload>;
+
+/**
+ * Formato legado de jobs de ingestão (compatibilidade retroativa)
+ */
+export interface LegacyIngestMessageQueuePayload {
+	incomingMsg: IncomingMessage;
+	providerName: ProviderType;
+	providerApi?: 'evolution';
+}
+
+/**
+ * Job de ingestão aceito pela fila (canônico + legado)
+ */
+export type IngestMessageQueueJob =
+	| CanonicalMessageEnvelope<IngestMessageQueuePayload>
+	| LegacyIngestMessageQueuePayload;
+
+export function isMessagingChannel(value: string): value is MessagingChannel {
+	return value === 'whatsapp' || value === 'telegram' || value === 'discord';
+}
+
+function toValidIsoString(value: Date | undefined): string {
+	const candidate = value instanceof Date ? value : new Date();
+	if (Number.isNaN(candidate.getTime())) {
+		return new Date().toISOString();
+	}
+	return candidate.toISOString();
+}
+
+/**
+ * Cria envelope canônico para eventos de ingestão
+ */
+export function createCanonicalIncomingEnvelope(params: {
+	incomingMsg: IncomingMessage;
+	providerName: MessagingChannel;
+	providerApi?: 'evolution';
+	traceId?: string;
+}): CanonicalMessageEnvelope<IngestMessageQueuePayload> {
+	const { incomingMsg, providerName, providerApi, traceId } = params;
+	const idempotencyKey = `${providerName}:${incomingMsg.messageId}`;
+
+	return {
+		version: MESSAGING_ENVELOPE_VERSION,
+		eventType: 'incoming.message.received',
+		channel: providerName,
+		eventId: `ingress:${idempotencyKey}`,
+		idempotencyKey,
+		occurredAt: toValidIsoString(incomingMsg.timestamp),
+		traceId,
+		payload: {
+			incomingMsg,
+			providerName,
+			providerApi,
+		},
+	};
+}
+
+/**
+ * Cria envelope canônico para eventos de saída
+ */
+export function createCanonicalOutgoingEnvelope(params: {
+	payload: OutgoingMessageQueuePayload;
+	traceId?: string;
+	idempotencyKey?: string;
+}): AdapterOutputQueueJob {
+	const { payload, traceId, idempotencyKey } = params;
+	const outputId = idempotencyKey ?? randomUUID();
+
+	return {
+		version: MESSAGING_ENVELOPE_VERSION,
+		eventType: 'outgoing.message.dispatch',
+		channel: payload.providerName,
+		eventId: `egress:${outputId}`,
+		idempotencyKey: outputId,
+		occurredAt: new Date().toISOString(),
+		traceId,
+		payload,
+	};
+}
+
+export function isCanonicalIncomingEnvelope(
+	data: unknown,
+): data is CanonicalMessageEnvelope<IngestMessageQueuePayload> {
+	if (!data || typeof data !== 'object') return false;
+
+	const candidate = data as Partial<CanonicalMessageEnvelope<unknown>>;
+
+	return (
+		candidate.version === MESSAGING_ENVELOPE_VERSION &&
+		candidate.eventType === 'incoming.message.received' &&
+		typeof candidate.channel === 'string' &&
+		isMessagingChannel(candidate.channel) &&
+		typeof candidate.idempotencyKey === 'string' &&
+		typeof candidate.occurredAt === 'string' &&
+		!!candidate.payload &&
+		typeof candidate.payload === 'object'
+	);
+}
+
+export function isCanonicalOutgoingEnvelope(data: unknown): data is AdapterOutputQueueJob {
+	if (!data || typeof data !== 'object') return false;
+
+	const candidate = data as Partial<CanonicalMessageEnvelope<unknown>>;
+
+	if (
+		candidate.version !== MESSAGING_ENVELOPE_VERSION ||
+		candidate.eventType !== 'outgoing.message.dispatch' ||
+		typeof candidate.channel !== 'string' ||
+		!isMessagingChannel(candidate.channel) ||
+		typeof candidate.idempotencyKey !== 'string' ||
+		!candidate.payload ||
+		typeof candidate.payload !== 'object'
+	) {
+		return false;
+	}
+
+	const payload = candidate.payload as Partial<OutgoingMessageQueuePayload>;
+	return (
+		typeof payload.providerName === 'string' &&
+		isMessagingChannel(payload.providerName) &&
+		typeof payload.externalId === 'string' &&
+		typeof payload.deliveryMethod === 'string'
+	);
 }
 
 /**
@@ -244,7 +440,33 @@ export interface MessagingProvider {
 	sendPhoto?(chatId: string, photoUrl: string, caption?: string, buttons?: any[], options?: any): Promise<void>;
 
 	/**
+	 * Envia mensagem de voz (áudio como voice bubble)
+	 * @param chatId - ID do chat/destinatário
+	 * @param audioBuffer - Buffer do áudio (Opus .ogg para Telegram, MP3 para outros)
+	 * @param mimeType - MIME type do áudio (audio/ogg, audio/mpeg, etc)
+	 * @param filename - Nome do arquivo (ex: voice.ogg)
+	 */
+	sendVoice?(chatId: string, audioBuffer: Buffer, mimeType: string, filename?: string): Promise<void>;
+
+	/**
 	 * Responde a callback query (remove loading dos botões)
 	 */
 	answerCallbackQuery?(callbackQueryId: string, text?: string): Promise<void>;
+
+	// ========== Streaming support ==========
+
+	/**
+	 * Envia placeholder e retorna o messageId para edição posterior
+	 */
+	sendPlaceholder?(chatId: string, text?: string): Promise<string>;
+
+	/**
+	 * Edita uma mensagem existente por ID
+	 */
+	editMessage?(chatId: string, messageId: string, text: string): Promise<void>;
+
+	/**
+	 * Limite de caracteres por mensagem do provider
+	 */
+	getMaxMessageLength?(): number;
 }

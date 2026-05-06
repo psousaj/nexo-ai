@@ -15,6 +15,7 @@ import { env } from '@/config/env';
 import { buildSessionKey, parseSessionKey as parseSessionKeyUtil } from '@/services/session-service';
 import { loggers } from '@/utils/logger';
 import {
+	AttachmentBuilder,
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
 	Client,
@@ -39,6 +40,7 @@ import type {
 	SessionKeyParams,
 	SessionKeyParts,
 } from './types';
+import { createCanonicalIncomingEnvelope } from './types';
 
 // Discord bot client with all necessary intents
 const client = new Client({
@@ -296,19 +298,16 @@ export class DiscordAdapter implements MessagingProvider {
 
 	private async enqueueIncomingMessage(incomingMessage: IncomingMessage): Promise<void> {
 		const { messageQueue } = await import('@/services/queue-service');
+		const ingressEvent = createCanonicalIncomingEnvelope({
+			incomingMsg: incomingMessage,
+			providerName: 'discord',
+		});
 
-		await messageQueue.add(
-			'message-processing',
-			{
-				incomingMsg: incomingMessage,
-				providerName: 'discord',
-			},
-			{
-				removeOnComplete: true,
-				attempts: 3,
-				backoff: { type: 'exponential', delay: 2000 },
-			},
-		);
+		await messageQueue.add('message-processing', ingressEvent, {
+			removeOnComplete: true,
+			attempts: 3,
+			backoff: { type: 'exponential', delay: 2000 },
+		});
 	}
 
 	/**
@@ -677,6 +676,52 @@ export class DiscordAdapter implements MessagingProvider {
 		}
 	}
 
+	getMaxMessageLength(): number {
+		return 2000;
+	}
+
+	async sendPlaceholder(chatId: string, text = '...'): Promise<string> {
+		try {
+			try {
+				const channel = await client.channels.fetch(chatId);
+				if (channel?.isTextBased()) {
+					const msg = await (channel as any).send(text);
+					return msg.id;
+				}
+			} catch {
+				/* fallback to DM */
+			}
+			const user = await client.users.fetch(chatId);
+			const dmChannel = await user.createDM();
+			const msg = await dmChannel.send(text);
+			return msg.id;
+		} catch (error) {
+			loggers.discord.error({ error, chatId }, '❌ Failed to send placeholder');
+			throw error;
+		}
+	}
+
+	async editMessage(chatId: string, messageId: string, text: string): Promise<void> {
+		try {
+			try {
+				const channel = await client.channels.fetch(chatId);
+				if (channel?.isTextBased()) {
+					const msg = await (channel as any).messages.fetch(messageId);
+					await msg.edit(text);
+					return;
+				}
+			} catch {
+				/* fallback to DM */
+			}
+			const user = await client.users.fetch(chatId);
+			const dmChannel = await user.createDM();
+			const msg = await dmChannel.messages.fetch(messageId);
+			await msg.edit(text);
+		} catch (error) {
+			loggers.discord.warn({ error, chatId, messageId }, '⚠️ Failed to edit message');
+		}
+	}
+
 	/**
 	 * Send typing indicator
 	 */
@@ -868,6 +913,20 @@ export class DiscordAdapter implements MessagingProvider {
 			loggers.discord.info({ chatId, hasCaption: !!caption, hasButtons: !!buttons }, '✅ Photo (embed) enviada');
 		} catch (error) {
 			loggers.discord.error({ error, chatId }, '❌ Failed to send photo');
+			throw error;
+		}
+	}
+
+	async sendVoice(chatId: string, audioBuffer: Buffer, _mimeType: string, filename?: string): Promise<void> {
+		try {
+			const channel = await client.channels.fetch(chatId);
+			if (!channel || !channel.isTextBased()) throw new Error('Invalid channel');
+
+			const attachment = new AttachmentBuilder(audioBuffer, { name: filename ?? 'voice.ogg' });
+			await (channel as any).send({ files: [attachment] });
+			loggers.discord.info({ chatId, voiceSize: audioBuffer.length }, '✅ Voice message enviada');
+		} catch (error) {
+			loggers.discord.error({ error, chatId }, '❌ Failed to send voice message');
 			throw error;
 		}
 	}

@@ -1,5 +1,4 @@
 import { loggers } from '@/utils/logger';
-import { observe, updateActiveObservation } from '@langfuse/tracing';
 import OpenAI from 'openai';
 import type { AIProvider, AIResponse, Message } from './types';
 
@@ -18,7 +17,7 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 	private client: OpenAI;
 	private model: string;
 
-	constructor(accountId: string, gatewayId: string, cfApiToken: string, model = 'dynamic/cloudflare') {
+	constructor(accountId: string, gatewayId: string, cfApiToken: string, model = 'dynamic/nexo') {
 		const baseURL = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/compat`;
 
 		this.client = new OpenAI({
@@ -39,7 +38,11 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 		loggers.ai.info(`🔄 Model alterado para: ${model}`);
 	}
 
-	async callLLM(params: { message: string; history?: Message[]; systemPrompt?: string }): Promise<AIResponse> {
+	async callLLM(params: {
+		message: string;
+		history?: Message[];
+		systemPrompt?: string;
+	}): Promise<AIResponse> {
 		const { message, history = [], systemPrompt } = params;
 		const startTime = Date.now();
 
@@ -57,48 +60,23 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 			}
 
 			for (const msg of history) {
-				messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+				messages.push({
+					role: msg.role as 'user' | 'assistant',
+					content: msg.content,
+				});
 			}
 
 			messages.push({ role: 'user', content: message });
 
-			const tracedGatewayCompletion = observe(
-				async (payload: { model: string; messages: OpenAI.Chat.ChatCompletionMessageParam[] }) => {
-					updateActiveObservation({
-						metadata: {
-							provider: 'cloudflare-ai-gateway',
-							model: payload.model,
-							historyCount: history.length,
-							hasSystemPrompt: Boolean(systemPrompt),
-						},
-					});
-
-					const completion = await this.client.chat.completions.create(payload);
-
-					updateActiveObservation({
-						metadata: {
-							responseId: completion.id,
-							responseModel: completion.model,
-							finishReason: completion.choices[0]?.finish_reason || null,
-							usage: completion.usage || null,
-						},
-					});
-
-					return completion;
-				},
-				{
-					name: 'cloudflare-ai-gateway.chat.completions',
-					asType: 'generation',
-				},
-			);
-
 			// Chamada ao AI Gateway - retry e fallback são automáticos
-			const response = await tracedGatewayCompletion({
+			const response = await this.client.chat.completions.create({
 				model: this.model,
 				messages,
 			});
 			const duration = Date.now() - startTime;
-			const rawContent = response.choices[0]?.message?.content;
+			const choice = response.choices[0]?.message;
+			const rawContent = choice?.content;
+			const finishReason = response.choices[0]?.finish_reason;
 
 			// Log estruturado
 			loggers.ai.info(
@@ -121,8 +99,12 @@ export class CloudflareAIGatewayProvider implements AIProvider {
 			}
 
 			if (!text || text.trim().length === 0) {
-				loggers.ai.error({ rawContent }, '⚠️ Resposta vazia do AI Gateway');
-				throw new Error('AI Gateway returned empty response');
+				loggers.ai.error({ rawContent, finishReason, usage: response.usage }, '⚠️ Resposta vazia do AI Gateway');
+				const reason =
+					finishReason === 'length'
+						? 'AI Gateway cut response due to token limit (finish_reason: length)'
+						: `AI Gateway returned empty response (finish_reason: ${finishReason ?? 'unknown'})`;
+				throw new Error(reason);
 			}
 
 			return {

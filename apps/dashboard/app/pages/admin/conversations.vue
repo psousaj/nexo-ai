@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAbility } from '@casl/vue';
 import { useQuery } from '@tanstack/vue-query';
-import { Activity, Check, ChevronRight, Clock, Copy, EyeOff, Loader2, MessageCircle, MessageSquare, X } from 'lucide-vue-next';
+import { Activity, Check, ChevronRight, Clock, Copy, EyeOff, Loader2, MessageSquare, X } from 'lucide-vue-next';
 import { useDashboard } from '~/composables/useDashboard';
 import { useAuthStore } from '~/stores/auth';
 import type { ConversationAudit, ConversationMessage, ConversationSummary, OrchestratorTrace } from '~/types/dashboard';
@@ -141,7 +141,10 @@ const messageCycles = computed<MessageCycle[]>(() => {
 function llmActionBadge(action?: string) {
 	switch (action) {
 		case 'CALL_TOOL':
-			return { label: 'CALL_TOOL', class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
+			return {
+				label: 'CALL_TOOL',
+				class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+			};
 		case 'RESPOND':
 			return { label: 'RESPOND', class: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' };
 		case 'NOOP':
@@ -157,7 +160,9 @@ function confidenceColor(c: number) {
 	return 'bg-rose-400';
 }
 
-const selectedProviderCfg = computed(() => (selectedConv.value ? providerCfg(selectedConv.value.provider) : providerConfig.unknown));
+const selectedProviderCfg = computed(() =>
+	selectedConv.value ? providerCfg(selectedConv.value.provider) : providerConfig.unknown,
+);
 
 // ─── Trace modal ─────────────────────────────────────────────────────────────
 const traceModal = ref<{ cycleIdx: number; cycle: MessageCycle } | null>(null);
@@ -183,7 +188,11 @@ function formatMs(ms: number | undefined | null): string {
 
 function buildCycleText(idx: number, cycle: MessageCycle): string {
 	const trace = getCycleTrace(cycle);
-	const date = cycle.user ? formatTime(cycle.user.createdAt) : cycle.assistant ? formatTime(cycle.assistant.createdAt) : '—';
+	const date = cycle.user
+		? formatTime(cycle.user.createdAt)
+		: cycle.assistant
+			? formatTime(cycle.assistant.createdAt)
+			: '—';
 	const totalMs = trace?.durations?.total_ms;
 	let text = `=== Ciclo ${idx + 1} ===\n`;
 	text += `Data: ${date}\n`;
@@ -316,13 +325,11 @@ async function copyAllCycles() {
 												'font-black text-sm',
 												isOwn(conv) ? 'text-primary-600 dark:text-primary-400' : 'text-surface-700 dark:text-surface-300 font-mono',
 											]"
-											>{{ displayIdentifier(conv) }}</span
-										>
+											>{{ displayIdentifier(conv) }}</span>
 										<span
 											v-if="isOwn(conv)"
 											class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 uppercase"
-											>você</span
-										>
+											>você</span>
 										<span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold', providerCfg(conv.provider).badge]">{{
 											providerCfg(conv.provider).label
 										}}</span>
@@ -398,24 +405,16 @@ async function copyAllCycles() {
 							v-if="auditData"
 							class="px-6 py-3 bg-surface-100 dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700 flex flex-wrap gap-4 text-xs text-surface-600 dark:text-surface-300"
 						>
-							<span
-								><strong class="text-surface-700 dark:text-surface-200">Estado:</strong>
+							<span><strong class="text-surface-700 dark:text-surface-200">Estado:</strong>
 								<code class="ml-1 px-1.5 py-0.5 bg-white dark:bg-surface-700 rounded font-mono">{{
 									auditData.conversation.state
-								}}</code></span
-							>
-							<span
-								><strong class="text-surface-700 dark:text-surface-200">Ativo:</strong>
-								{{ auditData.conversation.isActive ? '✅' : '❌' }}</span
-							>
-							<span
-								><strong class="text-surface-700 dark:text-surface-200">Criado:</strong>
-								{{ formatTime(auditData.conversation.createdAt) }}</span
-							>
-							<span
-								><strong class="text-surface-700 dark:text-surface-200">Atualizado:</strong>
-								{{ formatTime(auditData.conversation.updatedAt) }}</span
-							>
+								}}</code></span>
+							<span><strong class="text-surface-700 dark:text-surface-200">Ativo:</strong>
+								{{ auditData.conversation.isActive ? '✅' : '❌' }}</span>
+							<span><strong class="text-surface-700 dark:text-surface-200">Criado:</strong>
+								{{ formatTime(auditData.conversation.createdAt) }}</span>
+							<span><strong class="text-surface-700 dark:text-surface-200">Atualizado:</strong>
+								{{ formatTime(auditData.conversation.updatedAt) }}</span>
 							<span><strong class="text-surface-700 dark:text-surface-200">Msgs:</strong> {{ auditData.messages.length }}</span>
 						</div>
 
@@ -445,9 +444,7 @@ async function copyAllCycles() {
 								>
 									<div class="flex items-center gap-2">
 										<div :class="['w-1.5 h-1.5 rounded-full bg-linear-to-br shrink-0', selectedProviderCfg.accent]" />
-										<span class="text-[10px] font-black uppercase tracking-widest text-surface-600 dark:text-surface-300"
-											>Ciclo {{ idx + 1 }}</span
-										>
+										<span class="text-[10px] font-black uppercase tracking-widest text-surface-600 dark:text-surface-300">Ciclo {{ idx + 1 }}</span>
 									</div>
 									<div class="flex items-center gap-2">
 										<span v-if="cycle.user" class="text-[10px] text-surface-400 dark:text-surface-500">{{
@@ -460,16 +457,15 @@ async function copyAllCycles() {
 											{{ formatMs(getCycleTrace(cycle)?.durations?.total_ms) }}
 										</span>
 										<button
-											@click.stop="copyCycle(idx, cycle)"
 											class="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-colors bg-surface-200 dark:bg-surface-700 text-surface-500 hover:bg-surface-300 dark:hover:bg-surface-600"
 											title="Copiar ciclo para área de transferência"
+											@click.stop="copyCycle(idx, cycle)"
 										>
 											<Check v-if="copiedCycleIdx === idx" class="w-3 h-3 text-emerald-500" />
 											<Copy v-else class="w-3 h-3" />
 											{{ copiedCycleIdx === idx ? 'copiado' : 'copy' }}
 										</button>
 										<button
-											@click.stop="openTraceModal(idx, cycle)"
 											:class="[
 												'flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-colors',
 												cycle.assistant?.metadata?._trace
@@ -477,6 +473,7 @@ async function copyAllCycles() {
 													: 'bg-surface-200 dark:bg-surface-700 text-surface-400 hover:bg-surface-300',
 											]"
 											:title="cycle.assistant?.metadata?._trace ? 'Ver trace de orquestração' : 'Sem trace disponível'"
+											@click.stop="openTraceModal(idx, cycle)"
 										>
 											<Activity class="w-3 h-3" />
 											trace
@@ -486,9 +483,7 @@ async function copyAllCycles() {
 
 								<!-- User message -->
 								<div v-if="cycle.user" class="px-4 py-3 bg-white dark:bg-surface-900">
-									<span class="text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest block mb-1.5"
-										>👤 Usuário</span
-									>
+									<span class="text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest block mb-1.5">👤 Usuário</span>
 									<p class="text-sm text-surface-800 dark:text-surface-100 whitespace-pre-wrap leading-relaxed">{{ cycle.user.content }}</p>
 								</div>
 
@@ -498,14 +493,11 @@ async function copyAllCycles() {
 									class="px-4 py-3 bg-surface-50 dark:bg-surface-800/60 border-t border-surface-200 dark:border-surface-700"
 								>
 									<div class="flex items-center gap-2 mb-1.5">
-										<span class="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest"
-											>🤖 Assistente</span
-										>
+										<span class="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest">🤖 Assistente</span>
 										<span
 											v-if="cycle.assistant.provider"
 											:class="['text-[10px] font-mono px-1.5 py-0.5 rounded', selectedProviderCfg.badge]"
-											>{{ cycle.assistant.provider }}</span
-										>
+											>{{ cycle.assistant.provider }}</span>
 										<span class="text-[10px] text-surface-400 dark:text-surface-500 ml-auto">{{
 											formatTime(cycle.assistant.createdAt)
 										}}</span>
@@ -533,8 +525,7 @@ async function copyAllCycles() {
 								<div class="px-6 pb-4">
 									<pre
 										class="text-xs bg-surface-50 dark:bg-surface-800 rounded-xl p-4 overflow-auto max-h-48 text-surface-700 dark:text-surface-300"
-										>{{ JSON.stringify(auditData.conversation.context, null, 2) }}</pre
-									>
+										>{{ JSON.stringify(auditData.conversation.context, null, 2) }}</pre>
 								</div>
 							</details>
 						</div>
@@ -555,7 +546,7 @@ async function copyAllCycles() {
 								<Activity class="w-4 h-4 text-violet-500" />
 								<span class="font-black text-sm uppercase tracking-widest">Trace — Ciclo {{ traceModal.cycleIdx + 1 }}</span>
 							</div>
-							<button @click="closeTraceModal" class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
+							<button class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" @click="closeTraceModal">
 								<X class="w-4 h-4 text-surface-500" />
 							</button>
 						</div>
@@ -622,8 +613,7 @@ async function copyAllCycles() {
 											v-for="tool in (traceModal.cycle.assistant.metadata._trace as any).tools_used"
 											:key="tool"
 											class="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-mono text-[11px]"
-											>{{ tool }}</span
-										>
+											>{{ tool }}</span>
 									</div>
 								</div>
 
@@ -636,27 +626,21 @@ async function copyAllCycles() {
 											class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-700/60"
 										>
 											intent
-											<strong class="text-surface-700 dark:text-surface-200"
-												>{{ (traceModal.cycle.assistant.metadata._trace as any).durations.intent_ms }}ms</strong
-											>
+											<strong class="text-surface-700 dark:text-surface-200">{{ (traceModal.cycle.assistant.metadata._trace as any).durations.intent_ms }}ms</strong>
 										</span>
 										<span
 											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.llm_ms != null"
 											class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-700/60"
 										>
 											llm
-											<strong class="text-surface-700 dark:text-surface-200"
-												>{{ (traceModal.cycle.assistant.metadata._trace as any).durations.llm_ms }}ms</strong
-											>
+											<strong class="text-surface-700 dark:text-surface-200">{{ (traceModal.cycle.assistant.metadata._trace as any).durations.llm_ms }}ms</strong>
 										</span>
 										<span
 											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.action_ms != null"
 											class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-700/60"
 										>
 											action
-											<strong class="text-surface-700 dark:text-surface-200"
-												>{{ (traceModal.cycle.assistant.metadata._trace as any).durations.action_ms }}ms</strong
-											>
+											<strong class="text-surface-700 dark:text-surface-200">{{ (traceModal.cycle.assistant.metadata._trace as any).durations.action_ms }}ms</strong>
 										</span>
 										<span
 											v-if="(traceModal.cycle.assistant.metadata._trace as any).durations.total_ms != null"

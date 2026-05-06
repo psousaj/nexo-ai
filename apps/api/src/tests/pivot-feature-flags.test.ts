@@ -27,10 +27,9 @@ describe('Pivot feature flags', () => {
 		expect(flags).toEqual({
 			CONVERSATION_FREE: true,
 			TOOL_SCHEMA_V2: false,
-			MULTIMODAL_AUDIO: false,
+			MULTIMODAL_AUDIO: true,
 			MULTIMODAL_IMAGE: false,
 			PROVIDER_SPLIT: false,
-			ELYSIA_RUNTIME: false,
 		});
 	});
 
@@ -41,7 +40,6 @@ describe('Pivot feature flags', () => {
 			'nexo.pivot.multimodal-audio': true,
 			'nexo.pivot.multimodal-image': true,
 			'nexo.pivot.provider-split': false,
-			'nexo.pivot.elysia-runtime': true,
 		};
 
 		mockGetBooleanValue.mockImplementation((key: string) => Promise.resolve(bdValues[key] ?? false));
@@ -55,7 +53,6 @@ describe('Pivot feature flags', () => {
 			MULTIMODAL_AUDIO: true,
 			MULTIMODAL_IMAGE: true,
 			PROVIDER_SPLIT: false,
-			ELYSIA_RUNTIME: true,
 		});
 	});
 });

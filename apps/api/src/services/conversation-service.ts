@@ -8,7 +8,8 @@ import {
 	getRandomMessage,
 } from '@/services/message-analysis/constants/clarification-messages';
 import { messageAnalyzer } from '@/services/message-analysis/message-analyzer.service';
-import type { Language } from '@/services/message-analysis/types/analysis-result.types';
+import type { AmbiguityAnalysisResult, Language } from '@/services/message-analysis/types/analysis-result.types';
+import { dispatchOutgoingText } from '@/services/outgoing-dispatcher.service';
 import { instrumentService } from '@/services/service-instrumentation';
 import type { ConversationContext, ConversationState, MessageMetadata, MessageRole } from '@/types';
 import { loggers } from '@/utils/logger';
@@ -190,9 +191,10 @@ export class ConversationService {
 		externalId: string,
 		providerType: ProviderType,
 		language: Language = 'pt',
+		precomputedAmbiguity?: AmbiguityAnalysisResult,
 	): Promise<boolean> {
 		// Usa o novo serviço de análise de mensagens
-		const ambiguityResult = messageAnalyzer.checkAmbiguity(message, language);
+		const ambiguityResult = precomputedAmbiguity ?? messageAnalyzer.checkAmbiguity(message, language);
 
 		if (ambiguityResult.isAmbiguous) {
 			const reason = ambiguityResult.reason === 'long_without_command' ? 'Mensagem longa' : 'Mensagem curta sem verbo';
@@ -220,7 +222,15 @@ export class ConversationService {
 			// Multi-provider: obtém provider correto e envia mensagem
 			const provider = await getProvider(providerType);
 			if (provider) {
-				await provider.sendMessage(externalId, `${msg}\n\n${optionsText}`);
+				await dispatchOutgoingText(
+					{
+						provider,
+						providerName: providerType,
+						externalId,
+						conversationId,
+					},
+					`${msg}\n\n${optionsText}`,
+				);
 			} else {
 				loggers.db.error({ provider: providerType }, '❌ Provider não encontrado');
 				throw new Error(`Provider ${providerType} não encontrado`);

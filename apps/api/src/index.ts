@@ -1,17 +1,18 @@
 import './otel'; // OpenTelemetry must be imported first
 import './sentry'; // Sentry error tracking
 import { startDiscordBot } from '@/adapters/messaging/discord-adapter';
-import { env } from '@/config/env';
+import { getApiEnv } from '@/config/env';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
 import { globalErrorHandler } from '@/services/error/error.service';
 import { featureFlagService } from '@/services/feature-flag.service';
-import { initializeLangfuse, shutdownLangfuse } from '@/services/langfuse'; // Langfuse AI observability
+import { shutdownQueues } from '@/services/queue-service';
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
 
-const port = env.PORT;
+const apiEnv = getApiEnv();
+const port = apiEnv.PORT;
 
 process.on('unhandledRejection', async (reason) => {
 	await globalErrorHandler.handle(reason instanceof Error ? reason : new Error(String(reason)), {
@@ -41,9 +42,6 @@ process.on('warning', async (warning) => {
 	});
 });
 
-// Initialize Langfuse for AI observability
-initializeLangfuse();
-
 let isShuttingDown = false;
 
 async function gracefulShutdown(signal: string): Promise<void> {
@@ -53,13 +51,17 @@ async function gracefulShutdown(signal: string): Promise<void> {
 	logger.info({ signal }, '🛑 Encerrando aplicação (graceful shutdown)');
 
 	try {
-		await shutdownLangfuse();
+		await shutdownQueues();
+		logger.info('✅ Queues e workers fechados');
+	} catch (error) {
+		logger.error({ error }, '❌ Erro ao fechar queues durante graceful shutdown');
+	}
+
+	try {
 		await shutdownSentry();
 		logger.info('✅ Shutdown de observabilidade concluído');
 	} catch (error) {
 		logger.error({ error }, '❌ Erro durante graceful shutdown');
-	} finally {
-		process.exit(0);
 	}
 }
 
@@ -70,42 +72,6 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
 	void gracefulShutdown('SIGTERM');
 });
-
-process.on('beforeExit', async () => {
-	if (isShuttingDown) return;
-	isShuttingDown = true;
-
-	try {
-		await shutdownLangfuse();
-		await shutdownSentry();
-	} catch (error) {
-		logger.error({ error }, '❌ Erro no shutdown via beforeExit');
-	}
-});
-
-/**
- * Inicializar Baileys se a API ativa for 'baileys'
- * Necessário para receber mensagens via WebSocket
- */
-async function initializeBaileysIfActive(): Promise<void> {
-	try {
-		const { getWhatsAppSettings } = await import('@/adapters/messaging');
-		const settings = await getWhatsAppSettings();
-
-		if (settings.activeApi === 'baileys') {
-			logger.info('📱 Baileys é a API ativa, inicializando...');
-
-			const { getBaileysService } = await import('@/services/baileys-service');
-			await getBaileysService();
-
-			logger.info('✅ Baileys inicializado e pronto para receber mensagens');
-		} else {
-			logger.info('📱 Meta API é a API ativa (Baileys não será inicializado)');
-		}
-	} catch (error) {
-		logger.error({ error }, '❌ Erro ao verificar/inicializar Baileys');
-	}
-}
 
 serve(
 	{
@@ -121,20 +87,17 @@ serve(
 		}
 
 		// Iniciar bot do Discord se configurado
-		if (env.DISCORD_BOT_TOKEN) {
+		if (apiEnv.DISCORD_BOT_TOKEN) {
 			try {
-				await startDiscordBot(env.DISCORD_BOT_TOKEN);
+				await startDiscordBot(apiEnv.DISCORD_BOT_TOKEN);
 			} catch (error) {
 				logger.error({ error }, '❌ Falha ao iniciar bot Discord');
 			}
 		}
 
-		// Iniciar Baileys se for a API ativa do WhatsApp
-		await initializeBaileysIfActive();
-
 		logger.info(`🚀 Nexo AI rodando em http://0.0.0.0:${info.port}`);
 		logger.info(`📦 Version: ${pkg.version}`);
-		logger.info(`🌍 Environment: ${env.NODE_ENV}`);
+		logger.info(`🌍 Environment: ${apiEnv.NODE_ENV}`);
 		logger.info(`⚡ Runtime: ${process.versions.bun ? 'Bun' : 'Node.js'}`);
 	},
 );

@@ -27,11 +27,21 @@ vi.mock('@/db', () => ({
 	},
 }));
 
-// Mock do serviço de embedding (importado dinamicamente em getEmbedding)
-vi.mock('@/services/ai/embedding-service', () => ({
-	embeddingService: {
-		generateEmbedding: vi.fn().mockResolvedValue(new Array(384).fill(0)),
-	},
+// Mock da task de embedding (importada dinamicamente em getEmbedding)
+vi.mock('@/services/ai/embedding-task', () => ({
+	executeEmbeddingTask: vi.fn().mockResolvedValue({
+		embedding: new Array(384).fill(0),
+		durationMs: 10,
+		block: {
+			type: 'internal_task',
+			task: 'embedding_generation',
+			async: false,
+			status: 'completed',
+			metadata: {
+				source: 'memory_search_query',
+			},
+		},
+	}),
 }));
 
 describe('Memory Search - Hybrid Search', () => {
@@ -44,8 +54,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.7,
 				textWeight: 0.3,
 				mergeStrategy: 'weighted',
-				minScore: 0.3,
-				maxResults: 10,
 			};
 
 			expect(config.vectorWeight).toBe(0.7);
@@ -58,8 +66,20 @@ describe('Memory Search - Hybrid Search', () => {
 		test('fusão weighted combina scores com pesos', () => {
 			// mergeHybridResults espera 'cosine_similarity' para vector e 'rank' para keyword
 			const vectorResults = [
-				{ id: '1', cosine_similarity: 0.9, type: 'movie', title: 'Item 1', metadata: {} },
-				{ id: '2', cosine_similarity: 0.7, type: 'movie', title: 'Item 2', metadata: {} },
+				{
+					id: '1',
+					cosine_similarity: 0.9,
+					type: 'movie',
+					title: 'Item 1',
+					metadata: {},
+				},
+				{
+					id: '2',
+					cosine_similarity: 0.7,
+					type: 'movie',
+					title: 'Item 2',
+					metadata: {},
+				},
 			];
 
 			const keywordResults = [
@@ -71,8 +91,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.7,
 				textWeight: 0.3,
 				mergeStrategy: 'weighted',
-				minScore: 0.3,
-				maxResults: 10,
 			};
 
 			const merged = mergeHybridResults({
@@ -99,8 +117,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.7,
 				textWeight: 0.3,
 				mergeStrategy: 'weighted',
-				minScore: 0.3,
-				maxResults: 10,
 			};
 
 			const merged = mergeHybridResults({
@@ -116,8 +132,20 @@ describe('Memory Search - Hybrid Search', () => {
 
 		test('todos os resultados são incluídos (filtragem é responsabilidade de searchMemory)', () => {
 			const vectorResults = [
-				{ id: '1', cosine_similarity: 0.9, type: 'movie', title: 'Item 1', metadata: {} },
-				{ id: '2', cosine_similarity: 0.2, type: 'movie', title: 'Item 2', metadata: {} }, // score baixo
+				{
+					id: '1',
+					cosine_similarity: 0.9,
+					type: 'movie',
+					title: 'Item 1',
+					metadata: {},
+				},
+				{
+					id: '2',
+					cosine_similarity: 0.2,
+					type: 'movie',
+					title: 'Item 2',
+					metadata: {},
+				}, // score baixo
 			];
 
 			const keywordResults: any[] = [];
@@ -126,8 +154,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.7,
 				textWeight: 0.3,
 				mergeStrategy: 'weighted',
-				minScore: 0.5,
-				maxResults: 10,
 			};
 
 			const merged = mergeHybridResults({
@@ -157,8 +183,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.7,
 				textWeight: 0.3,
 				mergeStrategy: 'weighted',
-				minScore: 0.0,
-				maxResults: 5,
 			};
 
 			const merged = mergeHybridResults({
@@ -182,8 +206,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.8,
 				textWeight: 0.2,
 				mergeStrategy: 'weighted',
-				minScore: 0.0,
-				maxResults: 10,
 			};
 
 			expect(config.mergeStrategy).toBe('weighted');
@@ -194,8 +216,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.5,
 				textWeight: 0.5,
 				mergeStrategy: 'average',
-				minScore: 0.0,
-				maxResults: 10,
 			};
 
 			expect(config.mergeStrategy).toBe('average');
@@ -206,8 +226,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.5,
 				textWeight: 0.5,
 				mergeStrategy: 'reciprocal_rank_fusion',
-				minScore: 0.0,
-				maxResults: 10,
 			};
 
 			expect(config.mergeStrategy).toBe('reciprocal_rank_fusion');
@@ -220,8 +238,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.8,
 				textWeight: 0.2,
 				mergeStrategy: 'weighted',
-				minScore: 0.3,
-				maxResults: 10,
 			};
 
 			expect(movieConfig.vectorWeight).toBe(0.8);
@@ -233,8 +249,6 @@ describe('Memory Search - Hybrid Search', () => {
 				vectorWeight: 0.6,
 				textWeight: 0.4,
 				mergeStrategy: 'weighted',
-				minScore: 0.3,
-				maxResults: 10,
 			};
 
 			expect(noteConfig.vectorWeight).toBe(0.6);

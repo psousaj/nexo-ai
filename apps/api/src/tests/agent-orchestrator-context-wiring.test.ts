@@ -1,23 +1,107 @@
-import { AGENT_SYSTEM_PROMPT_V2 } from '@/config/prompts';
-import { AgentOrchestrator } from '@/services/agent-orchestrator';
-import { llmService } from '@/services/ai';
-import * as contextBuilder from '@/services/context-builder';
-import { conversationService } from '@/services/conversation-service';
-import { userService } from '@/services/user-service';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+const { mockGetHistory, mockGetUserById, mockBuildAgentContext, mockRunOpenAIManualLoop, mockBuildAgentPrompt } =
+	vi.hoisted(() => ({
+		mockGetHistory: vi.fn(),
+		mockGetUserById: vi.fn(),
+		mockBuildAgentContext: vi.fn(),
+		mockRunOpenAIManualLoop: vi.fn(),
+		mockBuildAgentPrompt: vi.fn(),
+	}));
 
 vi.mock('@/services/queue-service', () => ({
 	scheduleConversationClose: vi.fn(),
 	cancelConversationClose: vi.fn(),
 }));
 
+vi.mock('@/services/tool-availability.service', () => ({
+	toolAvailabilityService: {
+		getAvailableTools: vi.fn().mockResolvedValue({
+			tools: ['save_note', 'save_memory', 'search_items'],
+		}),
+	},
+}));
+
+vi.mock('@/services/conversation-service', () => ({
+	conversationService: {
+		getHistory: mockGetHistory,
+		updateState: vi.fn(),
+	},
+}));
+
+vi.mock('@/services/user-service', () => ({
+	userService: {
+		getUserById: mockGetUserById,
+	},
+}));
+
+vi.mock('@/config/prompt-builder', () => ({
+	buildAgentPrompt: mockBuildAgentPrompt,
+}));
+
+vi.mock('@/config/env', () => ({
+	env: {
+		CF_GATEWAY_MODEL: 'dynamic/nexo',
+		CLOUDFLARE_ACCOUNT_ID: 'acc-test',
+		CLOUDFLARE_GATEWAY_ID: 'gw-test',
+		CLOUDFLARE_API_TOKEN: 'token-test',
+	},
+}));
+
+vi.mock('@/services/context-builder', () => ({
+	buildAgentContext: mockBuildAgentContext,
+}));
+
+vi.mock('@/services/tools', () => ({
+	executeTool: vi.fn().mockResolvedValue({ success: true, message: 'ok' }),
+}));
+
+vi.mock('@/services/ai', () => ({
+	OpenAIGatewayTransport: vi.fn().mockImplementation(() => ({
+		createChatCompletion: vi.fn(),
+	})),
+	runOpenAIManualLoop: mockRunOpenAIManualLoop,
+	summarizeRuntimeRounds: vi.fn().mockReturnValue({
+		roundCount: 1,
+		toolUseBlocks: 0,
+		stopReasons: ['end_turn'],
+		totalTokens: 12,
+		gatewayHeaders: {},
+	}),
+	buildRuntimeObservabilityAttributes: vi.fn().mockReturnValue({}),
+	llmService: { callLLM: vi.fn() },
+}));
+
+vi.mock('@/services/service-instrumentation', () => ({
+	instrumentService: (_name: string, instance: unknown) => instance,
+}));
+
+vi.mock('@nexo/otel/tracing', () => ({
+	startSpan: async (_name: string, fn: (span: unknown) => Promise<unknown>) => fn({}),
+	setAttributes: vi.fn(),
+}));
+
+vi.mock('@/config/pivot-feature-flags', () => ({
+	getPivotFeatureFlags: vi.fn().mockResolvedValue({ TOOL_SCHEMA_V2: true }),
+}));
+
 describe('AgentOrchestrator context wiring', () => {
 	beforeEach(() => {
-		vi.restoreAllMocks();
+		vi.clearAllMocks();
+		mockGetHistory.mockResolvedValue([]);
+		mockBuildAgentPrompt.mockReturnValue({
+			system: 'You are Nexo, a personal assistant.',
+		});
+		mockRunOpenAIManualLoop.mockResolvedValue({
+			text: 'ok',
+			toolsUsed: [],
+			rounds: 1,
+			lastResponse: null,
+			roundsData: [],
+		});
 	});
 
 	test('with sessionKey uses personalized buildAgentContext path', async () => {
-		const orchestrator = new AgentOrchestrator();
 		const context = {
 			userId: 'user-1',
 			conversationId: 'conv-1',
@@ -27,17 +111,19 @@ describe('AgentOrchestrator context wiring', () => {
 			sessionKey: 'agent:main:telegram:direct:user-1',
 		};
 
-		vi.spyOn(conversationService, 'getHistory').mockResolvedValue([]);
-		const buildAgentContextSpy = vi.spyOn(contextBuilder, 'buildAgentContext').mockResolvedValue({
+		mockBuildAgentContext.mockResolvedValue({
 			systemPrompt: 'PROMPT PERSONALIZADO',
+			assistantName: 'Aurora',
 			soulContent: 'alma',
 			identityContent: 'identidade',
 		});
-		const llmCallSpy = vi.spyOn(llmService, 'callLLM').mockResolvedValue({
-			message:
-				'{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"ok","tone_profile":"neutral"}}',
-			metadata: {},
+
+		mockBuildAgentPrompt.mockReturnValue({
+			system: 'You are Aurora, a personal assistant.',
 		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
 
 		const response = await (orchestrator as any).handleWithLLM(
 			context,
@@ -45,22 +131,18 @@ describe('AgentOrchestrator context wiring', () => {
 			{ id: 'conv-1' },
 		);
 
-		expect(buildAgentContextSpy).toHaveBeenCalledWith(context.userId, context.sessionKey);
-		expect(llmCallSpy).toHaveBeenCalledWith(
+		expect(mockBuildAgentContext).toHaveBeenCalledWith(context.userId, context.sessionKey);
+		expect(mockBuildAgentPrompt).toHaveBeenCalledWith(expect.objectContaining({ assistantName: 'Aurora' }));
+		expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: expect.stringContaining('PROMPT PERSONALIZADO'),
+				systemPrompt: expect.stringContaining('PERSONALIZED CONTEXT'),
 			}),
-		);
-		expect(llmCallSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				systemPrompt: expect.stringContaining('You are Nexo,'),
-			}),
+			expect.any(Object),
 		);
 		expect(response.message).toBe('ok');
-	});
+	}, 10000);
 
-	test('without sessionKey keeps fallback system prompt path', async () => {
-		const orchestrator = new AgentOrchestrator();
+	test('without sessionKey uses fallback user assistantName', async () => {
 		const context = {
 			userId: 'user-2',
 			conversationId: 'conv-2',
@@ -68,19 +150,18 @@ describe('AgentOrchestrator context wiring', () => {
 			message: 'oi',
 			provider: 'telegram',
 		};
-		const expectedFallbackPrompt = AGENT_SYSTEM_PROMPT_V2.replace('You are Nexo,', 'You are Aurora,');
 
-		vi.spyOn(conversationService, 'getHistory').mockResolvedValue([]);
-		const buildAgentContextSpy = vi.spyOn(contextBuilder, 'buildAgentContext');
-		vi.spyOn(userService, 'getUserById').mockResolvedValue({
+		mockGetUserById.mockResolvedValue({
 			id: context.userId,
 			assistantName: 'Aurora',
-		} as any);
-		const llmCallSpy = vi.spyOn(llmService, 'callLLM').mockResolvedValue({
-			message:
-				'{"schema_version":"2.0","action":"RESPOND","reasoning_intent":{"category":"conversation","confidence":0.9,"trigger":"natural_language"},"response":{"text":"ok","tone_profile":"neutral"}}',
-			metadata: {},
 		});
+
+		mockBuildAgentPrompt.mockReturnValue({
+			system: 'You are Aurora, a personal assistant.',
+		});
+
+		const { AgentOrchestrator } = await import('@/services/agent-orchestrator');
+		const orchestrator = new AgentOrchestrator();
 
 		await (orchestrator as any).handleWithLLM(
 			context,
@@ -88,11 +169,13 @@ describe('AgentOrchestrator context wiring', () => {
 			{ id: 'conv-2' },
 		);
 
-		expect(buildAgentContextSpy).not.toHaveBeenCalled();
-		expect(llmCallSpy).toHaveBeenCalledWith(
+		expect(mockBuildAgentContext).not.toHaveBeenCalled();
+		expect(mockBuildAgentPrompt).toHaveBeenCalledWith(expect.objectContaining({ assistantName: 'Aurora' }));
+		expect(mockRunOpenAIManualLoop).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: expectedFallbackPrompt,
+				systemPrompt: expect.stringContaining('Aurora'),
 			}),
+			expect.any(Object),
 		);
-	});
+	}, 10000);
 });

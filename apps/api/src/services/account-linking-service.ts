@@ -158,7 +158,7 @@ export class AccountLinkingService {
 			.where(and(eq(linkingTokens.token, token), gte(linkingTokens.expiresAt, new Date())))
 			.limit(1);
 
-		if (!linkToken || !linkToken.provider) return null;
+		if (!linkToken || !linkToken.provider || !linkToken.userId) return null;
 
 		// Vincula a conta no UserService
 		await userService.linkAccountToUser(linkToken.userId, linkToken.provider, externalId, metadata);

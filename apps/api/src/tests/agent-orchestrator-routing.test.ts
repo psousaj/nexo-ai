@@ -1,7 +1,7 @@
+import { decideAgentAction } from '@/services/agent-action-routing';
+import type { IntentResult } from '@/services/intent-classifier';
 import type { ConversationState } from '@/types';
 import { describe, expect, test } from 'vitest';
-import { decideAgentAction } from '../services/agent-action-routing';
-import type { IntentResult } from '../services/intent-classifier';
 
 const idleState: ConversationState = 'idle';
 

@@ -33,7 +33,6 @@ describe('applyMultimodalRuntime', () => {
 			MULTIMODAL_AUDIO: true,
 			MULTIMODAL_IMAGE: true,
 			PROVIDER_SPLIT: false,
-			ELYSIA_RUNTIME: false,
 		});
 	});
 
@@ -115,7 +114,6 @@ describe('applyMultimodalRuntime', () => {
 			MULTIMODAL_AUDIO: false,
 			MULTIMODAL_IMAGE: false,
 			PROVIDER_SPLIT: false,
-			ELYSIA_RUNTIME: false,
 		});
 
 		const metadata = createMetadata({

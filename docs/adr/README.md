@@ -1,59 +1,27 @@
-# Architecture Decision Records (ADR)
+# ADRs (Architecture Decision Records)
 
-Registro de decisões arquiteturais do Nexo AI.
+Este diretório registra decisões arquiteturais relevantes do Nexo AI.
 
 ## Índice
 
-- [ADR-001](001-cloudflare-workers.md) - Cloudflare Workers como plataforma de deploy
-- [ADR-002](002-supabase-postgres.md) - Supabase como database
-- [ADR-003](003-jsonb-metadata.md) - JSONB para metadados flexíveis
-- [ADR-004](004-state-machine.md) - State machine para conversação
-- [ADR-005](005-ai-agnostic.md) - Arquitetura AI-agnostic
-- [ADR-006](006-meta-whatsapp-api.md) - Meta WhatsApp API oficial
-- [ADR-007](007-multi-provider-support.md) - Multi-provider messaging architecture
-- [ADR-008](008-advanced-state-machine.md) - Advanced state machine (postponed until v1.0+)
-- [ADR-009](009-no-mcp-mvp.md) - MCP Server é opcional no MVP
-- [ADR-010](010-sync-enrichment-mvp.md) - Enriquecimento síncrono no MVP
-- [ADR-011](011-deterministic-runtime-control.md) - Controle runtime determinístico (v0.3.0)
-- [ADR-012](012-bun-test-framework.md) - Bun Test como framework de testes
-- [ADR-013](013-conversational-anamnesis.md) - Anamnese conversacional (clarificação N1/N2)
-- [ADR-014](014-document-enrichment-strategy.md) - Document Enrichment para busca semântica (v0.3.2)
-- [ADR-020](020-baileys-405-platform-fix.md) - ⚠️ Workaround 405 Baileys (Platform.WEB rejeitado em 2026-02-24) — checar ao atualizar
-- [ADR-021](021-canonical-auth-providers.md) - Modelo canônico de identidade com auth_providers
-
-## Template
-
-Para novas decisões, use:
-
-```markdown
-# ADR-XXX: Título da Decisão
-
-**Status**: proposed | accepted | deprecated | superseded
-
-**Data**: YYYY-MM-DD
-
-## Contexto
-
-Situação e forças que levaram à decisão.
-
-## Decisão
-
-O que foi decidido.
-
-## Consequências
-
-### Positivas
-
-- Benefício 1
-- Benefício 2
-
-### Negativas
-
-- Trade-off 1
-- Trade-off 2
-
-## Alternativas Consideradas
-
-1. **Alternativa A**: Por que não foi escolhida
-2. **Alternativa B**: Por que não foi escolhida
-```
+- [ADR-001](001-message-analysis-architecture.md) - Message analysis architecture
+- [ADR-002](002-supabase-postgres.md) - Supabase/Postgres
+- [ADR-003](003-jsonb-metadata.md) - JSONB metadata
+- [ADR-004](004-state-machine.md) - State machine
+- [ADR-005](005-ai-agnostic.md) - AI agnostic architecture
+- [ADR-006](006-meta-whatsapp-api.md) - Meta WhatsApp API (histórico)
+- [ADR-007](007-multi-provider-support.md) - Multi-provider support
+- [ADR-008](008-advanced-state-machine.md) - Advanced state machine
+- [ADR-009](009-no-mcp-mvp.md) - No MCP for MVP
+- [ADR-010](010-async-enrichment-bull-queues.md) - Async enrichment with Bull queues
+- [ADR-011](011-bun-test-framework.md) - Test framework
+- [ADR-012](012-conversational-anamnesis.md) - Conversational anamnesis
+- [ADR-013](013-document-enrichment-strategy.md) - Document enrichment strategy
+- [ADR-014](014-railway-deploy.md) - Railway deploy
+- [ADR-015](015-session-key-architecture.md) - Session key architecture
+- [ADR-016](016-agent-profile-system.md) - Agent profile system
+- [ADR-017](017-hybrid-memory-search.md) - Hybrid memory search
+- [ADR-018](018-pluggable-tools-casl-protection.md) - Pluggable tools and CASL
+- [ADR-019](019-baileys-405-platform-fix.md) - Baileys 405 platform fix (histórico)
+- [ADR-020](020-canonical-auth-providers.md) - Canonical auth providers
+- [ADR-021](021-evolution-only-whatsapp-runtime.md) - Runtime WhatsApp Evolution-only

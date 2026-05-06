@@ -13,12 +13,15 @@
 		"dev:dash": "turbo dev --filter=@nexo/dashboard",
 		"dev:landing": "turbo dev --filter=@nexo/landing",
 		"build": "turbo build",
-		"lint": "turbo lint",
+		"lint": "pnpm lint:biome && pnpm lint:eslint",
+		"lint:eslint": "turbo lint --filter=@nexo/dashboard",
+		"lint:biome": "turbo lint:biome",
 		"test": "turbo test",
+		"test:prompt-architecture": "turbo test:prompt-architecture --filter=@nexo/api",
 		"typecheck": "turbo typecheck",
 		"format": "turbo format",
-		"check": "turbo lint:biome",
-		"check:fix": "turbo lint:biome:fix",
+		"check": "pnpm lint:biome",
+		"check:fix": "pnpm lint:biome",
 		"clean": "turbo clean && rm -rf node_modules",
 		"build:api": "turbo build --filter=@nexo/api",
 		"build:dashboard": "turbo build --filter=@nexo/dashboard",
@@ -37,14 +40,14 @@
 	},
 	"packageManager": "pnpm@9.15.4",
 	"pnpm": {
-		"patchedDependencies": {
-			"@whiskeysockets/baileys": "patches/@whiskeysockets__baileys.patch"
-		},
 		"overrides": {
 			"@opentelemetry/sdk-trace-base": "2.6.0",
 			"@opentelemetry/sdk-trace-node": "2.6.0",
 			"@opentelemetry/context-async-hooks": "2.6.0",
 			"@opentelemetry/core": "2.6.0"
-		}
+		},
+		"neverBuiltDependencies": [
+			"msgpackr-extract"
+		]
 	}
 }

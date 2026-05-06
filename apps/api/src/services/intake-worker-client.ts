@@ -19,32 +19,24 @@ export class IntakeWorkerClient {
 		}
 
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), env.INTAKE_WORKER_TIMEOUT_MS);
+		const timeoutId = setTimeout(() => controller.abort(), 5000);
 
 		try {
-			const headers: Record<string, string> = {
-				'content-type': 'application/json',
-			};
-
-			if (env.INTAKE_WORKER_TOKEN) {
-				headers.authorization = `Bearer ${env.INTAKE_WORKER_TOKEN}`;
-			}
-
-			const response = await fetch(`${env.INTAKE_WORKER_URL}/intake/process`, {
+			const response = await fetch(`http://localhost:${env.PORT}/internal/intake/process`, {
 				method: 'POST',
-				headers,
+				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ attachments }),
 				signal: controller.signal,
 			});
 
 			if (!response.ok) {
-				throw new Error(`intake-worker request failed (${response.status})`);
+				throw new Error(`internal intake request failed (${response.status})`);
 			}
 
 			return (await response.json()) as IntakeWorkerProcessResponse;
 		} catch (error) {
 			if (error instanceof Error && error.name === 'AbortError') {
-				throw new Error('intake-worker request timed out');
+				throw new Error('internal intake request timed out');
 			}
 			throw error;
 		} finally {

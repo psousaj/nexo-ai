@@ -1,4 +1,4 @@
-import { env } from '@/config/env';
+import { getApiEnv } from '@/config/env';
 import { authRouter } from '@/routes/auth-better.routes';
 import { dashboardRouter } from '@/routes/dashboard';
 import { healthRouter } from '@/routes/health';
@@ -7,6 +7,7 @@ import { webhookRoutes as webhookRouter } from '@/routes/webhook-new';
 import { sentryLogger } from '@/sentry';
 import { globalErrorHandler } from '@/services/error/error.service';
 import {
+	adapterOutputQueue,
 	closeConversationQueue,
 	enrichmentQueue,
 	messageQueue,
@@ -14,8 +15,9 @@ import {
 	runAwaitingConfirmationTimeoutCron,
 	runConversationCloseCron,
 } from '@/services/queue-service';
+import { loggers } from '@/utils/logger';
 import { createBullBoard } from '@bull-board/api';
-import { BullAdapter } from '@bull-board/api/bullAdapter';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { HonoAdapter } from '@bull-board/hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { swaggerUI } from '@hono/swagger-ui';
@@ -27,9 +29,9 @@ import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
 import cron from 'node-cron';
 import pkg from '../package.json';
-import { loggers } from './utils/logger';
 
 const app = new Hono();
+const apiEnv = getApiEnv();
 
 // CORS - Origins definidas em CORS_ORIGINS (separadas por vírgula)
 // Em dev: permite qualquer origem (útil para túneis zrok/ngrok)
@@ -38,11 +40,11 @@ app.use(
 	cors({
 		origin: (origin) => {
 			// Em desenvolvimento, aceita qualquer origem
-			if (env.NODE_ENV === 'development') {
+			if (apiEnv.NODE_ENV === 'development') {
 				return origin || '*';
 			}
 			// Em produção, valida contra CORS_ORIGINS
-			return env.CORS_ORIGINS.includes(origin || '') ? origin : undefined;
+			return apiEnv.CORS_ORIGINS.includes(origin || '') ? origin : undefined;
 		},
 		credentials: true,
 		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -86,10 +88,11 @@ const serverAdapter = new HonoAdapter(serveStatic);
 // Criar Bull Board com as filas
 createBullBoard({
 	queues: [
-		new BullAdapter(messageQueue),
-		new BullAdapter(closeConversationQueue),
-		new BullAdapter(responseQueue),
-		new BullAdapter(enrichmentQueue),
+		new BullMQAdapter(messageQueue),
+		new BullMQAdapter(adapterOutputQueue),
+		new BullMQAdapter(closeConversationQueue),
+		new BullMQAdapter(responseQueue),
+		new BullMQAdapter(enrichmentQueue),
 	],
 	serverAdapter,
 });
@@ -100,14 +103,14 @@ serverAdapter.setBasePath('/admin/queues');
 // IMPORTANTE: Registrar antes de outras rotas
 app.route('/admin/queues', serverAdapter.registerPlugin());
 
-loggers.app.info(`✅ Bull Board configurado em http://localhost:${env.PORT}/admin/queues`);
+loggers.app.info(`✅ Bull Board configurado em http://localhost:${apiEnv.PORT}/admin/queues`);
 
 // ============================================================================
 // CRON JOBS - Fechamento automático de conversas
 // ============================================================================
-if (env.NODE_ENV !== 'test') {
-	// A cada 1 minuto
-	cron.schedule('* * * * *', async () => {
+if (apiEnv.NODE_ENV !== 'test') {
+	// A cada 24 horas (meia-noite)
+	cron.schedule('0 0 * * *', async () => {
 		try {
 			await runConversationCloseCron();
 		} catch (error) {
@@ -115,7 +118,7 @@ if (env.NODE_ENV !== 'test') {
 			await globalErrorHandler.handle(error, {
 				provider: 'cron',
 				state: 'runConversationCloseCron_failed',
-				extra: { cron: '* * * * *' },
+				extra: { cron: '0 0 * * *' },
 			});
 		}
 	});
@@ -143,7 +146,7 @@ app.onError(async (error, c) => {
 	// Captura erros HTTP (4xx) - apenas loga, não envia para Sentry em produção
 	if (error instanceof HTTPException) {
 		// Em desenvolvimento, pode ser útil ver erros HTTP no Sentry
-		if (env.NODE_ENV === 'development') {
+		if (apiEnv.NODE_ENV === 'development') {
 			Sentry.captureException(error, {
 				tags: { http_status: String(error.status) },
 				extra: {
@@ -192,7 +195,7 @@ app.onError(async (error, c) => {
 	return c.json(
 		{
 			error: 'Internal server error',
-			...(env.NODE_ENV !== 'production' && { message: errorMessage }),
+			...(apiEnv.NODE_ENV !== 'production' && { message: errorMessage }),
 			ref: error instanceof Error ? error.name : 'Unknown',
 		},
 		status,
@@ -202,12 +205,15 @@ app.onError(async (error, c) => {
 // Routes
 app.route('/health', healthRouter);
 app.route('/webhook', webhookRouter);
+
+import { intakeRoutes } from '@/routes/internal/intake.routes';
+app.route('/internal/intake', intakeRoutes);
 app.route('/items', itemsRouter);
 app.route('/api/auth', authRouter);
 app.route('/api', dashboardRouter);
 
 // Debug route para testar Sentry (apenas em desenvolvimento)
-if (env.NODE_ENV === 'development') {
+if (apiEnv.NODE_ENV === 'development') {
 	app.get('/debug-sentry', () => {
 		// Envia um log antes de lançar o erro (conforme documentação)
 		sentryLogger.info('User triggered test error', {
@@ -218,7 +224,7 @@ if (env.NODE_ENV === 'development') {
 		Sentry.metrics.count('debug_sentry_test_counter', 1, {
 			attributes: {
 				route: '/debug-sentry',
-				environment: env.NODE_ENV,
+				environment: apiEnv.NODE_ENV,
 			},
 		});
 
@@ -258,7 +264,14 @@ app.get('/openapi.json', (c) => {
 			'/items': {
 				get: {
 					summary: 'Lista itens do usuário',
-					parameters: [{ name: 'userId', in: 'query', required: true, schema: { type: 'string' } }],
+					parameters: [
+						{
+							name: 'userId',
+							in: 'query',
+							required: true,
+							schema: { type: 'string' },
+						},
+					],
 				},
 			},
 		},

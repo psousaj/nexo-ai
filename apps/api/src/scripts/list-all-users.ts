@@ -1,6 +1,6 @@
-import { db } from '../db';
-import { userChannels, users } from '../db/schema';
-import { conversations } from '../db/schema/conversations';
+import { db } from '@/db';
+import { userChannels, users } from '@/db/schema';
+import { conversations } from '@/db/schema/conversations';
 
 async function listUsers() {
 	console.log('--- Listing All Users ---');

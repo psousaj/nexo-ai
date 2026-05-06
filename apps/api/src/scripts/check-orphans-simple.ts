@@ -1,6 +1,6 @@
-import { db } from '../db';
-import { users } from '../db/schema';
-import { conversations } from '../db/schema/conversations';
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { conversations } from '@/db/schema/conversations';
 
 async function checkOrphans() {
 	console.log('--- Checking for Ghost Conversations ---');

@@ -1,5 +1,5 @@
 export * from './types';
-export * from './whatsapp-adapter';
+export * from './evolution-adapter';
 export * from './telegram-adapter';
 export * from './discord-adapter';
 
@@ -8,16 +8,12 @@ import { db } from '@/db';
 import { whatsappSettings } from '@/db/schema';
 import { loggers } from '@/utils/logger';
 import { OpenFeature } from '@openfeature/server-sdk';
+import { eq } from 'drizzle-orm';
 import { discordAdapter } from './discord-adapter';
+import { evolutionAdapter } from './evolution-adapter';
 import { telegramAdapter } from './telegram-adapter';
 import type { MessagingProvider, ProviderType } from './types';
-import { whatsappAdapter } from './whatsapp-adapter';
 
-/**
- * Cache da API ativa do WhatsApp
- * Evita consultas ao banco a cada chamada
- */
-let cachedApiType: 'meta' | 'baileys' | null = null;
 let cachedWhatsAppProvider: MessagingProvider | null = null;
 
 /**
@@ -25,32 +21,8 @@ let cachedWhatsAppProvider: MessagingProvider | null = null;
  * Deve ser chamado quando a API é alterada no dashboard
  */
 export function invalidateWhatsAppProviderCache(): void {
-	cachedApiType = null;
 	cachedWhatsAppProvider = null;
 	loggers.ai.info('🔄 Cache do provider WhatsApp invalidado');
-}
-
-/**
- * Obtém a API ativa do WhatsApp do banco de dados
- * Usa cache para evitar consultas repetidas
- */
-async function getActiveWhatsAppApi(): Promise<'meta' | 'baileys'> {
-	if (cachedApiType) {
-		return cachedApiType;
-	}
-
-	try {
-		const [settings] = await db.select().from(whatsappSettings).limit(1);
-
-		cachedApiType = settings?.activeApi || 'meta';
-
-		loggers.ai.info({ activeApi: cachedApiType }, '📱 API WhatsApp ativa definida');
-
-		return cachedApiType;
-	} catch (error) {
-		loggers.ai.error({ error }, '❌ Erro ao buscar API WhatsApp ativa');
-		return 'meta'; // Padrão para Meta API em caso de erro
-	}
 }
 
 /**
@@ -88,52 +60,14 @@ export async function getProvider(name: ProviderType): Promise<MessagingProvider
 			return cachedWhatsAppProvider;
 		}
 
-		const activeApi = await getActiveWhatsAppApi();
-
-		if (activeApi === 'baileys') {
-			// Lazy load do adapter Baileys
-			const { createBaileysAdapter } = await import('./baileys-adapter');
-			cachedWhatsAppProvider = createBaileysAdapter();
-			loggers.ai.info('📱 Provider Baileys carregado');
-		} else {
-			// Meta API (padrão)
-			cachedWhatsAppProvider = whatsappAdapter;
-			loggers.ai.info('📱 Provider Meta API carregado');
-		}
+		cachedWhatsAppProvider = evolutionAdapter;
+		loggers.ai.info('📱 Provider Evolution carregado');
 
 		return cachedWhatsAppProvider;
 	}
 
 	return null;
 }
-
-/**
- * Define a API ativa do WhatsApp (para o dashboard admin)
- * @param api - 'meta' ou 'baileys'
- */
-export async function setActiveWhatsAppApi(api: 'meta' | 'baileys'): Promise<void> {
-	// Atualizar no banco
-	await db
-		.insert(whatsappSettings)
-		.values({
-			id: 'global',
-			activeApi: api,
-			updatedAt: new Date(),
-		})
-		.onConflictDoUpdate({
-			target: whatsappSettings.id,
-			set: {
-				activeApi: api,
-				updatedAt: new Date(),
-			},
-		});
-
-	// Invalidar cache
-	invalidateWhatsAppProviderCache();
-
-	loggers.ai.info({ api }, '✅ API WhatsApp alterada com sucesso');
-}
-
 /**
  * Obtém configurações atuais do WhatsApp
  * Cria registro padrão se não existir
@@ -148,8 +82,21 @@ export async function getWhatsAppSettings() {
 			.insert(whatsappSettings)
 			.values({
 				id: 'global',
-				activeApi: 'meta',
+				activeApi: 'evolution',
 			})
+			.returning();
+	}
+
+	if (settings.activeApi !== 'evolution') {
+		loggers.ai.warn({ activeApi: settings.activeApi }, '⚠️ activeApi legado detectado; normalizando para evolution');
+
+		[settings] = await db
+			.update(whatsappSettings)
+			.set({
+				activeApi: 'evolution',
+				updatedAt: new Date(),
+			})
+			.where(eq(whatsappSettings.id, settings.id))
 			.returning();
 	}
 
@@ -160,7 +107,7 @@ export async function getWhatsAppSettings() {
 // Nota: Para WhatsApp, use getProvider() async para garantir API correta
 export function getProviderSync(name: ProviderType): MessagingProvider | null {
 	if (name === 'telegram') return telegramAdapter;
-	if (name === 'whatsapp') return whatsappAdapter; // Fallback para Meta API
+	if (name === 'whatsapp') return evolutionAdapter;
 	if (name === 'discord') return discordAdapter;
 	return null;
 }
