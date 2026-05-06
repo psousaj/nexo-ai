@@ -2,7 +2,7 @@ import type { ToolContext, ToolOutput } from '@/services/tools';
 import type { ToolName } from '@/types';
 import { loggers } from '@/utils/logger';
 import type OpenAI from 'openai';
-import type { OpenAIGatewayRequest, OpenAIGatewayResponse, OpenAIGatewayTransport } from './openai-gateway-transport';
+import type { AIProvider, CallLLMParams } from './types';
 import type { RuntimeRound } from './runtime-contract';
 
 type MinimalTool = Extract<ToolName, 'save_note' | 'save_link' | 'search_items'>;
@@ -79,7 +79,7 @@ type ChatCompletionToolCallWithCustom = OpenAI.Chat.Completions.ChatCompletionMe
 };
 
 export interface OpenAIManualLoopDependencies {
-	transport: Pick<OpenAIGatewayTransport, 'createChatCompletion'>;
+	provider: AIProvider;
 	executeTool: (toolName: ToolName, context: ToolContext, params: Record<string, unknown>) => Promise<ToolOutput>;
 }
 
@@ -98,7 +98,7 @@ export interface OpenAIManualLoopResult {
 	text: string;
 	toolsUsed: string[];
 	rounds: number;
-	lastResponse: OpenAIGatewayResponse | null;
+	lastResponse: { completion: OpenAI.Chat.Completions.ChatCompletion } | null;
 	roundsData: RuntimeRound[];
 }
 
@@ -128,24 +128,30 @@ export async function runOpenAIManualLoop(
 	const roundsData: RuntimeRound[] = [];
 	let rounds = 0;
 	let finalText = '';
-	let lastResponse: OpenAIGatewayResponse | null = null;
+	let lastResponse: { completion: OpenAI.Chat.Completions.ChatCompletion } | null = null;
 
 	while (rounds < maxRounds) {
 		rounds += 1;
 
-		lastResponse = await deps.transport.createChatCompletion({
-			conversationId: request.conversationId,
-			userId: request.userId,
-			systemPrompt: request.systemPrompt,
-			messages: conversationMessages,
-			model: request.model,
-			tools,
+		const providerResult = await deps.provider.callLLM({
+			model: request.model || 'gpt-4o',
+			messages: [
+				...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
+				...conversationMessages.map((m) => ({
+					role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+					content: typeof m.content === 'string' ? m.content : '',
+					tool_call_id: (m as any).tool_call_id,
+				})),
+			],
+			tools: tools.length > 0 ? (tools as any) : undefined,
 			toolChoice: tools.length > 0 ? 'auto' : 'none',
-		} as OpenAIGatewayRequest);
+		});
 
-		roundsData.push(lastResponse.round);
+		const { round, completion } = providerResult;
+		roundsData.push(round);
+		lastResponse = { completion };
 
-		const choice = lastResponse.completion.choices[0];
+		const choice = completion.choices[0];
 		const assistantMessage = choice?.message;
 		const toolCalls = assistantMessage?.tool_calls ?? [];
 

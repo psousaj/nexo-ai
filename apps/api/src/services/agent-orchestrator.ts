@@ -50,7 +50,6 @@ import { loggers } from '@/utils/logger';
 import { setAttributes, startSpan } from '@nexo/otel/tracing';
 import { decideAgentAction } from './agent-action-routing';
 import {
-	OpenAIGatewayTransport,
 	buildRuntimeObservabilityAttributes,
 	llmService,
 	runOpenAIManualLoop,
@@ -97,25 +96,9 @@ export interface AgentResponse {
  */
 export class AgentOrchestrator {
 	private readonly MAX_CLARIFICATION_ATTEMPTS = 4;
-	private openAITransport: OpenAIGatewayTransport | null = null;
 
 	private getManualRuntimeModel(): string {
 		return env.CF_GATEWAY_MODEL;
-	}
-
-	private getOpenAITransport(): OpenAIGatewayTransport {
-		if (!this.openAITransport) {
-			this.openAITransport = new OpenAIGatewayTransport({
-				accountId: env.CLOUDFLARE_ACCOUNT_ID,
-				gatewayId: env.CLOUDFLARE_GATEWAY_ID,
-				apiToken: env.CLOUDFLARE_API_TOKEN,
-				model: this.getManualRuntimeModel(),
-				basePath: 'compat',
-				collectLog: true,
-			});
-		}
-
-		return this.openAITransport;
 	}
 
 	private buildMessagePersistOptions(context: AgentContext, includeProviderMessage = false) {
@@ -649,7 +632,7 @@ export class AgentOrchestrator {
 						maxRounds: 6,
 					},
 					{
-						transport: this.getOpenAITransport(),
+						provider: llmService.getProvider('cloudflare')!,
 						executeTool: async (toolName, toolCtx, params) => executeTool(toolName, toolCtx, params),
 					},
 				);
