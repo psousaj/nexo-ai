@@ -1,9 +1,9 @@
 import { db } from '@/db';
 import { providers } from '@/db/schema/providers';
+import { loggers } from '@/utils/logger';
+import { asc, eq } from 'drizzle-orm';
 import type { ProviderEntry } from './types';
 import type { AIProviderType } from './types';
-import { asc, eq, sql } from 'drizzle-orm';
-import { loggers } from '@/utils/logger';
 
 export class ProviderRegistryService {
 	async listAll(): Promise<ProviderEntry[]> {
@@ -16,11 +16,7 @@ export class ProviderRegistryService {
 	}
 
 	async getEnabled(): Promise<ProviderEntry[]> {
-		const rows = await db
-			.select()
-			.from(providers)
-			.where(eq(providers.enabled, true))
-			.orderBy(asc(providers.priority));
+		const rows = await db.select().from(providers).where(eq(providers.enabled, true)).orderBy(asc(providers.priority));
 		return rows.map((r) => ({
 			...r,
 			type: r.type as AIProviderType,
@@ -39,11 +35,7 @@ export class ProviderRegistryService {
 	}
 
 	async getByType(type: AIProviderType): Promise<ProviderEntry | null> {
-		const rows = await db
-			.select()
-			.from(providers)
-			.where(eq(providers.type, type))
-			.limit(1);
+		const rows = await db.select().from(providers).where(eq(providers.type, type)).limit(1);
 		if (rows.length === 0) return null;
 		return {
 			...rows[0],
@@ -117,7 +109,13 @@ export class ProviderRegistryService {
 		await db.insert(providers).values([
 			{ type: 'cloudflare', label: 'Cloudflare AI Gateway', enabled: true, priority: 0, config: {} },
 			{ type: 'openai', label: 'OpenAI', enabled: true, priority: 1, config: {} },
-			{ type: 'deepseek', label: 'DeepSeek', enabled: true, priority: 2, config: { baseUrl: 'https://api.deepseek.com' } },
+			{
+				type: 'deepseek',
+				label: 'DeepSeek',
+				enabled: true,
+				priority: 2,
+				config: { baseUrl: 'https://api.deepseek.com' },
+			},
 		]);
 
 		loggers.ai.info('Seeded default AI providers (cloudflare, openai, deepseek)');

@@ -58,7 +58,10 @@ export function useAiProviders() {
 	});
 
 	const updateProviderMutation = useMutation({
-		mutationFn: ({ id, ...data }: { id: number; label?: string; enabled?: boolean; priority?: number; config?: Record<string, string> }) =>
+		mutationFn: ({
+			id,
+			...data
+		}: { id: number; label?: string; enabled?: boolean; priority?: number; config?: Record<string, string> }) =>
 			api.patch(`/admin/ai/providers/${id}`, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['ai', 'providers'] });
@@ -90,8 +93,7 @@ export function useAiProviders() {
 	});
 
 	const testProviderMutation = useMutation({
-		mutationFn: ({ type, providerId }: { type: string; providerId: number }) =>
-			api.post(`/admin/ai/test/${type}`),
+		mutationFn: ({ type, providerId }: { type: string; providerId: number }) => api.post(`/admin/ai/test/${type}`),
 	});
 
 	const setKeyMutation = useMutation({

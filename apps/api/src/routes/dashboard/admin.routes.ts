@@ -500,7 +500,7 @@ export const adminRoutes = new Hono()
 				id: e.id,
 				type: e.type,
 				enabled: e.enabled,
-				available: e.enabled ? availability[e.type] ?? false : false,
+				available: e.enabled ? (availability[e.type] ?? false) : false,
 				label: e.label,
 				priority: e.priority,
 				config: e.config,

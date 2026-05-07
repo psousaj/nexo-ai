@@ -12,7 +12,7 @@ export class CustomProvider implements AIProvider {
 	private client: OpenAI;
 	private name: string;
 
-	constructor(apiKey: string, baseUrl: string, name: string = 'Custom') {
+	constructor(apiKey: string, baseUrl: string, name = 'Custom') {
 		this.name = name;
 		this.client = new OpenAI({
 			apiKey,
@@ -56,8 +56,7 @@ export class CustomProvider implements AIProvider {
 				messages: params.messages as OpenAI.Chat.ChatCompletionMessageParam[],
 				temperature: params.temperature,
 				max_tokens: params.maxTokens,
-				response_format:
-					params.responseFormat === 'json_object' ? { type: 'json_object' as const } : undefined,
+				response_format: params.responseFormat === 'json_object' ? { type: 'json_object' as const } : undefined,
 			});
 
 			runtimeRound.stopReason = mapOpenAIFinishReasonToRuntimeStopReason(completion.choices[0]?.finish_reason);
