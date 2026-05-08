@@ -1,5 +1,9 @@
 export async function runProactiveRefresh(input: {
-	envelopes: Array<{ id: string; normalizedContent: string; relevanceDecay: { decayClass: string; decayScore: number } }>;
+	envelopes: Array<{
+		id: string;
+		normalizedContent: string;
+		relevanceDecay: { decayClass: string; decayScore: number };
+	}>;
 }) {
 	return {
 		generated: input.envelopes

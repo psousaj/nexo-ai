@@ -1,7 +1,7 @@
-import OpenAI from 'openai';
-import type { NormalizedResponse, ToolCall } from './types';
+import type OpenAI from 'openai';
 import { ProviderTransport } from './base';
 import type { BuildKwargsParams } from './base';
+import type { NormalizedResponse, ToolCall } from './types';
 
 export interface ProviderFlags {
 	isOpenRouter?: boolean;
@@ -52,9 +52,7 @@ export class ChatCompletionsTransport extends ProviderTransport {
 
 		const toolCalls: ToolCall[] | null =
 			message?.tool_calls
-				?.filter((tc): tc is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall =>
-					tc.type === 'function',
-				)
+				?.filter((tc): tc is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall => tc.type === 'function')
 				.map((tc) => ({
 					id: tc.id,
 					name: tc.function.name,
@@ -75,7 +73,7 @@ export class ChatCompletionsTransport extends ProviderTransport {
 				: null,
 			providerData: {
 				model: response.model,
-				...(message as any).reasoning_content ? { reasoning_content: (message as any).reasoning_content } : {},
+				...((message as any).reasoning_content ? { reasoning_content: (message as any).reasoning_content } : {}),
 			},
 		};
 	}

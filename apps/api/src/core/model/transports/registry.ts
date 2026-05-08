@@ -1,6 +1,6 @@
-import type { ApiMode } from './types';
 import type { ProviderTransport } from './base';
 import { ChatCompletionsTransport } from './chat-completions';
+import type { ApiMode } from './types';
 
 const registry = new Map<ApiMode, ProviderTransport>();
 

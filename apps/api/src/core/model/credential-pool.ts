@@ -59,7 +59,6 @@ export class CredentialPool {
 			case 'random':
 				selected = active[Math.floor(Math.random() * active.length)];
 				break;
-			case 'fill_first':
 			default:
 				selected = active[0];
 				break;
@@ -68,7 +67,7 @@ export class CredentialPool {
 		return { apiKey: selected.credential.apiKey, baseURL: selected.credential.baseURL };
 	}
 
-	markExhausted(provider: string, apiKey: string, cooldownMs: number = 3600000): void {
+	markExhausted(provider: string, apiKey: string, cooldownMs = 3600000): void {
 		const pool = this.pools.get(provider);
 		if (!pool) return;
 		const entry = pool.find((e) => e.credential.apiKey === apiKey);

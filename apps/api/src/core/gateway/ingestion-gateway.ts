@@ -1,4 +1,4 @@
-import { toIntakeEnvelope, type IntakeEnvelope } from '../contracts/intake-envelope';
+import { type IntakeEnvelope, toIntakeEnvelope } from '../contracts/intake-envelope';
 import type { SessionRegistry } from '../registries/session-registry';
 
 export interface CanonicalMessageEnvelope<T = unknown> {

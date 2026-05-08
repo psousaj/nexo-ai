@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { globalTools } from '@/db/schema/global-tools';
 import { agentSkills } from '@/db/schema/agent-skills';
+import { globalTools } from '@/db/schema/global-tools';
 import type { HermesToolDescriptor } from '../policies/policy-types';
 
 export interface HermesToolRegistry {

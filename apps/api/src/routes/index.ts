@@ -1,12 +1,12 @@
 import type { Hono } from 'hono';
+import { registerAccountRoutes } from './accounts';
+import { registerConversationRoutes } from './conversations';
+import { registerDiscordRoutes } from './discord';
 import { registerHealthRoutes } from './health';
 import { registerMemoryRoutes } from './memories';
 import { registerPreferencesRoutes } from './preferences';
-import { registerAccountRoutes } from './accounts';
-import { registerConversationRoutes } from './conversations';
-import { registerWhatsAppSettingsRoutes } from './whatsapp-settings';
-import { registerDiscordRoutes } from './discord';
 import { registerTelegramWebhook } from './webhook/telegram';
+import { registerWhatsAppSettingsRoutes } from './whatsapp-settings';
 
 export function registerRoutes(app: Hono) {
 	registerHealthRoutes(app);

@@ -1,12 +1,10 @@
-import { registerRoutes } from '@/routes';
 import { getApiEnv } from '@/config/env';
-import { logger } from '@/utils/logger';
+import { registerRoutes } from '@/routes';
 import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger as honoLogger } from 'hono/logger';
 import { HTTPException } from 'hono/http-exception';
-import pkg from '../package.json';
+import { logger as honoLogger } from 'hono/logger';
 
 const app = new Hono();
 const apiEnv = getApiEnv();

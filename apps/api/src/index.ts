@@ -1,9 +1,9 @@
 import './otel';
 import './sentry';
+import { initBot } from '@/channels/telegram/bot';
 import { getApiEnv } from '@/config/env';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
-import { initBot } from '@/channels/telegram/bot';
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';

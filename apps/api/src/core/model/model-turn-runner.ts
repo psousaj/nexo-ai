@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import type { ModelTurnOutput, ModelTurnRunner } from '../kernel/model-turn-runner';
 import { CredentialPool } from './credential-pool';
-import { getTransport, detectApiMode } from './transports';
+import { detectApiMode, getTransport } from './transports';
 import type { NormalizedResponse } from './transports/types';
 
 export class DefaultModelTurnRunner implements ModelTurnRunner {

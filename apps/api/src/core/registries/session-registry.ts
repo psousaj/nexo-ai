@@ -14,11 +14,7 @@ export function resolveSessionKey(provider: string, externalId: string): string 
 
 export class PostgresSessionRegistry implements SessionRegistry {
 	async load(sessionKey: string) {
-		const [session] = await db
-			.select()
-			.from(agentSessions)
-			.where(eq(agentSessions.sessionKey, sessionKey))
-			.limit(1);
+		const [session] = await db.select().from(agentSessions).where(eq(agentSessions.sessionKey, sessionKey)).limit(1);
 		return session ?? null;
 	}
 

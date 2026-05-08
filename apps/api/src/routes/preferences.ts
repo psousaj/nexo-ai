@@ -5,7 +5,11 @@ import type { Hono } from 'hono';
 
 export function registerPreferencesRoutes(app: Hono) {
 	app.get('/user/preferences', async (c) => {
-		const [prefs] = await db.select().from(userPreferences).where(eq(userPreferences.userId, c.req.query('userId') ?? 'default')).limit(1);
+		const [prefs] = await db
+			.select()
+			.from(userPreferences)
+			.where(eq(userPreferences.userId, c.req.query('userId') ?? 'default'))
+			.limit(1);
 		return c.json(prefs ?? {});
 	});
 

@@ -1,6 +1,6 @@
-import { CredentialPool } from '../model/credential-pool';
-import { getTransport, detectApiMode } from '../model/transports';
 import OpenAI from 'openai';
+import { CredentialPool } from '../model/credential-pool';
+import { detectApiMode, getTransport } from '../model/transports';
 
 export interface WrappedMemory {
 	userId: string;
@@ -36,7 +36,8 @@ export class SemanticWrapperPipeline {
 				const kwargs = transport.buildKwargs({
 					model: 'gpt-4o-mini',
 					messages: [{ role: 'user', content: input.content.slice(0, 500) }],
-					systemPrompt: 'You classify user messages. Respond with JSON: {"category": "work|personal|tech|general", "confidence": 0-1}',
+					systemPrompt:
+						'You classify user messages. Respond with JSON: {"category": "work|personal|tech|general", "confidence": 0-1}',
 				});
 
 				const raw = await client.chat.completions.create(kwargs as any);

@@ -1,7 +1,11 @@
-import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import { resolveSessionKey } from '@/core/registries/session-registry';
+import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
-import { telegramUpdateToEnvelope, sendTelegramMessage, extractTelegramMessage } from '../../channels/telegram/dispatcher';
+import {
+	extractTelegramMessage,
+	sendTelegramMessage,
+	telegramUpdateToEnvelope,
+} from '../../channels/telegram/dispatcher';
 
 const runtime = createHermesRuntime();
 
@@ -15,7 +19,6 @@ export function registerTelegramWebhook(app: Hono) {
 			const sessionKey = resolveSessionKey('telegram', envelope.payload.incomingMsg.externalId);
 			const msg = extractTelegramMessage(envelope);
 
-			const context = await runtime.contextAssembler.build({ userId: sessionKey, sessionKey });
 			const result = await runtime.kernel.runTurn({ sessionKey });
 
 			await sendTelegramMessage(msg.chatId, result.text);

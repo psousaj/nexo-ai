@@ -1,5 +1,5 @@
-import type { Update } from 'grammy';
 import type { CanonicalMessageEnvelope, IngestMessageQueuePayload } from '@/core/gateway/ingestion-gateway';
+import type { Update } from 'grammy';
 import { getBot } from './bot';
 import type { TelegramMessage } from './types';
 

@@ -9,13 +9,9 @@ export class ContextAssembler {
 			includeDerived: true,
 		});
 
-		const memorySummaries = (derivedMemory as Array<{ summary: string }>)
-			.map((item) => item.summary)
-			.filter(Boolean);
+		const memorySummaries = (derivedMemory as Array<{ summary: string }>).map((item) => item.summary).filter(Boolean);
 
-		const systemPromptParts = [
-			'Você é o Nexo, um assistente pessoal.',
-		];
+		const systemPromptParts = ['Você é o Nexo, um assistente pessoal.'];
 
 		if (memorySummaries.length > 0) {
 			systemPromptParts.push(`## Long-term Memory\n${memorySummaries.map((s) => `- ${s}`).join('\n')}`);

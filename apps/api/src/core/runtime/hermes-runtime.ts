@@ -1,13 +1,13 @@
-import { HermesKernel } from '../kernel/hermes-kernel';
-import { DefaultModelTurnRunner, CredentialPool } from '../model';
-import { PostgresMemoryRegistry } from '../registries/memory-registry';
-import { PostgresSessionRegistry } from '../registries/session-registry';
-import { PostgresToolRegistry } from '../registries/tool-registry';
-import type { ModelTurnRunner } from '../kernel/model-turn-runner';
-import type { MemoryRegistry } from '../registries/memory-registry';
-import type { SessionRegistry } from '../registries/session-registry';
-import type { HermesToolRegistry } from '../registries/tool-registry';
 import { ContextAssembler } from '../context/context-assembler';
+import { HermesKernel } from '../kernel/hermes-kernel';
+import type { ModelTurnRunner } from '../kernel/model-turn-runner';
+import { CredentialPool, DefaultModelTurnRunner } from '../model';
+import { PostgresMemoryRegistry } from '../registries/memory-registry';
+import type { MemoryRegistry } from '../registries/memory-registry';
+import { PostgresSessionRegistry } from '../registries/session-registry';
+import type { SessionRegistry } from '../registries/session-registry';
+import { PostgresToolRegistry } from '../registries/tool-registry';
+import type { HermesToolRegistry } from '../registries/tool-registry';
 
 export interface HermesRuntime {
 	sessionRegistry: SessionRegistry;
