@@ -1,3 +1,4 @@
+import { registerRoutes } from '@/routes';
 import { getApiEnv } from '@/config/env';
 import { logger } from '@/utils/logger';
 import * as Sentry from '@sentry/node';
@@ -42,6 +43,8 @@ app.use('*', async (c, next) => {
 	return next();
 });
 
+registerRoutes(app);
+
 app.notFound((c) => c.json({ error: 'Route not found' }, 404));
 
 app.onError(async (error, c) => {
@@ -77,15 +80,5 @@ app.onError(async (error, c) => {
 		status,
 	);
 });
-
-app.get('/health', (c) => c.json({ status: 'ok' }));
-
-app.get('/', (c) =>
-	c.json({
-		name: 'Nexo AI Hermes',
-		version: pkg.version,
-		description: 'Hermes Engine - Nexo AI assistive core',
-	}),
-);
 
 export default app;
