@@ -67,6 +67,21 @@ const envSchema = z.object({
 	MULTIMODAL_IMAGE: boolFromEnv.default('false'),
 
 	// --------------------------------------------------------------------------
+	// OAuth / Auth (shared between API and Dashboard)
+	// --------------------------------------------------------------------------
+	BETTER_AUTH_SECRET: z.string().min(32).optional(),
+	BETTER_AUTH_URL: z.string().url().optional(),
+
+	GOOGLE_CLIENT_ID: z.string().optional(),
+	GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+	MICROSOFT_CLIENT_ID: z.string().optional(),
+	MICROSOFT_CLIENT_SECRET: z.string().optional(),
+
+	DISCORD_CLIENT_ID: z.string().optional(),
+	DISCORD_CLIENT_SECRET: z.string().optional(),
+
+	// --------------------------------------------------------------------------
 	// Nuxt Dashboard (frontend - public vars)
 	// --------------------------------------------------------------------------
 	NUXT_PUBLIC_AUTH_BASE_URL: z.string().url().optional(),
