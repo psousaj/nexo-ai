@@ -8,7 +8,7 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 		return input;
 	}
 
-	async loadRelevant(input: unknown): Promise<Array<{ summary: string }>> {
+	async loadRelevant(_input: unknown): Promise<Array<{ summary: string }>> {
 		return [
 			{ summary: 'O usuário prefere respostas concisas e diretas.' },
 			{ summary: 'O usuário costuma fazer perguntas sobre tecnologia e programação.' },

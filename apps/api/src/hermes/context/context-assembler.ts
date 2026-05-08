@@ -18,7 +18,7 @@ export class ContextAssembler {
 		];
 
 		if (memorySummaries.length > 0) {
-			systemPromptParts.push('## Long-term Memory\n' + memorySummaries.map((s) => `- ${s}`).join('\n'));
+			systemPromptParts.push(`## Long-term Memory\n${memorySummaries.map((s) => `- ${s}`).join('\n')}`);
 		}
 
 		return {
