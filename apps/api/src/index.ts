@@ -3,6 +3,7 @@ import './sentry';
 import { getApiEnv } from '@/config/env';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
+import { initBot } from '@/channels/telegram/bot';
 import { logger } from '@/utils/logger';
 import { serve } from '@hono/node-server';
 import pkg from '../package.json';
@@ -43,5 +44,10 @@ serve(
 		logger.info(`🚀 Nexo AI Hermes rodando em http://0.0.0.0:${info.port}`);
 		logger.info(`📦 Version: ${pkg.version}`);
 		logger.info(`🌍 Environment: ${apiEnv.NODE_ENV}`);
+
+		if (process.env.BOT_TOKEN_TELEGRAM) {
+			initBot({ botToken: process.env.BOT_TOKEN_TELEGRAM });
+			logger.info('🤖 Telegram bot initialized');
+		}
 	},
 );
