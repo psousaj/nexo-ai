@@ -19,7 +19,7 @@ export interface FeatureFlagDefinition {
 }
 
 // ============================================================================
-// Pivot flags (6) — seed usa env var como valor inicial
+// Pivot flags (5) — seed usa env var como valor inicial
 // ============================================================================
 const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 	{
@@ -49,13 +49,6 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		description: 'Processa imagens com IA',
 		category: 'pivot',
 		defaultEnabled: env.MULTIMODAL_IMAGE,
-	},
-	{
-		key: 'nexo.pivot.hermes-engine-enabled',
-		label: 'Hermes Engine',
-		description: 'Usa o novo Hermes Engine runtime (substitui o AgentOrchestrator legacy)',
-		category: 'pivot',
-		defaultEnabled: false,
 	},
 ];
 
@@ -103,7 +96,6 @@ export const FLAG = {
 	TOOL_SCHEMA_V2: 'nexo.pivot.tool-schema-v2',
 	MULTIMODAL_AUDIO: 'nexo.pivot.multimodal-audio',
 	MULTIMODAL_IMAGE: 'nexo.pivot.multimodal-image',
-	HERMES_ENGINE_ENABLED: 'nexo.pivot.hermes-engine-enabled',
 	// Channels
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',
