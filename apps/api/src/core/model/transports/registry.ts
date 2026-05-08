@@ -1,5 +1,6 @@
 import type { ApiMode } from './types';
 import type { ProviderTransport } from './base';
+import { ChatCompletionsTransport } from './chat-completions';
 
 const registry = new Map<ApiMode, ProviderTransport>();
 
@@ -12,3 +13,6 @@ export function getTransport(mode: ApiMode): ProviderTransport {
 	if (!transport) throw new Error(`No transport registered for api_mode: ${mode}`);
 	return transport;
 }
+
+// Register defaults
+registerTransport('chat_completions', new ChatCompletionsTransport());
