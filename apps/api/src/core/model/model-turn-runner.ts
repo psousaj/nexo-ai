@@ -6,6 +6,8 @@ import type { NormalizedResponse } from './transports/types';
 
 export class DefaultModelTurnRunner implements ModelTurnRunner {
 	private credentialPool: CredentialPool;
+	private messages: Array<Record<string, unknown>> = [];
+	private lastReasoningContent: string | null = null;
 
 	constructor(
 		private deps: {
@@ -21,6 +23,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		const ctx = context as { systemPrompt: string; sessionKey: string };
 		const provider = this.deps.defaultProvider ?? 'openai';
 		const model = this.deps.defaultModel ?? 'gpt-4o-mini';
+
+		this.padReasoningContent(model, provider);
+
+		if (this.messages.length === 0) {
+			this.messages.push({ role: 'user', content: ctx.sessionKey });
+		}
 
 		const resolved = this.credentialPool.resolve(provider);
 		if (!resolved) {
@@ -38,12 +46,33 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 			const kwargs = transport.buildKwargs({
 				model,
-				messages: [],
+				messages: this.messages,
 				systemPrompt: ctx.systemPrompt,
 			});
 
 			const rawResponse = await client.chat.completions.create(kwargs as any);
 			const normalized = transport.normalizeResponse(rawResponse);
+
+			this.lastReasoningContent = (normalized.providerData?.reasoning_content as string) ?? null;
+
+			const assistantMsg: Record<string, unknown> = {
+				role: 'assistant',
+				content: normalized.content ?? '',
+			};
+			if (normalized.toolCalls) {
+				assistantMsg.tool_calls = normalized.toolCalls.map((tc) => ({
+					id: tc.id,
+					type: 'function',
+					function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+				}));
+			}
+			if (this.lastReasoningContent) {
+				assistantMsg.reasoning_content = this.lastReasoningContent;
+			} else if (normalized.toolCalls && this.isDeepSeek(model, provider)) {
+				assistantMsg.reasoning_content = ' ';
+				this.lastReasoningContent = ' ';
+			}
+			this.messages.push(assistantMsg);
 
 			return this.toModelTurnOutput(normalized);
 		} catch (error: any) {
@@ -51,9 +80,16 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				this.credentialPool.markExhausted(provider, resolved.apiKey);
 				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };
 			}
-
 			return { type: 'respond', text: 'Desculpe, não consegui processar sua mensagem agora.' };
 		}
+	}
+
+	async addToolResult(toolName: string, result: unknown): Promise<void> {
+		this.messages.push({
+			role: 'tool',
+			content: JSON.stringify(result),
+			tool_call_id: toolName,
+		});
 	}
 
 	private toModelTurnOutput(normalized: NormalizedResponse): ModelTurnOutput {
@@ -62,5 +98,22 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			return { type: 'tool', toolName: tc.name, input: tc.arguments };
 		}
 		return { type: 'respond', text: normalized.content ?? 'Entendi.' };
+	}
+
+	private padReasoningContent(model: string, provider: string): void {
+		if (!this.isDeepSeek(model, provider)) return;
+		if (this.messages.length === 0) return;
+		const last = this.messages[this.messages.length - 1];
+		if (last?.role !== 'assistant') return;
+		if (!last.tool_calls) return;
+
+		const rc = last.reasoning_content;
+		if (rc !== undefined && rc !== null) return;
+
+		last.reasoning_content = ' ';
+	}
+
+	private isDeepSeek(model: string, provider: string): boolean {
+		return provider === 'deepseek' || model.toLowerCase().includes('deepseek');
 	}
 }

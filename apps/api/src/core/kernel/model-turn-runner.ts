@@ -7,4 +7,5 @@ export interface ModelTurnOutput {
 
 export interface ModelTurnRunner {
 	next(context: unknown): Promise<ModelTurnOutput>;
+	addToolResult?(toolName: string, result: unknown): Promise<void>;
 }

@@ -37,6 +37,8 @@ export class HermesKernel {
 				if (result.status === 'error') {
 					throw new HermesRuntimeError('tool_execution_error', `Failed to execute tool ${next.toolName}`);
 				}
+
+				await this.deps.modelTurnRunner.addToolResult?.(next.toolName, result);
 			}
 
 			if (next.type === 'respond') return { text: next.text! };

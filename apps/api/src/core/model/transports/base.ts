@@ -2,7 +2,7 @@ import type { NormalizedResponse } from './types';
 
 export interface BuildKwargsParams {
 	model: string;
-	messages: Array<{ role: string; content: string }>;
+	messages: Array<Record<string, unknown>>;
 	systemPrompt?: string;
 	tools?: Array<Record<string, unknown>>;
 	maxTokens?: number;

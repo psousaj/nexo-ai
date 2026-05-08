@@ -19,7 +19,7 @@ export class ChatCompletionsTransport extends ProviderTransport {
 
 		const kwargs: Record<string, unknown> = {
 			model,
-			messages: this.buildMessages(messages, systemPrompt),
+			messages: this.buildMessages(messages as Array<Record<string, unknown>>, systemPrompt),
 		};
 
 		if (tools && tools.length > 0) {
@@ -79,10 +79,10 @@ export class ChatCompletionsTransport extends ProviderTransport {
 	}
 
 	private buildMessages(
-		messages: Array<{ role: string; content: string }>,
+		messages: Array<Record<string, unknown>>,
 		systemPrompt?: string,
-	): Array<{ role: string; content: string }> {
-		const result: Array<{ role: string; content: string }> = [];
+	): Array<Record<string, unknown>> {
+		const result: Array<Record<string, unknown>> = [];
 		if (systemPrompt) result.push({ role: 'system', content: systemPrompt });
 		result.push(...messages);
 		return result;
