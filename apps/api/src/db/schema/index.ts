@@ -26,9 +26,13 @@ export * from './whatsapp-settings';
 export * from './feature-flags';
 // Skills system (NEX-30)
 export * from './agent-skills';
+// Hermes canonical memory envelopes (NEX-57)
+export * from './memory-envelopes';
 // AI multi-provider model registry (NEX-53)
 export * from './model-registry';
 // BYOK provider key storage (NEX-53)
 export * from './provider-keys';
 // Dynamic AI provider registry
 export * from './providers';
+// Hermes turn audit trail (NEX-57)
+export * from './turn-audits';

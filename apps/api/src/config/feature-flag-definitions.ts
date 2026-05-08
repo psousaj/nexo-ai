@@ -7,7 +7,6 @@
  */
 
 import { env } from '@/config/env';
-import { getAllTools } from '@/services/tools/registry';
 
 export type FlagCategory = 'pivot' | 'channel' | 'tool';
 
@@ -51,6 +50,13 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		category: 'pivot',
 		defaultEnabled: env.MULTIMODAL_IMAGE,
 	},
+	{
+		key: 'nexo.pivot.hermes-engine-enabled',
+		label: 'Hermes Engine',
+		description: 'Usa o novo Hermes Engine runtime (substitui o AgentOrchestrator legacy)',
+		category: 'pivot',
+		defaultEnabled: false,
+	},
 ];
 
 // ============================================================================
@@ -81,27 +87,10 @@ const channelFlagDefinitions: FeatureFlagDefinition[] = [
 ];
 
 // ============================================================================
-// Tool flags — gerados do registry; respeitam defaultEnabled de cada tool
-// ============================================================================
-function buildToolFlagDefinitions(): FeatureFlagDefinition[] {
-	return getAllTools().map((tool) => ({
-		key: `nexo.tool.${tool.name.replace(/_/g, '-')}`,
-		label: tool.label,
-		description: tool.description,
-		category: 'tool' as FlagCategory,
-		defaultEnabled: tool.defaultEnabled ?? true,
-	}));
-}
-
-// ============================================================================
 // Exported constants
 // ============================================================================
 
-/** Todas as definições de flags (pivot + channel). Tools ficam em global_tools. */
 export const FLAG_DEFINITIONS: FeatureFlagDefinition[] = [...pivotFlagDefinitions, ...channelFlagDefinitions];
-
-/** Definições de tool flags (para seed do global_tools via OpenFeature) */
-export const TOOL_FLAG_DEFINITIONS: FeatureFlagDefinition[] = buildToolFlagDefinitions();
 
 /**
  * Chaves type-safe de todas as flags (pivot + channel + tool)
@@ -114,32 +103,11 @@ export const FLAG = {
 	TOOL_SCHEMA_V2: 'nexo.pivot.tool-schema-v2',
 	MULTIMODAL_AUDIO: 'nexo.pivot.multimodal-audio',
 	MULTIMODAL_IMAGE: 'nexo.pivot.multimodal-image',
+	HERMES_ENGINE_ENABLED: 'nexo.pivot.hermes-engine-enabled',
 	// Channels
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',
 	CHANNEL_WHATSAPP: 'nexo.channel.whatsapp',
-	// Tools
-	TOOL_SAVE_NOTE: 'nexo.tool.save-note',
-	TOOL_SAVE_MOVIE: 'nexo.tool.save-movie',
-	TOOL_SAVE_TV_SHOW: 'nexo.tool.save-tv-show',
-	TOOL_SAVE_VIDEO: 'nexo.tool.save-video',
-	TOOL_SAVE_LINK: 'nexo.tool.save-link',
-	TOOL_SEARCH_ITEMS: 'nexo.tool.search-items',
-	TOOL_ENRICH_MOVIE: 'nexo.tool.enrich-movie',
-	TOOL_ENRICH_TV_SHOW: 'nexo.tool.enrich-tv-show',
-	TOOL_ENRICH_VIDEO: 'nexo.tool.enrich-video',
-	TOOL_DELETE_MEMORY: 'nexo.tool.delete-memory',
-	TOOL_DELETE_ALL_MEMORIES: 'nexo.tool.delete-all-memories',
-	TOOL_GET_ASSISTANT_NAME: 'nexo.tool.get-assistant-name',
-	TOOL_UPDATE_USER_SETTINGS: 'nexo.tool.update-user-settings',
-	TOOL_MEMORY_SEARCH: 'nexo.tool.memory-search',
-	TOOL_MEMORY_GET: 'nexo.tool.memory-get',
-	TOOL_DAILY_LOG_SEARCH: 'nexo.tool.daily-log-search',
-	TOOL_LIST_CALENDAR_EVENTS: 'nexo.tool.list-calendar-events',
-	TOOL_CREATE_CALENDAR_EVENT: 'nexo.tool.create-calendar-event',
-	TOOL_LIST_TODOS: 'nexo.tool.list-todos',
-	TOOL_CREATE_TODO: 'nexo.tool.create-todo',
-	TOOL_SCHEDULE_REMINDER: 'nexo.tool.schedule-reminder',
 } as const;
 
 export type FlagKey = (typeof FLAG)[keyof typeof FLAG];
