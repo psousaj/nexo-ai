@@ -20,6 +20,11 @@ export { HermesKernel } from './kernel/hermes-kernel';
 export type { ModelTurnRunner, ModelTurnOutput } from './kernel/model-turn-runner';
 export { executeToolWithPolicy } from './kernel/tool-executor';
 
+// Model
+export { DefaultModelTurnRunner, CredentialPool } from './model';
+export { getTransport, detectApiMode } from './model/transports';
+export type { NormalizedResponse, ApiMode } from './model/transports/types';
+
 // Policies
 export type { ToolPolicy, HermesToolDescriptor } from './policies/policy-types';
 export { toUserSafeFailureResponse } from './policies/failure-strategy';
