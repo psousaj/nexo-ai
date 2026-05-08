@@ -6,6 +6,7 @@ export { HermesRuntimeError } from './contracts/runtime-error';
 
 // Registries
 export type { SessionRegistry } from './registries/session-registry';
+export { PostgresSessionRegistry, resolveSessionKey } from './registries/session-registry';
 export type { MemoryRegistry } from './registries/memory-registry';
 export { PostgresMemoryRegistry } from './registries/memory-registry';
 export type { HermesToolRegistry } from './registries/tool-registry';
