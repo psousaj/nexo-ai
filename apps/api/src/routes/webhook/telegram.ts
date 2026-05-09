@@ -193,8 +193,8 @@ export function registerTelegramWebhook(app: Hono) {
 					const description = await visionService.describe(imageBuffer.toString('base64'));
 					if (description) {
 						userMessage = userMessage
-							? `${userMessage}\n\n[Imagem: ${description}]`
-							: `${description}`;
+							? `${userMessage}\n\n[O usuário enviou uma imagem. Análise automática: ${description}]`
+							: `[O usuário enviou uma imagem. Análise automática: ${description}]`;
 					}
 				}
 			}
