@@ -2,12 +2,10 @@ import type { KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
-import { getBot } from '../../channels/telegram/bot';
 import {
 	answerCallbackQuery,
 	editMessageText,
 	extractTelegramMessage,
-	sendClarifyMessage,
 	sendProgressMessage,
 	sendTelegramMessage,
 	sendTypingAction,
@@ -65,9 +63,11 @@ export function registerTelegramWebhook(app: Hono) {
 						if (progressMessageId) {
 							editMessageText(msg.chatId, progressMessageId, text).catch(() => {});
 						} else {
-							sendProgressMessage(msg.chatId, text).then((id) => {
-								progressMessageId = id;
-							}).catch(() => {});
+							sendProgressMessage(msg.chatId, text)
+								.then((id) => {
+									progressMessageId = id;
+								})
+								.catch(() => {});
 						}
 					},
 					onToolEnd: (toolName, _result) => {
