@@ -59,7 +59,6 @@ const testimonials = [
 		image: 'https://i.pravatar.cc/150?u=a04258114e29026302d',
 	},
 ];
-debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;

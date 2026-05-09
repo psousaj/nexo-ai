@@ -37,7 +37,7 @@ export async function sendTelegramMessage(
 	chatId: number,
 	text: string,
 	options?: { replyMarkup?: unknown },
-): Promise<{ messageId: number } | void> {
+): Promise<{ messageId: number } | undefined> {
 	const params: Record<string, unknown> = { parse_mode: 'Markdown' };
 	if (options?.replyMarkup) params.reply_markup = options.replyMarkup;
 	const msg = await getBot().api.sendMessage(chatId, text, params as any);
@@ -76,7 +76,10 @@ export async function answerCallbackQuery(callbackQueryId: string, text?: string
 	}
 }
 
-export type ProgressCallback = (phase: 'tool_start' | 'tool_end' | 'stream_delta', data: { text: string; toolName?: string }) => void;
+export type ProgressCallback = (
+	phase: 'tool_start' | 'tool_end' | 'stream_delta',
+	data: { text: string; toolName?: string },
+) => void;
 
 export async function sendProgressMessage(chatId: number, text: string): Promise<number> {
 	const msg = await getBot().api.sendMessage(chatId, text, { parse_mode: 'Markdown' });
