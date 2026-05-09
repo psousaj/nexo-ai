@@ -29,13 +29,16 @@ export function registerTelegramWebhook(app: Hono) {
 				const messageId = cb.message?.message_id;
 				if (data?.startsWith('clarify:') && chatId && messageId) {
 					const choice = decodeURIComponent(data.slice('clarify:'.length));
+
+					// Instant feedback: toast + remove buttons + show choice
+					if (cb.id) await getBot().api.answerCallbackQuery(cb.id, { text: `⏳ ${choice}...` });
 					try {
 						await getBot().api.editMessageText(chatId, messageId, `*Você escolheu:* ${choice}`, {
 							parse_mode: 'Markdown',
 							reply_markup: undefined,
 						});
 					} catch {}
-					if (cb.id) await getBot().api.answerCallbackQuery(cb.id);
+
 					const sessionKey = resolveSessionKey('telegram', String(chatId));
 					const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
 					const result = await runtime.kernel.runTurn({
