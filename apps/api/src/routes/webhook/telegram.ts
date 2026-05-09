@@ -2,9 +2,8 @@ import type { KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
+import { getBot } from '../../channels/telegram/bot';
 import {
-	answerCallbackQuery,
-	editMessageText,
 	extractTelegramMessage,
 	sendClarifyMessage,
 	sendProgressMessage,
@@ -30,8 +29,13 @@ export function registerTelegramWebhook(app: Hono) {
 				const messageId = cb.message?.message_id;
 				if (data?.startsWith('clarify:') && chatId && messageId) {
 					const choice = decodeURIComponent(data.slice('clarify:'.length));
-					await editMessageText(chatId, messageId, `*Você escolheu:* ${choice}`);
-					if (cb.id) await answerCallbackQuery(cb.id);
+					try {
+						await getBot().api.editMessageText(chatId, messageId, `*Você escolheu:* ${choice}`, {
+							parse_mode: 'Markdown',
+							reply_markup: undefined,
+						});
+					} catch {}
+					if (cb.id) await getBot().api.answerCallbackQuery(cb.id);
 					const sessionKey = resolveSessionKey('telegram', String(chatId));
 					const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
 					const result = await runtime.kernel.runTurn({
@@ -42,7 +46,7 @@ export function registerTelegramWebhook(app: Hono) {
 					await sendTelegramMessage(chatId, result.text);
 					return c.json({ ok: true });
 				}
-				if (cb.id) await answerCallbackQuery(cb.id);
+				if (cb.id) await getBot().api.answerCallbackQuery(cb.id);
 				return c.json({ ok: true });
 			}
 
