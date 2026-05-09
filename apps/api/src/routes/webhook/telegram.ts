@@ -1,10 +1,12 @@
 import type { KernelCallbacks } from '@/core/kernel/hermes-kernel';
+import { sttService } from '@/core/enrichment/stt-service';
 import { ttsService } from '@/core/enrichment/tts-service';
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
 import { getBot } from '../../channels/telegram/bot';
 import {
+	downloadTelegramFile,
 	editMessageText,
 	extractTelegramMessage,
 	sendClarifyMessage,
@@ -115,6 +117,24 @@ export function registerTelegramWebhook(app: Hono) {
 
 			const sessionKey = resolveSessionKey('telegram', envelope.payload.incomingMsg.externalId);
 			const msg = extractTelegramMessage(envelope);
+			let userMessage = msg.text;
+
+			// Voice message: download audio + transcribe via STT
+			if (update.message?.voice && !userMessage) {
+				const voiceId = update.message.voice.file_id;
+				const audioBuffer = await downloadTelegramFile(voiceId);
+				if (audioBuffer) {
+					const transcript = await sttService.transcribe(audioBuffer.toString('base64'));
+					if (transcript) {
+						userMessage = transcript;
+						await sendTelegramMessage(msg.chatId, `🎙️ *Transcrição:* ${transcript}`);
+					} else {
+						userMessage = '[Áudio não reconhecido]';
+					}
+				}
+				if (!userMessage) userMessage = '[Mensagem de áudio]';
+			}
+
 			const userMessageId = msg.messageId;
 
 			// 👀 1. Reaction: "tô vendo sua mensagem"
@@ -178,7 +198,7 @@ export function registerTelegramWebhook(app: Hono) {
 				};
 
 				const result = await runtime.kernel.runTurn(
-					{ sessionKey, userMessage: msg.text, systemPrompt: systemPrompt.systemPrompt },
+					{ sessionKey, userMessage, systemPrompt: systemPrompt.systemPrompt },
 					callbacks,
 				);
 

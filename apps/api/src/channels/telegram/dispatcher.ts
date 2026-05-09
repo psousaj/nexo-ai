@@ -127,3 +127,16 @@ export function extractTelegramMessage(msg: CanonicalMessageEnvelope<IngestMessa
 		messageType: (incoming.metadata?.messageType as TelegramMessage['messageType']) ?? 'text',
 	};
 }
+
+export async function downloadTelegramFile(fileId: string): Promise<Buffer | null> {
+	try {
+		const file = await getBot().api.getFile(fileId);
+		const fileUrl = `https://api.telegram.org/file/bot${getBot().token}/${file.file_path}`;
+		const response = await fetch(fileUrl);
+		if (!response.ok) return null;
+		const arrayBuffer = await response.arrayBuffer();
+		return Buffer.from(arrayBuffer);
+	} catch {
+		return null;
+	}
+}
