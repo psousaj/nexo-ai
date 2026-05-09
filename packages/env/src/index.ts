@@ -69,8 +69,8 @@ const envSchema = z.object({
 	// --------------------------------------------------------------------------
 	// OAuth / Auth (shared between API and Dashboard)
 	// --------------------------------------------------------------------------
-	BETTER_AUTH_SECRET: z.string().min(32).optional(),
-	BETTER_AUTH_URL: z.string().url().optional(),
+	BETTER_AUTH_SECRET: z.string().min(32).optional().or(z.literal('')),
+	BETTER_AUTH_URL: z.string().url().optional().or(z.literal('')),
 
 	GOOGLE_CLIENT_ID: z.string().optional(),
 	GOOGLE_CLIENT_SECRET: z.string().optional(),
