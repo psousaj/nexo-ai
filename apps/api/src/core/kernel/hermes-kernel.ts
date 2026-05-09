@@ -60,6 +60,13 @@ export class HermesKernel {
 					throw new HermesRuntimeError('tool_execution_error', `Failed to execute tool ${next.toolName}`);
 				}
 
+				// Signal that this tool requires user input — break the loop
+				const resultData = result.data as Record<string, unknown> | undefined;
+				if (resultData?._requiresInput) {
+					await this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
+					return { text: '' };
+				}
+
 				await this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
 			}
 

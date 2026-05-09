@@ -121,6 +121,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					type: 'clarify',
 					question: input.question,
 					choices: input.choices ?? null,
+					_requiresInput: true,
 				};
 			},
 		},
@@ -143,6 +144,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					title: input.title,
 					description: input.description,
 					imageUrl: input.imageUrl ?? null,
+					_requiresInput: true,
 				};
 			},
 		},
