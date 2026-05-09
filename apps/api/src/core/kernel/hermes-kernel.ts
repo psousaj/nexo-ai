@@ -1,4 +1,6 @@
+import { captureException } from '@/sentry';
 import { HermesRuntimeError } from '../contracts/runtime-error';
+import { writeTurnAudit } from '../observability/turn-audit';
 import type { HermesToolRegistry } from '../registries/tool-registry';
 import type { ModelTurnRunner } from './model-turn-runner';
 import { executeToolWithPolicy } from './tool-executor';
@@ -21,61 +23,81 @@ export class HermesKernel {
 		input: { sessionKey: string; userMessage: string; systemPrompt: string },
 		callbacks?: KernelCallbacks,
 	): Promise<{ text: string }> {
-		for (let step = 0; step < 6; step++) {
-			const catalog = await this.deps.toolRegistry.buildHermesToolCatalog();
-			const toolSchemas = catalog.map((t) => ({
-				name: t.name,
-				description: t.description,
-				parameters: t.jsonSchema,
-			}));
+		const toolsUsed: string[] = [];
+		const failures: string[] = [];
 
-			const next = await this.deps.modelTurnRunner.next({
-				...input,
-				tools: toolSchemas,
-			});
-
-			if (next.type === 'tool' && next.toolName) {
-				callbacks?.onToolStart?.(next.toolName, next.input ?? {});
+		try {
+			for (let step = 0; step < 6; step++) {
 				const catalog = await this.deps.toolRegistry.buildHermesToolCatalog();
-				const descriptor = catalog.find((t) => t.name === next.toolName);
-				if (!descriptor) {
-					throw new HermesRuntimeError('tool_not_found', `Tool ${next.toolName} not found in catalog`);
-				}
+				const toolSchemas = catalog.map((t) => ({
+					name: t.name,
+					description: t.description,
+					parameters: t.jsonSchema,
+				}));
 
-				const result = await executeToolWithPolicy({
-					descriptor,
-					execute: () => descriptor.execute(input, next.input ?? {}),
-				});
+				const next = await this.deps.modelTurnRunner.next({ ...input, tools: toolSchemas });
 
-				callbacks?.onToolEnd?.(next.toolName, result);
-
-				if (result.status === 'blocked') {
-					if (result.requiresConfirmation) {
-						return { text: `Tool ${next.toolName} requires confirmation.` };
+				if (next.type === 'tool' && next.toolName) {
+					callbacks?.onToolStart?.(next.toolName, next.input ?? {});
+					const catalog = await this.deps.toolRegistry.buildHermesToolCatalog();
+					const descriptor = catalog.find((t) => t.name === next.toolName);
+					if (!descriptor) {
+						captureException(new Error(`Tool not found: ${next.toolName}`), { sessionKey: input.sessionKey });
+						throw new HermesRuntimeError('tool_not_found', `Tool ${next.toolName} not found in catalog`);
 					}
-					throw new HermesRuntimeError('tool_denied', `Tool ${next.toolName} is denied by policy`);
+
+					const result = await executeToolWithPolicy({
+						descriptor,
+						execute: () => descriptor.execute(input, next.input ?? {}),
+					});
+
+					callbacks?.onToolEnd?.(next.toolName, result);
+
+					if (result.status === 'blocked') {
+						if (result.requiresConfirmation) return { text: `Tool ${next.toolName} requires confirmation.` };
+						throw new HermesRuntimeError('tool_denied', `Tool ${next.toolName} is denied by policy`);
+					}
+
+					if (result.status === 'error') {
+						failures.push(next.toolName);
+						this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, {
+							error: true,
+							tool: next.toolName,
+							message: 'A ferramenta falhou ao executar. Verifique as configurações.',
+						});
+						continue;
+					}
+
+					// Signal that this tool requires user input — break the loop
+					const resultData = result.data as Record<string, unknown> | undefined;
+					if (resultData?._requiresInput) {
+						toolsUsed.push(next.toolName);
+						this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
+						void writeTurnAudit({ runType: 'normal', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
+						return { text: '' };
+					}
+
+					toolsUsed.push(next.toolName);
+					this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
 				}
 
-				if (result.status === 'error') {
-					throw new HermesRuntimeError('tool_execution_error', `Failed to execute tool ${next.toolName}`);
+				if (next.type === 'respond') {
+					callbacks?.onRespond?.(next.text!);
+					void writeTurnAudit({ runType: 'normal', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
+					return { text: next.text! };
 				}
-
-				// Signal that this tool requires user input — break the loop
-				const resultData = result.data as Record<string, unknown> | undefined;
-				if (resultData?._requiresInput) {
-					await this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
-					return { text: '' };
-				}
-
-				await this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
 			}
 
-			if (next.type === 'respond') {
-				callbacks?.onRespond?.(next.text!);
-				return { text: next.text! };
-			}
+			throw new HermesRuntimeError('turn_budget_exhausted', 'HermesKernel exceeded the maximum step budget');
+		} catch (error) {
+			const err = error instanceof Error ? error : new Error(String(error));
+			captureException(err, {
+				sessionKey: input.sessionKey,
+				toolsUsed: toolsUsed.join(','),
+				failures: failures.join(','),
+			});
+			void writeTurnAudit({ runType: 'error', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
+			throw error;
 		}
-
-		throw new HermesRuntimeError('turn_budget_exhausted', 'HermesKernel exceeded the maximum step budget');
 	}
 }

@@ -1,3 +1,7 @@
+import { db } from '@/db';
+import { turnAudits } from '@/db/schema/turn-audits';
+import { loggers } from '@/utils/logger';
+
 export async function writeTurnAudit(input: {
 	runType: string;
 	sessionKey?: string;
@@ -5,6 +9,17 @@ export async function writeTurnAudit(input: {
 	policies: string[];
 	tools: string[];
 }): Promise<{ runType: string }> {
+	try {
+		await db.insert(turnAudits).values({
+			sessionKey: input.sessionKey ?? 'unknown',
+			runType: input.runType,
+			policies: input.policies,
+			tools: input.tools,
+			contextHash: input.contextHash ?? '',
+		});
+	} catch (err) {
+		loggers.enrichment.error({ err }, 'Turn audit: failed to write');
+	}
 	return { runType: input.runType };
 }
 
