@@ -6,6 +6,7 @@ import {
 	answerCallbackQuery,
 	editMessageText,
 	extractTelegramMessage,
+	sendClarifyMessage,
 	sendProgressMessage,
 	sendTelegramMessage,
 	sendTelegramPhoto,
@@ -61,6 +62,7 @@ export function registerTelegramWebhook(app: Hono) {
 			}, 4000);
 
 			let progressMessageId: number | null = null;
+			let progressText = '';
 
 			try {
 				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
@@ -74,20 +76,25 @@ export function registerTelegramWebhook(app: Hono) {
 							}
 							return;
 						}
-						const text = `🔍 *${toolName}*...`;
+						if (toolName === 'clarify') {
+							const data = input as any;
+							sendClarifyMessage(msg.chatId, data.question || '', data.choices || []).catch(() => {});
+							return;
+						}
+						progressText += `🔍 *${toolName}*...\n`;
 						if (progressMessageId) {
-							editMessageText(msg.chatId, progressMessageId, text).catch(() => {});
+							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});
 						} else {
-							sendProgressMessage(msg.chatId, text)
+							sendProgressMessage(msg.chatId, progressText)
 								.then((id) => { progressMessageId = id; })
 								.catch(() => {});
 						}
 					},
 					onToolEnd: (toolName, _result) => {
-						if (toolName === 'display_content') return;
-						const text = `✅ *${toolName}* concluído`;
+						if (toolName === 'display_content' || toolName === 'clarify') return;
+						progressText = progressText.replace(`🔍 *${toolName}*...\n`, `✅ *${toolName}* concluído\n`);
 						if (progressMessageId) {
-							editMessageText(msg.chatId, progressMessageId, text).catch(() => {});
+							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});
 						}
 					},
 				};
