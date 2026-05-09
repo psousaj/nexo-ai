@@ -95,6 +95,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 			return this.toModelTurnOutput(normalized);
 		} catch (error: any) {
+			console.error('[ModelTurnRunner] LLM API error:', error?.status, error?.message, JSON.stringify(error?.stack ?? '').slice(0, 300));
 			if (error?.status === 429 || error?.status === 402) {
 				this.credentialPool.markExhausted(activeProvider, resolved.apiKey);
 				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };

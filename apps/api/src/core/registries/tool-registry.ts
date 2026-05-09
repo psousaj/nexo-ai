@@ -33,7 +33,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			...dbTools.map((t) => ({
 				name: t.toolName,
 				description: '',
-				jsonSchema: {} as Record<string, unknown>,
+				jsonSchema: { type: 'object', properties: {} } as Record<string, unknown>,
 				policy: 'auto' as const,
 				execute: async () => ({ tool: t.toolName, status: 'executed', note: 'configure via tool implementations' }),
 			})),
