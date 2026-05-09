@@ -37,6 +37,7 @@ export class TTSService {
 			});
 
 			const data = (await response.json()) as CloudflareAIResponse;
+			loggers.enrichment.info({ success: data.success, hasAudio: !!data.result?.audio }, 'TTS: Cloudflare response');
 			if (!data.success || !data.result?.audio) return null;
 			return Buffer.from(data.result.audio, 'base64');
 		} catch (error) {

@@ -174,9 +174,17 @@ export function registerTelegramWebhook(app: Hono) {
 					}
 					if (toolName === 'text_to_speech') {
 						const data = input as any;
-						ttsService.synthesize(data.text || '').then((buffer) => {
-							if (buffer) sendTelegramVoice(msg.chatId, buffer).catch(() => {});
-						}).catch(() => {});
+						if (!data?.text) return;
+						ttsService.synthesize(data.text).then((buffer) => {
+							if (buffer) {
+								console.log(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
+								sendTelegramVoice(msg.chatId, buffer).then(() => {
+									console.log(`[TTS] Voice sent!`);
+								}).catch((e) => console.error('[TTS] sendVoice error:', e));
+							} else {
+								console.log('[TTS] Synthesize returned null — Cloudflare API may have failed');
+							}
+						}).catch((e) => console.error('[TTS] synthesize error:', e));
 						return;
 					}
 						progressText += `🔍 *${toolName}*...\n`;
