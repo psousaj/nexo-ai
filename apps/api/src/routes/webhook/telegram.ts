@@ -17,24 +17,6 @@ import {
 const runtime = createHermesRuntime();
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
 
-async function sendPhotoWithConfirm(chatId: number, photoUrl: string, caption: string) {
-	const keyboard = {
-		inline_keyboard: [
-			[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }],
-			[{ text: '❌ Não', callback_data: 'confirm:no' }],
-		],
-	};
-	try {
-		await getBot().api.sendPhoto(chatId, photoUrl, { caption, parse_mode: 'Markdown', reply_markup: keyboard });
-	} catch {
-		try {
-			await getBot().api.sendMessage(chatId, caption || 'É esse mesmo?', { parse_mode: 'Markdown', reply_markup: keyboard });
-		} catch {
-			await getBot().api.sendMessage(chatId, caption?.replace(/[*_]/g, '') || 'É esse mesmo?', { reply_markup: keyboard });
-		}
-	}
-}
-
 export function registerTelegramWebhook(app: Hono) {
 	app.post('/webhook/telegram', async (c) => {
 		try {
@@ -139,9 +121,15 @@ export function registerTelegramWebhook(app: Hono) {
 					onToolStart: (toolName, input) => {
 						if (toolName === 'display_content') {
 							const data = input as any;
+							const title = (data?.title || '').replace(/[*_]/g, '');
+							const desc = (data?.description || '').replace(/[*_]/g, '');
+							const msgText = `*${title}*\n\n${desc}\n\n_É esse mesmo?_`;
+							// Send text with buttons FIRST (always works), then photo
+							getBot().api.sendMessage(msg.chatId, msgText, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] } }).catch(() => {});
 							if (data?.imageUrl) {
-								const caption = `*${data.title || ''}*\n\n${data.description || ''}\n\n_É esse mesmo?_`;
-								sendPhotoWithConfirm(msg.chatId, data.imageUrl, caption);
+								setTimeout(() => {
+									getBot().api.sendPhoto(msg.chatId, data.imageUrl, { caption: msgText }).catch(() => {});
+								}, 500);
 							}
 							skipFinalResponse = true;
 							return;
