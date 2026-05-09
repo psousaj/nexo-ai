@@ -32,7 +32,7 @@ export class TTSService {
 					Authorization: `Bearer ${this.apiToken}`,
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify({ text, lang: 'pt-BR' }),
+				body: JSON.stringify({ prompt: text, lang: 'pt-BR' }),
 				signal: AbortSignal.timeout(30000),
 			});
 
