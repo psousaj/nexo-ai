@@ -201,9 +201,10 @@ export function registerTelegramWebhook(app: Hono) {
 			}
 
 			const userMessageId = msg.messageId;
+			const hasImage = update.message?.photo && update.message.photo.length > 0;
 
-			// 👀 1. Reaction: "tô vendo sua mensagem"
-			await setMessageReaction(msg.chatId, userMessageId, '👀');
+			// 👀 1. Reaction: visual feedback
+			await setMessageReaction(msg.chatId, userMessageId, hasImage ? '🔍' : '👀');
 
 			// 2. Start typing indicator (runs in background)
 			const typingInterval = setInterval(() => {
