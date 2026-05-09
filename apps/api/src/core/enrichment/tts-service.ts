@@ -1,11 +1,14 @@
-import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import { GoogleGenAI } from '@google/genai';
 import { loggers } from '@/utils/logger';
+
+const VOICE = 'Fenrir';
+const MODEL = 'gemini-3.1-flash-tts-preview';
 
 export class TTSService {
 	private apiKey: string | undefined;
 
 	constructor() {
-		this.apiKey = process.env.GOOGLE_TTS_API_KEY;
+		this.apiKey = process.env.GEMINI_TTS_API_KEY;
 	}
 
 	get isAvailable(): boolean {
@@ -16,21 +19,29 @@ export class TTSService {
 		if (!this.isAvailable) return null;
 
 		try {
-			const client = new TextToSpeechClient({ apiKey: this.apiKey });
+			const ai = new GoogleGenAI({ apiKey: this.apiKey });
 
-			const [response] = await client.synthesizeSpeech({
-				input: { text: text.slice(0, 5000) },
-				voice: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-B' },
-				audioConfig: { audioEncoding: 'OGG_OPUS' },
+			const response = await ai.models.generateContent({
+				model: MODEL,
+				contents: [{ parts: [{ text: text.slice(0, 5000) }] }],
+				config: {
+					responseModalities: ['AUDIO'],
+					speechConfig: {
+						voiceConfig: {
+							prebuiltVoiceConfig: { voiceName: VOICE },
+						},
+					},
+				},
 			});
 
-			if (!response.audioContent) return null;
+			const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+			if (!base64) return null;
 
-			const buffer = Buffer.from(response.audioContent as Uint8Array);
-			loggers.enrichment.info({ bytes: buffer.length }, 'TTS: Google Cloud success');
+			const buffer = Buffer.from(base64, 'base64');
+			loggers.enrichment.info({ bytes: buffer.length }, 'TTS: Gemini success (Fenrir)');
 			return buffer;
 		} catch (error) {
-			loggers.enrichment.error({ err: error }, 'TTS: Google Cloud error');
+			loggers.enrichment.error({ err: error }, 'TTS: Gemini error');
 			return null;
 		}
 	}

@@ -120,9 +120,9 @@ const envSchema = z.object({
 	CLOUDFLARE_API_TOKEN: z.string().optional(),
 
 	// --------------------------------------------------------------------------
-	// Google Cloud TTS (optional — text-to-speech, free tier: 1M chars/month)
+	// Gemini TTS (optional — text-to-speech, Fenrir voice)
 	// --------------------------------------------------------------------------
-	GOOGLE_TTS_API_KEY: z.string().optional(),
+	GEMINI_TTS_API_KEY: z.string().optional(),
 
 	// --------------------------------------------------------------------------
 	// Telegram Bot

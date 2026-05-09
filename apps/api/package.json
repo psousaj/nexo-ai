@@ -24,7 +24,7 @@
 		"db:seed:skills": "tsx --env-file=../../.env scripts/seed-skills.ts"
 	},
 	"dependencies": {
-		"@google-cloud/text-to-speech": "^6.4.1",
+		"@google/genai": "^2.0.1",
 		"@google/generative-ai": "^0.24.1",
 		"@hono/node-server": "^1.19.11",
 		"@hono/zod-validator": "^0.7.6",
