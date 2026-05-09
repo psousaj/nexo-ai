@@ -8,6 +8,7 @@ import {
 	extractTelegramMessage,
 	sendProgressMessage,
 	sendTelegramMessage,
+	sendTelegramPhoto,
 	sendTypingAction,
 	setMessageReaction,
 	telegramUpdateToEnvelope,

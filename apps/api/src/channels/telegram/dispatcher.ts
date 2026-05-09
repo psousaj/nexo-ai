@@ -44,6 +44,14 @@ export async function sendTelegramMessage(
 	return { messageId: msg.message_id };
 }
 
+export async function sendTelegramPhoto(chatId: number, photoUrl: string, caption: string): Promise<void> {
+	try {
+		await getBot().api.sendPhoto(chatId, photoUrl, { caption, parse_mode: 'Markdown' });
+	} catch {
+		await sendTelegramMessage(chatId, caption);
+	}
+}
+
 export async function editMessageText(chatId: number, messageId: number, text: string): Promise<void> {
 	try {
 		await getBot().api.editMessageText(chatId, messageId, text, { parse_mode: 'Markdown' });

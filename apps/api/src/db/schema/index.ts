@@ -23,6 +23,8 @@ export * from './integrations';
 export * from './whatsapp-settings';
 // Feature flags (pivot + channel)
 export * from './feature-flags';
+// Skills system (NEX-30)
+export * from './agent-skills';
 // Hermes canonical memory envelopes (NEX-57)
 export * from './memory-envelopes';
 // AI multi-provider model registry (NEX-53)

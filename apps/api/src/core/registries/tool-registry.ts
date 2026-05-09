@@ -102,33 +102,55 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					return { results };
 				},
 			},
-			{
-				name: 'clarify',
-				description:
-					'Pergunta ao usuário para desambiguar quando houver múltiplas opções ou informação insuficiente. NUNCA salve memória ambígua sem antes clarificar.',
-				jsonSchema: {
-					type: 'object',
-					properties: {
-						question: { type: 'string', description: 'Pergunta clara para o usuário' },
-						choices: {
-							type: 'array',
-							items: { type: 'string' },
-							maxItems: 4,
-							description: 'Opções para o usuário escolher (max 4)',
-						},
+		{
+			name: 'clarify',
+			description:
+				'Pergunta ao usuário para desambiguar quando houver múltiplas opções ou informação insuficiente. NUNCA salve memória ambígua sem antes clarificar.',
+			jsonSchema: {
+				type: 'object',
+				properties: {
+					question: { type: 'string', description: 'Pergunta clara para o usuário' },
+					choices: {
+						type: 'array',
+						items: { type: 'string' },
+						maxItems: 4,
+						description: 'Opções para o usuário escolher (max 4)',
 					},
-					required: ['question'],
 				},
-				policy: 'auto',
-				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
-					return {
-						type: 'clarify',
-						question: input.question,
-						choices: input.choices ?? null,
-					};
-				},
+				required: ['question'],
 			},
-		];
+			policy: 'auto',
+			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+				return {
+					type: 'clarify',
+					question: input.question,
+					choices: input.choices ?? null,
+				};
+			},
+		},
+		{
+			name: 'display_content',
+			description: 'Exibe conteúdo rico (imagem + texto) para o usuário. Use para mostrar posters de filmes, capas de álbuns, ou qualquer conteúdo com imagem.',
+			jsonSchema: {
+				type: 'object',
+				properties: {
+					title: { type: 'string', description: 'Título do conteúdo' },
+					description: { type: 'string', description: 'Descrição detalhada' },
+					imageUrl: { type: 'string', description: 'URL da imagem/poster/capa para exibir' },
+				},
+				required: ['title', 'description'],
+			},
+			policy: 'auto',
+			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+				return {
+					type: 'display',
+					title: input.title,
+					description: input.description,
+					imageUrl: input.imageUrl ?? null,
+				};
+			},
+		},
+	];
 	}
 
 	private getEnrichmentTools(): HermesToolDescriptor[] {
