@@ -29,26 +29,41 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 		const dbTools = await db.select().from(globalTools);
 		const skills = await db.select().from(agentSkills);
 
-		const catalog: HermesToolDescriptor[] = [
-			...dbTools.map((t) => ({
+		const catalog = new Map<string, HermesToolDescriptor>();
+
+		// DB tools (lowest priority)
+		for (const t of dbTools) {
+			catalog.set(t.toolName, {
 				name: t.toolName,
 				description: '',
 				jsonSchema: { type: 'object', properties: {} } as Record<string, unknown>,
 				policy: 'auto' as const,
 				execute: async () => ({ tool: t.toolName, status: 'executed', note: 'configure via tool implementations' }),
-			})),
-			...skills.map((s) => ({
+			});
+		}
+
+		// Skills
+		for (const s of skills) {
+			catalog.set(s.name, {
 				name: s.name,
 				description: s.description ?? '',
 				jsonSchema: { type: 'object', properties: {} } as Record<string, unknown>,
 				policy: 'auto' as const,
 				execute: async () => ({ skill: s.name, status: 'executed' }),
-			})),
-			...this.getBuiltInTools(),
-			...this.getEnrichmentTools(),
-		];
+			});
+		}
 
-		return catalog;
+		// Enrichment tools (override DB/skills with same name)
+		for (const tool of this.getEnrichmentTools()) {
+			catalog.set(tool.name, tool);
+		}
+
+		// Built-in tools (highest priority — override everything)
+		for (const tool of this.getBuiltInTools()) {
+			catalog.set(tool.name, tool);
+		}
+
+		return Array.from(catalog.values());
 	}
 
 	async listEnabled(): Promise<HermesToolDescriptor[]> {
