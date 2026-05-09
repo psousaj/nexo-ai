@@ -56,6 +56,7 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
    Se o usuário clicar "Sim": use \`save_memory(content, category)\`
    Se o usuário clicar "Não": volte ao passo 2 e ofereça outras opções.
 
+⚠️ Se o usuário corrigir/refinar o nome do filme (ex: "não é Chuck, é boneco assassino"), faça uma NOVA busca com os termos corrigidos. NÃO filtre resultados antigos.
 ⚠️ NUNCA invente informações. Busque no TMDB primeiro.
 ⚠️ NUNCA salve sem mostrar o poster e confirmar.
 ⚠️ NUNCA liste opções no texto — use sempre choices do clarify().`,

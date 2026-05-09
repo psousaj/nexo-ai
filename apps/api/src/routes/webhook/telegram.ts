@@ -21,10 +21,13 @@ async function sendConfirmMessage(chatId: number, text: string, imageUrl?: strin
 	const keyboard = {
 		inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]],
 	};
-	const msg = await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
 	if (imageUrl) {
-		getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' }).catch(() => {});
+		try {
+			await getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown', reply_markup: keyboard });
+			return;
+		} catch {}
 	}
+	await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
 }
 
 export function registerTelegramWebhook(app: Hono) {
