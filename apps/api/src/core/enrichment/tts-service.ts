@@ -1,39 +1,36 @@
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { loggers } from '@/utils/logger';
 
-interface CFResponse {
-	result: { audio?: string };
-	success: boolean;
-}
-
 export class TTSService {
-	private accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-	private apiToken = process.env.CLOUDFLARE_API_TOKEN;
+	private apiKey: string | undefined;
+
+	constructor() {
+		this.apiKey = process.env.GOOGLE_TTS_API_KEY;
+	}
 
 	get isAvailable(): boolean {
-		return !!(this.accountId && this.apiToken);
+		return !!this.apiKey;
 	}
 
 	async synthesize(text: string): Promise<Buffer | null> {
 		if (!this.isAvailable) return null;
 
 		try {
-			const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/ai/run/@cf/myshell-ai/melotts`;
-			const res = await fetch(url, {
-				method: 'POST',
-				headers: { Authorization: `Bearer ${this.apiToken}`, 'Content-Type': 'application/json' },
-				body: JSON.stringify({ prompt: text, lang: 'pt-BR' }),
-				signal: AbortSignal.timeout(30000),
+			const client = new TextToSpeechClient({ apiKey: this.apiKey });
+
+			const [response] = await client.synthesizeSpeech({
+				input: { text: text.slice(0, 5000) },
+				voice: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-A' },
+				audioConfig: { audioEncoding: 'MP3' },
 			});
 
-			const data = (await res.json()) as CFResponse;
-			if (!data.success || !data.result?.audio) {
-				loggers.enrichment.warn('TTS: Cloudflare fail');
-				return null;
-			}
+			if (!response.audioContent) return null;
 
-			return Buffer.from(data.result.audio, 'base64');
-		} catch (err) {
-			loggers.enrichment.error({ err }, 'TTS: error');
+			const buffer = Buffer.from(response.audioContent as Uint8Array);
+			loggers.enrichment.info({ bytes: buffer.length }, 'TTS: Google Cloud success');
+			return buffer;
+		} catch (error) {
+			loggers.enrichment.error({ err: error }, 'TTS: Google Cloud error');
 			return null;
 		}
 	}
