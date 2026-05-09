@@ -38,6 +38,7 @@ export async function sendTelegramMessage(
 	text: string,
 	options?: { replyMarkup?: unknown },
 ): Promise<{ messageId: number } | undefined> {
+	if (!text || text.trim().length === 0) return undefined;
 	const params: Record<string, unknown> = { parse_mode: 'Markdown' };
 	if (options?.replyMarkup) params.reply_markup = options.replyMarkup;
 	const msg = await getBot().api.sendMessage(chatId, text, params as any);

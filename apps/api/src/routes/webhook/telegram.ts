@@ -42,60 +42,68 @@ export function registerTelegramWebhook(app: Hono) {
 				const messageId = cb.message?.message_id;
 
 				if (chatId && messageId) {
-					// Clarify: user chose an option
-					if (data?.startsWith('clarify:')) {
-						const choice = decodeURIComponent(data.slice('clarify:'.length));
-						if (cb.id) await getBot().api.answerCallbackQuery(cb.id, { text: `⏳ ${choice}...` });
-						try {
-							await getBot().api.editMessageText(chatId, messageId, `*Você escolheu:* ${choice}`, {
-								parse_mode: 'Markdown',
-								reply_markup: undefined,
-							});
-						} catch {}
-						const sessionKey = resolveSessionKey('telegram', String(chatId));
-						const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice);
-						const result = await runtime.kernel.runTurn({
-							sessionKey,
-							userMessage: choice,
-							systemPrompt: systemPrompt.systemPrompt,
-						});
-						await sendTelegramMessage(chatId, result.text);
-						return c.json({ ok: true });
-					}
+					try {
+						// Always answer callback query IMMEDIATELY to prevent Telegram retry
+						if (cb.id) await getBot().api.answerCallbackQuery(cb.id).catch(() => {});
 
-					// Confirm: yes/no after display_content
-					if (data === 'confirm:yes' || data === 'confirm:no') {
-						if (data === 'confirm:no') {
-							if (cb.id) await getBot().api.answerCallbackQuery(cb.id, { text: '🔄 Mostrando opções...' });
+						// Clarify: user chose an option
+						if (data?.startsWith('clarify:')) {
+							const choice = decodeURIComponent(data.slice('clarify:'.length));
 							try {
-								await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
+								await getBot().api.editMessageText(chatId, messageId, `*Você escolheu:* ${choice}`, {
+									parse_mode: 'Markdown',
+									reply_markup: undefined,
+								});
 							} catch {}
-							const ctx = lastClarifyContext.get(chatId);
-							if (ctx) {
-								sendClarifyMessage(chatId, ctx.question, ctx.choices).catch(() => {});
-							} else {
-								await sendTelegramMessage(chatId, 'Ok, me diga novamente o que quer salvar!');
+							const sessionKey = resolveSessionKey('telegram', String(chatId));
+							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice);
+							const result = await runtime.kernel.runTurn({
+								sessionKey,
+								userMessage: choice,
+								systemPrompt: systemPrompt.systemPrompt,
+							});
+							if (result?.text) {
+								await sendTelegramMessage(chatId, result.text).catch(() => {});
 							}
 							return c.json({ ok: true });
 						}
-						// confirm:yes — proceed to save
-						if (cb.id) await getBot().api.answerCallbackQuery(cb.id, { text: '✅ Salvando...' });
-						try {
-							await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
-						} catch {}
-						const sessionKey = resolveSessionKey('telegram', String(chatId));
-						const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar');
-						const result = await runtime.kernel.runTurn({
-							sessionKey,
-							userMessage: 'confirmar e salvar',
-							systemPrompt: systemPrompt.systemPrompt,
-						});
-						await sendTelegramMessage(chatId, result.text);
+
+						// Confirm: yes/no after display_content
+						if (data === 'confirm:yes' || data === 'confirm:no') {
+							if (data === 'confirm:no') {
+								try {
+									await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
+								} catch {}
+								const ctx = lastClarifyContext.get(chatId);
+								if (ctx) {
+									sendClarifyMessage(chatId, ctx.question, ctx.choices).catch(() => {});
+								} else {
+									await sendTelegramMessage(chatId, 'Ok, me diga novamente o que quer salvar!').catch(() => {});
+								}
+								return c.json({ ok: true });
+							}
+							// confirm:yes
+							try {
+								await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
+							} catch {}
+							const sessionKey = resolveSessionKey('telegram', String(chatId));
+							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar');
+							const result = await runtime.kernel.runTurn({
+								sessionKey,
+								userMessage: 'confirmar e salvar',
+								systemPrompt: systemPrompt.systemPrompt,
+							});
+							if (result?.text) {
+								await sendTelegramMessage(chatId, result.text).catch(() => {});
+							}
+							return c.json({ ok: true });
+						}
+					} catch (e) {
+						console.error('Callback handler error:', e);
 						return c.json({ ok: true });
 					}
 				}
 
-				if (cb.id) await getBot().api.answerCallbackQuery(cb.id);
 				return c.json({ ok: true });
 			}
 
