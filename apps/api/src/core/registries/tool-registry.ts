@@ -118,10 +118,9 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			policy: 'auto',
 			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
 				return {
-					type: 'clarify',
-					question: input.question,
-					choices: input.choices ?? null,
 					_requiresInput: true,
+					status: 'asked',
+					note: 'Pergunta enviada ao usuário. A próxima mensagem do usuário será a resposta.',
 				};
 			},
 		},
@@ -138,13 +137,11 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 				required: ['title', 'description'],
 			},
 			policy: 'auto',
-			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+			execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
 				return {
-					type: 'display',
-					title: input.title,
-					description: input.description,
-					imageUrl: input.imageUrl ?? null,
 					_requiresInput: true,
+					status: 'displayed',
+					note: 'Conteúdo exibido ao usuário. A próxima mensagem do usuário será a confirmação.',
 				};
 			},
 		},
