@@ -22,7 +22,17 @@ export class HermesKernel {
 		callbacks?: KernelCallbacks,
 	): Promise<{ text: string }> {
 		for (let step = 0; step < 6; step++) {
-			const next = await this.deps.modelTurnRunner.next(input);
+			const catalog = await this.deps.toolRegistry.buildHermesToolCatalog();
+			const toolSchemas = catalog.map((t) => ({
+				name: t.name,
+				description: t.description,
+				parameters: t.jsonSchema,
+			}));
+
+			const next = await this.deps.modelTurnRunner.next({
+				...input,
+				tools: toolSchemas,
+			});
 
 			if (next.type === 'tool' && next.toolName) {
 				callbacks?.onToolStart?.(next.toolName, next.input ?? {});

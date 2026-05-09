@@ -21,7 +21,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	}
 
 	async next(context: unknown): Promise<ModelTurnOutput> {
-		const ctx = context as { systemPrompt: string; sessionKey: string; userMessage: string };
+		const ctx = context as { systemPrompt: string; sessionKey: string; userMessage: string; tools?: Array<{ name: string; description: string; parameters: Record<string, unknown> }> };
 		const provider = this.deps.defaultProvider;
 		const model = this.deps.defaultModel;
 
@@ -53,10 +53,20 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				baseURL: resolved.baseURL,
 			});
 
+			const openaiTools = ctx.tools?.map((t) => ({
+				type: 'function' as const,
+				function: {
+					name: t.name,
+					description: t.description,
+					parameters: t.parameters,
+				},
+			}));
+
 			const kwargs = transport.buildKwargs({
 				model: activeModel,
 				messages: this.messages,
 				systemPrompt: ctx.systemPrompt,
+				tools: openaiTools as Array<Record<string, unknown>>,
 			});
 
 			const rawResponse = await client.chat.completions.create(kwargs as any);
