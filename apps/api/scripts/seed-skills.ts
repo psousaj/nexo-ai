@@ -59,7 +59,8 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 ⚠️ Se o usuário corrigir/refinar o nome do filme (ex: "não é Chuck, é boneco assassino"), faça uma NOVA busca com os termos corrigidos. NÃO filtre resultados antigos.
 ⚠️ NUNCA invente informações. Busque no TMDB primeiro.
 ⚠️ NUNCA salve sem mostrar o poster e confirmar.
-⚠️ NUNCA liste opções no texto — use sempre choices do clarify().`,
+⚠️ NUNCA liste opções no texto — use sempre choices do clarify().
+⚠️ Se a ferramenta de busca falhar → tente search_web. Se souber do que se trata, ofereça salvar com suas informações.`,
 	},
 	{
 		name: 'save_music',
@@ -85,7 +86,8 @@ Quando o usuário pedir para salvar uma música, SIGA ESTES PASSOS:
 
 ⚠️ SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET precisam estar configurados.
 ⚠️ SEMPRE mostre a capa antes de salvar.
-⚠️ Use clarify sempre com choices — nunca no texto.`,
+⚠️ Use clarify sempre com choices — nunca no texto.
+⚠️ Se a busca falhar → tente search_web como fallback.`,
 	},
 	{
 		name: 'save_book',
@@ -110,7 +112,8 @@ Quando o usuário pedir para salvar um livro, SIGA ESTES PASSOS:
    Não → volte ao passo 2.
 
 ⚠️ GOOGLE_BOOKS_API_KEY precisa estar configurada.
-⚠️ SEMPRE mostre a capa antes de salvar.`,
+⚠️ SEMPRE mostre a capa antes de salvar.
+⚠️ Se a busca falhar → tente search_web.`,
 	},
 	{
 		name: 'save_link',
@@ -133,7 +136,8 @@ Quando o usuário pedir para salvar um link ou URL, SIGA ESTES PASSOS:
    Não → volte ao passo 1 ou pergunte qual link ele quer.
 
 ⚠️ Links não precisam de API key.
-⚠️ SEMPRE mostre o preview antes de salvar.`,
+⚠️ SEMPRE mostre o preview antes de salvar.
+⚠️ Se o preview falhar → pergunte título e descrição pro usuário.`,
 	},
 	{
 		name: 'handle_voice',
