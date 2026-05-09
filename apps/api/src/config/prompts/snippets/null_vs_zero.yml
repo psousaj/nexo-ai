@@ -1,5 +1,0 @@
-content: |
-  REGRA IMPORTANTE sobre dados numéricos:
-  - Quando um campo é null/undefined: diga "dado não disponível", NUNCA diga "0"
-  - Quando um campo é 0: reporte normalmente — é um dado real confirmado
-  - Ao comparar fontes diferentes, avise que certas métricas podem não ser comparáveis

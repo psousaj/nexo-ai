@@ -169,6 +169,13 @@
       "when": 1778097080684,
       "tag": "0023_familiar_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1778268644774,
+      "tag": "0024_nervous_hydra",
+      "breakpoints": true
     }
   ]
 }

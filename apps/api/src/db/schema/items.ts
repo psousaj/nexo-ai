@@ -62,6 +62,10 @@ export const memoryItems = pgTable(
 		source: text('source').default('user').notNull(),
 		/** Versão da memória (incrementada a cada atualização significativa) */
 		version: integer('version').default(1).notNull(),
+		/** ID do envelope canônico que originou este item (Hermes compat) */
+		sourceEnvelopeId: uuid('source_envelope_id'),
+		/** Último accesso para decay de relevância */
+		lastAccessedAt: timestamp('last_accessed_at'),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 	},
 	(table) => ({

@@ -61,6 +61,32 @@ export const scheduledReminders = pgTable('scheduled_reminders', {
 	updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
+/**
+ * Generic integrations table for user-linked external accounts/providers.
+ */
+export const integrations = pgTable('integrations', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	provider: text('provider').notNull(),
+	accessToken: text('access_token'),
+	refreshToken: text('refresh_token'),
+	scope: text('scope'),
+	tokenType: text('token_type'),
+	expiresAt: timestamp('expires_at', { mode: 'date' }),
+	metadata: jsonb('metadata'),
+	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+});
+
+export const integrationsRelations = relations(integrations, ({ one }) => ({
+	user: one(users, {
+		fields: [integrations.userId],
+		references: [users.id],
+	}),
+}));
+
 // Relations
 export const googleCalendarIntegrationsRelations = relations(googleCalendarIntegrations, ({ one }) => ({
 	user: one(users, {
