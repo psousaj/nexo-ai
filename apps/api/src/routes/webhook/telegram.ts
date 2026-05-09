@@ -1,6 +1,7 @@
 import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { sttService } from '@/core/enrichment/stt-service';
 import { ttsService } from '@/core/enrichment/tts-service';
+import { visionService } from '@/core/enrichment/vision-service';
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
@@ -166,6 +167,7 @@ export function registerTelegramWebhook(app: Hono) {
 			}
 
 			let userMessage = msg.text;
+			let progressText = '';
 
 			// Voice message: download audio + transcribe via STT
 			if (update.message?.voice && !userMessage) {
@@ -183,6 +185,20 @@ export function registerTelegramWebhook(app: Hono) {
 				if (!userMessage) userMessage = '[Mensagem de áudio]';
 			}
 
+			// Image message: download + describe via Gemini Vision
+			if (update.message?.photo && update.message.photo.length > 0) {
+				const photo = update.message.photo[update.message.photo.length - 1]; // highest res
+				const imageBuffer = await downloadTelegramFile(photo.file_id);
+				if (imageBuffer) {
+					const description = await visionService.describe(imageBuffer.toString('base64'));
+					if (description) {
+						userMessage = userMessage
+							? `${userMessage}\n\n[Imagem: ${description}]`
+							: `${description}`;
+					}
+				}
+			}
+
 			const userMessageId = msg.messageId;
 
 			// 👀 1. Reaction: "tô vendo sua mensagem"
@@ -194,7 +210,6 @@ export function registerTelegramWebhook(app: Hono) {
 			}, 4000);
 
 			let progressMessageId: number | null = null;
-			let progressText = '';
 			let skipFinalResponse = false;
 
 			try {

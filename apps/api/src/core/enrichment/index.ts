@@ -7,3 +7,4 @@ export { OpenGraphService, openGraphService } from './opengraph-service';
 export { ImageMetadataService, imageMetadataService } from './image-metadata-service';
 export { STTService, sttService } from './stt-service';
 export { TTSService, ttsService } from './tts-service';
+export { VisionService, visionService } from './vision-service';
