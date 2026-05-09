@@ -8,6 +8,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	private credentialPool: CredentialPool;
 	private messages: Array<Record<string, unknown>> = [];
 	private lastReasoningContent: string | null = null;
+	private lastUserMessage: string | null = null;
 
 	constructor(
 		private deps: {
@@ -38,8 +39,9 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 		this.padReasoningContent(activeModel, activeProvider);
 
-		if (this.messages.length === 0 && ctx.userMessage) {
+		if (ctx.userMessage && ctx.userMessage !== this.lastUserMessage) {
 			this.messages.push({ role: 'user', content: ctx.userMessage });
+			this.lastUserMessage = ctx.userMessage;
 		}
 
 		const apiMode = detectApiMode(resolved.baseURL);

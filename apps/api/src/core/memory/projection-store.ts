@@ -14,23 +14,26 @@ export class PostgresProjectionStore {
 		relevanceDecay: unknown;
 		audit: unknown;
 	}) {
-		const [envelope] = await db
-			.insert(memoryEnvelopes)
-			.values({
-				userId: input.userId,
-				sessionKey: input.sessionKey,
-				sourceKind: input.sourceKind,
-				sourceChannel: input.sourceChannel,
-				normalizedContent: input.normalizedContent,
-				rawArtifact: input.rawArtifact as any,
-				artifactMetadata: input.artifactMetadata as any,
-				confidence: input.confidence,
-				relevanceDecay: input.relevanceDecay as any,
-				audit: input.audit as any,
-			})
-			.returning();
-
-		return envelope;
+		try {
+			const [envelope] = await db
+				.insert(memoryEnvelopes)
+				.values({
+					userId: input.userId,
+					sessionKey: input.sessionKey,
+					sourceKind: input.sourceKind,
+					sourceChannel: input.sourceChannel,
+					normalizedContent: input.normalizedContent,
+					rawArtifact: input.rawArtifact as any,
+					artifactMetadata: input.artifactMetadata as any,
+					confidence: input.confidence,
+					relevanceDecay: input.relevanceDecay as any,
+					audit: input.audit as any,
+				})
+				.returning();
+			return envelope;
+		} catch {
+			return null;
+		}
 	}
 
 	async linkToMemoryItem(_envelopeId: string, _itemId: string): Promise<void> {}
