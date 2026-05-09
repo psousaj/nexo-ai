@@ -17,16 +17,22 @@ import {
 const runtime = createHermesRuntime();
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
 
-function sendPhotoWithConfirm(chatId: number, photoUrl: string, caption: string) {
+async function sendPhotoWithConfirm(chatId: number, photoUrl: string, caption: string) {
 	const keyboard = {
 		inline_keyboard: [
 			[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }],
 			[{ text: '❌ Não', callback_data: 'confirm:no' }],
 		],
 	};
-	getBot().api.sendPhoto(chatId, photoUrl, { caption, parse_mode: 'Markdown', reply_markup: keyboard }).catch(() => {
-		getBot().api.sendMessage(chatId, caption || 'É esse mesmo?', { parse_mode: 'Markdown', reply_markup: keyboard });
-	});
+	try {
+		await getBot().api.sendPhoto(chatId, photoUrl, { caption, parse_mode: 'Markdown', reply_markup: keyboard });
+	} catch {
+		try {
+			await getBot().api.sendMessage(chatId, caption || 'É esse mesmo?', { parse_mode: 'Markdown', reply_markup: keyboard });
+		} catch {
+			await getBot().api.sendMessage(chatId, caption?.replace(/[*_]/g, '') || 'É esse mesmo?', { reply_markup: keyboard });
+		}
+	}
 }
 
 export function registerTelegramWebhook(app: Hono) {
