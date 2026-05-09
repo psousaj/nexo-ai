@@ -17,6 +17,16 @@ import {
 const runtime = createHermesRuntime();
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
 
+async function sendConfirmMessage(chatId: number, text: string, imageUrl?: string): Promise<void> {
+	const keyboard = {
+		inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]],
+	};
+	const msg = await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
+	if (imageUrl) {
+		getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' }).catch(() => {});
+	}
+}
+
 export function registerTelegramWebhook(app: Hono) {
 	app.post('/webhook/telegram', async (c) => {
 		try {
@@ -123,15 +133,10 @@ export function registerTelegramWebhook(app: Hono) {
 							const data = input as any;
 							const title = (data?.title || '').replace(/[*_]/g, '');
 							const desc = (data?.description || '').replace(/[*_]/g, '');
-							const msgText = `*${title}*\n\n${desc}\n\n_É esse mesmo?_`;
-							// Send text with buttons FIRST (always works), then photo
-							getBot().api.sendMessage(msg.chatId, msgText, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] } }).catch(() => {});
-							if (data?.imageUrl) {
-								setTimeout(() => {
-									getBot().api.sendPhoto(msg.chatId, data.imageUrl, { caption: msgText }).catch(() => {});
-								}, 500);
-							}
-							skipFinalResponse = true;
+							const text = title ? `*${title}*\n\n${desc}` : (desc || 'É esse mesmo?');
+							sendConfirmMessage(msg.chatId, text, data?.imageUrl)
+								.then(() => { skipFinalResponse = true; })
+								.catch(() => {});
 							return;
 						}
 						if (toolName === 'clarify') {
