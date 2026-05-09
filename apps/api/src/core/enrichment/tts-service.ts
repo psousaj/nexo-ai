@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { loggers } from '@/utils/logger';
 
 const require = createRequire(import.meta.url);
-const VOICE = 'Fenrir';
+const VOICE = 'Algenib';
 const MODEL = 'gemini-3.1-flash-tts-preview';
 
 function pcmToOpus(pcm: Buffer, sampleRate = 24000): Promise<Buffer> {
