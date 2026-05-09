@@ -77,6 +77,14 @@ export class CredentialPool {
 		}
 	}
 
+	resolveAny(): { apiKey: string; baseURL: string; provider: string } | null {
+		for (const [provider] of this.pools) {
+			const resolved = this.resolve(provider);
+			if (resolved) return { ...resolved, provider };
+		}
+		return null;
+	}
+
 	static fromEnv(): CredentialPool {
 		const pool = new CredentialPool();
 

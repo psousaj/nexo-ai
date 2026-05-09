@@ -21,18 +21,25 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 	async next(context: unknown): Promise<ModelTurnOutput> {
 		const ctx = context as { systemPrompt: string; sessionKey: string };
-		const provider = this.deps.defaultProvider ?? 'openai';
-		const model = this.deps.defaultModel ?? 'gpt-4o-mini';
+		const provider = this.deps.defaultProvider;
+		const model = this.deps.defaultModel;
 
-		this.padReasoningContent(model, provider);
+		const resolved = provider ? this.credentialPool.resolve(provider) : this.credentialPool.resolveAny();
+
+		if (!resolved) {
+			return {
+				type: 'respond',
+				text: 'Nenhum provedor de IA configurado. Configure OPENAI_API_KEY ou DEEPSEEK_API_KEY no .env',
+			};
+		}
+
+		const activeProvider = resolved.provider;
+		const activeModel = model ?? (activeProvider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
+
+		this.padReasoningContent(activeModel, activeProvider);
 
 		if (this.messages.length === 0) {
 			this.messages.push({ role: 'user', content: ctx.sessionKey });
-		}
-
-		const resolved = this.credentialPool.resolve(provider);
-		if (!resolved) {
-			return { type: 'respond', text: 'Nenhum provedor de IA configurado. Configure OPENAI_API_KEY no .env' };
 		}
 
 		const apiMode = detectApiMode(resolved.baseURL);
@@ -45,7 +52,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			});
 
 			const kwargs = transport.buildKwargs({
-				model,
+				model: activeModel,
 				messages: this.messages,
 				systemPrompt: ctx.systemPrompt,
 			});
@@ -68,7 +75,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			}
 			if (this.lastReasoningContent) {
 				assistantMsg.reasoning_content = this.lastReasoningContent;
-			} else if (normalized.toolCalls && this.isDeepSeek(model, provider)) {
+			} else if (normalized.toolCalls && this.isDeepSeek(activeModel, activeProvider)) {
 				assistantMsg.reasoning_content = ' ';
 				this.lastReasoningContent = ' ';
 			}
@@ -77,7 +84,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			return this.toModelTurnOutput(normalized);
 		} catch (error: any) {
 			if (error?.status === 429 || error?.status === 402) {
-				this.credentialPool.markExhausted(provider, resolved.apiKey);
+				this.credentialPool.markExhausted(activeProvider, resolved.apiKey);
 				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };
 			}
 			return { type: 'respond', text: 'Desculpe, não consegui processar sua mensagem agora.' };
