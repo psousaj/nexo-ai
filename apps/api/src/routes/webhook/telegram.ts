@@ -116,6 +116,7 @@ export function registerTelegramWebhook(app: Hono) {
 
 			let progressMessageId: number | null = null;
 			let progressText = '';
+			let skipFinalResponse = false;
 
 			try {
 				lastClarifyContext.delete(msg.chatId);
@@ -136,7 +137,9 @@ export function registerTelegramWebhook(app: Hono) {
 								question: data.question || '',
 								choices: data.choices || [],
 							});
-							sendClarifyMessage(msg.chatId, data.question || '', data.choices || []).catch(() => {});
+							sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
+								.then(() => { skipFinalResponse = true; })
+								.catch(() => {});
 							return;
 						}
 						progressText += `🔍 *${toolName}*...\n`;
@@ -165,8 +168,10 @@ export function registerTelegramWebhook(app: Hono) {
 				// 👍 3. Reaction: deu certo
 				await setMessageReaction(msg.chatId, userMessageId, '👍');
 
-				// 4. Send final response
-				await sendTelegramMessage(msg.chatId, result.text);
+				// 4. Send final response (skip if clarify already sent the buttons)
+				if (result.text && !skipFinalResponse) {
+					await sendTelegramMessage(msg.chatId, result.text);
+				}
 			} finally {
 				clearInterval(typingInterval);
 			}
