@@ -183,6 +183,13 @@
       "when": 1778337045583,
       "tag": "0025_left_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1778339342739,
+      "tag": "0026_brief_gauntlet",
+      "breakpoints": true
     }
   ]
 }

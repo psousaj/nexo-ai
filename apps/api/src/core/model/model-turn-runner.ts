@@ -21,7 +21,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	}
 
 	async next(context: unknown): Promise<ModelTurnOutput> {
-		const ctx = context as { systemPrompt: string; sessionKey: string; userMessage: string; tools?: Array<{ name: string; description: string; parameters: Record<string, unknown> }> };
+		const ctx = context as {
+			systemPrompt: string;
+			sessionKey: string;
+			userMessage: string;
+			tools?: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+		};
 		const provider = this.deps.defaultProvider;
 		const model = this.deps.defaultModel;
 
@@ -95,7 +100,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 			return this.toModelTurnOutput(normalized);
 		} catch (error: any) {
-			console.error('[ModelTurnRunner] LLM API error:', error?.status, error?.message, JSON.stringify(error?.stack ?? '').slice(0, 300));
+			console.error(
+				'[ModelTurnRunner] LLM API error:',
+				error?.status,
+				error?.message,
+				JSON.stringify(error?.stack ?? '').slice(0, 300),
+			);
 			if (error?.status === 429 || error?.status === 402) {
 				this.credentialPool.markExhausted(activeProvider, resolved.apiKey);
 				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };
@@ -104,18 +114,18 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		}
 	}
 
-	async addToolResult(toolName: string, result: unknown): Promise<void> {
+	async addToolResult(toolName: string, toolCallId: string, result: unknown): Promise<void> {
 		this.messages.push({
 			role: 'tool',
 			content: JSON.stringify(result),
-			tool_call_id: toolName,
+			tool_call_id: toolCallId,
 		});
 	}
 
 	private toModelTurnOutput(normalized: NormalizedResponse): ModelTurnOutput {
 		if (normalized.toolCalls && normalized.toolCalls.length > 0) {
 			const tc = normalized.toolCalls[0];
-			return { type: 'tool', toolName: tc.name, input: tc.arguments };
+			return { type: 'tool', toolName: tc.name, toolCallId: tc.id, input: tc.arguments };
 		}
 		return { type: 'respond', text: normalized.content ?? 'Entendi.' };
 	}

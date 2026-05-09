@@ -9,7 +9,13 @@ export interface MemoryRegistry {
 
 export class PostgresMemoryRegistry implements MemoryRegistry {
 	async store(input: unknown) {
-		const data = input as { userId: string; sessionKey: string; content: string; sourceKind: string; confidence?: number };
+		const data = input as {
+			userId: string;
+			sessionKey: string;
+			content: string;
+			sourceKind: string;
+			confidence?: number;
+		};
 		try {
 			const [inserted] = await db
 				.insert(memoryEnvelopes)

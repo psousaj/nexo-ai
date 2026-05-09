@@ -1,8 +1,5 @@
 import { PostgresProjectionStore } from '@/core/memory/projection-store';
 import { PostgresMemoryRegistry } from '@/core/registries/memory-registry';
-import { db } from '@/db';
-import { agentSkills } from '@/db/schema/agent-skills';
-import { globalTools } from '@/db/schema/global-tools';
 import type { HermesToolDescriptor } from '../policies/policy-types';
 
 export interface HermesToolRegistry {
@@ -26,39 +23,14 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 	constructor(private deps: ToolRegistryDeps = {}) {}
 
 	async buildHermesToolCatalog(): Promise<HermesToolDescriptor[]> {
-		const dbTools = await db.select().from(globalTools);
-		const skills = await db.select().from(agentSkills);
-
 		const catalog = new Map<string, HermesToolDescriptor>();
 
-		// DB tools (lowest priority)
-		for (const t of dbTools) {
-			catalog.set(t.toolName, {
-				name: t.toolName,
-				description: '',
-				jsonSchema: { type: 'object', properties: {} } as Record<string, unknown>,
-				policy: 'auto' as const,
-				execute: async () => ({ tool: t.toolName, status: 'executed', note: 'configure via tool implementations' }),
-			});
-		}
-
-		// Skills
-		for (const s of skills) {
-			catalog.set(s.name, {
-				name: s.name,
-				description: s.description ?? '',
-				jsonSchema: { type: 'object', properties: {} } as Record<string, unknown>,
-				policy: 'auto' as const,
-				execute: async () => ({ skill: s.name, status: 'executed' }),
-			});
-		}
-
-		// Enrichment tools (override DB/skills with same name)
+		// Enrichment tools
 		for (const tool of this.getEnrichmentTools()) {
 			catalog.set(tool.name, tool);
 		}
 
-		// Built-in tools (highest priority — override everything)
+		// Built-in tools (highest priority)
 		for (const tool of this.getBuiltInTools()) {
 			catalog.set(tool.name, tool);
 		}
