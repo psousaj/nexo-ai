@@ -1,4 +1,3 @@
-import { PostgresProjectionStore } from '@/core/memory/projection-store';
 import { PostgresMemoryRegistry } from '@/core/registries/memory-registry';
 import type { HermesToolDescriptor } from '../policies/policy-types';
 
@@ -15,7 +14,6 @@ export interface ToolRegistryDeps {
 	bookService?: { searchBook(title: string, author?: string): Promise<unknown> };
 	braveSearchService?: { search(query: string, count?: number): Promise<unknown[]> };
 	openGraphService?: { fetchMetadata(url: string): Promise<unknown> };
-	projectionStore?: PostgresProjectionStore;
 	memoryRegistry?: PostgresMemoryRegistry;
 }
 
@@ -51,13 +49,11 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 
 	private getBuiltInTools(): HermesToolDescriptor[] {
 		const memoryRegistry = this.deps.memoryRegistry ?? new PostgresMemoryRegistry();
-		const projectionStore = this.deps.projectionStore ?? new PostgresProjectionStore();
 
 		return [
 			{
 				name: 'save_memory',
-				description:
-					'Salva uma memória permanente sobre o usuário. Use quando o usuário pedir explicitamente ou quando você identificar informação relevante que mereça ser lembrada.',
+				description: 'Salva uma memória permanente sobre o usuário. Use quando o usuário pedir explicitamente ou quando você identificar informação relevante que mereça ser lembrada.',
 				jsonSchema: {
 					type: 'object',
 					properties: {
@@ -67,6 +63,21 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 							enum: ['work', 'personal', 'tech', 'general'],
 							description: 'Categoria da memória',
 						},
+					},
+					required: ['content'],
+				},
+				policy: 'auto',
+				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+					await memoryRegistry.store({
+						userId: 'default',
+						sessionKey: 'built-in',
+						sourceKind: 'intake',
+						content: input.content as string,
+						confidence: 1,
+					});
+					return { status: 'saved', content: input.content };
+				},
+			},
 					},
 					required: ['content'],
 				},
