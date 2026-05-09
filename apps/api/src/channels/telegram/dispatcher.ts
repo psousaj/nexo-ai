@@ -33,8 +33,21 @@ export function telegramUpdateToEnvelope(update: Update): CanonicalMessageEnvelo
 	};
 }
 
-export async function sendTelegramMessage(chatId: number, text: string): Promise<void> {
-	await getBot().api.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+export async function sendTelegramMessage(chatId: number, text: string, options?: { replyMarkup?: unknown }): Promise<void> {
+	const params: Record<string, unknown> = { parse_mode: 'Markdown' };
+	if (options?.replyMarkup) params.reply_markup = options.replyMarkup;
+	await getBot().api.sendMessage(chatId, text, params as any);
+}
+
+export async function sendClarifyMessage(chatId: number, question: string, choices?: string[]): Promise<void> {
+	if (choices && choices.length > 0) {
+		const keyboard = {
+			inline_keyboard: choices.map((c) => [{ text: c, callback_data: `clarify:${c}` }]),
+		};
+		await sendTelegramMessage(chatId, question, { replyMarkup: keyboard });
+		return;
+	}
+	await sendTelegramMessage(chatId, question);
 }
 
 export function extractTelegramMessage(msg: CanonicalMessageEnvelope<IngestMessageQueuePayload>): TelegramMessage {

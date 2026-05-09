@@ -115,6 +115,31 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					return { results };
 				},
 			},
+			{
+				name: 'clarify',
+				description: 'Pergunta ao usuário para desambiguar quando houver múltiplas opções ou informação insuficiente. NUNCA salve memória ambígua sem antes clarificar.',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						question: { type: 'string', description: 'Pergunta clara para o usuário' },
+						choices: {
+							type: 'array',
+							items: { type: 'string' },
+							maxItems: 4,
+							description: 'Opções para o usuário escolher (max 4)',
+						},
+					},
+					required: ['question'],
+				},
+				policy: 'auto',
+				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+					return {
+						type: 'clarify',
+						question: input.question,
+						choices: input.choices ?? null,
+					};
+				},
+			},
 		];
 	}
 

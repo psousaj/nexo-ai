@@ -1,6 +1,7 @@
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
+import { getBot } from '../../channels/telegram/bot';
 import {
 	extractTelegramMessage,
 	sendTelegramMessage,
@@ -13,6 +14,21 @@ export function registerTelegramWebhook(app: Hono) {
 	app.post('/webhook/telegram', async (c) => {
 		try {
 			const update = await c.req.json();
+
+			// Handle callback queries from inline keyboards (clarify responses)
+			if (update.callback_query) {
+				const cb = update.callback_query;
+				const data = cb.data as string | undefined;
+				const chatId = cb.message?.chat?.id;
+				if (data?.startsWith('clarify:') && chatId) {
+					const choice = data.slice('clarify:'.length);
+					await getBot().api.sendMessage(chatId, decodeURIComponent(choice));
+					if (cb.id) await getBot().api.answerCallbackQuery(cb.id);
+					return c.json({ ok: true });
+				}
+				return c.json({ ok: true });
+			}
+
 			const envelope = telegramUpdateToEnvelope(update);
 			if (!envelope) return c.json({ ok: true });
 
