@@ -74,6 +74,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				},
 			}));
 
+			if (!ctx.tools || ctx.tools.length === 0) {
+				console.warn('[LLM] No tools in context! Catalog may be empty.');
+			} else {
+				console.log(`[LLM] Tools available: ${ctx.tools.map((t) => t.name).join(', ')}`);
+			}
+
 			const kwargs = transport.buildKwargs({
 				model: activeModel,
 				messages: this.messages,
@@ -83,6 +89,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 			const rawResponse = await client.chat.completions.create(kwargs as any);
 			const normalized = transport.normalizeResponse(rawResponse);
+
+			if (!normalized.toolCalls && normalized.content) {
+				console.log(`[LLM] No tool calls. Response: "${normalized.content.slice(0, 100)}..."`);
+			} else if (normalized.toolCalls) {
+				console.log(`[LLM] Tool calls: ${normalized.toolCalls.map((t) => t.name).join(', ')}`);
+			}
 
 			this.lastReasoningContent = (normalized.providerData?.reasoning_content as string) ?? null;
 
