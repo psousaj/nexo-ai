@@ -18,6 +18,11 @@ const boolFromEnv = z.enum(['true', 'false']).transform((val) => val === 'true')
 
 const envSchema = z.object({
 	// --------------------------------------------------------------------------
+	// Telemetry — OpenTelemetry (opcional)
+	// --------------------------------------------------------------------------
+	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+
+	// --------------------------------------------------------------------------
 	// Core — runtime básico
 	// --------------------------------------------------------------------------
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -59,6 +64,16 @@ const envSchema = z.object({
 	REDIS_TLS: boolFromEnv.optional(),
 
 	// --------------------------------------------------------------------------
+	// Sentry
+	// --------------------------------------------------------------------------
+	SENTRY_ENABLED: boolFromEnv.default('false'),
+	SENTRY_DSN: z.string().optional(),
+	SENTRY_AUTH_TOKEN: z.string().optional(),
+	SENTRY_ORG: z.string().optional(),
+	SENTRY_PROJECT: z.string().optional(),
+	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
+
+	// --------------------------------------------------------------------------
 	// Feature flags (pivot — defaults only, overridden via DB)
 	// --------------------------------------------------------------------------
 	CONVERSATION_FREE: boolFromEnv.default('true'),
@@ -90,6 +105,18 @@ const envSchema = z.object({
 	SPOTIFY_CLIENT_ID: z.string().optional(),
 	SPOTIFY_CLIENT_SECRET: z.string().optional(),
 	BRAVE_SEARCH_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// AI Providers (optional — used directly by CredentialPool)
+	// --------------------------------------------------------------------------
+	OPENAI_API_KEY: z.string().optional(),
+	DEEPSEEK_API_KEY: z.string().optional(),
+	OPENROUTER_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// Telegram Bot
+	// --------------------------------------------------------------------------
+	BOT_TOKEN_TELEGRAM: z.string().optional(),
 
 	// --------------------------------------------------------------------------
 	// Nuxt Dashboard (frontend - public vars)
