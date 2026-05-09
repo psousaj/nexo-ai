@@ -1,47 +1,43 @@
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { loggers } from '@/utils/logger';
 
-interface CloudflareAIResponse {
-	result: { audio?: string };
-	success: boolean;
-}
+const VOICE_ID = '4J31DrhygVjvFsoj7BsM';
 
 export class TTSService {
-	private accountId: string | undefined;
-	private apiToken: string | undefined;
+	private apiKey: string | undefined;
 
 	constructor() {
-		this.accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-		this.apiToken = process.env.CLOUDFLARE_API_TOKEN;
+		this.apiKey = process.env.ELEVENLABS_API_KEY;
 	}
 
 	get isAvailable(): boolean {
-		return !!(this.accountId && this.apiToken);
+		return !!this.apiKey;
 	}
 
 	async synthesize(text: string): Promise<Buffer | null> {
 		if (!this.isAvailable) {
-			loggers.enrichment.warn('Cloudflare TTS não configurado (CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN)');
+			loggers.enrichment.warn('ElevenLabs TTS não configurado (ELEVENLABS_API_KEY)');
 			return null;
 		}
 
 		try {
-			const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/ai/run/@cf/myshell-ai/melotts`;
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${this.apiToken}`,
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ prompt: text, lang: 'pt-BR' }),
-				signal: AbortSignal.timeout(30000),
+			const client = new ElevenLabsClient({ apiKey: this.apiKey });
+
+			const stream = await client.textToSpeech.convert(VOICE_ID, {
+				text,
+				modelId: 'eleven_multilingual_v2',
 			});
 
-			const data = (await response.json()) as CloudflareAIResponse;
-			loggers.enrichment.info({ success: data.success, hasAudio: !!data.result?.audio }, 'TTS: Cloudflare response');
-			if (!data.success || !data.result?.audio) return null;
-			return Buffer.from(data.result.audio, 'base64');
+			const chunks: Buffer[] = [];
+			for await (const chunk of stream) {
+				chunks.push(Buffer.from(chunk));
+			}
+
+			const audioBuffer = Buffer.concat(chunks);
+			loggers.enrichment.info({ bytes: audioBuffer.length }, 'TTS: ElevenLabs audio generated');
+			return audioBuffer;
 		} catch (error) {
-			loggers.enrichment.error({ err: error }, 'TTS: erro ao sintetizar voz');
+			loggers.enrichment.error({ err: error }, 'TTS: ElevenLabs error');
 			return null;
 		}
 	}

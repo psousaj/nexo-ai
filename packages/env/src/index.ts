@@ -120,6 +120,11 @@ const envSchema = z.object({
 	CLOUDFLARE_API_TOKEN: z.string().optional(),
 
 	// --------------------------------------------------------------------------
+	// ElevenLabs TTS (optional — text-to-speech voice synthesis)
+	// --------------------------------------------------------------------------
+	ELEVENLABS_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
 	// Telegram Bot
 	// --------------------------------------------------------------------------
 	BOT_TOKEN_TELEGRAM: z.string().optional(),
