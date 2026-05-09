@@ -6,7 +6,11 @@ import {
 	tmdbService,
 	youtubeService,
 } from '@/core/enrichment';
+import { db } from '@/db';
+import { agentSkills } from '@/db/schema/agent-skills';
+import { eq } from 'drizzle-orm';
 import { ContextAssembler } from '../context/context-assembler';
+import type { SkillInfo } from '../context/context-assembler';
 import { HermesKernel } from '../kernel/hermes-kernel';
 import type { ModelTurnRunner } from '../kernel/model-turn-runner';
 import { CredentialPool, DefaultModelTurnRunner } from '../model';
@@ -23,6 +27,21 @@ export interface HermesRuntime {
 	toolRegistry: HermesToolRegistry;
 	kernel: HermesKernel;
 	contextAssembler: ContextAssembler;
+}
+
+async function loadSkillsFromDb(): Promise<SkillInfo[]> {
+	try {
+		const skills = await db.select().from(agentSkills).where(eq(agentSkills.enabled, true));
+		return skills.map((s) => ({
+			name: s.name,
+			description: s.description ?? '',
+			content: s.content,
+			triggers: (s.triggers ?? []) as string[],
+			enabled: s.enabled,
+		}));
+	} catch {
+		return [];
+	}
 }
 
 export function createHermesRuntime(deps?: {
@@ -45,7 +64,7 @@ export function createHermesRuntime(deps?: {
 			openGraphService,
 		});
 	const sessionRegistry = deps?.sessionRegistry ?? new PostgresSessionRegistry();
-	const contextAssembler = new ContextAssembler({ memoryRegistry });
+	const contextAssembler = new ContextAssembler({ memoryRegistry, loadSkills: loadSkillsFromDb });
 	const modelTurnRunner = deps?.modelTurnRunner ?? new DefaultModelTurnRunner({ credentialPool });
 	const kernel = new HermesKernel({ modelTurnRunner, toolRegistry });
 	return { sessionRegistry, memoryRegistry, toolRegistry, kernel, contextAssembler };

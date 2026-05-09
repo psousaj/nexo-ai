@@ -53,7 +53,7 @@ export function registerTelegramWebhook(app: Hono) {
 							});
 						} catch {}
 						const sessionKey = resolveSessionKey('telegram', String(chatId));
-						const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
+						const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice);
 						const result = await runtime.kernel.runTurn({
 							sessionKey,
 							userMessage: choice,
@@ -84,7 +84,7 @@ export function registerTelegramWebhook(app: Hono) {
 							await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
 						} catch {}
 						const sessionKey = resolveSessionKey('telegram', String(chatId));
-						const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
+						const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar');
 						const result = await runtime.kernel.runTurn({
 							sessionKey,
 							userMessage: 'confirmar e salvar',
@@ -119,7 +119,7 @@ export function registerTelegramWebhook(app: Hono) {
 
 			try {
 				lastClarifyContext.delete(msg.chatId);
-				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
+				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text);
 				const callbacks: KernelCallbacks = {
 					onToolStart: (toolName, input) => {
 						if (toolName === 'display_content') {
