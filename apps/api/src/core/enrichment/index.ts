@@ -5,3 +5,5 @@ export { BookService, bookService } from './book-service';
 export { BraveSearchService, braveSearchService } from './brave-search-service';
 export { OpenGraphService, openGraphService } from './opengraph-service';
 export { ImageMetadataService, imageMetadataService } from './image-metadata-service';
+export { STTService, sttService } from './stt-service';
+export { TTSService, ttsService } from './tts-service';

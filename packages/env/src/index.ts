@@ -114,6 +114,12 @@ const envSchema = z.object({
 	OPENROUTER_API_KEY: z.string().optional(),
 
 	// --------------------------------------------------------------------------
+	// Cloudflare Workers AI (optional — STT/TTS models)
+	// --------------------------------------------------------------------------
+	CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+	CLOUDFLARE_API_TOKEN: z.string().optional(),
+
+	// --------------------------------------------------------------------------
 	// Telegram Bot
 	// --------------------------------------------------------------------------
 	BOT_TOKEN_TELEGRAM: z.string().optional(),

@@ -1,4 +1,5 @@
 import type { CanonicalMessageEnvelope, IngestMessageQueuePayload } from '@/core/gateway/ingestion-gateway';
+import { InputFile } from 'grammy';
 import type { Update } from 'grammy';
 import { getBot } from './bot';
 import type { TelegramMessage } from './types';
@@ -50,6 +51,14 @@ export async function sendTelegramPhoto(chatId: number, photoUrl: string, captio
 		await getBot().api.sendPhoto(chatId, photoUrl, { caption, parse_mode: 'Markdown' });
 	} catch {
 		await sendTelegramMessage(chatId, caption);
+	}
+}
+
+export async function sendTelegramVoice(chatId: number, audioBuffer: Buffer): Promise<void> {
+	try {
+		await getBot().api.sendVoice(chatId, new InputFile(audioBuffer, 'voice.ogg'));
+	} catch {
+		// Voice sending failed — ignore
 	}
 }
 

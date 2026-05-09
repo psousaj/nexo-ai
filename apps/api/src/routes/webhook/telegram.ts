@@ -1,4 +1,5 @@
 import type { KernelCallbacks } from '@/core/kernel/hermes-kernel';
+import { ttsService } from '@/core/enrichment/tts-service';
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import type { Hono } from 'hono';
@@ -9,6 +10,7 @@ import {
 	sendClarifyMessage,
 	sendProgressMessage,
 	sendTelegramMessage,
+	sendTelegramVoice,
 	sendTypingAction,
 	setMessageReaction,
 	telegramUpdateToEnvelope,
@@ -142,17 +144,21 @@ export function registerTelegramWebhook(app: Hono) {
 								.catch(() => {});
 							return;
 						}
-						if (toolName === 'clarify') {
-							const data = input as any;
-							lastClarifyContext.set(msg.chatId, {
-								question: data.question || '',
-								choices: data.choices || [],
-							});
-							sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
-								.then(() => { skipFinalResponse = true; })
-								.catch(() => {});
-							return;
-						}
+				if (toolName === 'clarify') {
+						const data = input as any;
+						lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
+						sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
+							.then(() => { skipFinalResponse = true; })
+							.catch(() => {});
+						return;
+					}
+					if (toolName === 'text_to_speech') {
+						const data = input as any;
+						ttsService.synthesize(data.text || '').then((buffer) => {
+							if (buffer) sendTelegramVoice(msg.chatId, buffer).catch(() => {});
+						}).catch(() => {});
+						return;
+					}
 						progressText += `🔍 *${toolName}*...\n`;
 						if (progressMessageId) {
 							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});

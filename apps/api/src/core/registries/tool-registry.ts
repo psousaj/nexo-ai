@@ -138,11 +138,22 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			},
 			policy: 'auto',
 			execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
-				return {
-					_requiresInput: true,
-					status: 'displayed',
-					note: 'Conteúdo exibido ao usuário. A próxima mensagem do usuário será a confirmação.',
-				};
+				return { _requiresInput: true, status: 'displayed', note: 'Conteúdo exibido.' };
+			},
+		},
+		{
+			name: 'text_to_speech',
+			description: 'Transforma texto em áudio (voz). Use quando o usuário pedir para falar algo ou quando estiver em modo voz.',
+			jsonSchema: {
+				type: 'object',
+				properties: {
+					text: { type: 'string', description: 'Texto para converter em fala' },
+				},
+				required: ['text'],
+			},
+			policy: 'auto',
+			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+				return { type: 'tts', text: input.text, status: 'synthesized' };
 			},
 		},
 	];
