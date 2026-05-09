@@ -187,6 +187,7 @@ export function registerTelegramWebhook(app: Hono) {
 
 			// Image message: download + describe via Gemini Vision
 			if (update.message?.photo && update.message.photo.length > 0) {
+				progressText += '🔍 Analisando imagem...\n';
 				const photo = update.message.photo[update.message.photo.length - 1]; // highest res
 				const imageBuffer = await downloadTelegramFile(photo.file_id);
 				if (imageBuffer) {
