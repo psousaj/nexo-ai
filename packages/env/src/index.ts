@@ -82,6 +82,16 @@ const envSchema = z.object({
 	DISCORD_CLIENT_SECRET: z.string().optional(),
 
 	// --------------------------------------------------------------------------
+	// Enrichment APIs (optional — tools disabled if not set)
+	// --------------------------------------------------------------------------
+	TMDB_API_KEY: z.string().optional(),
+	YOUTUBE_API_KEY: z.string().optional(),
+	GOOGLE_BOOKS_API_KEY: z.string().optional(),
+	SPOTIFY_CLIENT_ID: z.string().optional(),
+	SPOTIFY_CLIENT_SECRET: z.string().optional(),
+	BRAVE_SEARCH_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
 	// Nuxt Dashboard (frontend - public vars)
 	// --------------------------------------------------------------------------
 	NUXT_PUBLIC_AUTH_BASE_URL: z.string().url().optional(),
