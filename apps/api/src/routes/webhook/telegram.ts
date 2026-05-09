@@ -63,21 +63,28 @@ export function registerTelegramWebhook(app: Hono) {
 			let progressMessageId: number | null = null;
 
 			try {
-				const systemPrompt = runtime.contextAssembler.buildFromSessionKey(sessionKey);
+				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
 				const callbacks: KernelCallbacks = {
-					onToolStart: (toolName, _input) => {
+					onToolStart: (toolName, input) => {
+						if (toolName === 'display_content') {
+							const data = input as any;
+							if (data?.imageUrl) {
+								const caption = `*${data.title || ''}*\n\n${data.description || ''}`;
+								sendTelegramPhoto(msg.chatId, data.imageUrl, caption).catch(() => {});
+							}
+							return;
+						}
 						const text = `🔍 *${toolName}*...`;
 						if (progressMessageId) {
 							editMessageText(msg.chatId, progressMessageId, text).catch(() => {});
 						} else {
 							sendProgressMessage(msg.chatId, text)
-								.then((id) => {
-									progressMessageId = id;
-								})
+								.then((id) => { progressMessageId = id; })
 								.catch(() => {});
 						}
 					},
 					onToolEnd: (toolName, _result) => {
+						if (toolName === 'display_content') return;
 						const text = `✅ *${toolName}* concluído`;
 						if (progressMessageId) {
 							editMessageText(msg.chatId, progressMessageId, text).catch(() => {});
