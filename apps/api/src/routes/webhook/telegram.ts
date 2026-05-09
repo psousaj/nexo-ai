@@ -20,6 +20,7 @@ import {
 
 const runtime = createHermesRuntime();
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
+const lastClarifyMsgId = new Map<number, number>();
 
 async function sendConfirmMessage(chatId: number, text: string, imageUrl?: string): Promise<void> {
 	const keyboard = {
@@ -117,6 +118,15 @@ export function registerTelegramWebhook(app: Hono) {
 
 			const sessionKey = resolveSessionKey('telegram', envelope.payload.incomingMsg.externalId);
 			const msg = extractTelegramMessage(envelope);
+
+			// Clean up pending clarify buttons if user sends text instead of clicking
+			const pendingMsgId = lastClarifyMsgId.get(msg.chatId);
+			if (pendingMsgId) {
+				lastClarifyMsgId.delete(msg.chatId);
+				lastClarifyContext.delete(msg.chatId);
+				getBot().api.editMessageReplyMarkup(msg.chatId, pendingMsgId, {}).catch(() => {});
+			}
+
 			let userMessage = msg.text;
 
 			// Voice message: download audio + transcribe via STT
@@ -150,25 +160,24 @@ export function registerTelegramWebhook(app: Hono) {
 			let skipFinalResponse = false;
 
 			try {
-				lastClarifyContext.delete(msg.chatId);
 				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text);
 				const callbacks: KernelCallbacks = {
 					onToolStart: (toolName, input) => {
 						if (toolName === 'display_content') {
-							const data = input as any;
-							const title = (data?.title || '').replace(/[*_]/g, '');
-							const desc = (data?.description || '').replace(/[*_]/g, '');
-							const text = title ? `*${title}*\n\n${desc}` : (desc || 'É esse mesmo?');
-							sendConfirmMessage(msg.chatId, text, data?.imageUrl)
-								.then(() => { skipFinalResponse = true; })
-								.catch(() => {});
-							return;
-						}
-				if (toolName === 'clarify') {
+						skipFinalResponse = true;
+						const data = input as any;
+						const title = (data?.title || '').replace(/[*_]/g, '');
+						const desc = (data?.description || '').replace(/[*_]/g, '');
+						const text = title ? `*${title}*\n\n${desc}` : (desc || 'É esse mesmo?');
+						sendConfirmMessage(msg.chatId, text, data?.imageUrl).catch(() => {});
+						return;
+					}
+					if (toolName === 'clarify') {
+						skipFinalResponse = true;
 						const data = input as any;
 						lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
 						sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
-							.then(() => { skipFinalResponse = true; })
+							.then((msgId) => { if (msgId) lastClarifyMsgId.set(msg.chatId, msgId); })
 							.catch(() => {});
 						return;
 					}
