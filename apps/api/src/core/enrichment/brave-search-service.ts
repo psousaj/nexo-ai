@@ -64,11 +64,7 @@ export class BraveSearchService {
 	}
 
 	private sanitize(text: string): string {
-		return text
-			.replace(/[<>]/g, '')
-			.replace(/\n+/g, ' ')
-			.substring(0, 300)
-			.trim();
+		return text.replace(/[<>]/g, '').replace(/\n+/g, ' ').substring(0, 300).trim();
 	}
 }
 

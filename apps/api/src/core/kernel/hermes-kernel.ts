@@ -3,6 +3,12 @@ import type { HermesToolRegistry } from '../registries/tool-registry';
 import type { ModelTurnRunner } from './model-turn-runner';
 import { executeToolWithPolicy } from './tool-executor';
 
+export interface KernelCallbacks {
+	onToolStart?: (toolName: string, input: unknown) => void;
+	onToolEnd?: (toolName: string, result: unknown) => void;
+	onRespond?: (text: string) => void;
+}
+
 export class HermesKernel {
 	constructor(
 		private deps: {
@@ -11,11 +17,12 @@ export class HermesKernel {
 		},
 	) {}
 
-	async runTurn(input: { sessionKey: string }): Promise<{ text: string }> {
+	async runTurn(input: { sessionKey: string }, callbacks?: KernelCallbacks): Promise<{ text: string }> {
 		for (let step = 0; step < 6; step++) {
 			const next = await this.deps.modelTurnRunner.next(input);
 
 			if (next.type === 'tool' && next.toolName) {
+				callbacks?.onToolStart?.(next.toolName, next.input ?? {});
 				const catalog = await this.deps.toolRegistry.buildHermesToolCatalog();
 				const descriptor = catalog.find((t) => t.name === next.toolName);
 				if (!descriptor) {
@@ -26,6 +33,8 @@ export class HermesKernel {
 					descriptor,
 					execute: () => descriptor.execute(input, next.input ?? {}),
 				});
+
+				callbacks?.onToolEnd?.(next.toolName, result);
 
 				if (result.status === 'blocked') {
 					if (result.requiresConfirmation) {
@@ -41,7 +50,10 @@ export class HermesKernel {
 				await this.deps.modelTurnRunner.addToolResult?.(next.toolName, result);
 			}
 
-			if (next.type === 'respond') return { text: next.text! };
+			if (next.type === 'respond') {
+				callbacks?.onRespond?.(next.text!);
+				return { text: next.text! };
+			}
 		}
 
 		throw new HermesRuntimeError('turn_budget_exhausted', 'HermesKernel exceeded the maximum step budget');

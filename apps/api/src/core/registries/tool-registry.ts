@@ -117,7 +117,8 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			},
 			{
 				name: 'clarify',
-				description: 'Pergunta ao usuário para desambiguar quando houver múltiplas opções ou informação insuficiente. NUNCA salve memória ambígua sem antes clarificar.',
+				description:
+					'Pergunta ao usuário para desambiguar quando houver múltiplas opções ou informação insuficiente. NUNCA salve memória ambígua sem antes clarificar.',
 				jsonSchema: {
 					type: 'object',
 					properties: {
