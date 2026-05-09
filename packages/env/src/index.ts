@@ -59,6 +59,16 @@ const envSchema = z.object({
 	REDIS_TLS: boolFromEnv.optional(),
 
 	// --------------------------------------------------------------------------
+	// Sentry
+	// --------------------------------------------------------------------------
+	SENTRY_ENABLED: boolFromEnv.default('false'),
+	SENTRY_DSN: z.string().optional(),
+	SENTRY_AUTH_TOKEN: z.string().optional(),
+	SENTRY_ORG: z.string().optional(),
+	SENTRY_PROJECT: z.string().optional(),
+	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
+
+	// --------------------------------------------------------------------------
 	// Feature flags (pivot — defaults only, overridden via DB)
 	// --------------------------------------------------------------------------
 	CONVERSATION_FREE: boolFromEnv.default('true'),
