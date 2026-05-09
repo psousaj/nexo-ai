@@ -78,21 +78,6 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					return { status: 'saved', content: input.content };
 				},
 			},
-					},
-					required: ['content'],
-				},
-				policy: 'auto',
-				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
-					await projectionStore.store({
-						userId: 'default',
-						sessionKey: 'built-in',
-						sourceKind: 'intake',
-						content: input.content as string,
-						confidence: 1,
-					});
-					return { status: 'saved', content: input.content };
-				},
-			},
 			{
 				name: 'search_memories',
 				description:
