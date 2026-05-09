@@ -39,24 +39,26 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
    Use \`search_movie_tmdb(query)\` com o nome do filme.
    Se não tiver certeza do nome, clarifique primeiro.
 
-2. **Clarificar se ambíguo**
-   Se a busca retornar múltiplos resultados, use \`clarify(question, choices)\` com as opções no array \`choices\`.
+2. **Se resultado ÚNICO e óbvio** (ex: "Interestelar 2014 Nolan")
+   PULE a clarificação. Vá direto para o passo 3 (Mostrar e Confirmar).
+
+3. **Se múltiplos resultados**
+   Use \`clarify(question, choices)\` com as opções no array \`choices\`.
    Exemplo: clarify("Qual versão?", ["Evil Dead (1981)", "Evil Dead (2013)"])
-   NUNCA liste as opções no texto da resposta — use sempre o parâmetro choices.
+   NUNCA liste opções no texto — use sempre o parâmetro choices.
 
-3. **Mostrar e Confirmar**
-   Use \`display_content(title, description, imageUrl)\` para mostrar o poster.
-   O Telegram adiciona os botões Sim/Não automaticamente.
+4. **Mostrar e Confirmar (OBRIGATÓRIO)**
+   SEMPRE mostre o poster com \`display_content(title, description, imageUrl)\`.
+   O Telegram adiciona os botões Sim/Não.
+   NUNCA pule esta etapa — o usuário precisa ver o que vai salvar.
 
-4. **Salvar**
-   Se confirmado, use \`save_memory()\` com content "Filme: {título} ({ano})", category "personal"
-
-5. **Se negar**
-   Volte ao passo 2 e ofereça outras opções com clarify().
+5. **Salvar (só se confirmado)**
+   Se o usuário clicar "Sim": use \`save_memory(content, category)\`
+   Se o usuário clicar "Não": volte ao passo 2 e ofereça outras opções.
 
 ⚠️ NUNCA invente informações. Busque no TMDB primeiro.
-⚠️ NUNCA salve sem confirmar com o usuário.
-⚠️ NUNCA liste opções no texto — use sempre o parâmetro choices do clarify().`,
+⚠️ NUNCA salve sem mostrar o poster e confirmar.
+⚠️ NUNCA liste opções no texto — use sempre choices do clarify().`,
 	},
 	{
 		name: 'save_music',
@@ -69,18 +71,19 @@ Quando o usuário pedir para salvar uma música, SIGA ESTES PASSOS:
 1. **Buscar no Spotify**
    Use \`search_music(title, artist)\` com título e artista (se informado).
 
-2. **Clarificar se ambíguo**
-   Se múltiplos resultados, use \`clarify(question, choices)\` com as opções no array choices.
-   NUNCA liste opções no texto.
+2. **Se resultado ÚNICO** → PULE clarificação, vá direto ao passo 3.
+   **Se múltiplos resultados** → use \`clarify(question, choices)\`.
 
-3. **Mostrar e Confirmar**
-   Use \`display_content(title, description, imageUrl)\` com capa do álbum.
+3. **Mostrar e Confirmar (OBRIGATÓRIO)**
+   SEMPRE mostre a capa com \`display_content(title, description, imageUrl)\`.
+   NUNCA pule esta etapa.
 
-4. **Salvar**
-   Se confirmado, use \`save_memory()\` com content "Música: {título} - {artista}", category "personal"
+4. **Salvar (só se confirmado)**
+   Sim → \`save_memory(content, category)\`
+   Não → volte ao passo 2.
 
 ⚠️ SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET precisam estar configurados.
-⚠️ NUNCA salve sem confirmar.
+⚠️ SEMPRE mostre a capa antes de salvar.
 ⚠️ Use clarify sempre com choices — nunca no texto.`,
 	},
 	{
@@ -92,21 +95,21 @@ Quando o usuário pedir para salvar uma música, SIGA ESTES PASSOS:
 Quando o usuário pedir para salvar um livro, SIGA ESTES PASSOS:
 
 1. **Buscar no Google Books**
-   Use \`search_book(title, author)\` com o título e autor (se informado).
+   Use \`search_book(title, author)\` com título e autor (se informado).
 
-2. **Clarificar se ambíguo**
-   Se múltiplos resultados, clarifique com \`clarify()\`.
+2. **Se resultado ÚNICO** → PULE clarificação, vá direto ao passo 3.
+   **Se múltiplos resultados** → use \`clarify(question, choices)\`.
 
-3. **Mostrar e Confirmar**
-   Use \`display_content(title, description, imageUrl)\` com capa do livro.
+3. **Mostrar e Confirmar (OBRIGATÓRIO)**
+   SEMPRE mostre a capa com \`display_content(title, description, imageUrl)\`.
+   NUNCA pule esta etapa.
 
-4. **Salvar**
-   Se confirmado, use \`save_memory()\` com:
-   - content: "Livro: {título} - {autor}"
-   - category: "personal"
+4. **Salvar (só se confirmado)**
+   Sim → \`save_memory(content, category)\`
+   Não → volte ao passo 2.
 
 ⚠️ GOOGLE_BOOKS_API_KEY precisa estar configurada.
-⚠️ NUNCA salve sem confirmar com o usuário.`,
+⚠️ SEMPRE mostre a capa antes de salvar.`,
 	},
 	{
 		name: 'save_link',
@@ -117,19 +120,19 @@ Quando o usuário pedir para salvar um livro, SIGA ESTES PASSOS:
 Quando o usuário pedir para salvar um link ou URL, SIGA ESTES PASSOS:
 
 1. **Buscar Preview**
-   Use \`get_link_preview(url)\` para obter título, descrição e imagem do link.
-   Se o usuário não forneceu a URL, clarifique.
+   Use \`get_link_preview(url)\` para obter título, descrição e imagem.
+   Se não forneceu a URL, clarifique primeiro.
 
-2. **Mostrar e Confirmar**
-   Use \`display_content(title, description, imageUrl)\` com os dados do preview.
+2. **Mostrar e Confirmar (OBRIGATÓRIO)**
+   SEMPRE mostre o preview com \`display_content(title, description, imageUrl)\`.
+   NUNCA pule esta etapa.
 
-3. **Salvar**
-   Se confirmado, use \`save_memory()\` com:
-   - content: "Link: {título}"
-   - category: "personal"
+3. **Salvar (só se confirmado)**
+   Sim → \`save_memory(content, category)\`
+   Não → volte ao passo 1 ou pergunte qual link ele quer.
 
-⚠️ Links não precisam de API key — o sistema faz fetch direto.
-⚠️ NUNCA salve sem confirmar com o usuário.`,
+⚠️ Links não precisam de API key.
+⚠️ SEMPRE mostre o preview antes de salvar.`,
 	},
 ];
 
