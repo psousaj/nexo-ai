@@ -105,7 +105,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 		{
 			name: 'clarify',
 			description:
-				'Pergunta ao usuário para desambiguar quando houver múltiplas opções ou informação insuficiente. NUNCA salve memória ambígua sem antes clarificar.',
+				'Pergunta ao usuário com botões de opção para desambiguar. Use quando houver múltiplas opções. Você DEVE sempre passar as opções no array choices.',
 			jsonSchema: {
 				type: 'object',
 				properties: {
@@ -114,10 +114,10 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 						type: 'array',
 						items: { type: 'string' },
 						maxItems: 4,
-						description: 'Opções para o usuário escolher (max 4)',
+						description: 'OPÇÕES para o usuário escolher (max 4). Ex: ["Título (ano)", "Título 2 (ano)"]',
 					},
 				},
-				required: ['question'],
+				required: ['question', 'choices'],
 			},
 			policy: 'auto',
 			execute: async (_ctx: unknown, input: Record<string, unknown>) => {

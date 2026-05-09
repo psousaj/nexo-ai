@@ -15,27 +15,27 @@ const builtInSkills = [
 Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 
 1. **Buscar no TMDB**
-   Use \`search_movie_tmdb(query)\` com o nome do filme que o usuário mencionou.
-   Se você não tiver certeza do nome, clarifique primeiro.
+   Use \`search_movie_tmdb(query)\` com o nome do filme.
+   Se não tiver certeza do nome, clarifique primeiro.
 
 2. **Clarificar se ambíguo**
-   Se a busca retornar múltiplos resultados, use \`clarify()\` para perguntar qual deles.
-   Ofereça até 4 opções com título + ano (ex: "Evil Dead (1981)", "Evil Dead (2013)").
+   Se a busca retornar múltiplos resultados, use \`clarify(question, choices)\` com as opções no array \`choices\`.
+   Exemplo: clarify("Qual versão?", ["Evil Dead (1981)", "Evil Dead (2013)"])
+   NUNCA liste as opções no texto da resposta — use sempre o parâmetro choices.
 
 3. **Mostrar e Confirmar**
-   Use \`display_content(title, description, imageUrl)\` para mostrar o poster com os detalhes.
-   O Telegram automaticamente adiciona botões "Sim/Não" para confirmar.
+   Use \`display_content(title, description, imageUrl)\` para mostrar o poster.
+   O Telegram adiciona os botões Sim/Não automaticamente.
 
 4. **Salvar**
-   Se o usuário confirmar, use \`save_memory()\` com:
-   - content: "Filme: {título} ({ano})"
-   - category: "personal"
+   Se confirmado, use \`save_memory()\` com content "Filme: {título} ({ano})", category "personal"
 
-5. **Se o usuário negar**
-   Volte ao passo 2 e ofereça outras opções.
+5. **Se negar**
+   Volte ao passo 2 e ofereça outras opções com clarify().
 
-⚠️ NUNCA invente informações de filmes. Sempre busque no TMDB primeiro.
-⚠️ NUNCA salve sem confirmar com o usuário.`,
+⚠️ NUNCA invente informações. Busque no TMDB primeiro.
+⚠️ NUNCA salve sem confirmar com o usuário.
+⚠️ NUNCA liste opções no texto — use sempre o parâmetro choices do clarify().`,
 	},
 	{
 		name: 'save_music',
@@ -46,22 +46,21 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 Quando o usuário pedir para salvar uma música, SIGA ESTES PASSOS:
 
 1. **Buscar no Spotify**
-   Use \`search_music(title, artist)\` com o título e artista (se informado).
-   Se não tiver artista, busque só pelo título.
+   Use \`search_music(title, artist)\` com título e artista (se informado).
 
 2. **Clarificar se ambíguo**
-   Se houver múltiplos resultados, clarifique com \`clarify()\`.
+   Se múltiplos resultados, use \`clarify(question, choices)\` com as opções no array choices.
+   NUNCA liste opções no texto.
 
 3. **Mostrar e Confirmar**
-   Use \`display_content(title, description, imageUrl)\` com capa do álbum + artista.
+   Use \`display_content(title, description, imageUrl)\` com capa do álbum.
 
 4. **Salvar**
-   Se confirmado, use \`save_memory()\` com:
-   - content: "Música: {título} - {artista}"
-   - category: "personal"
+   Se confirmado, use \`save_memory()\` com content "Música: {título} - {artista}", category "personal"
 
 ⚠️ SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET precisam estar configurados.
-⚠️ NUNCA salve sem confirmar com o usuário.`,
+⚠️ NUNCA salve sem confirmar.
+⚠️ Use clarify sempre com choices — nunca no texto.`,
 	},
 	{
 		name: 'save_book',
@@ -136,7 +135,17 @@ async function seedSkills() {
 		const existing = await db.select().from(agentSkills).where(eq(agentSkills.name, skill.name)).limit(1);
 
 		if (existing.length > 0) {
-			console.log(`⏭️  Skill "${skill.name}" já existe, pulando...`);
+			console.log(`🔄 Atualizando skill "${skill.name}"...`);
+			await db
+				.update(agentSkills)
+				.set({
+					description: skill.description,
+					content: skill.content,
+					triggers: skill.triggers,
+					version: existing[0].version + 1,
+				})
+				.where(eq(agentSkills.name, skill.name));
+			console.log(`✅ Skill "${skill.name}" atualizada`);
 			continue;
 		}
 

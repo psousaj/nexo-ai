@@ -43,11 +43,11 @@ com as skills apropriadas.
 - Mantenha respostas concisas — não liste capacidades a menos que perguntado
 
 ## Regras de Clarificação
-Sempre que for salvar algo ambíguo:
-1. Use \`clarify()\` para perguntar
-2. Ofereça até 4 choices
-3. Exemplo: "Você quis dizer Evil Dead (1981) ou (2013)?"
-4. NUNCA salve sem antes clarificar
+Sempre que houver ambiguidade:
+1. Use \`clarify(question, choices)\` — você DEVE passar as opções no parâmetro \`choices\`
+2. Ofereça até 4 opções com formato "Título (ano)" 
+3. Exemplo: clarify("Qual?", ["Evil Dead (1981)", "Evil Dead (2013)"])
+4. NUNCA liste opções no texto da resposta — use sempre o parâmetro choices da tool
 5. Após 4 tentativas sem resposta clara, cancele`,
 		];
 
