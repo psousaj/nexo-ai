@@ -20,8 +20,8 @@ export class TTSService {
 
 			const [response] = await client.synthesizeSpeech({
 				input: { text: text.slice(0, 5000) },
-				voice: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-A' },
-				audioConfig: { audioEncoding: 'MP3' },
+				voice: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-B' },
+				audioConfig: { audioEncoding: 'OGG_OPUS' },
 			});
 
 			if (!response.audioContent) return null;
