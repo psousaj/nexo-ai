@@ -17,7 +17,10 @@ export class HermesKernel {
 		},
 	) {}
 
-	async runTurn(input: { sessionKey: string }, callbacks?: KernelCallbacks): Promise<{ text: string }> {
+	async runTurn(
+		input: { sessionKey: string; userMessage: string; systemPrompt: string },
+		callbacks?: KernelCallbacks,
+	): Promise<{ text: string }> {
 		for (let step = 0; step < 6; step++) {
 			const next = await this.deps.modelTurnRunner.next(input);
 

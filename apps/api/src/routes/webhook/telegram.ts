@@ -31,7 +31,12 @@ export function registerTelegramWebhook(app: Hono) {
 					await editMessageText(chatId, messageId, `*Você escolheu:* ${choice}`);
 					if (cb.id) await answerCallbackQuery(cb.id);
 					const sessionKey = resolveSessionKey('telegram', String(chatId));
-					const result = await runtime.kernel.runTurn({ sessionKey });
+					const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey);
+					const result = await runtime.kernel.runTurn({
+						sessionKey,
+						userMessage: choice,
+						systemPrompt: systemPrompt.systemPrompt,
+					});
 					await sendTelegramMessage(chatId, result.text);
 					return c.json({ ok: true });
 				}
@@ -57,6 +62,7 @@ export function registerTelegramWebhook(app: Hono) {
 			let progressMessageId: number | null = null;
 
 			try {
+				const systemPrompt = runtime.contextAssembler.buildFromSessionKey(sessionKey);
 				const callbacks: KernelCallbacks = {
 					onToolStart: (toolName, _input) => {
 						const text = `🔍 *${toolName}*...`;
@@ -78,7 +84,10 @@ export function registerTelegramWebhook(app: Hono) {
 					},
 				};
 
-				const result = await runtime.kernel.runTurn({ sessionKey }, callbacks);
+				const result = await runtime.kernel.runTurn(
+					{ sessionKey, userMessage: msg.text, systemPrompt: systemPrompt.systemPrompt },
+					callbacks,
+				);
 
 				// 👍 3. Reaction: deu certo
 				await setMessageReaction(msg.chatId, userMessageId, '👍');

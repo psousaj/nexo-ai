@@ -20,7 +20,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	}
 
 	async next(context: unknown): Promise<ModelTurnOutput> {
-		const ctx = context as { systemPrompt: string; sessionKey: string };
+		const ctx = context as { systemPrompt: string; sessionKey: string; userMessage: string };
 		const provider = this.deps.defaultProvider;
 		const model = this.deps.defaultModel;
 
@@ -38,8 +38,8 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 		this.padReasoningContent(activeModel, activeProvider);
 
-		if (this.messages.length === 0) {
-			this.messages.push({ role: 'user', content: ctx.sessionKey });
+		if (this.messages.length === 0 && ctx.userMessage) {
+			this.messages.push({ role: 'user', content: ctx.userMessage });
 		}
 
 		const apiMode = detectApiMode(resolved.baseURL);
