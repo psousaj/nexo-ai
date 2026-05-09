@@ -9,6 +9,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	private messages: Array<Record<string, unknown>> = [];
 	private lastReasoningContent: string | null = null;
 	private lastUserMessage: string | null = null;
+	private pendingToolCalls: Array<{ name: string; id: string; arguments: Record<string, unknown> }> | null = null;
 
 	constructor(
 		private deps: {
@@ -21,6 +22,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	}
 
 	async next(context: unknown): Promise<ModelTurnOutput> {
+		// Drain pending tool calls from previous assistant message
+		if (this.pendingToolCalls && this.pendingToolCalls.length > 0) {
+			const tc = this.pendingToolCalls.shift()!;
+			return { type: 'tool', toolName: tc.name, toolCallId: tc.id, input: tc.arguments };
+		}
+
 		const ctx = context as {
 			systemPrompt: string;
 			sessionKey: string;
@@ -124,6 +131,14 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 	private toModelTurnOutput(normalized: NormalizedResponse): ModelTurnOutput {
 		if (normalized.toolCalls && normalized.toolCalls.length > 0) {
+			// Store extra tool calls for subsequent next() calls
+			if (normalized.toolCalls.length > 1) {
+				this.pendingToolCalls = normalized.toolCalls.slice(1).map((tc) => ({
+					name: tc.name,
+					id: tc.id,
+					arguments: tc.arguments,
+				}));
+			}
 			const tc = normalized.toolCalls[0];
 			return { type: 'tool', toolName: tc.name, toolCallId: tc.id, input: tc.arguments };
 		}
