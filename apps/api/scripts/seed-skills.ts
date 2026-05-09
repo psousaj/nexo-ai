@@ -135,6 +135,22 @@ Quando o usuário pedir para salvar um link ou URL, SIGA ESTES PASSOS:
 ⚠️ Links não precisam de API key.
 ⚠️ SEMPRE mostre o preview antes de salvar.`,
 	},
+	{
+		name: 'handle_voice',
+		description: 'Como lidar com mensagens de áudio transcritas',
+		triggers: ['[Áudio', 'Transcrição', '🎙️', 'mensagem de voz', 'audio'],
+		content: `## Skill: Mensagem de Voz
+
+Quando o usuário envia um áudio, o sistema transcreve automaticamente e mostra:
+🎙️ *Transcrição:* {texto}
+
+REGRAS:
+1. A transcrição É a mensagem do usuário. Trate-a exatamente como se ele tivesse digitado.
+2. Se a transcrição começar com "[Áudio não reconhecido]", peça educadamente para o usuário repetir em texto.
+3. NÃO pergunte "você mandou um áudio?" — a transcrição já está no contexto.
+4. Se a transcrição estiver confusa ou parecer incompleta, clarifique normalmente.
+5. NUNCA ignore o conteúdo da transcrição — ela é a mensagem real do usuário.`,
+	},
 ];
 
 async function seedSkills() {
