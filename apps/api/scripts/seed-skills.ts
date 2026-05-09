@@ -5,7 +5,28 @@ import { eq } from 'drizzle-orm';
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001';
 
-const builtInSkills = [
+// ==========================================================================
+// 🔧 ADICIONE NOVAS SKILLS AQUI
+// ==========================================================================
+// Para adicionar uma nova skill built-in:
+// 1. Adicione um novo objeto no array builtInSkills abaixo
+// 2. Rode: pnpm db:seed:skills
+//
+// Campos:
+// - name: identificador único (ex: "save_movie")
+// - description: descrição curta do que a skill faz
+// - triggers: palavras-chave que ativam a skill no contexto
+// - content: instruções em Markdown para o LLM seguir
+// ==========================================================================
+
+interface BuiltInSkillDef {
+	name: string;
+	description: string;
+	triggers: string[];
+	content: string;
+}
+
+const builtInSkills: BuiltInSkillDef[] = [
 	{
 		name: 'save_movie',
 		description: 'Como salvar filmes para o usuário assistir depois',
