@@ -1,14 +1,14 @@
 import { GoogleGenAI } from '@google/genai';
 import { spawn } from 'node:child_process';
-import path from 'node:path';
+import { createRequire } from 'node:module';
 import { loggers } from '@/utils/logger';
 
+const require = createRequire(import.meta.url);
 const VOICE = 'Fenrir';
 const MODEL = 'gemini-3.1-flash-tts-preview';
 
 function pcmToOpus(pcm: Buffer, sampleRate = 24000): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
-		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const ffmpegPath = require('ffmpeg-static') as string;
 		const ffmpeg = spawn(ffmpegPath, [
 			'-f', 's16le', '-ar', String(sampleRate), '-ac', '1', '-i', 'pipe:0',
