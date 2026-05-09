@@ -56,9 +56,9 @@ export async function sendTelegramPhoto(chatId: number, photoUrl: string, captio
 
 export async function sendTelegramVoice(chatId: number, audioBuffer: Buffer): Promise<void> {
 	try {
-		await getBot().api.sendVoice(chatId, new InputFile(audioBuffer, 'voice.ogg'));
+		await getBot().api.sendAudio(chatId, new InputFile(audioBuffer, 'audio.mp3'), { title: 'Nexo', performer: 'Edge TTS' });
 	} catch {
-		// Voice sending failed — ignore
+		// Audio sending failed — ignore
 	}
 }
 

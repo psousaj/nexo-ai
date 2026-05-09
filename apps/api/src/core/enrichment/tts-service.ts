@@ -1,43 +1,31 @@
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
+import edgeTTS from 'edge-tts';
 import { loggers } from '@/utils/logger';
 
-const VOICE_ID = '4J31DrhygVjvFsoj7BsM';
+const VOICE = 'pt-BR-AntonioNeural';
 
 export class TTSService {
-	private apiKey: string | undefined;
-
-	constructor() {
-		this.apiKey = process.env.ELEVENLABS_API_KEY;
-	}
-
 	get isAvailable(): boolean {
-		return !!this.apiKey;
+		return true; // Edge TTS is always available, no API key needed
 	}
 
 	async synthesize(text: string): Promise<Buffer | null> {
-		if (!this.isAvailable) {
-			loggers.enrichment.warn('ElevenLabs TTS não configurado (ELEVENLABS_API_KEY)');
-			return null;
-		}
-
 		try {
-			const client = new ElevenLabsClient({ apiKey: this.apiKey });
-
-			const stream = await client.textToSpeech.convert(VOICE_ID, {
-				text,
-				modelId: 'eleven_multilingual_v2',
-			});
+			const tts = edgeTTS.createVoiceStream({ voice: VOICE });
 
 			const chunks: Buffer[] = [];
-			for await (const chunk of stream) {
-				chunks.push(Buffer.from(chunk));
+			for await (const chunk of tts.stream(text)) {
+				if (chunk.type === 'audio') {
+					chunks.push(chunk.data);
+				}
 			}
 
+			if (chunks.length === 0) return null;
+
 			const audioBuffer = Buffer.concat(chunks);
-			loggers.enrichment.info({ bytes: audioBuffer.length }, 'TTS: ElevenLabs audio generated');
+			loggers.enrichment.info({ bytes: audioBuffer.length }, 'TTS: Edge TTS audio generated');
 			return audioBuffer;
 		} catch (error) {
-			loggers.enrichment.error({ err: error }, 'TTS: ElevenLabs error');
+			loggers.enrichment.error({ err: error }, 'TTS: Edge TTS error');
 			return null;
 		}
 	}
