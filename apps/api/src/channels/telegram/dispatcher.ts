@@ -107,10 +107,21 @@ export async function sendProgressMessage(chatId: number, text: string): Promise
 export async function sendClarifyMessage(chatId: number, question: string, choices?: string[]): Promise<number> {
 	if (choices && choices.length > 0) {
 		const keyboard = {
-			inline_keyboard: choices.map((c) => [{ text: c.length > 40 ? c.slice(0, 40) + '…' : c, callback_data: `clarify:${c}` }]),
+			inline_keyboard: choices.map((c) => [{ text: c.slice(0, 40), callback_data: `clarify:${c}` }]),
 		};
-		const msg = await getBot().api.sendMessage(chatId, question, { parse_mode: 'Markdown', reply_markup: keyboard });
-		return msg.message_id;
+		try {
+			const msg = await getBot().api.sendMessage(chatId, question, { parse_mode: 'Markdown', reply_markup: keyboard });
+			return msg.message_id;
+		} catch {
+			try {
+				const safe = question.replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
+				const msg = await getBot().api.sendMessage(chatId, safe, { reply_markup: keyboard });
+				return msg.message_id;
+			} catch {
+				const msg = await getBot().api.sendMessage(chatId, 'Escolha uma opção:', { reply_markup: keyboard });
+				return msg.message_id;
+			}
+		}
 	}
 	const msg = await getBot().api.sendMessage(chatId, question, { parse_mode: 'Markdown' });
 	await getBot().api.sendMessage(chatId, '_Use os números das opções acima_');
