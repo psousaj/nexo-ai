@@ -41,21 +41,17 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 2. **Se resultado ÚNICO e óbvio** (ex: "Interestelar 2014 Nolan")
    PULE a clarificação. Vá direto para o passo 3.
 
-3. **Se múltiplos resultados**
+	3. **Se múltiplos resultados**
    Use \`clarify(question, choices)\` com as opções no array \`choices\`.
    NUNCA liste opções no texto — use sempre choices.
 
-4. **Mostrar imagem**
-   Use \`send_image(imageUrl, caption)\` para mostrar o poster. NÃO adicione botões — é só a imagem.
+4. **Confirmar com poster**
+   Use \`send_confirm(imageUrl, title)\` para mostrar o poster com botões Sim/Não. O usuário clica Sim ou Não:
 
-5. **Confirmar**
-   Use \`clarify("É esse mesmo?", ["Sim", "Não"])\` para confirmar. NÃO use save_memory antes de confirmar.
+   - **Sim**: depois chame \`save_memory(content, category)\` para salvar
+   - **Não**: volte ao passo 2 e ofereça outras opções
 
-6. **Salvar (só se confirmado)**
-   Se o usuário clicar "Sim": use \`save_memory(content, category)\`
-   Se "Não": volte ao passo 2 e ofereça outras opções.
-
-⚠️ ORDEM: search → clarify → send_image → clarify(Sim/Não) → save_memory. NUNCA salve antes do confirmar.
+⚠️ ORDEM: search → clarify → send_confirm → save_memory(só se Sim). NUNCA salve antes do send_confirm.
 ⚠️ Se a ferramenta de busca falhar → tente search_web.`,
 	},
 	{

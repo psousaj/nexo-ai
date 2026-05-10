@@ -126,19 +126,19 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 				},
 			},
 			{
-				name: 'send_image',
-				description: 'Envia uma imagem (poster, foto) para o usuário ver. Use para mostrar posters de filmes, capas de álbuns.',
+				name: 'send_confirm',
+				description: 'Envia um poster com confirmacao "É esse mesmo?". Use para mostrar o poster do filme escolhido e perguntar se o usuario confirma. DEPOIS dessa tool, o usuario clica Sim ou Nao.',
 				jsonSchema: {
 					type: 'object',
 					properties: {
-						imageUrl: { type: 'string', description: 'URL da imagem/poster/capa' },
-						caption: { type: 'string', description: 'Legenda curta (opcional)' },
+						imageUrl: { type: 'string', description: 'URL do poster' },
+						title: { type: 'string', description: 'Titulo do filme' },
 					},
-					required: ['imageUrl'],
+					required: ['imageUrl', 'title'],
 				},
 				policy: 'auto',
 				execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
-					return { type: 'image_sent', status: 'displayed' };
+					return { _requiresInput: true, type: 'confirm', status: 'awaiting' };
 				},
 			},
 			{

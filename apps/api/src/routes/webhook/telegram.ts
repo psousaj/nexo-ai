@@ -34,15 +34,15 @@ function buildToolCallbacks(
 ): KernelCallbacks {
 	return {
 		onToolStart: async (toolName, input) => {
-			if (toolName === 'send_image') {
+			if (toolName === 'send_confirm') {
 				const data = input as any;
+				skipFlag.value = true;
+				const keyb = { inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] };
 				if (data?.imageUrl) {
-					const caption = (data?.caption || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
-					try {
-						await getBot().api.sendPhoto(chatId, data.imageUrl, { caption: caption || undefined });
-					} catch (e) {
-						log.error('[send_image] failed:', e?.message || e);
-					}
+					const cap = (data?.title || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '') || 'É esse mesmo?';
+					getBot().api.sendPhoto(chatId, data.imageUrl, { caption: cap, reply_markup: keyb }).catch(() => {
+						getBot().api.sendMessage(chatId, cap, { reply_markup: keyb }).catch(() => {});
+					});
 				}
 				return;
 			}
@@ -78,7 +78,7 @@ function buildToolCallbacks(
 			}
 		},
 		onToolEnd: (_toolName, _result) => {
-			if (_toolName === 'send_image' || _toolName === 'clarify') return;
+			if (_toolName === 'send_confirm' || _toolName === 'clarify') return;
 			progress.text = progress.text.replace(`🔍 *${_toolName}*...\n`, `✅ *${_toolName}* concluído\n`);
 			if (progress.msgId) {
 				editMessageText(chatId, progress.msgId, progress.text).catch(() => {});
@@ -143,6 +143,32 @@ export function registerTelegramWebhook(app: Hono) {
 							);
 							if (result?.text) {
 								await sendTelegramMessage(chatId, result.text).catch(() => {});
+							}
+							return c.json({ ok: true });
+						}
+
+						// Confirm: yes/no
+						if (data === 'confirm:yes') {
+							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
+							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar');
+							const confirmResult = await runtime.kernel.runTurn(
+								{ sessionKey, userMessage: 'confirmar e salvar', systemPrompt: systemPrompt.systemPrompt },
+								undefined,
+								cbSignal,
+							);
+							if (confirmResult?.text) {
+								await sendTelegramMessage(chatId, confirmResult.text).catch(() => {});
+							}
+							return c.json({ ok: true });
+						}
+
+						if (data === 'confirm:no') {
+							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
+							const ctx = lastClarifyContext.get(chatId);
+							if (ctx) {
+								sendClarifyMessage(chatId, ctx.question, ctx.choices).catch(() => {});
+							} else {
+								await sendTelegramMessage(chatId, 'Me diga novamente o que quer salvar!').catch(() => {});
 							}
 							return c.json({ ok: true });
 						}
