@@ -127,7 +127,8 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			},
 			{
 				name: 'send_confirm',
-				description: 'Envia um poster com confirmacao "É esse mesmo?". Use para mostrar o poster do filme escolhido e perguntar se o usuario confirma. DEPOIS dessa tool, o usuario clica Sim ou Nao.',
+				description:
+					'Mostra imagem (poster/capa/foto) com botoes Sim/Nao para confirmar. Use para filmes, musicas, livros e qualquer conteudo que precise de confirmacao do usuario. O usuario clica Sim ou Nao.',
 				jsonSchema: {
 					type: 'object',
 					properties: {
@@ -166,7 +167,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 
 		if (deps.tmdbService) {
 			tools.push({
-				name: 'search_movie_tmdb',
+				name: 'search_movie',
 				description:
 					'Busca filmes e séries no TMDB. Retorna título, ano, gêneros, diretor, sinopse. Use quando o usuário mencionar um filme ou série.',
 				jsonSchema: {

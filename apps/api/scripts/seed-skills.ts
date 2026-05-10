@@ -36,7 +36,7 @@ const builtInSkills: BuiltInSkillDef[] = [
 Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 
 1. **Buscar no TMDB**
-   Use \`search_movie_tmdb(query)\` com o nome do filme.
+   Use \`search_movie(query)\` com o nome do filme.
 
 2. **Se resultado ÚNICO e óbvio** (ex: "Interestelar 2014 Nolan")
    PULE a clarificação. Vá direto para o passo 3.
