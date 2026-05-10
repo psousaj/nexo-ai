@@ -27,11 +27,72 @@ const lastClarifyMsgId = new Map<number, number>();
 const activeSignals = new Map<string, InterruptSignal>();
 const pendingMessages = new Map<string, string>();
 
+function buildToolCallbacks(
+	chatId: number,
+	skipFlag: { value: boolean },
+	progress: { text: string; msgId: number | null },
+): KernelCallbacks {
+	return {
+		onToolStart: async (toolName, input) => {
+			if (toolName === 'send_image') {
+				const data = input as any;
+				if (data?.imageUrl) {
+					const caption = (data?.caption || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
+					try {
+						await getBot().api.sendPhoto(chatId, data.imageUrl, { caption: caption || undefined });
+					} catch (e) {
+						log.error('[send_image] failed:', e?.message || e);
+					}
+				}
+				return;
+			}
+			if (toolName === 'clarify') {
+				skipFlag.value = true;
+				const data = input as any;
+				log.debug('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
+				lastClarifyContext.set(chatId, { question: data.question || '', choices: data.choices || [] });
+				const msgId = await sendClarifyMessage(chatId, data.question || '', data.choices || []);
+				if (msgId) lastClarifyMsgId.set(chatId, msgId);
+				return;
+			}
+			if (toolName === 'text_to_speech') {
+				const data = input as any;
+				if (!data?.text) return;
+				try {
+					const buffer = await ttsService.synthesize(data.text);
+					if (buffer) await sendTelegramVoice(chatId, buffer);
+				} catch (e) {
+					log.error('[TTS] error:', e);
+				}
+				return;
+			}
+			progress.text += `🔍 *${toolName}*...\n`;
+			if (progress.msgId) {
+				editMessageText(chatId, progress.msgId, progress.text).catch(() => {});
+			} else {
+				sendProgressMessage(chatId, progress.text)
+					.then((id) => {
+						progress.msgId = id;
+					})
+					.catch(() => {});
+			}
+		},
+		onToolEnd: (_toolName, _result) => {
+			if (_toolName === 'send_image' || _toolName === 'clarify') return;
+			progress.text = progress.text.replace(`🔍 *${_toolName}*...\n`, `✅ *${_toolName}* concluído\n`);
+			if (progress.msgId) {
+				editMessageText(chatId, progress.msgId, progress.text).catch(() => {});
+			}
+		},
+	};
+}
+
 async function processPendingMessage(sessionKey: string, chatId: number, message: string) {
 	const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, message);
+	const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
 	const result = await runtime.kernel.runTurn(
 		{ sessionKey, userMessage: message, systemPrompt: systemPrompt.systemPrompt },
-		undefined,
+		callbacks,
 		undefined,
 	);
 	if (result.text) {
@@ -72,9 +133,12 @@ export function registerTelegramWebhook(app: Hono) {
 								});
 							} catch {}
 							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice);
+							const cbProgress = { text: '', msgId: null as number | null };
+							const cbSkip = { value: false };
+							const cbCallbacks = buildToolCallbacks(chatId, cbSkip, cbProgress);
 							const result = await runtime.kernel.runTurn(
 								{ sessionKey, userMessage: choice, systemPrompt: systemPrompt.systemPrompt },
-								undefined,
+								cbCallbacks,
 								cbSignal,
 							);
 							if (result?.text) {
@@ -175,94 +239,23 @@ export function registerTelegramWebhook(app: Hono) {
 				sendTypingAction(msg.chatId).catch(() => {});
 			}, 4000);
 
-			let progressMessageId: number | null = null;
+			const progressMessageId: number | null = null;
 			let skipFinalResponse = false;
 
 			try {
 				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text);
-				const callbacks: KernelCallbacks = {
-					onToolStart: async (toolName, input) => {
-						if (toolName === 'send_image') {
-							const data = input as any;
-							if (data?.imageUrl) {
-								const caption = (data?.caption || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
-								try {
-									await getBot().api.sendPhoto(msg.chatId, data.imageUrl, { caption: caption || undefined });
-								} catch (e) {
-									log.error('[send_image] photo failed:', e?.message || e);
-								}
-							}
-							return;
-						}
-						if (toolName === 'clarify') {
-							skipFinalResponse = true;
-							const data = input as any;
-							log.debug('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
-							lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
-							const msgId = await sendClarifyMessage(msg.chatId, data.question || '', data.choices || []);
-							if (msgId) lastClarifyMsgId.set(msg.chatId, msgId);
-							return;
-						}
-						if (toolName === 'text_to_speech') {
-							const data = input as any;
-							if (!data?.text) return;
-							try {
-								const buffer = await ttsService.synthesize(data.text);
-								if (buffer) {
-									log.debug(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
-									await sendTelegramVoice(msg.chatId, buffer);
-									log.debug('[TTS] Voice sent!');
-								}
-							} catch (e) {
-								log.error('[TTS] error:', e);
-							}
-							return;
-						}
-						if (toolName === 'text_to_speech') {
-							const data = input as any;
-							if (!data?.text) return;
-							ttsService
-								.synthesize(data.text)
-								.then((buffer) => {
-									if (buffer) {
-										log.debug(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
-										sendTelegramVoice(msg.chatId, buffer)
-											.then(() => {
-												log.debug('[TTS] Voice sent!');
-											})
-											.catch((e) => log.error('[TTS] sendVoice error:', e));
-									} else {
-										log.debug('[TTS] Synthesize returned null — Cloudflare API may have failed');
-									}
-								})
-								.catch((e) => log.error('[TTS] synthesize error:', e));
-							return;
-						}
-						progressText += `🔍 *${toolName}*...\n`;
-						if (progressMessageId) {
-							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});
-						} else {
-							sendProgressMessage(msg.chatId, progressText)
-								.then((id) => {
-									progressMessageId = id;
-								})
-								.catch(() => {});
-						}
-					},
-					onToolEnd: (toolName, _result) => {
-						if (toolName === 'send_image' || toolName === 'clarify') return;
-						progressText = progressText.replace(`🔍 *${toolName}*...\n`, `✅ *${toolName}* concluído\n`);
-						if (progressMessageId) {
-							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});
-						}
-					},
-				};
+				const skipFlag = { value: skipFinalResponse };
+				const progress = { text: progressText, msgId: progressMessageId };
+				const callbacks = buildToolCallbacks(msg.chatId, skipFlag, progress);
 
 				const result = await runtime.kernel.runTurn(
 					{ sessionKey, userMessage, systemPrompt: systemPrompt.systemPrompt },
 					callbacks,
 					signal,
 				);
+
+				skipFinalResponse = skipFlag.value;
+				progressText = progress.text;
 
 				// 👍 3. Reaction: deu certo
 				await setMessageReaction(msg.chatId, userMessageId, '👍');
