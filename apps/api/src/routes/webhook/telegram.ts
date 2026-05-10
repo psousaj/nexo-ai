@@ -47,7 +47,16 @@ async function sendConfirmMessage(chatId: number, text: string, imageUrl?: strin
 			return;
 		} catch {}
 	}
-	await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
+	try {
+		await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
+	} catch {
+		try {
+			const safe = (text || 'Confirmar?').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
+			await getBot().api.sendMessage(chatId, safe, { reply_markup: keyboard });
+		} catch {
+			await getBot().api.sendMessage(chatId, 'Confirmar?', { reply_markup: keyboard });
+		}
+	}
 }
 
 export function registerTelegramWebhook(app: Hono) {

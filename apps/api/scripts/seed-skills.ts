@@ -57,7 +57,7 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
    Se o usuário clicar "Não": volte ao passo 2 e ofereça outras opções.
 
 ⚠️ Se o usuário corrigir/refinar o nome do filme (ex: "não é Chuck, é boneco assassino"), faça uma NOVA busca com os termos corrigidos. NÃO filtre resultados antigos.
-⚠️ NUNCA invente informações. Busque no TMDB primeiro.
+⚠️ ORDEM CORRETA: search → clarify → display_content → confirm → save. NUNCA chame save_memory antes de display_content. Sempre mostre o poster e aguarde o clique Sim/Não antes de salvar.
 ⚠️ NUNCA salve sem mostrar o poster e confirmar.
 ⚠️ NUNCA liste opções no texto — use sempre choices do clarify().
 ⚠️ Se a ferramenta de busca falhar → tente search_web. Se souber do que se trata, ofereça salvar com suas informações.`,
@@ -84,6 +84,7 @@ Quando o usuário pedir para salvar uma música, SIGA ESTES PASSOS:
    Sim → \`save_memory(content, category)\`
    Não → volte ao passo 2.
 
+⚠️ ORDEM: search → clarify → display → confirm → save. NUNCA salve antes do display_content.
 ⚠️ SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET precisam estar configurados.
 ⚠️ SEMPRE mostre a capa antes de salvar.
 ⚠️ Use clarify sempre com choices — nunca no texto.
