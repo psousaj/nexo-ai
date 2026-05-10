@@ -8,7 +8,10 @@ export interface HermesToolRegistry {
 }
 
 export interface ToolRegistryDeps {
-	tmdbService?: { searchMovies(query: string, year?: number): Promise<unknown[]> };
+	tmdbService?: {
+		searchMovies(query: string, year?: number): Promise<unknown[]>;
+		getStreamingProviders(tmdbId: number, type?: 'movie' | 'tv'): Promise<unknown>;
+	};
 	youtubeService?: { enrichYouTubeVideo(url: string): Promise<unknown> };
 	spotifyService?: { searchTrack(title: string, artist?: string): Promise<unknown> };
 	bookService?: { searchBook(title: string, author?: string): Promise<unknown> };
@@ -181,6 +184,23 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 				policy: 'auto',
 				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
 					return deps.tmdbService!.searchMovies(input.query as string, input.year as number | undefined);
+				},
+			});
+			tools.push({
+				name: 'search_watch_providers',
+				description:
+					'Busca onde assistir um filme ou série nos streamings (Netflix, Prime, etc). Use quando o usuário perguntar "onde assistir" ou "tem em qual streaming". Retorna disponibilidade no Brasil.',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						tmdbId: { type: 'number', description: 'ID do filme/série no TMDB' },
+						type: { type: 'string', enum: ['movie', 'tv'], description: 'tipo: movie ou tv' },
+					},
+					required: ['tmdbId'],
+				},
+				policy: 'auto',
+				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+					return deps.tmdbService!.getStreamingProviders(input.tmdbId as number, (input.type as 'movie' | 'tv') ?? 'movie');
 				},
 			});
 		}

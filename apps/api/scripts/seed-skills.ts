@@ -165,6 +165,29 @@ Se não existir:
 
 ⚠️ REGRA: search_memories SEMPRE antes de save_memory.`,
 	},
+	{
+		name: 'check_watch_providers',
+		description: 'Verificar onde assistir um filme/série nos streamings',
+		triggers: ['onde assistir', 'qual streaming', 'streaming', 'netflix', 'prime', 'disney+', 'max', 'assistir online', 'tem onde'],
+		content: `## Skill: Onde Assistir
+
+Quando o usuário perguntar onde assistir um filme ou série, SIGA ESTES PASSOS:
+
+1. **Identificar o conteúdo**
+   Se o usuário já mencionou o filme/série antes (está no contexto), use o tmdbId que você já tem.
+   Se não, use \`search_movie(query)\` para encontrar.
+
+2. **Buscar provedores**
+   Use \`search_watch_providers(tmdbId, type)\` com o ID do TMDB e o tipo (movie ou tv).
+
+3. **Responder**
+   - Se houver flatrate (streaming incluso): liste os serviços com ícone "📺"
+   - Se houver rent: liste com "💵"
+   - Se houver buy: liste com "🛒"
+   - Se não houver nada no Brasil: avise que não está disponível nos streamings brasileiros
+
+⚠️ Use search_watch_providers APENAS com o tmdbId obtido de search_movie.`,
+	},
 ];
 
 async function seedSkills() {
