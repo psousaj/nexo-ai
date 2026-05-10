@@ -148,6 +148,23 @@ REGRAS:
 4. Se a transcrição estiver confusa ou parecer incompleta, clarifique normalmente.
 5. NUNCA ignore o conteúdo da transcrição — ela é a mensagem real do usuário.`,
 	},
+	{
+		name: 'check_before_save',
+		description: 'Verificar se o item já foi salvo antes de adicionar novamente',
+		triggers: ['salva', 'salvar', 'guarda', 'lembra', 'adiciona', 'quero ver', 'assistir', 'ouvir', 'ler', 'livro', 'filme', 'música', 'musica', 'link'],
+		content: `## Skill: Verificar Antes de Salvar
+
+Antes de chamar \`save_memory()\`, SEMPRE chame \`search_memories(query)\` primeiro com os termos relevantes (título, artista, etc.).
+
+Se a memória já existir nos resultados:
+- Informe o usuário: "Isso já está salvo!"
+- NÃO salve novamente — evite duplicatas
+
+Se não existir:
+- Prosseguir com o fluxo normal de salvamento (send_confirm → save_memory)
+
+⚠️ REGRA: search_memories SEMPRE antes de save_memory.`,
+	},
 ];
 
 async function seedSkills() {
