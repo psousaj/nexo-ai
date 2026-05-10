@@ -181,7 +181,7 @@ export function registerTelegramWebhook(app: Hono) {
 			try {
 				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text);
 				const callbacks: KernelCallbacks = {
-					onToolStart: (toolName, input) => {
+					onToolStart: async (toolName, input) => {
 						if (toolName === 'send_image') {
 							const data = input as any;
 							if (data?.imageUrl) {
@@ -192,7 +192,7 @@ export function registerTelegramWebhook(app: Hono) {
 							}
 							return;
 						}
-			if (toolName === 'clarify') {
+						if (toolName === 'clarify') {
 							skipFinalResponse = true;
 							const data = input as any;
 							log.debug('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
