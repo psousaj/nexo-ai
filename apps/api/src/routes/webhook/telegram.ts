@@ -41,19 +41,27 @@ async function sendConfirmMessage(chatId: number, text: string, imageUrl?: strin
 	const keyboard = {
 		inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]],
 	};
+	console.log('[confirm] chatId:', chatId, 'text:', text.slice(0, 60), 'hasImg:', !!imageUrl);
 	// Photo FIRST (fire-and-forget, above text)
 	if (imageUrl) {
-		getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' }).catch(() => {});
+		getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' })
+			.then(() => console.log('[confirm] photo sent'))
+			.catch((e) => console.error('[confirm] photo failed:', e));
 	}
 	// Text + buttons BELOW (always works)
 	try {
 		await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
-	} catch {
+		console.log('[confirm] text+buttons sent OK');
+	} catch (e1) {
+		console.error('[confirm] text+buttons Markdown failed:', e1);
 		try {
 			const safe = (text || 'Confirmar?').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
 			await getBot().api.sendMessage(chatId, safe, { reply_markup: keyboard });
-		} catch {
+			console.log('[confirm] text+buttons safe sent OK');
+		} catch (e2) {
+			console.error('[confirm] text+buttons safe failed:', e2);
 			await getBot().api.sendMessage(chatId, 'Confirmar?', { reply_markup: keyboard });
+			console.log('[confirm] text+buttons basic sent');
 		}
 	}
 }
@@ -229,10 +237,15 @@ export function registerTelegramWebhook(app: Hono) {
 						if (toolName === 'display_content') {
 						skipFinalResponse = true;
 						const data = input as any;
+						console.log('[display] RAW input:', JSON.stringify(data));
 						const title = (data?.title || '').replace(/[*_]/g, '');
 						const desc = (data?.description || '').replace(/[*_]/g, '');
 						const text = title ? `*${title}*\n\n${desc}` : (desc || 'É esse mesmo?');
-						sendConfirmMessage(msg.chatId, text, data?.imageUrl).catch(() => {});
+						console.log('[display] title:', title, 'desc:', desc.slice(0, 50), 'imgUrl:', data?.imageUrl?.slice(0, 50));
+						console.log('[display] final text:', text.slice(0, 80));
+						sendConfirmMessage(msg.chatId, text, data?.imageUrl)
+							.then(() => console.log('[display] sendConfirmMessage OK'))
+							.catch((e) => console.error('[display] sendConfirmMessage FAILED:', e));
 						return;
 					}
 					if (toolName === 'clarify') {
@@ -252,7 +265,7 @@ export function registerTelegramWebhook(app: Hono) {
 							if (buffer) {
 								console.log(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
 								sendTelegramVoice(msg.chatId, buffer).then(() => {
-									console.log(`[TTS] Voice sent!`);
+									console.log('[TTS] Voice sent!');
 								}).catch((e) => console.error('[TTS] sendVoice error:', e));
 							} else {
 								console.log('[TTS] Synthesize returned null — Cloudflare API may have failed');
