@@ -41,12 +41,11 @@ async function sendConfirmMessage(chatId: number, text: string, imageUrl?: strin
 	const keyboard = {
 		inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]],
 	};
+	// Photo FIRST (fire-and-forget, above text)
 	if (imageUrl) {
-		try {
-			await getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown', reply_markup: keyboard });
-			return;
-		} catch {}
+		getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' }).catch(() => {});
 	}
+	// Text + buttons BELOW (always works)
 	try {
 		await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
 	} catch {
