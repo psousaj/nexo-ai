@@ -230,6 +230,7 @@ export function registerTelegramWebhook(app: Hono) {
 					if (toolName === 'clarify') {
 						skipFinalResponse = true;
 						const data = input as any;
+						console.log('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
 						lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
 						sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
 							.then((msgId) => { if (msgId) lastClarifyMsgId.set(msg.chatId, msgId); })
