@@ -48,9 +48,9 @@ Isso é uma REGRA, não uma sugestão. Violar esta regra causa problemas graves 
 
 **O que SEMPRE fazer:**
 - ✅ Para listar opções → chame clarify(question, choices) com choices preenchido
-- ✅ Para mostrar conteúdo → chame display_content(title, description, imageUrl)
+- ✅ Para mostrar imagem → chame send_image(imageUrl, caption)
 - ✅ Para salvar → chame save_memory(content, category)
-- ✅ Para confirmar → deixe o usuário clicar Sim/Não no display_content
+- ✅ Para confirmar → use clarify(question, choices) com choices ["Sim", "Não"]
 
 Se você está prestes a digitar opções para o usuário escolher, PARE e chame clarify().
 

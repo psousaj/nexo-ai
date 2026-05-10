@@ -37,30 +37,26 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 
 1. **Buscar no TMDB**
    Use \`search_movie_tmdb(query)\` com o nome do filme.
-   Se não tiver certeza do nome, clarifique primeiro.
 
 2. **Se resultado ÚNICO e óbvio** (ex: "Interestelar 2014 Nolan")
-   PULE a clarificação. Vá direto para o passo 3 (Mostrar e Confirmar).
+   PULE a clarificação. Vá direto para o passo 3.
 
 3. **Se múltiplos resultados**
    Use \`clarify(question, choices)\` com as opções no array \`choices\`.
-   Exemplo: clarify("Qual versão?", ["Evil Dead (1981)", "Evil Dead (2013)"])
-   NUNCA liste opções no texto — use sempre o parâmetro choices.
+   NUNCA liste opções no texto — use sempre choices.
 
-4. **Mostrar e Confirmar (OBRIGATÓRIO)**
-   SEMPRE mostre o poster com \`display_content(title, description, imageUrl)\`.
-   O Telegram adiciona os botões Sim/Não.
-   NUNCA pule esta etapa — o usuário precisa ver o que vai salvar.
+4. **Mostrar imagem**
+   Use \`send_image(imageUrl, caption)\` para mostrar o poster. NÃO adicione botões — é só a imagem.
 
-5. **Salvar (só se confirmado)**
+5. **Confirmar**
+   Use \`clarify("É esse mesmo?", ["Sim", "Não"])\` para confirmar. NÃO use save_memory antes de confirmar.
+
+6. **Salvar (só se confirmado)**
    Se o usuário clicar "Sim": use \`save_memory(content, category)\`
-   Se o usuário clicar "Não": volte ao passo 2 e ofereça outras opções.
+   Se "Não": volte ao passo 2 e ofereça outras opções.
 
-⚠️ Se o usuário corrigir/refinar o nome do filme (ex: "não é Chuck, é boneco assassino"), faça uma NOVA busca com os termos corrigidos. NÃO filtre resultados antigos.
-⚠️ ORDEM CORRETA: search → clarify → display_content → confirm → save. NUNCA chame save_memory antes de display_content. Sempre mostre o poster e aguarde o clique Sim/Não antes de salvar.
-⚠️ NUNCA salve sem mostrar o poster e confirmar.
-⚠️ NUNCA liste opções no texto — use sempre choices do clarify().
-⚠️ Se a ferramenta de busca falhar → tente search_web. Se souber do que se trata, ofereça salvar com suas informações.`,
+⚠️ ORDEM: search → clarify → send_image → clarify(Sim/Não) → save_memory. NUNCA salve antes do confirmar.
+⚠️ Se a ferramenta de busca falhar → tente search_web.`,
 	},
 	{
 		name: 'save_music',

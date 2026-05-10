@@ -39,39 +39,6 @@ async function processPendingMessage(sessionKey: string, chatId: number, message
 	}
 }
 
-async function sendConfirmMessage(chatId: number, text: string, imageUrl?: string): Promise<void> {
-	const keyboard = {
-		inline_keyboard: [
-			[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }],
-			[{ text: '❌ Não', callback_data: 'confirm:no' }],
-		],
-	};
-	log.debug('[confirm] chatId:', chatId, 'text:', text.slice(0, 60), 'hasImg:', !!imageUrl);
-	// Photo FIRST (fire-and-forget, above text)
-	if (imageUrl) {
-		getBot()
-			.api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' })
-			.then(() => log.debug('[confirm] photo sent'))
-			.catch((e) => log.error('[confirm] photo failed:', e));
-	}
-	// Text + buttons BELOW (always works)
-	try {
-		await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
-		log.debug('[confirm] text+buttons sent OK');
-	} catch (e1) {
-		log.error('[confirm] text+buttons Markdown failed:', e1);
-		try {
-			const safe = (text || 'Confirmar?').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
-			await getBot().api.sendMessage(chatId, safe, { reply_markup: keyboard });
-			log.debug('[confirm] text+buttons safe sent OK');
-		} catch (e2) {
-			log.error('[confirm] text+buttons safe failed:', e2);
-			await getBot().api.sendMessage(chatId, 'Confirmar?', { reply_markup: keyboard });
-			log.debug('[confirm] text+buttons basic sent');
-		}
-	}
-}
-
 export function registerTelegramWebhook(app: Hono) {
 	app.post('/webhook/telegram', async (c) => {
 		try {
@@ -107,36 +74,6 @@ export function registerTelegramWebhook(app: Hono) {
 							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice);
 							const result = await runtime.kernel.runTurn(
 								{ sessionKey, userMessage: choice, systemPrompt: systemPrompt.systemPrompt },
-								undefined,
-								cbSignal,
-							);
-							if (result?.text) {
-								await sendTelegramMessage(chatId, result.text).catch(() => {});
-							}
-							return c.json({ ok: true });
-						}
-
-						// Confirm: yes/no after display_content
-						if (data === 'confirm:yes' || data === 'confirm:no') {
-							if (data === 'confirm:no') {
-								try {
-									await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
-								} catch {}
-								const ctx = lastClarifyContext.get(chatId);
-								if (ctx) {
-									sendClarifyMessage(chatId, ctx.question, ctx.choices).catch(() => {});
-								} else {
-									await sendTelegramMessage(chatId, 'Ok, me diga novamente o que quer salvar!').catch(() => {});
-								}
-								return c.json({ ok: true });
-							}
-							// confirm:yes
-							try {
-								await getBot().api.editMessageCaption(chatId, messageId, { reply_markup: undefined });
-							} catch {}
-							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar');
-							const result = await runtime.kernel.runTurn(
-								{ sessionKey, userMessage: 'confirmar e salvar', systemPrompt: systemPrompt.systemPrompt },
 								undefined,
 								cbSignal,
 							);
@@ -240,26 +177,19 @@ export function registerTelegramWebhook(app: Hono) {
 
 			let progressMessageId: number | null = null;
 			let skipFinalResponse = false;
-			const pendingToolPrompts: Promise<void>[] = [];
 
 			try {
 				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text);
 				const callbacks: KernelCallbacks = {
 					onToolStart: (toolName, input) => {
-						if (toolName === 'display_content') {
-							skipFinalResponse = true;
+						if (toolName === 'send_image') {
 							const data = input as any;
-							log.debug({ data }, '[display] RAW input');
-							const title = (data?.title || '').replace(/[*_]/g, '');
-							const desc = (data?.description || '').replace(/[*_]/g, '');
-							const text = title ? `*${title}*\n\n${desc}` : desc || 'É esse mesmo?';
-							log.debug('[display] title:', title, 'desc:', desc.slice(0, 50), 'imgUrl:', data?.imageUrl?.slice(0, 50));
-							log.debug('[display] final text:', text.slice(0, 80));
-							pendingToolPrompts.push(
-								sendConfirmMessage(msg.chatId, text, data?.imageUrl)
-									.then(() => log.debug('[display] sendConfirmMessage OK'))
-									.catch((e) => log.error('[display] sendConfirmMessage FAILED:', e)),
-							);
+							if (data?.imageUrl) {
+								const caption = (data?.caption || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
+								getBot()
+									.api.sendPhoto(msg.chatId, data.imageUrl, { caption: caption || undefined })
+									.catch(() => {});
+							}
 							return;
 						}
 						if (toolName === 'clarify') {
@@ -306,7 +236,7 @@ export function registerTelegramWebhook(app: Hono) {
 						}
 					},
 					onToolEnd: (toolName, _result) => {
-						if (toolName === 'display_content' || toolName === 'clarify') return;
+						if (toolName === 'send_image' || toolName === 'clarify') return;
 						progressText = progressText.replace(`🔍 *${toolName}*...\n`, `✅ *${toolName}* concluído\n`);
 						if (progressMessageId) {
 							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});
@@ -319,8 +249,6 @@ export function registerTelegramWebhook(app: Hono) {
 					callbacks,
 					signal,
 				);
-
-				await Promise.allSettled(pendingToolPrompts);
 
 				// 👍 3. Reaction: deu certo
 				await setMessageReaction(msg.chatId, userMessageId, '👍');

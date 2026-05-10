@@ -53,7 +53,8 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 		return [
 			{
 				name: 'save_memory',
-				description: 'Salva uma memória permanente sobre o usuário. Use quando o usuário pedir explicitamente ou quando você identificar informação relevante que mereça ser lembrada.',
+				description:
+					'Salva uma memória permanente sobre o usuário. Use quando o usuário pedir explicitamente ou quando você identificar informação relevante que mereça ser lembrada.',
 				jsonSchema: {
 					type: 'object',
 					properties: {
@@ -98,65 +99,65 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					return { results };
 				},
 			},
-		{
-			name: 'clarify',
-			description:
-				'Pergunta ao usuário com botões de opção para desambiguar. Use quando houver múltiplas opções. Você DEVE sempre passar as opções no array choices.',
-			jsonSchema: {
-				type: 'object',
-				properties: {
-					question: { type: 'string', description: 'Pergunta clara para o usuário' },
-					choices: {
-						type: 'array',
-						items: { type: 'string' },
-						maxItems: 4,
-						description: 'OPÇÕES para o usuário escolher (max 4). Ex: ["Título (ano)", "Título 2 (ano)"]',
+			{
+				name: 'clarify',
+				description:
+					'Pergunta ao usuário com botões de opção para desambiguar ou confirmar. Use choices para listar opções. Ex: clarify("É esse?", ["Sim", "Não"])',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						question: { type: 'string', description: 'Pergunta clara para o usuário' },
+						choices: {
+							type: 'array',
+							items: { type: 'string' },
+							maxItems: 4,
+							description: 'OPÇÕES para o usuário escolher (max 4). Ex: ["Título (ano)", "Título 2 (ano)"]',
+						},
 					},
+					required: ['question', 'choices'],
 				},
-				required: ['question', 'choices'],
-			},
-			policy: 'auto',
-			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
-				return {
-					_requiresInput: true,
-					status: 'asked',
-					note: 'Pergunta enviada ao usuário. A próxima mensagem do usuário será a resposta.',
-				};
-			},
-		},
-		{
-			name: 'display_content',
-			description: 'Exibe conteúdo rico (imagem + texto) para o usuário. Use para mostrar posters de filmes, capas de álbuns, ou qualquer conteúdo com imagem.',
-			jsonSchema: {
-				type: 'object',
-				properties: {
-					title: { type: 'string', description: 'Título do conteúdo' },
-					description: { type: 'string', description: 'Descrição detalhada' },
-					imageUrl: { type: 'string', description: 'URL da imagem/poster/capa para exibir' },
+				policy: 'auto',
+				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+					return {
+						_requiresInput: true,
+						status: 'asked',
+						note: 'Pergunta enviada ao usuário. A próxima mensagem do usuário será a resposta.',
+					};
 				},
-				required: ['title', 'description'],
 			},
-			policy: 'auto',
-			execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
-				return { _requiresInput: true, status: 'displayed', note: 'Conteúdo exibido.' };
-			},
-		},
-		{
-			name: 'text_to_speech',
-			description: 'Transforma texto em áudio (voz). Use quando o usuário pedir para falar algo ou quando estiver em modo voz.',
-			jsonSchema: {
-				type: 'object',
-				properties: {
-					text: { type: 'string', description: 'Texto para converter em fala' },
+			{
+				name: 'send_image',
+				description: 'Envia uma imagem (poster, foto) para o usuário ver. Use para mostrar posters de filmes, capas de álbuns.',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						imageUrl: { type: 'string', description: 'URL da imagem/poster/capa' },
+						caption: { type: 'string', description: 'Legenda curta (opcional)' },
+					},
+					required: ['imageUrl'],
 				},
-				required: ['text'],
+				policy: 'auto',
+				execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
+					return { type: 'image_sent', status: 'displayed' };
+				},
 			},
-			policy: 'auto',
-			execute: async (_ctx: unknown, input: Record<string, unknown>) => {
-				return { type: 'tts', text: input.text, status: 'synthesized' };
+			{
+				name: 'text_to_speech',
+				description:
+					'Transforma texto em áudio (voz). Use quando o usuário pedir para falar algo ou quando estiver em modo voz.',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						text: { type: 'string', description: 'Texto para converter em fala' },
+					},
+					required: ['text'],
+				},
+				policy: 'auto',
+				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+					return { type: 'tts', text: input.text, status: 'synthesized' };
+				},
 			},
-		},
-	];
+		];
 	}
 
 	private getEnrichmentTools(): HermesToolDescriptor[] {

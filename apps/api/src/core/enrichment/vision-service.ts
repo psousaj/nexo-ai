@@ -1,5 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
 import { loggers } from '@/utils/logger';
+import { GoogleGenAI } from '@google/genai';
 
 export class VisionService {
 	private apiKey = process.env.GEMINI_TTS_API_KEY; // reusa mesma key do TTS
@@ -15,7 +15,14 @@ export class VisionService {
 			const ai = new GoogleGenAI({ apiKey: this.apiKey });
 			const response = await ai.models.generateContent({
 				model: 'gemini-2.5-flash',
-				contents: [{ parts: [{ text: 'Descreva esta imagem em português brasileiro com detalhes relevantes. O que você vê?' }, { inlineData: { mimeType, data: base64data } }] }],
+				contents: [
+					{
+						parts: [
+							{ text: 'Descreva esta imagem em português brasileiro com detalhes relevantes. O que você vê?' },
+							{ inlineData: { mimeType, data: base64data } },
+						],
+					},
+				],
 			});
 
 			const text = response.candidates?.[0]?.content?.parts?.[0]?.text;

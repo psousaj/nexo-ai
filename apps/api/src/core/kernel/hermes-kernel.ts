@@ -50,11 +50,16 @@ export class HermesKernel {
 				const next = await this.deps.modelTurnRunner.next({ ...input, tools: toolSchemas });
 
 				if (next.type === 'tool' && next.toolName) {
-		await callbacks?.onToolStart?.(next.toolName, next.input ?? {});
+					await callbacks?.onToolStart?.(next.toolName, next.input ?? {});
 
 					// Interrupt check: before tool execution
 					if (interrupt?.requested) {
-						void writeTurnAudit({ runType: 'interrupted', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
+						void writeTurnAudit({
+							runType: 'interrupted',
+							sessionKey: input.sessionKey,
+							policies: [],
+							tools: toolsUsed,
+						});
 						return { text: '', interrupted: true, interruptMessage: interrupt.message ?? undefined };
 					}
 
@@ -70,7 +75,7 @@ export class HermesKernel {
 						execute: () => descriptor.execute(input, next.input ?? {}),
 					});
 
-		await callbacks?.onToolEnd?.(next.toolName, result);
+					await callbacks?.onToolEnd?.(next.toolName, result);
 
 					if (result.status === 'blocked') {
 						if (result.requiresConfirmation) return { text: `Tool ${next.toolName} requires confirmation.` };
@@ -80,7 +85,9 @@ export class HermesKernel {
 					if (result.status === 'error') {
 						failures.push(next.toolName);
 						this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, {
-							error: true, tool: next.toolName, message: 'A ferramenta falhou ao executar.',
+							error: true,
+							tool: next.toolName,
+							message: 'A ferramenta falhou ao executar.',
 						});
 						continue;
 					}
@@ -98,7 +105,7 @@ export class HermesKernel {
 				}
 
 				if (next.type === 'respond') {
-		await callbacks?.onRespond?.(next.text!);
+					await callbacks?.onRespond?.(next.text!);
 					void writeTurnAudit({ runType: 'normal', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
 					return { text: next.text! };
 				}
@@ -107,7 +114,11 @@ export class HermesKernel {
 			throw new HermesRuntimeError('turn_budget_exhausted', 'HermesKernel exceeded the maximum step budget');
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
-			captureException(err, { sessionKey: input.sessionKey, toolsUsed: toolsUsed.join(','), failures: failures.join(',') });
+			captureException(err, {
+				sessionKey: input.sessionKey,
+				toolsUsed: toolsUsed.join(','),
+				failures: failures.join(','),
+			});
 			void writeTurnAudit({ runType: 'error', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
 			throw error;
 		}

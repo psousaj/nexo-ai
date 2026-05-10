@@ -1,7 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { loggers } from '@/utils/logger';
+import { GoogleGenAI } from '@google/genai';
 
 const require = createRequire(import.meta.url);
 const VOICE = 'Algenib';
@@ -11,8 +11,21 @@ function pcmToOpus(pcm: Buffer, sampleRate = 24000): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
 		const ffmpegPath = require('ffmpeg-static') as string;
 		const ffmpeg = spawn(ffmpegPath, [
-			'-f', 's16le', '-ar', String(sampleRate), '-ac', '1', '-i', 'pipe:0',
-			'-c:a', 'libopus', '-b:a', '32k', '-f', 'ogg', 'pipe:1',
+			'-f',
+			's16le',
+			'-ar',
+			String(sampleRate),
+			'-ac',
+			'1',
+			'-i',
+			'pipe:0',
+			'-c:a',
+			'libopus',
+			'-b:a',
+			'32k',
+			'-f',
+			'ogg',
+			'pipe:1',
 		]);
 
 		const chunks: Buffer[] = [];
