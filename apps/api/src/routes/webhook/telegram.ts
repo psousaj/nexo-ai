@@ -192,16 +192,28 @@ export function registerTelegramWebhook(app: Hono) {
 							}
 							return;
 						}
-						if (toolName === 'clarify') {
+			if (toolName === 'clarify') {
 							skipFinalResponse = true;
 							const data = input as any;
 							log.debug('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
 							lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
-							sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
-								.then((msgId) => {
-									if (msgId) lastClarifyMsgId.set(msg.chatId, msgId);
-								})
-								.catch(() => {});
+							const msgId = await sendClarifyMessage(msg.chatId, data.question || '', data.choices || []);
+							if (msgId) lastClarifyMsgId.set(msg.chatId, msgId);
+							return;
+						}
+						if (toolName === 'text_to_speech') {
+							const data = input as any;
+							if (!data?.text) return;
+							try {
+								const buffer = await ttsService.synthesize(data.text);
+								if (buffer) {
+									log.debug(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
+									await sendTelegramVoice(msg.chatId, buffer);
+									log.debug('[TTS] Voice sent!');
+								}
+							} catch (e) {
+								log.error('[TTS] error:', e);
+							}
 							return;
 						}
 						if (toolName === 'text_to_speech') {
