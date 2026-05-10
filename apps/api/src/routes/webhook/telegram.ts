@@ -1,10 +1,11 @@
-import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { sttService } from '@/core/enrichment/stt-service';
 import { ttsService } from '@/core/enrichment/tts-service';
 import { visionService } from '@/core/enrichment/vision-service';
-import { logger } from '@/utils/logger';
+import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
+import { loggers } from '@/utils/logger';
+const log = loggers.webhook;
 import type { Hono } from 'hono';
 import { getBot } from '../../channels/telegram/bot';
 import {
@@ -40,29 +41,33 @@ async function processPendingMessage(sessionKey: string, chatId: number, message
 
 async function sendConfirmMessage(chatId: number, text: string, imageUrl?: string): Promise<void> {
 	const keyboard = {
-		inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]],
+		inline_keyboard: [
+			[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }],
+			[{ text: '❌ Não', callback_data: 'confirm:no' }],
+		],
 	};
-	logger.debug('[confirm] chatId:', chatId, 'text:', text.slice(0, 60), 'hasImg:', !!imageUrl);
+	log.debug('[confirm] chatId:', chatId, 'text:', text.slice(0, 60), 'hasImg:', !!imageUrl);
 	// Photo FIRST (fire-and-forget, above text)
 	if (imageUrl) {
-		getBot().api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' })
-			.then(() => logger.debug('[confirm] photo sent'))
-			.catch((e) => logger.error('[confirm] photo failed:', e));
+		getBot()
+			.api.sendPhoto(chatId, imageUrl, { caption: text, parse_mode: 'Markdown' })
+			.then(() => log.debug('[confirm] photo sent'))
+			.catch((e) => log.error('[confirm] photo failed:', e));
 	}
 	// Text + buttons BELOW (always works)
 	try {
 		await getBot().api.sendMessage(chatId, text || 'Confirmar?', { parse_mode: 'Markdown', reply_markup: keyboard });
-		logger.debug('[confirm] text+buttons sent OK');
+		log.debug('[confirm] text+buttons sent OK');
 	} catch (e1) {
-		logger.error('[confirm] text+buttons Markdown failed:', e1);
+		log.error('[confirm] text+buttons Markdown failed:', e1);
 		try {
 			const safe = (text || 'Confirmar?').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
 			await getBot().api.sendMessage(chatId, safe, { reply_markup: keyboard });
-			logger.debug('[confirm] text+buttons safe sent OK');
+			log.debug('[confirm] text+buttons safe sent OK');
 		} catch (e2) {
-			logger.error('[confirm] text+buttons safe failed:', e2);
+			log.error('[confirm] text+buttons safe failed:', e2);
 			await getBot().api.sendMessage(chatId, 'Confirmar?', { reply_markup: keyboard });
-			logger.debug('[confirm] text+buttons basic sent');
+			log.debug('[confirm] text+buttons basic sent');
 		}
 	}
 }
@@ -85,7 +90,10 @@ export function registerTelegramWebhook(app: Hono) {
 					activeSignals.set(sessionKey, cbSignal);
 					try {
 						// Always answer callback query IMMEDIATELY to prevent Telegram retry
-						if (cb.id) await getBot().api.answerCallbackQuery(cb.id).catch(() => {});
+						if (cb.id)
+							await getBot()
+								.api.answerCallbackQuery(cb.id)
+								.catch(() => {});
 
 						// Clarify: user chose an option
 						if (data?.startsWith('clarify:')) {
@@ -138,7 +146,7 @@ export function registerTelegramWebhook(app: Hono) {
 							return c.json({ ok: true });
 						}
 					} catch (e) {
-						logger.error('Callback handler error:', e);
+						log.error('Callback handler error:', e);
 					} finally {
 						activeSignals.delete(sessionKey);
 					}
@@ -180,7 +188,9 @@ export function registerTelegramWebhook(app: Hono) {
 			if (pendingMsgId) {
 				lastClarifyMsgId.delete(msg.chatId);
 				lastClarifyContext.delete(msg.chatId);
-				getBot().api.editMessageReplyMarkup(msg.chatId, pendingMsgId, {}).catch(() => {});
+				getBot()
+					.api.editMessageReplyMarkup(msg.chatId, pendingMsgId, {})
+					.catch(() => {});
 			}
 
 			let userMessage = msg.text;
@@ -239,50 +249,59 @@ export function registerTelegramWebhook(app: Hono) {
 						if (toolName === 'display_content') {
 							skipFinalResponse = true;
 							const data = input as any;
-							logger.debug({ data }, '[display] RAW input');
+							log.debug({ data }, '[display] RAW input');
 							const title = (data?.title || '').replace(/[*_]/g, '');
 							const desc = (data?.description || '').replace(/[*_]/g, '');
-							const text = title ? `*${title}*\n\n${desc}` : (desc || 'É esse mesmo?');
-							logger.debug('[display] title:', title, 'desc:', desc.slice(0, 50), 'imgUrl:', data?.imageUrl?.slice(0, 50));
-							logger.debug('[display] final text:', text.slice(0, 80));
+							const text = title ? `*${title}*\n\n${desc}` : desc || 'É esse mesmo?';
+							log.debug('[display] title:', title, 'desc:', desc.slice(0, 50), 'imgUrl:', data?.imageUrl?.slice(0, 50));
+							log.debug('[display] final text:', text.slice(0, 80));
 							pendingToolPrompts.push(
 								sendConfirmMessage(msg.chatId, text, data?.imageUrl)
-									.then(() => logger.debug('[display] sendConfirmMessage OK'))
-									.catch((e) => logger.error('[display] sendConfirmMessage FAILED:', e)),
+									.then(() => log.debug('[display] sendConfirmMessage OK'))
+									.catch((e) => log.error('[display] sendConfirmMessage FAILED:', e)),
 							);
-						return;
-					}
-					if (toolName === 'clarify') {
-						skipFinalResponse = true;
-						const data = input as any;
-						logger.debug('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
-						lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
-						sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
-							.then((msgId) => { if (msgId) lastClarifyMsgId.set(msg.chatId, msgId); })
-							.catch(() => {});
-						return;
-					}
-					if (toolName === 'text_to_speech') {
-						const data = input as any;
-						if (!data?.text) return;
-						ttsService.synthesize(data.text).then((buffer) => {
-							if (buffer) {
-								logger.debug(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
-								sendTelegramVoice(msg.chatId, buffer).then(() => {
-									logger.debug('[TTS] Voice sent!');
-								}).catch((e) => logger.error('[TTS] sendVoice error:', e));
-							} else {
-								logger.debug('[TTS] Synthesize returned null — Cloudflare API may have failed');
-							}
-						}).catch((e) => logger.error('[TTS] synthesize error:', e));
-						return;
-					}
+							return;
+						}
+						if (toolName === 'clarify') {
+							skipFinalResponse = true;
+							const data = input as any;
+							log.debug('[clarify] question:', data.question, 'choices:', JSON.stringify(data.choices));
+							lastClarifyContext.set(msg.chatId, { question: data.question || '', choices: data.choices || [] });
+							sendClarifyMessage(msg.chatId, data.question || '', data.choices || [])
+								.then((msgId) => {
+									if (msgId) lastClarifyMsgId.set(msg.chatId, msgId);
+								})
+								.catch(() => {});
+							return;
+						}
+						if (toolName === 'text_to_speech') {
+							const data = input as any;
+							if (!data?.text) return;
+							ttsService
+								.synthesize(data.text)
+								.then((buffer) => {
+									if (buffer) {
+										log.debug(`[TTS] Generated ${buffer.length} bytes, sending voice...`);
+										sendTelegramVoice(msg.chatId, buffer)
+											.then(() => {
+												log.debug('[TTS] Voice sent!');
+											})
+											.catch((e) => log.error('[TTS] sendVoice error:', e));
+									} else {
+										log.debug('[TTS] Synthesize returned null — Cloudflare API may have failed');
+									}
+								})
+								.catch((e) => log.error('[TTS] synthesize error:', e));
+							return;
+						}
 						progressText += `🔍 *${toolName}*...\n`;
 						if (progressMessageId) {
 							editMessageText(msg.chatId, progressMessageId, progressText).catch(() => {});
 						} else {
 							sendProgressMessage(msg.chatId, progressText)
-								.then((id) => { progressMessageId = id; })
+								.then((id) => {
+									progressMessageId = id;
+								})
 								.catch(() => {});
 						}
 					},
@@ -324,7 +343,7 @@ export function registerTelegramWebhook(app: Hono) {
 
 			return c.json({ ok: true, sessionKey });
 		} catch (error) {
-			logger.error('Telegram webhook error:', error);
+			log.error('Telegram webhook error:', error);
 			return c.json({ ok: false, error: 'Internal error' }, 500);
 		}
 	});
