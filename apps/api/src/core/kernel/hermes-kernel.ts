@@ -6,9 +6,9 @@ import type { ModelTurnRunner } from './model-turn-runner';
 import { executeToolWithPolicy } from './tool-executor';
 
 export interface KernelCallbacks {
-	onToolStart?: (toolName: string, input: unknown) => void;
-	onToolEnd?: (toolName: string, result: unknown) => void;
-	onRespond?: (text: string) => void;
+	onToolStart?: (toolName: string, input: unknown) => void | Promise<void>;
+	onToolEnd?: (toolName: string, result: unknown) => void | Promise<void>;
+	onRespond?: (text: string) => void | Promise<void>;
 }
 
 export interface InterruptSignal {
@@ -50,7 +50,7 @@ export class HermesKernel {
 				const next = await this.deps.modelTurnRunner.next({ ...input, tools: toolSchemas });
 
 				if (next.type === 'tool' && next.toolName) {
-					callbacks?.onToolStart?.(next.toolName, next.input ?? {});
+		await callbacks?.onToolStart?.(next.toolName, next.input ?? {});
 
 					// Interrupt check: before tool execution
 					if (interrupt?.requested) {
@@ -70,7 +70,7 @@ export class HermesKernel {
 						execute: () => descriptor.execute(input, next.input ?? {}),
 					});
 
-					callbacks?.onToolEnd?.(next.toolName, result);
+		await callbacks?.onToolEnd?.(next.toolName, result);
 
 					if (result.status === 'blocked') {
 						if (result.requiresConfirmation) return { text: `Tool ${next.toolName} requires confirmation.` };
@@ -98,7 +98,7 @@ export class HermesKernel {
 				}
 
 				if (next.type === 'respond') {
-					callbacks?.onRespond?.(next.text!);
+		await callbacks?.onRespond?.(next.text!);
 					void writeTurnAudit({ runType: 'normal', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
 					return { text: next.text! };
 				}
