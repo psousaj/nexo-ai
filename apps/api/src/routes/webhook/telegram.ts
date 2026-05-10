@@ -186,9 +186,11 @@ export function registerTelegramWebhook(app: Hono) {
 							const data = input as any;
 							if (data?.imageUrl) {
 								const caption = (data?.caption || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '');
-								getBot()
-									.api.sendPhoto(msg.chatId, data.imageUrl, { caption: caption || undefined })
-									.catch(() => {});
+								try {
+									await getBot().api.sendPhoto(msg.chatId, data.imageUrl, { caption: caption || undefined });
+								} catch (e) {
+									log.error('[send_image] photo failed:', e?.message || e);
+								}
 							}
 							return;
 						}
