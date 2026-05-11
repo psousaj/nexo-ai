@@ -53,6 +53,13 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 	private getBuiltInTools(): HermesToolDescriptor[] {
 		const memoryRegistry = this.deps.memoryRegistry ?? new PostgresMemoryRegistry();
 
+		function extractUserId(ctx: unknown): string {
+			const input = ctx as Record<string, unknown> | undefined;
+			const sessionKey = (input?.sessionKey as string) ?? '';
+			const parts = sessionKey.split(':');
+			return parts[4] ?? 'unknown';
+		}
+
 		return [
 			{
 				name: 'save_memory',
@@ -71,14 +78,20 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					required: ['content'],
 				},
 				policy: 'auto',
-				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
-					await memoryRegistry.store({
-						userId: 'default',
-						sessionKey: 'built-in',
+				execute: async (ctx: unknown, input: Record<string, unknown>) => {
+					const userId = extractUserId(ctx);
+					const sessionKey = ((ctx as Record<string, unknown>)?.sessionKey as string) ?? 'built-in';
+					const result = await memoryRegistry.store({
+						userId,
+						sessionKey,
 						sourceKind: 'intake',
 						content: input.content as string,
 						confidence: 1,
 					});
+					if (!result) {
+						loggers.db.error({ userId, sessionKey }, 'save_memory: falha ao persistir no banco');
+						return { status: 'save_failed', error: 'Erro interno ao salvar memória' };
+					}
 					return { status: 'saved', content: input.content };
 				},
 			},
@@ -94,9 +107,10 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					required: ['query'],
 				},
 				policy: 'auto',
-				execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
+				execute: async (ctx: unknown, _input: Record<string, unknown>) => {
+					const userId = extractUserId(ctx);
 					const results = await memoryRegistry.loadRelevant({
-						userId: 'default',
+						userId,
 						limit: 10,
 					});
 					return { results };

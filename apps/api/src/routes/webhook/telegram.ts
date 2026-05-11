@@ -33,6 +33,7 @@ const sessionStore = new SessionStore({
 });
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
 const lastClarifyMsgId = new Map<number, number>();
+const lastConfirmContext = new Map<number, { title: string; imageUrl: string }>();
 const activeSignals = new Map<string, InterruptSignal>();
 const pendingMessages = new Map<string, string>();
 
@@ -64,6 +65,7 @@ function buildToolCallbacks(
 			if (toolName === 'send_confirm') {
 				const data = input as any;
 				skipFlag.value = true;
+				lastConfirmContext.set(chatId, { title: data?.title ?? '', imageUrl: data?.imageUrl ?? '' });
 				const keyb = { inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] };
 				if (data?.imageUrl) {
 					const cap = (data?.title || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '') || 'É esse mesmo?';
@@ -208,10 +210,14 @@ export function registerTelegramWebhook(app: Hono) {
 						// Confirm: yes/no
 						if (data === 'confirm:yes') {
 							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
-							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, 'confirmar e salvar', cbSessionSource);
-							const userMessage = sessionContext
-								? `${sessionContext}\n\nconfirmar e salvar`
+							const confirmCtx = lastConfirmContext.get(chatId);
+							const intentMessage = confirmCtx?.title
+								? `confirmar e salvar "${confirmCtx.title}"`
 								: 'confirmar e salvar';
+							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, intentMessage, cbSessionSource);
+							const userMessage = sessionContext
+								? `${sessionContext}\n\n${intentMessage}`
+								: intentMessage;
 							const confirmResult = await runtime.kernel.runTurn(
 								{ sessionKey, userMessage, systemPrompt },
 								undefined,
@@ -220,6 +226,7 @@ export function registerTelegramWebhook(app: Hono) {
 							if (confirmResult?.text) {
 								await sendTelegramMessage(chatId, confirmResult.text).catch(() => {});
 							}
+							lastConfirmContext.delete(chatId);
 							return c.json({ ok: true });
 						}
 

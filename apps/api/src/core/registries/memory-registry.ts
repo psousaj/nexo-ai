@@ -1,6 +1,9 @@
 import { db } from '@/db';
 import { memoryEnvelopes } from '@/db/schema/memory-envelopes';
+import { loggers } from '@/utils/logger';
 import { desc, eq } from 'drizzle-orm';
+
+const log = loggers.db;
 
 export interface MemoryRegistry {
 	store(input: unknown): Promise<unknown>;
@@ -32,7 +35,8 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 				})
 				.returning();
 			return inserted;
-		} catch {
+		} catch (err) {
+			log.error({ err, userId: data.userId, sessionKey: data.sessionKey }, 'memoryRegistry.store: erro ao inserir memory_envelope');
 			return null;
 		}
 	}
@@ -47,8 +51,8 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 				.orderBy(desc(memoryEnvelopes.confidence))
 				.limit(limit ?? 10);
 			return rows.map((r) => ({ summary: r.content, confidence: r.confidence ?? 1 }));
-		} catch {
-			// Fallback: try without the confidence column (it may not exist in the table yet)
+		} catch (err) {
+			log.warn({ err, userId }, 'memoryRegistry.loadRelevant: fallback — confidence column pode não existir');
 			try {
 				const rows = await db
 					.select({ content: memoryEnvelopes.normalizedContent })
@@ -57,7 +61,8 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 					.orderBy(desc(memoryEnvelopes.createdAt))
 					.limit(limit ?? 10);
 				return rows.map((r) => ({ summary: r.content, confidence: 1 }));
-			} catch {
+			} catch (err2) {
+				log.error({ err: err2, userId }, 'memoryRegistry.loadRelevant: erro fatal ao carregar memórias');
 				return [];
 			}
 		}

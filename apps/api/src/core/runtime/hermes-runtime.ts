@@ -68,6 +68,7 @@ export function createHermesRuntime(deps?: {
 			youtubeService,
 			braveSearchService,
 			openGraphService,
+			memoryRegistry,
 		});
 	const sessionRegistry = deps?.sessionRegistry ?? new PostgresSessionRegistry();
 	const contextAssembler = new ContextAssembler({ memoryRegistry, loadSkills: loadSkillsFromDb });
