@@ -2,6 +2,7 @@ import './otel';
 import './sentry';
 import { initBot } from '@/channels/telegram/bot';
 import { getApiEnv } from '@/config/env';
+import { initializeDatabase, shutdownDatabase } from '@/db';
 import { shutdownSentry } from '@/sentry';
 import app from '@/server';
 import { logger } from '@/utils/logger';
@@ -18,6 +19,13 @@ async function gracefulShutdown(signal: string): Promise<void> {
 	isShuttingDown = true;
 
 	logger.info({ signal }, '🛑 Encerrando aplicação (graceful shutdown)');
+
+	try {
+		await shutdownDatabase();
+		logger.info('✅ Shutdown do pool de banco concluído');
+	} catch (error) {
+		logger.error({ error }, '❌ Erro ao finalizar pool de banco');
+	}
 
 	try {
 		await shutdownSentry();
@@ -41,6 +49,7 @@ serve(
 		port,
 	},
 	async (info) => {
+		initializeDatabase();
 		logger.info(`🚀 Nexo AI Hermes rodando em http://0.0.0.0:${info.port}`);
 		logger.info(`📦 Version: ${pkg.version}`);
 		logger.info(`🌍 Environment: ${apiEnv.NODE_ENV}`);
