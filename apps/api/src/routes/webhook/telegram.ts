@@ -66,12 +66,14 @@ function buildToolCallbacks(
 				const data = input as any;
 				skipFlag.value = true;
 				lastConfirmContext.set(chatId, { title: data?.title ?? '', imageUrl: data?.imageUrl ?? '' });
-				const keyb = { inline_keyboard: [[{ text: '✅ Sim, é esse!', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] };
+				const keyb = { inline_keyboard: [[{ text: '✅ Sim', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] };
 				if (data?.imageUrl) {
-					const cap = (data?.title || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '') || 'É esse mesmo?';
+					const cap = (data?.title || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '') || 'Confirmar?';
 					getBot().api.sendPhoto(chatId, data.imageUrl, { caption: cap, reply_markup: keyb }).catch(() => {
 						getBot().api.sendMessage(chatId, cap, { reply_markup: keyb }).catch(() => {});
 					});
+				} else {
+					getBot().api.sendMessage(chatId, data?.title || 'Confirmar?', { reply_markup: keyb }).catch(() => {});
 				}
 				return;
 			}

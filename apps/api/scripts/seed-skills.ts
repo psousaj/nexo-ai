@@ -1,7 +1,9 @@
-import { db } from '@/db';
+import { db, initializeDatabase } from '@/db';
 import { agentSkills } from '@/db/schema/agent-skills';
 import { users } from '@/db/schema/users';
 import { eq } from 'drizzle-orm';
+
+initializeDatabase();
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001';
 

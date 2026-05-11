@@ -1,5 +1,7 @@
-import { db } from '@/db';
+import { db, initializeDatabase } from '@/db';
 import { modelRegistry } from '@/db/schema/model-registry';
+
+initializeDatabase();
 
 const defaultModels = [
 	// Cloudflare
