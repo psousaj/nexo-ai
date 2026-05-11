@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { agentSessions } from '@/db/schema/agent-sessions';
 import { eq } from 'drizzle-orm';
+import { loggers } from '@/utils/logger';
 import type { SessionRegistry } from '../registries/session-registry';
 import type { TranscriptEntry, TranscriptStore } from './transcript-store';
 
@@ -21,14 +22,55 @@ export interface ContextCompressorOptions {
 	tailKeep?: number;
 	/** Min minutes between compressions (default: 5) */
 	cooldownMinutes?: number;
+	/** Cloudflare Workers AI model for summarization (default: @cf/moonshotai/kimi-k2.6) */
+	summarizationModel?: string;
 }
+
+interface CFSummarizeResponse {
+	result: { response: string };
+	success: boolean;
+	errors?: Array<{ message: string }>;
+}
+
+const log = loggers.cloudflare;
+const SUMMARIZATION_MODEL = '@cf/moonshotai/kimi-k2.6';
+
+const ACTION_LOG_SYSTEM_PROMPT = `You are a conversation summarizer. Summarize the conversation segment below into a structured action-log format.
+
+Use this EXACT format:
+
+- Completed Actions:
+  N. ACTION target — outcome [tool: name]
+
+- Active State:
+  current context, files, or status
+
+- In Progress / Blocked:
+  any pending items or blockers
+
+- Key Decisions:
+  important choices made
+
+- Pending User Asks:
+  what the user still needs to respond to
+
+- Remaining Work:
+  what's left to do
+
+Be specific. "Changed some files" is not acceptable. Use Portuguese (Brazilian).`;
 
 /** In-memory cooldown tracking per sessionId */
 const lastCompression = new Map<string, number>();
+/** Track savings from last 2 compressions per sessionId for anti-thrashing */
+const compressionSavings = new Map<string, number[]>();
+/** Timestamp of last provider-level failure */
+let lastProviderFailureTime = 0;
 
 /** Reset compression cooldown state (for testing) */
 export function resetCompressionCooldown(): void {
 	lastCompression.clear();
+	compressionSavings.clear();
+	lastProviderFailureTime = 0;
 }
 
 /**
@@ -55,13 +97,18 @@ export class ContextCompressor {
 			return { compressed: false };
 		}
 
-		// 2. Anti-thrashing / cooldown
+		// 2. Cooldown / anti-thrashing checks
 		const last = lastCompression.get(sessionId);
 		if (last && Date.now() - last < this.cooldownMs) {
 			return { compressed: false };
 		}
 
-		// 3. Preprocessing: filter out empty system/tool noise
+		// 2b. Provider failure cooldown: if LLM summarization failed <10min ago, skip
+		if (lastProviderFailureTime > 0 && Date.now() - lastProviderFailureTime < 10 * 60 * 1000) {
+			return { compressed: false, newSessionKey: 'provider_cooldown' };
+		}
+
+		// 3. Preprocessing: filter + dedup + smart collapse + truncate
 		const clean = this.preprocess(messages);
 		if (clean.length < this.threshold) {
 			return { compressed: false };
@@ -76,8 +123,23 @@ export class ContextCompressor {
 			return { compressed: false };
 		}
 
-		// 5. Summarize middle (MVP: placeholder)
+		// 5. Summarize middle via Cloudflare Workers AI
 		const summary = await this.summarize(middle);
+
+		// 5b. Anti-thrashing: if two consecutive compressions saved <10%, stop
+		const middleTokenCount = middle.reduce((sum, m) => sum + m.content.length, 0);
+		const savings = middleTokenCount > 0
+			? (middleTokenCount - summary.length) / middleTokenCount
+			: 0;
+
+		const history = compressionSavings.get(sessionId) ?? [];
+		history.push(savings);
+		if (history.length > 2) history.shift();
+		compressionSavings.set(sessionId, history);
+
+		if (history.length === 2 && history.every((s) => s < 0.1)) {
+			return { compressed: false, newSessionKey: 'anti_thrashing' };
+		}
 
 		// 6. Session split
 		const newSessionKey = await this.splitSession(sessionId, head, summary, tail);
@@ -99,16 +161,135 @@ export class ContextCompressor {
 	}
 
 	private preprocess(messages: TranscriptEntry[]): TranscriptEntry[] {
-		return messages.filter((m) => {
+		// Phase 1a: filter system/empty messages
+		const filtered = messages.filter((m) => {
 			if (m.role === 'system') return false;
 			if (!m.content || m.content.trim().length === 0) return false;
 			return true;
 		});
+
+		// Phase 1b: MD5 dedup — same tool result repeated → keep only most recent
+		const seenToolResults = new Map<string, number>();
+		for (let i = filtered.length - 1; i >= 0; i--) {
+			const m = filtered[i];
+			if (m.role === 'tool' && m.content) {
+				const hash = this.simpleHash(m.content);
+				if (seenToolResults.has(hash)) {
+					filtered.splice(i, 1);
+				} else {
+					seenToolResults.set(hash, i);
+				}
+			}
+		}
+
+		// Phase 1c: Smart Collapse — long tool outputs → 1-line summary
+		for (let i = 0; i < filtered.length; i++) {
+			const m = filtered[i];
+			if (m.role === 'tool' && m.content.length > 200) {
+				const lines = m.content.split('\n');
+				const firstLine = lines[0].slice(0, 100);
+				filtered[i] = { ...m, content: `[tool result] ${firstLine}... (${lines.length} lines)` };
+			}
+		}
+
+		// Phase 1d: Truncate tool_call params > 500 chars
+		for (let i = 0; i < filtered.length; i++) {
+			const m = filtered[i];
+			if (m.tool_calls) {
+				filtered[i] = {
+					...m,
+					tool_calls: m.tool_calls.map((tc) => ({
+						...tc,
+						function: {
+							...tc.function,
+							arguments: tc.function.arguments.length > 500
+								? tc.function.arguments.slice(0, 200) + '...[truncated]'
+								: tc.function.arguments,
+						},
+					})),
+				};
+			}
+		}
+
+		return filtered;
+	}
+
+	private simpleHash(input: string): string {
+		let hash = 0;
+		for (let i = 0; i < input.length; i++) {
+			const char = input.charCodeAt(i);
+			hash = (hash << 5) - hash + char;
+			hash = hash & hash;
+		}
+		return Math.abs(hash).toString(16).slice(0, 8);
 	}
 
 	private async summarize(messages: TranscriptEntry[]): Promise<string> {
-		// MVP placeholder: concatenate with truncation
-		const combined = messages.map((m) => `[${m.role}] ${m.content}`).join('\n');
+		const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+		const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+		const model = this.opts.summarizationModel ?? SUMMARIZATION_MODEL;
+
+		if (!accountId || !apiToken) {
+			log.warn('CF Workers AI not configured (CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN) — using fallback summarization');
+			return this.fallbackSummarize(messages);
+		}
+
+		const conversationText = messages
+			.map((m) => {
+				if (m.role === 'user') return `User: ${m.content}`;
+				if (m.role === 'assistant') {
+					if (m.tool_calls?.length) {
+						const tools = m.tool_calls.map((tc) => `  → tool_call: ${tc.function.name}(${tc.function.arguments})`).join('\n');
+						return `Assistant:\n${tools}`;
+					}
+					return `Assistant: ${m.content}`;
+				}
+				if (m.role === 'tool') return `Tool result: ${m.content.slice(0, 300)}`;
+				return `${m.role}: ${m.content}`;
+			})
+			.join('\n\n');
+
+		try {
+			const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${apiToken}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					messages: [
+						{ role: 'system', content: ACTION_LOG_SYSTEM_PROMPT },
+						{ role: 'user', content: conversationText },
+					],
+					stream: false,
+				}),
+				signal: AbortSignal.timeout(30000),
+			});
+
+			if (!response.ok) {
+				log.error({ status: response.status }, 'CF Workers AI summarization failed');
+				lastProviderFailureTime = Date.now();
+				return this.fallbackSummarize(messages);
+			}
+
+			const data = (await response.json()) as CFSummarizeResponse;
+			if (!data.success || !data.result?.response) {
+				log.error({ errors: data.errors }, 'CF Workers AI summarization returned no response');
+				lastProviderFailureTime = Date.now();
+				return this.fallbackSummarize(messages);
+			}
+
+			return data.result.response;
+		} catch (error) {
+			log.error({ err: error }, 'CF Workers AI summarization error — using fallback');
+			lastProviderFailureTime = Date.now();
+			return this.fallbackSummarize(messages);
+		}
+	}
+
+	private fallbackSummarize(messages: TranscriptEntry[]): string {
+		const combined = messages.map((m) => `[${m.role}] ${m.content.slice(0, 200)}`).join('\n');
 		if (combined.length > 4000) {
 			return combined.slice(0, 4000) + '\n...[truncated]';
 		}
