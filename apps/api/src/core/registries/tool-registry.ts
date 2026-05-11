@@ -1,5 +1,8 @@
+import { db } from '@/db';
+import { userChannels } from '@/db/schema/user-channels';
 import { PostgresMemoryRegistry } from '@/core/registries/memory-registry';
 import type { HermesToolDescriptor } from '../policies/policy-types';
+import { eq, and } from 'drizzle-orm';
 
 export interface HermesToolRegistry {
 	listEnabled(): Promise<HermesToolDescriptor[]>;
@@ -53,11 +56,24 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 	private getBuiltInTools(): HermesToolDescriptor[] {
 		const memoryRegistry = this.deps.memoryRegistry ?? new PostgresMemoryRegistry();
 
-		function extractUserId(ctx: unknown): string {
+		async function extractUserId(ctx: unknown): Promise<string> {
 			const input = ctx as Record<string, unknown> | undefined;
 			const sessionKey = (input?.sessionKey as string) ?? '';
 			const parts = sessionKey.split(':');
-			return parts[4] ?? 'unknown';
+			const peerId = parts[4];
+			if (!peerId) return 'unknown';
+			const channel = parts[2] ?? 'unknown';
+			try {
+				const [link] = await db
+					.select({ userId: userChannels.userId })
+					.from(userChannels)
+					.where(and(eq(userChannels.channel, channel as any), eq(userChannels.channelUserId, peerId)))
+					.limit(1);
+				if (link) return link.userId;
+			} catch {
+				// fallback to peerId
+			}
+			return peerId;
 		}
 
 		return [
@@ -79,7 +95,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 				},
 				policy: 'auto',
 				execute: async (ctx: unknown, input: Record<string, unknown>) => {
-					const userId = extractUserId(ctx);
+					const userId = await extractUserId(ctx);
 					const sessionKey = ((ctx as Record<string, unknown>)?.sessionKey as string) ?? 'built-in';
 					const result = await memoryRegistry.store({
 						userId,
@@ -111,7 +127,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 				},
 				policy: 'auto',
 				execute: async (ctx: unknown, _input: Record<string, unknown>) => {
-					const userId = extractUserId(ctx);
+					const userId = await extractUserId(ctx);
 					const results = await memoryRegistry.loadRelevant({
 						userId,
 						limit: 10,
