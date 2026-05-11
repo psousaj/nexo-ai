@@ -46,6 +46,10 @@ export { applyRelevanceDecay } from './memory/relevance-decay';
 // Context
 export { ContextAssembler } from './context/context-assembler';
 
+// Session
+export { SessionContextBuilder } from './session/session-context-builder';
+export type { SessionSource } from './session/session-context-builder';
+
 // Jobs
 export { runSelfImprovementReview } from './jobs/self-improvement-review.job';
 export { runProactiveRefresh } from './jobs/proactive-refresh.job';

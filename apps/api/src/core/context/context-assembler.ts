@@ -1,4 +1,6 @@
 import type { MemoryRegistry } from '@/core/registries/memory-registry';
+import { SessionContextBuilder } from '../session/session-context-builder';
+import type { SessionSource } from '../session/session-context-builder';
 
 export interface SkillInfo {
 	name: string;
@@ -16,7 +18,7 @@ export class ContextAssembler {
 		},
 	) {}
 
-	async build(input: { userId: string; sessionKey: string; userMessage?: string }) {
+	async build(input: { userId: string; sessionKey: string; userMessage?: string; sessionSource?: SessionSource }) {
 		const derivedMemory = await this.deps.memoryRegistry.loadRelevant({
 			userId: input.userId,
 			includeDerived: true,
@@ -102,13 +104,14 @@ Sempre que houver ambiguidade:
 
 		return {
 			systemPrompt: systemPromptParts.join('\n\n'),
+			sessionContext: input.sessionSource ? new SessionContextBuilder().build(input.sessionSource) : '',
 			sessionKey: input.sessionKey,
 		};
 	}
 
-	async buildFromSessionKey(sessionKey: string, userMessage?: string) {
+	async buildFromSessionKey(sessionKey: string, userMessage?: string, sessionSource?: SessionSource) {
 		const parts = sessionKey.split(':');
 		const userId = parts[4] ?? 'unknown';
-		return this.build({ userId, sessionKey, userMessage });
+		return this.build({ userId, sessionKey, userMessage, sessionSource });
 	}
 }

@@ -6,6 +6,7 @@ import { PostgresSessionRegistry, resolveSessionKey } from '@/core/registries/se
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import { SessionStore } from '@/core/session/session-store';
 import { loggers } from '@/utils/logger';
+import type { SessionSource } from '@/core/session/session-context-builder';
 const log = loggers.webhook;
 import type { Hono } from 'hono';
 import { getBot } from '../../channels/telegram/bot';
@@ -92,11 +93,14 @@ function buildToolCallbacks(
 	};
 }
 
-async function processPendingMessage(sessionKey: string, chatId: number, message: string) {
-	const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, message);
+async function processPendingMessage(sessionKey: string, chatId: number, message: string, sessionSource?: SessionSource) {
+	const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, message, sessionSource);
+	const userMessage = contextResult.sessionContext
+		? `${contextResult.sessionContext}\n\n${message}`
+		: message;
 	const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
 	const result = await runtime.kernel.runTurn(
-		{ sessionKey, userMessage: message, systemPrompt: systemPrompt.systemPrompt },
+		{ sessionKey, userMessage, systemPrompt: contextResult.systemPrompt },
 		callbacks,
 		undefined,
 	);
@@ -120,6 +124,14 @@ export function registerTelegramWebhook(app: Hono) {
 				if (chatId && messageId) {
 					const sessionKey = resolveSessionKey('telegram', String(chatId));
 					const cbSignal: InterruptSignal = { requested: false, message: null };
+					const cbSessionSource: SessionSource = {
+						platform: 'telegram',
+						chatId: String(chatId),
+						chatName: cb.message?.chat?.title,
+						chatType: cb.message?.chat?.type === 'private' ? 'dm' : 'group',
+						userId: String(cb.from?.id),
+						userName: cb.from?.first_name,
+					};
 					activeSignals.set(sessionKey, cbSignal);
 					try {
 						// Always answer callback query IMMEDIATELY to prevent Telegram retry
@@ -145,12 +157,15 @@ export function registerTelegramWebhook(app: Hono) {
 									reply_markup: undefined,
 								});
 							} catch {}
-							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice);
+							const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice, cbSessionSource);
+							const userMessage = contextResult.sessionContext
+								? `${contextResult.sessionContext}\n\n${choice}`
+								: choice;
 							const cbProgress = { text: '', msgId: null as number | null };
 							const cbSkip = { value: false };
 							const cbCallbacks = buildToolCallbacks(chatId, cbSkip, cbProgress);
 							const result = await runtime.kernel.runTurn(
-								{ sessionKey, userMessage: choice, systemPrompt: systemPrompt.systemPrompt },
+								{ sessionKey, userMessage, systemPrompt: contextResult.systemPrompt },
 								cbCallbacks,
 								cbSignal,
 							);
@@ -163,9 +178,12 @@ export function registerTelegramWebhook(app: Hono) {
 						// Confirm: yes/no
 						if (data === 'confirm:yes') {
 							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
-							const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar');
+							const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar', cbSessionSource);
+							const userMessage = contextResult.sessionContext
+								? `${contextResult.sessionContext}\n\nconfirmar e salvar`
+								: 'confirmar e salvar';
 							const confirmResult = await runtime.kernel.runTurn(
-								{ sessionKey, userMessage: 'confirmar e salvar', systemPrompt: systemPrompt.systemPrompt },
+								{ sessionKey, userMessage, systemPrompt: contextResult.systemPrompt },
 								undefined,
 								cbSignal,
 							);
@@ -196,7 +214,7 @@ export function registerTelegramWebhook(app: Hono) {
 					const cbPending = pendingMessages.get(sessionKey);
 					if (cbPending) {
 						pendingMessages.delete(sessionKey);
-						processPendingMessage(sessionKey, chatId, cbPending);
+						processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource);
 					}
 
 					return c.json({ ok: true });
@@ -298,14 +316,26 @@ export function registerTelegramWebhook(app: Hono) {
 			const progressMessageId: number | null = null;
 			let skipFinalResponse = false;
 
+			const sessionSource: SessionSource = {
+				platform: 'telegram',
+				chatId: String(msg.chatId),
+				chatName: update.message?.chat?.title,
+				chatType: update.message?.chat?.type === 'private' ? 'dm' : 'group',
+				userId: String(update.message?.from?.id),
+				userName: update.message?.from?.first_name,
+			};
+
 			try {
-				const systemPrompt = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text);
+				const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text, sessionSource);
+				const finalUserMessage = contextResult.sessionContext
+					? `${contextResult.sessionContext}\n\n${userMessage}`
+					: userMessage;
 				const skipFlag = { value: skipFinalResponse };
 				const progress = { text: progressText, msgId: progressMessageId };
 				const callbacks = buildToolCallbacks(msg.chatId, skipFlag, progress);
 
 				const result = await runtime.kernel.runTurn(
-					{ sessionKey, userMessage, systemPrompt: systemPrompt.systemPrompt },
+					{ sessionKey, userMessage: finalUserMessage, systemPrompt: contextResult.systemPrompt },
 					callbacks,
 					signal,
 				);
@@ -330,7 +360,7 @@ export function registerTelegramWebhook(app: Hono) {
 			const pending = pendingMessages.get(sessionKey);
 			if (pending) {
 				pendingMessages.delete(sessionKey);
-				processPendingMessage(sessionKey, msg.chatId, pending);
+				processPendingMessage(sessionKey, msg.chatId, pending, sessionSource);
 			}
 
 			return c.json({ ok: true, sessionKey });
