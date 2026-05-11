@@ -20,7 +20,6 @@ export const agentSessions = pgTable(
 		peerId: varchar('peer_id', { length: 255 }).notNull(), // userId, groupId, channelId
 		// Session state
 		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
-		conversationId: uuid('conversation_id'),
 		// Session chain (NEX-73: context compression)
 		parentSessionId: uuid('parent_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
 		resetReason: varchar('reset_reason', { length: 50 }), // compression, manual, expiry
