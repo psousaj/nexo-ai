@@ -57,7 +57,7 @@ Quando o usuário pedir para salvar um filme, SIGA ESTES PASSOS:
 	{
 		name: 'save_music',
 		description: 'Como salvar músicas para o usuário ouvir depois',
-		triggers: ['música', 'musica', 'músicas', 'music', 'song', 'ouvir', 'escuta', 'playlist'],
+		triggers: ['música', 'musica', 'músicas', 'music', 'song', 'ouvir', 'escuta', 'playlist', 'álbum', 'album', 'banda', 'artista', 'cantor', 'cantora'],
 		content: `## Skill: Salvar Música
 
 Quando o usuário pedir para salvar uma música, SIGA ESTES PASSOS:
@@ -151,7 +151,7 @@ REGRAS:
 	{
 		name: 'check_before_save',
 		description: 'Verificar se o item já foi salvo antes de adicionar novamente',
-		triggers: ['salva', 'salvar', 'guarda', 'lembra', 'adiciona', 'quero ver', 'assistir', 'ouvir', 'ler', 'livro', 'filme', 'música', 'musica', 'link'],
+		triggers: ['salva', 'salvar', 'guarda', 'lembra', 'adiciona', 'quero ver', 'assistir', 'ouvir', 'ler', 'livro', 'filme', 'música', 'musica', 'link', 'confirmar e salvar', 'confirma que é esse'],
 		content: `## Skill: Verificar Antes de Salvar
 
 Antes de chamar \`save_memory()\`, SEMPRE chame \`search_memories(query)\` primeiro com os termos relevantes (título, artista, etc.).
@@ -168,7 +168,7 @@ Se não existir:
 	{
 		name: 'check_watch_providers',
 		description: 'Verificar onde assistir um filme/série nos streamings',
-		triggers: ['onde assistir', 'qual streaming', 'streaming', 'netflix', 'prime', 'disney+', 'max', 'assistir online', 'tem onde'],
+		triggers: ['onde assistir', 'onde posso assistir', 'qual streaming', 'streaming', 'netflix', 'prime', 'disney+', 'max', 'assistir online', 'tem onde', 'passa onde', 'em qual plataforma', 'em que streaming', 'como assistir', 'posso ver'],
 		content: `## Skill: Onde Assistir
 
 Quando o usuário perguntar onde assistir um filme ou série, SIGA ESTES PASSOS:
