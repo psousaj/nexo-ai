@@ -2,8 +2,9 @@ import { sttService } from '@/core/enrichment/stt-service';
 import { ttsService } from '@/core/enrichment/tts-service';
 import { visionService } from '@/core/enrichment/vision-service';
 import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
-import { resolveSessionKey } from '@/core/registries/session-registry';
+import { PostgresSessionRegistry, resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
+import { SessionStore } from '@/core/session/session-store';
 import { loggers } from '@/utils/logger';
 const log = loggers.webhook;
 import type { Hono } from 'hono';
@@ -22,6 +23,10 @@ import {
 } from '../../channels/telegram/dispatcher';
 
 const runtime = createHermesRuntime();
+const sessionStore = new SessionStore({
+	sessionRegistry: new PostgresSessionRegistry(),
+	hasActiveProcesses: (sessionKey) => activeSignals.has(sessionKey),
+});
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
 const lastClarifyMsgId = new Map<number, number>();
 const activeSignals = new Map<string, InterruptSignal>();
@@ -123,6 +128,14 @@ export function registerTelegramWebhook(app: Hono) {
 								.api.answerCallbackQuery(cb.id)
 								.catch(() => {});
 
+						// Ensure session exists for callback queries
+						const peerKind = String(chatId).startsWith('-') ? 'group' : 'direct';
+						await sessionStore.getOrCreateSession(sessionKey, {
+							channel: 'telegram',
+							peerKind,
+							peerId: String(chatId),
+						});
+
 						// Clarify: user chose an option
 						if (data?.startsWith('clarify:')) {
 							const choice = decodeURIComponent(data.slice('clarify:'.length));
@@ -176,6 +189,7 @@ export function registerTelegramWebhook(app: Hono) {
 						log.error('Callback handler error:', e);
 					} finally {
 						activeSignals.delete(sessionKey);
+						await sessionStore.touchSession(sessionKey).catch(() => {});
 					}
 
 					// Drain pending from callback handler
@@ -196,6 +210,14 @@ export function registerTelegramWebhook(app: Hono) {
 
 			const sessionKey = resolveSessionKey('telegram', envelope.payload.incomingMsg.externalId);
 			const msg = extractTelegramMessage(envelope);
+
+			// Resolve or create session with reset policy
+			const peerKind = String(msg.chatId).startsWith('-') ? 'group' : 'direct';
+			const { session, wasReset, resetReason } = await sessionStore.getOrCreateSession(sessionKey, {
+				channel: 'telegram',
+				peerKind,
+				peerId: String(msg.chatId),
+			});
 
 			// Interrupt: if already processing, signal interrupt + queue pending
 			const existingSignal = activeSignals.get(sessionKey);
@@ -254,6 +276,14 @@ export function registerTelegramWebhook(app: Hono) {
 				}
 			}
 
+			// Prepend reset notification if session was reset
+			if (wasReset && resetReason) {
+				const notification = sessionStore.getResetNotification(resetReason, 'telegram', session.peerKind === 'direct' ? 1440 : undefined);
+				if (notification) {
+					userMessage = `${notification}${userMessage}`;
+				}
+			}
+
 			const userMessageId = msg.messageId;
 			const hasImage = update.message?.photo && update.message.photo.length > 0;
 
@@ -293,6 +323,7 @@ export function registerTelegramWebhook(app: Hono) {
 			} finally {
 				clearInterval(typingInterval);
 				activeSignals.delete(sessionKey);
+				await sessionStore.touchSession(sessionKey).catch(() => {});
 			}
 
 			// Drain pending: if user messaged during processing, process it now

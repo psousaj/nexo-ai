@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { agentSessions } from '@/db/schema/agent-sessions';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 export interface SessionRegistry {
 	load(sessionKey: string): Promise<unknown>;
@@ -14,7 +14,13 @@ export function resolveSessionKey(provider: string, externalId: string): string 
 
 export class PostgresSessionRegistry implements SessionRegistry {
 	async load(sessionKey: string) {
-		const [session] = await db.select().from(agentSessions).where(eq(agentSessions.sessionKey, sessionKey)).limit(1);
+		// Find the most recent active (non-ended) session for this key
+		const [session] = await db
+			.select()
+			.from(agentSessions)
+			.where(and(eq(agentSessions.sessionKey, sessionKey), isNull(agentSessions.endedAt)))
+			.orderBy(agentSessions.createdAt)
+			.limit(1);
 		return session ?? null;
 	}
 
@@ -24,7 +30,7 @@ export class PostgresSessionRegistry implements SessionRegistry {
 			await db
 				.update(agentSessions)
 				.set({ ...patch, updatedAt: new Date() } as any)
-				.where(eq(agentSessions.sessionKey, sessionKey));
+				.where(eq(agentSessions.id, (exists as any).id));
 		} else {
 			await db.insert(agentSessions).values({
 				sessionKey,

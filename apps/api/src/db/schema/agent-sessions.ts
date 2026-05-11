@@ -12,7 +12,7 @@ export const agentSessions = pgTable(
 	'agent_sessions',
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
-		sessionKey: varchar('session_key', { length: 500 }).notNull().unique(),
+		sessionKey: varchar('session_key', { length: 500 }).notNull(),
 		// Routing info
 		agentId: varchar('agent_id', { length: 100 }).default('main'),
 		channel: varchar('channel', { length: 50 }).notNull(), // telegram, discord, whatsapp, web
@@ -29,11 +29,16 @@ export const agentSessions = pgTable(
 		createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 		lastActivityAt: timestamp('last_activity_at', { mode: 'date' }).defaultNow().notNull(),
+		startedAt: timestamp('started_at', { mode: 'date' }).defaultNow().notNull(),
+		endedAt: timestamp('ended_at', { mode: 'date' }),
+		resetReason: varchar('reset_reason', { length: 50 }),
+		parentSessionId: uuid('parent_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
 	},
 	(table) => ({
 		sessionKeyIdx: index('agent_sessions_session_key_idx').on(table.sessionKey),
 		userChannelIdx: index('agent_sessions_user_channel_idx').on(table.userId, table.channel),
 		peerIdx: index('agent_sessions_peer_idx').on(table.channel, table.peerKind, table.peerId),
+		parentSessionIdx: index('agent_sessions_parent_session_idx').on(table.parentSessionId),
 	}),
 );
 
