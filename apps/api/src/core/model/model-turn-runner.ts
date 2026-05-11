@@ -344,12 +344,17 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 	private async loadHistory(store: PostgresTranscriptStore, sessionId: string): Promise<void> {
 		const transcripts = await store.load(sessionId);
-		this.messages = transcripts.map((t) => ({
-			role: t.role,
-			content: t.content,
-			...(t.tool_call_id ? { tool_call_id: t.tool_call_id } : {}),
-			...(t.tool_calls ? { tool_calls: t.tool_calls } : {}),
-		}));
+		this.messages = transcripts
+			.filter((t) => {
+				if (t.role === 'tool' && !t.tool_call_id) return false;
+				return true;
+			})
+			.map((t) => ({
+				role: t.role,
+				content: t.content,
+				...(t.tool_call_id ? { tool_call_id: t.tool_call_id } : {}),
+				...(t.tool_calls ? { tool_calls: t.tool_calls } : {}),
+			}));
 		this.sequenceCounter = transcripts.length > 0 ? Math.max(...transcripts.map((t) => t.sequence)) + 1 : 0;
 	}
 
