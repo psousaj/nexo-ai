@@ -13,7 +13,7 @@ export default defineConfig({
 		exclude: ['node_modules', 'dist'],
 		coverage: {
 			reporter: ['text', 'json', 'html'],
-			exclude: ['node_modules/', 'src/tests/'],
+			exclude: ['node_modules/', 'src/tests/', '**/*.test.ts'],
 		},
 	},
 	resolve: {

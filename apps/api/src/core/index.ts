@@ -43,6 +43,9 @@ export { SemanticWrapperPipeline } from './memory/semantic-wrapper-pipeline';
 export { PostgresProjectionStore } from './memory/projection-store';
 export { applyRelevanceDecay } from './memory/relevance-decay';
 
+// Cache
+export { AgentCache, hashToolCatalog, hashSystemPrompt } from './cache/agent-cache';
+
 // Context
 export { ContextAssembler } from './context/context-assembler';
 

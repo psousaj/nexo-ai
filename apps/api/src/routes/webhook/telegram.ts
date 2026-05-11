@@ -4,6 +4,7 @@ import { visionService } from '@/core/enrichment/vision-service';
 import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { PostgresSessionRegistry, resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
+import { AgentCache, hashToolCatalog, hashSystemPrompt } from '@/core/cache/agent-cache';
 import { SessionStore } from '@/core/session/session-store';
 import { loggers } from '@/utils/logger';
 import type { SessionSource } from '@/core/session/session-context-builder';
@@ -23,7 +24,8 @@ import {
 	telegramUpdateToEnvelope,
 } from '../../channels/telegram/dispatcher';
 
-const runtime = createHermesRuntime();
+const baseRuntime = createHermesRuntime();
+const agentCache = new AgentCache();
 const sessionStore = new SessionStore({
 	sessionRegistry: new PostgresSessionRegistry(),
 	hasActiveProcesses: (sessionKey) => activeSignals.has(sessionKey),
@@ -32,6 +34,22 @@ const lastClarifyContext = new Map<number, { question: string; choices: string[]
 const lastClarifyMsgId = new Map<number, number>();
 const activeSignals = new Map<string, InterruptSignal>();
 const pendingMessages = new Map<string, string>();
+
+async function resolveCachedRuntime(sessionKey: string, message?: string, sessionSource?: SessionSource) {
+	const contextResult = await baseRuntime.contextAssembler.buildFromSessionKey(sessionKey, message, sessionSource);
+	const catalog = await baseRuntime.toolRegistry.buildHermesToolCatalog();
+	const signature = AgentCache.computeSignature(
+		'gpt-4o-mini',
+		hashToolCatalog(catalog),
+		hashSystemPrompt(contextResult.systemPrompt),
+	);
+	let runtime = agentCache.get(sessionKey, signature);
+	if (!runtime) {
+		runtime = createHermesRuntime();
+		agentCache.set(sessionKey, signature, runtime);
+	}
+	return { runtime, systemPrompt: contextResult.systemPrompt, sessionContext: contextResult.sessionContext };
+}
 
 function buildToolCallbacks(
 	chatId: number,
@@ -94,13 +112,13 @@ function buildToolCallbacks(
 }
 
 async function processPendingMessage(sessionKey: string, chatId: number, message: string, sessionSource?: SessionSource) {
-	const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, message, sessionSource);
-	const userMessage = contextResult.sessionContext
-		? `${contextResult.sessionContext}\n\n${message}`
+	const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, message, sessionSource);
+	const userMessage = sessionContext
+		? `${sessionContext}\n\n${message}`
 		: message;
 	const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
 	const result = await runtime.kernel.runTurn(
-		{ sessionKey, userMessage, systemPrompt: contextResult.systemPrompt },
+		{ sessionKey, userMessage, systemPrompt },
 		callbacks,
 		undefined,
 	);
@@ -157,15 +175,15 @@ export function registerTelegramWebhook(app: Hono) {
 									reply_markup: undefined,
 								});
 							} catch {}
-							const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, choice, cbSessionSource);
-							const userMessage = contextResult.sessionContext
-								? `${contextResult.sessionContext}\n\n${choice}`
+							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, choice, cbSessionSource);
+							const userMessage = sessionContext
+								? `${sessionContext}\n\n${choice}`
 								: choice;
 							const cbProgress = { text: '', msgId: null as number | null };
 							const cbSkip = { value: false };
 							const cbCallbacks = buildToolCallbacks(chatId, cbSkip, cbProgress);
 							const result = await runtime.kernel.runTurn(
-								{ sessionKey, userMessage, systemPrompt: contextResult.systemPrompt },
+								{ sessionKey, userMessage, systemPrompt },
 								cbCallbacks,
 								cbSignal,
 							);
@@ -178,12 +196,12 @@ export function registerTelegramWebhook(app: Hono) {
 						// Confirm: yes/no
 						if (data === 'confirm:yes') {
 							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
-							const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, 'confirmar e salvar', cbSessionSource);
-							const userMessage = contextResult.sessionContext
-								? `${contextResult.sessionContext}\n\nconfirmar e salvar`
+							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, 'confirmar e salvar', cbSessionSource);
+							const userMessage = sessionContext
+								? `${sessionContext}\n\nconfirmar e salvar`
 								: 'confirmar e salvar';
 							const confirmResult = await runtime.kernel.runTurn(
-								{ sessionKey, userMessage, systemPrompt: contextResult.systemPrompt },
+								{ sessionKey, userMessage, systemPrompt },
 								undefined,
 								cbSignal,
 							);
@@ -326,16 +344,16 @@ export function registerTelegramWebhook(app: Hono) {
 			};
 
 			try {
-				const contextResult = await runtime.contextAssembler.buildFromSessionKey(sessionKey, msg.text, sessionSource);
-				const finalUserMessage = contextResult.sessionContext
-					? `${contextResult.sessionContext}\n\n${userMessage}`
+				const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, msg.text, sessionSource);
+				const finalUserMessage = sessionContext
+					? `${sessionContext}\n\n${userMessage}`
 					: userMessage;
 				const skipFlag = { value: skipFinalResponse };
 				const progress = { text: progressText, msgId: progressMessageId };
 				const callbacks = buildToolCallbacks(msg.chatId, skipFlag, progress);
 
 				const result = await runtime.kernel.runTurn(
-					{ sessionKey, userMessage: finalUserMessage, systemPrompt: contextResult.systemPrompt },
+					{ sessionKey, userMessage: finalUserMessage, systemPrompt },
 					callbacks,
 					signal,
 				);

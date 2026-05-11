@@ -27,6 +27,7 @@ export interface HermesRuntime {
 	toolRegistry: HermesToolRegistry;
 	kernel: HermesKernel;
 	contextAssembler: ContextAssembler;
+	signature?: string;
 }
 
 async function loadSkillsFromDb(): Promise<SkillInfo[]> {
