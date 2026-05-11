@@ -83,7 +83,35 @@ const channelFlagDefinitions: FeatureFlagDefinition[] = [
 // Exported constants
 // ============================================================================
 
-export const FLAG_DEFINITIONS: FeatureFlagDefinition[] = [...pivotFlagDefinitions, ...channelFlagDefinitions];
+// ============================================================================
+// Hermes validation flags
+// ============================================================================
+const hermesFlagDefinitions: FeatureFlagDefinition[] = [
+	{
+		key: 'nexo.hermes.shadow-replay-enabled',
+		label: 'Hermes Shadow Replay',
+		description: 'Executa shadow replay comparando Hermes vs legacy',
+		category: 'pivot',
+		defaultEnabled: false,
+	},
+	{
+		key: 'nexo.hermes.validation-enabled',
+		label: 'Hermes Validation',
+		description: 'Habilita validação assistiva de respostas do Hermes',
+		category: 'pivot',
+		defaultEnabled: true,
+	},
+];
+
+export const FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
+	...pivotFlagDefinitions,
+	...channelFlagDefinitions,
+	...hermesFlagDefinitions,
+];
+
+export const HERMES_CONFIG = {
+	rolloutPercentage: { type: 'number', default: 0, min: 0, max: 100 },
+} as const;
 
 /**
  * Chaves type-safe de todas as flags (pivot + channel + tool)
@@ -100,6 +128,10 @@ export const FLAG = {
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',
 	CHANNEL_WHATSAPP: 'nexo.channel.whatsapp',
+	// Hermes validation & rollout
+	HERMES_SHADOW_REPLAY_ENABLED: 'nexo.hermes.shadow-replay-enabled',
+	HERMES_ROLLOUT_PERCENTAGE: 'nexo.hermes.rollout-percentage',
+	HERMES_VALIDATION_ENABLED: 'nexo.hermes.validation-enabled',
 } as const;
 
 export type FlagKey = (typeof FLAG)[keyof typeof FLAG];

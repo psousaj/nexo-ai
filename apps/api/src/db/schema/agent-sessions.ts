@@ -22,6 +22,10 @@ export const agentSessions = pgTable(
 		// Session state
 		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 		conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+		// Session chain (NEX-73: context compression)
+		parentSessionId: uuid('parent_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+		resetReason: varchar('reset_reason', { length: 50 }), // compression, manual, expiry
+		endedAt: timestamp('ended_at', { mode: 'date' }),
 		// Metadata
 		model: varchar('model', { length: 100 }),
 		thinkingLevel: varchar('thinking_level', { length: 20 }),
