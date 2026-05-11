@@ -12,6 +12,22 @@ export function resolveSessionKey(provider: string, externalId: string): string 
 	return `agent:main:${provider}:${peerKind}:${externalId}`;
 }
 
+/**
+ * Follow the session chain to find the active (non-ended) session.
+ * NEX-73: supports context compression session splits.
+ */
+export async function resolveActiveSessionKey(sessionKey: string): Promise<string> {
+	const registry = new PostgresSessionRegistry();
+	const session = (await registry.load(sessionKey)) as any;
+	if (!session?.parentSessionId) return sessionKey;
+
+	// Load parent session record to get its key
+	const parent = (await db.select().from(agentSessions).where(eq(agentSessions.id, session.parentSessionId)).limit(1)) as any[];
+	if (!parent?.[0]?.sessionKey) return sessionKey;
+
+	return resolveActiveSessionKey(parent[0].sessionKey);
+}
+
 export class PostgresSessionRegistry implements SessionRegistry {
 	async load(sessionKey: string) {
 		// Find the most recent active (non-ended) session for this key

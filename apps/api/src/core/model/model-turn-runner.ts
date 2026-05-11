@@ -31,7 +31,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		}
 	}
 
-	async next(context: unknown): Promise<ModelTurnOutput> {
+	async next(context: unknown, options?: import('../kernel/model-turn-runner').NextOptions): Promise<ModelTurnOutput> {
 		// Wait for history to load before proceeding
 		if (this.historyLoaded) {
 			await this.historyLoaded;
@@ -43,6 +43,14 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			return { type: 'tool', toolName: tc.name, toolCallId: tc.id, input: tc.arguments };
 		}
 
+		if (options?.stream) {
+			return this.nextStreaming(context, options);
+		}
+
+		return this.nextBlocking(context);
+	}
+
+	private async nextBlocking(context: unknown): Promise<ModelTurnOutput> {
 		const ctx = context as {
 			systemPrompt: string;
 			sessionKey: string;
@@ -155,6 +163,160 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		}
 	}
 
+	private async nextStreaming(context: unknown, options: import('../kernel/model-turn-runner').NextOptions): Promise<ModelTurnOutput> {
+		const ctx = context as {
+			systemPrompt: string;
+			sessionKey: string;
+			userMessage: string;
+			tools?: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+		};
+		const provider = this.deps.defaultProvider;
+		const model = this.deps.defaultModel;
+
+		const resolved = provider ? this.credentialPool.resolve(provider) : this.credentialPool.resolveAny();
+
+		if (!resolved) {
+			return {
+				type: 'respond',
+				text: 'Nenhum provedor de IA configurado. Configure OPENAI_API_KEY ou DEEPSEEK_API_KEY no .env',
+			};
+		}
+
+		const activeProvider = resolved.provider;
+		const activeModel = model ?? (activeProvider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
+
+		this.padReasoningContent(activeModel, activeProvider);
+
+		if (ctx.userMessage && ctx.userMessage !== this.lastUserMessage) {
+			this.messages.push({ role: 'user', content: ctx.userMessage });
+			this.lastUserMessage = ctx.userMessage;
+		}
+
+		const apiMode = detectApiMode(resolved.baseURL);
+		const transport = getTransport(apiMode);
+
+		try {
+			const client = new OpenAI({
+				apiKey: resolved.apiKey,
+				baseURL: resolved.baseURL,
+			});
+
+			const openaiTools = ctx.tools?.map((t) => ({
+				type: 'function' as const,
+				function: {
+					name: t.name,
+					description: t.description,
+					parameters: t.parameters,
+				},
+			}));
+
+			if (!ctx.tools || ctx.tools.length === 0) {
+				console.warn('[LLM] No tools in context! Catalog may be empty.');
+			} else {
+				console.log(`[LLM] Tools available: ${ctx.tools.map((t) => t.name).join(', ')}`);
+			}
+
+			const kwargs = transport.buildKwargs({
+				model: activeModel,
+				messages: this.messages,
+				systemPrompt: ctx.systemPrompt,
+				tools: openaiTools as Array<Record<string, unknown>>,
+				stream: true,
+			});
+
+			const stream = await client.chat.completions.create({
+				...kwargs,
+				stream: true,
+			} as any);
+
+			let fullContent = '';
+			const toolCallMap = new Map<number, any>();
+			let finishReason: string | undefined;
+
+			for await (const chunk of stream) {
+				const normalized = transport.normalizeStreamChunk(chunk);
+
+				if (normalized.delta) {
+					fullContent += normalized.delta;
+					await options.onDelta?.(normalized.delta);
+				}
+
+				if (normalized.toolCalls) {
+					for (const tc of normalized.toolCalls) {
+						const existing = toolCallMap.get(tc.index);
+						if (existing) {
+							if (tc.id) existing.id = tc.id;
+							if (tc.function?.name) existing.function.name = tc.function.name;
+							if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
+						} else {
+							toolCallMap.set(tc.index, {
+								index: tc.index,
+								id: tc.id,
+								type: tc.type,
+								function: {
+									name: tc.function?.name || '',
+									arguments: tc.function?.arguments || '',
+								},
+							});
+						}
+					}
+				}
+
+				if (normalized.finishReason) {
+					finishReason = normalized.finishReason;
+				}
+			}
+
+			const accumulatedToolCalls = Array.from(toolCallMap.values()).sort((a, b) => a.index - b.index);
+
+			const toolCallsResult: ToolCall[] | null = accumulatedToolCalls.length
+				? accumulatedToolCalls.map((tc) => ({
+						id: tc.id,
+						name: tc.function.name,
+						arguments: JSON.parse(tc.function.arguments || '{}'),
+					}))
+				: null;
+
+			this.lastReasoningContent = null;
+
+			const assistantMsg: Record<string, unknown> = {
+				role: 'assistant',
+				content: fullContent,
+			};
+			if (toolCallsResult) {
+				assistantMsg.tool_calls = accumulatedToolCalls.map((tc) => ({
+					id: tc.id,
+					type: 'function',
+					function: { name: tc.function.name, arguments: tc.function.arguments },
+				}));
+			}
+			this.messages.push(assistantMsg);
+
+			const normalizedResponse: NormalizedResponse = {
+				content: fullContent,
+				toolCalls: toolCallsResult,
+				finishReason: (finishReason as NormalizedResponse['finishReason']) || 'stop',
+				reasoning: null,
+				usage: null,
+				providerData: null,
+			};
+
+			return this.toModelTurnOutput(normalizedResponse);
+		} catch (error: any) {
+			console.error(
+				'[ModelTurnRunner] LLM API error:',
+				error?.status,
+				error?.message,
+				JSON.stringify(error?.stack ?? '').slice(0, 300),
+			);
+			if (error?.status === 429 || error?.status === 402) {
+				this.credentialPool.markExhausted(activeProvider, resolved.apiKey);
+				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };
+			}
+			return { type: 'respond', text: 'Desculpe, não consegui processar sua mensagem agora.' };
+		}
+	}
+
 	async addToolResult(toolName: string, toolCallId: string, result: unknown): Promise<void> {
 		// Wait for history to load before mutating messages
 		if (this.historyLoaded) {
@@ -196,6 +358,23 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				sequence: this.sequenceCounter++,
 			});
 		}
+	}
+
+	getMessages(): Array<Record<string, unknown>> {
+		return this.messages;
+	}
+
+	setMessages(messages: Array<Record<string, unknown>>): void {
+		this.messages = messages;
+		this.lastUserMessage = null;
+		this.pendingToolCalls = null;
+	}
+
+	clearMessages(): void {
+		this.messages = [];
+		this.lastUserMessage = null;
+		this.lastReasoningContent = null;
+		this.pendingToolCalls = null;
 	}
 
 	private toModelTurnOutput(normalized: NormalizedResponse): ModelTurnOutput {

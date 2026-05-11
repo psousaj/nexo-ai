@@ -1,4 +1,4 @@
-import type { NormalizedResponse } from './types';
+import type { NormalizedResponse, StreamChunk } from './types';
 
 export interface BuildKwargsParams {
 	model: string;
@@ -8,12 +8,14 @@ export interface BuildKwargsParams {
 	maxTokens?: number;
 	reasoningConfig?: Record<string, unknown>;
 	providerPrefs?: Record<string, unknown>;
+	stream?: boolean;
 }
 
 export abstract class ProviderTransport {
 	abstract apiMode: string;
 	abstract buildKwargs(params: BuildKwargsParams): Record<string, unknown>;
 	abstract normalizeResponse(raw: unknown): NormalizedResponse;
+	abstract normalizeStreamChunk(raw: unknown): StreamChunk;
 	buildClientKwargs(): { baseURL?: string; defaultHeaders?: Record<string, string> } {
 		return {};
 	}

@@ -19,6 +19,12 @@ export interface NormalizedResponse {
 	providerData: Record<string, unknown> | null;
 }
 
+export interface StreamChunk {
+	delta: string;
+	finishReason?: string;
+	toolCalls?: Array<any>;
+}
+
 export type ApiMode = 'chat_completions' | 'anthropic_messages';
 
 export function detectApiMode(baseUrl: string): ApiMode {

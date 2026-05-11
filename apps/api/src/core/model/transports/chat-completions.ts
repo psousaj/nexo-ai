@@ -1,7 +1,7 @@
 import type OpenAI from 'openai';
 import { ProviderTransport } from './base';
 import type { BuildKwargsParams } from './base';
-import type { NormalizedResponse, ToolCall } from './types';
+import type { NormalizedResponse, StreamChunk, ToolCall } from './types';
 
 export interface ProviderFlags {
 	isOpenRouter?: boolean;
@@ -42,6 +42,10 @@ export class ChatCompletionsTransport extends ProviderTransport {
 			kwargs.max_tokens = 16384;
 		}
 
+		if (params.stream) {
+			kwargs.stream = true;
+		}
+
 		return kwargs;
 	}
 
@@ -75,6 +79,16 @@ export class ChatCompletionsTransport extends ProviderTransport {
 				model: response.model,
 				...((message as any).reasoning_content ? { reasoning_content: (message as any).reasoning_content } : {}),
 			},
+		};
+	}
+
+	normalizeStreamChunk(raw: unknown): StreamChunk {
+		const chunk = raw as OpenAI.Chat.Completions.ChatCompletionChunk;
+		const delta = chunk.choices?.[0]?.delta;
+		return {
+			delta: delta?.content ?? '',
+			finishReason: chunk.choices?.[0]?.finish_reason ?? undefined,
+			toolCalls: delta?.tool_calls,
 		};
 	}
 

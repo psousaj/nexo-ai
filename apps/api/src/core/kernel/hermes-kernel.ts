@@ -9,6 +9,7 @@ export interface KernelCallbacks {
 	onToolStart?: (toolName: string, input: unknown) => void | Promise<void>;
 	onToolEnd?: (toolName: string, result: unknown) => void | Promise<void>;
 	onRespond?: (text: string) => void | Promise<void>;
+	onDelta?: (delta: string) => void | Promise<void>;
 }
 
 export interface InterruptSignal {
@@ -23,6 +24,14 @@ export class HermesKernel {
 			toolRegistry: HermesToolRegistry;
 		},
 	) {}
+
+	get modelTurnRunner(): ModelTurnRunner {
+		return this.deps.modelTurnRunner;
+	}
+
+	get toolRegistry(): HermesToolRegistry {
+		return this.deps.toolRegistry;
+	}
 
 	async runTurn(
 		input: { sessionKey: string; userMessage: string; systemPrompt: string },
@@ -52,7 +61,10 @@ export class HermesKernel {
 					parameters: t.jsonSchema,
 				}));
 
-				const next = await this.deps.modelTurnRunner.next({ ...input, tools: toolSchemas });
+				const next = await this.deps.modelTurnRunner.next(
+				{ ...input, tools: toolSchemas },
+				{ stream: true, onDelta: callbacks?.onDelta },
+			);
 
 				if (next.type === 'tool' && next.toolName) {
 					await callbacks?.onToolStart?.(next.toolName, next.input ?? {});

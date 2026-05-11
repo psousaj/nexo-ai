@@ -6,6 +6,7 @@ import { PostgresSessionRegistry, resolveSessionKey } from '@/core/registries/se
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
 import { AgentCache, hashToolCatalog, hashSystemPrompt } from '@/core/cache/agent-cache';
 import { SessionStore } from '@/core/session/session-store';
+import { GatewayStreamConsumer } from '@/core/gateway/stream-consumer';
 import { loggers } from '@/utils/logger';
 import type { SessionSource } from '@/core/session/session-context-builder';
 const log = loggers.webhook;
@@ -118,12 +119,21 @@ async function processPendingMessage(sessionKey: string, chatId: number, message
 	const userMessage = sessionContext
 		? `${sessionContext}\n\n${message}`
 		: message;
+	const streamConsumer = new GatewayStreamConsumer({
+		chatId,
+		sendMessage: async (id, text) => {
+			const msg = await sendTelegramMessage(id, text);
+			return { messageId: msg.message_id };
+		},
+		editMessage: editMessageText,
+	});
 	const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
 	const result = await runtime.kernel.runTurn(
 		{ sessionKey, userMessage, systemPrompt },
-		callbacks,
+		{ ...callbacks, onDelta: async (text) => streamConsumer.consume(text) },
 		undefined,
 	);
+	await streamConsumer.finish(result.text);
 	if (result.text) {
 		await sendTelegramMessage(chatId, result.text).catch(() => {});
 	}
@@ -350,15 +360,27 @@ export function registerTelegramWebhook(app: Hono) {
 				const finalUserMessage = sessionContext
 					? `${sessionContext}\n\n${userMessage}`
 					: userMessage;
+
+				const streamConsumer = new GatewayStreamConsumer({
+					chatId: msg.chatId,
+					sendMessage: async (id, text) => {
+						const result = await sendTelegramMessage(id, text);
+						return { messageId: result.message_id };
+					},
+					editMessage: editMessageText,
+				});
+
 				const skipFlag = { value: skipFinalResponse };
 				const progress = { text: progressText, msgId: progressMessageId };
 				const callbacks = buildToolCallbacks(msg.chatId, skipFlag, progress);
 
 				const result = await runtime.kernel.runTurn(
 					{ sessionKey, userMessage: finalUserMessage, systemPrompt },
-					callbacks,
+					{ ...callbacks, onDelta: async (text) => streamConsumer.consume(text) },
 					signal,
 				);
+
+				await streamConsumer.finish(result.text);
 
 				skipFinalResponse = skipFlag.value;
 				progressText = progress.text;

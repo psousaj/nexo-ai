@@ -26,6 +26,10 @@ export const agentSessions = pgTable(
 		model: varchar('model', { length: 100 }),
 		thinkingLevel: varchar('thinking_level', { length: 20 }),
 		dmScope: varchar('dm_scope', { length: 50 }).default('per-peer'), // main, per-peer, per-channel-peer
+		// Session chaining for context compression (NEX-73)
+		parentSessionId: uuid('parent_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+		resetReason: varchar('reset_reason', { length: 50 }),
+		endedAt: timestamp('ended_at', { mode: 'date' }),
 		createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 		lastActivityAt: timestamp('last_activity_at', { mode: 'date' }).defaultNow().notNull(),

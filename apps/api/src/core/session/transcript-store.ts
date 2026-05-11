@@ -15,8 +15,15 @@ export interface TranscriptEntry {
 }
 
 export class PostgresTranscriptStore {
+	private waterline = new Map<string, number>();
+
 	async load(sessionId: string): Promise<TranscriptEntry[]> {
-		const rows = await db.select().from(sessionTranscripts).where(eq(sessionTranscripts.sessionId, sessionId)).orderBy(sessionTranscripts.sequence);
+		const rows = await db
+			.select()
+			.from(sessionTranscripts)
+			.where(eq(sessionTranscripts.sessionId, sessionId))
+			.orderBy(sessionTranscripts.sequence);
+
 		return rows.map((row) => ({
 			role: (row.content as any).role,
 			content: (row.content as any).content,
@@ -40,6 +47,16 @@ export class PostgresTranscriptStore {
 		});
 	}
 
+	async flush(sessionId: string, entries: TranscriptEntry[]): Promise<void> {
+		const lastFlushed = this.waterline.get(sessionId) ?? -1;
+		const newEntries = entries.filter((e) => e.sequence > lastFlushed);
+		if (newEntries.length === 0) return;
+		for (const entry of newEntries) {
+			await this.append(sessionId, entry);
+		}
+		this.waterline.set(sessionId, Math.max(...newEntries.map((e) => e.sequence)));
+	}
+
 	async getLastSequence(sessionId: string): Promise<number> {
 		const [row] = await db
 			.select({ sequence: sessionTranscripts.sequence })
@@ -48,5 +65,15 @@ export class PostgresTranscriptStore {
 			.orderBy(desc(sessionTranscripts.sequence))
 			.limit(1);
 		return row?.sequence ?? -1;
+	}
+
+	async getLastRole(sessionId: string): Promise<string | null> {
+		const [row] = await db
+			.select({ content: sessionTranscripts.content })
+			.from(sessionTranscripts)
+			.where(eq(sessionTranscripts.sessionId, sessionId))
+			.orderBy(desc(sessionTranscripts.sequence))
+			.limit(1);
+		return row ? (row.content as any)?.role ?? null : null;
 	}
 }
