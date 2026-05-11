@@ -26,7 +26,7 @@ export function registerHealthRoutes(
 		const errorStats = deps?.errorStats ?? { errorRate: 0 };
 		const uptimeHours = deps?.uptimeHours ?? 0;
 
-		let gateResult;
+		let gateResult: { canRollout: boolean; reason?: string } | undefined;
 		if (deps?.rolloutGateChecker) {
 			gateResult = deps.rolloutGateChecker.check(shadowReplayStats, errorStats, uptimeHours);
 		} else {

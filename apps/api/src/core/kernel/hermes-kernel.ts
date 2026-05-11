@@ -43,7 +43,7 @@ export class HermesKernel {
 
 		// Auto-continue: if last message was a tool result after crash
 		if (this.deps.modelTurnRunner.needsAutoContinue?.()) {
-			input.userMessage = '[System note: Your turn was interrupted. Please continue.]\n\n' + input.userMessage;
+			input.userMessage = `[System note: Your turn was interrupted. Please continue.]\n\n${input.userMessage}`;
 		}
 
 		try {
@@ -62,9 +62,9 @@ export class HermesKernel {
 				}));
 
 				const next = await this.deps.modelTurnRunner.next(
-				{ ...input, tools: toolSchemas },
-				{ stream: true, onDelta: callbacks?.onDelta },
-			);
+					{ ...input, tools: toolSchemas },
+					{ stream: true, onDelta: callbacks?.onDelta },
+				);
 
 				if (next.type === 'tool' && next.toolName) {
 					await callbacks?.onToolStart?.(next.toolName, next.input ?? {});

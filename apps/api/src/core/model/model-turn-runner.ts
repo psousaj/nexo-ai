@@ -143,7 +143,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			await this.persistMessage({
 				role: 'assistant',
 				content: (assistantMsg.content as string) ?? '',
-				tool_calls: (assistantMsg.tool_calls as any),
+				tool_calls: assistantMsg.tool_calls as any,
 				timestamp: new Date(),
 			});
 
@@ -163,7 +163,10 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		}
 	}
 
-	private async nextStreaming(context: unknown, options: import('../kernel/model-turn-runner').NextOptions): Promise<ModelTurnOutput> {
+	private async nextStreaming(
+		context: unknown,
+		options: import('../kernel/model-turn-runner').NextOptions,
+	): Promise<ModelTurnOutput> {
 		const ctx = context as {
 			systemPrompt: string;
 			sessionKey: string;
@@ -295,7 +298,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			await this.persistMessage({
 				role: 'assistant',
 				content: (assistantMsg.content as string) ?? '',
-				tool_calls: (assistantMsg.tool_calls as any),
+				tool_calls: assistantMsg.tool_calls as any,
 				timestamp: new Date(),
 			});
 

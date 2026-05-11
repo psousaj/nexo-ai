@@ -89,8 +89,11 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 						confidence: 1,
 					});
 					if (!result) {
-						loggers.db.error({ userId, sessionKey }, 'save_memory: falha ao persistir no banco');
 						return { status: 'save_failed', error: 'Erro interno ao salvar memória' };
+					}
+					// Propagate structured errors (e.g., user not found) back to LLM
+					if (result && typeof result === 'object' && 'status' in result && result.status === 'error') {
+						return result;
 					}
 					return { status: 'saved', content: input.content };
 				},
@@ -145,12 +148,18 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			{
 				name: 'send_confirm',
 				description:
-					'Mostra imagem (poster/capa/foto) com botoes Sim/Nao para confirmar. Use para filmes, musicas, livros e qualquer conteudo que precise de confirmacao do usuario. O usuario clica Sim ou Nao.',
+					'Mostra imagem (poster/capa/foto) com botoes Sim/Nao para confirmar. Use para filmes, musicas, livros e qualquer conteudo que precise de confirmacao do usuario. O usuario clica Sim ou Nao. Inclua o maximo de detalhes possiveis na descricao.',
 				jsonSchema: {
 					type: 'object',
 					properties: {
-						imageUrl: { type: 'string', description: 'URL do poster' },
-						title: { type: 'string', description: 'Titulo do filme' },
+						imageUrl: { type: 'string', description: 'URL do poster ou capa' },
+						title: { type: 'string', description: 'Titulo principal' },
+						description: { type: 'string', description: 'Sinopse, resumo ou descricao do conteudo' },
+						year: { type: 'string', description: 'Ano de lancamento' },
+						artist: { type: 'string', description: 'Artista ou banda (para musicas)' },
+						album: { type: 'string', description: 'Album (para musicas)' },
+						director: { type: 'string', description: 'Diretor (para filmes)' },
+						genres: { type: 'string', description: 'Generos separados por virgula' },
 					},
 					required: ['imageUrl', 'title'],
 				},
@@ -214,7 +223,10 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 				},
 				policy: 'auto',
 				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
-					return deps.tmdbService!.getStreamingProviders(input.tmdbId as number, (input.type as 'movie' | 'tv') ?? 'movie');
+					return deps.tmdbService!.getStreamingProviders(
+						input.tmdbId as number,
+						(input.type as 'movie' | 'tv') ?? 'movie',
+					);
 				},
 			});
 		}

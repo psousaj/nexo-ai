@@ -1,14 +1,14 @@
+import { AgentCache, hashSystemPrompt, hashToolCatalog } from '@/core/cache/agent-cache';
 import { sttService } from '@/core/enrichment/stt-service';
 import { ttsService } from '@/core/enrichment/tts-service';
 import { visionService } from '@/core/enrichment/vision-service';
+import { GatewayStreamConsumer } from '@/core/gateway/stream-consumer';
 import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { PostgresSessionRegistry, resolveSessionKey } from '@/core/registries/session-registry';
 import { createHermesRuntime } from '@/core/runtime/hermes-runtime';
-import { AgentCache, hashToolCatalog, hashSystemPrompt } from '@/core/cache/agent-cache';
-import { SessionStore } from '@/core/session/session-store';
-import { GatewayStreamConsumer } from '@/core/gateway/stream-consumer';
-import { loggers } from '@/utils/logger';
 import type { SessionSource } from '@/core/session/session-context-builder';
+import { SessionStore } from '@/core/session/session-store';
+import { loggers } from '@/utils/logger';
 const log = loggers.webhook;
 import type { Hono } from 'hono';
 import { getBot } from '../../channels/telegram/bot';
@@ -33,7 +33,19 @@ const sessionStore = new SessionStore({
 });
 const lastClarifyContext = new Map<number, { question: string; choices: string[] }>();
 const lastClarifyMsgId = new Map<number, number>();
-const lastConfirmContext = new Map<number, { title: string; imageUrl: string }>();
+const lastConfirmContext = new Map<
+	number,
+	{
+		title: string;
+		imageUrl: string;
+		description?: string;
+		year?: string;
+		artist?: string;
+		album?: string;
+		director?: string;
+		genres?: string;
+	}
+>();
 const activeSignals = new Map<string, InterruptSignal>();
 const pendingMessages = new Map<string, string>();
 
@@ -65,15 +77,53 @@ function buildToolCallbacks(
 			if (toolName === 'send_confirm') {
 				const data = input as any;
 				skipFlag.value = true;
-				lastConfirmContext.set(chatId, { title: data?.title ?? '', imageUrl: data?.imageUrl ?? '' });
-				const keyb = { inline_keyboard: [[{ text: '✅ Sim', callback_data: 'confirm:yes' }], [{ text: '❌ Não', callback_data: 'confirm:no' }]] };
+				lastConfirmContext.set(chatId, {
+					title: data?.title ?? '',
+					imageUrl: data?.imageUrl ?? '',
+					description: data?.description ?? '',
+					year: data?.year ?? '',
+					artist: data?.artist ?? '',
+					album: data?.album ?? '',
+					director: data?.director ?? '',
+					genres: data?.genres ?? '',
+				});
+				const keyb = {
+					inline_keyboard: [
+						[
+							{ text: '✅ Sim', callback_data: 'confirm:yes' },
+							{ text: '❌ Não', callback_data: 'confirm:no' },
+						],
+					],
+				};
+
+				// Build rich caption with all available details
+				let caption = '';
+				if (data?.title) caption += `📌 *${data.title}*\n`;
+				if (data?.year) caption += `📅 ${data.year}\n`;
+				if (data?.artist) caption += `🎤 ${data.artist}\n`;
+				if (data?.album) caption += `💿 ${data.album}\n`;
+				if (data?.director) caption += `🎬 ${data.director}\n`;
+				if (data?.genres) caption += `🏷️ ${data.genres}\n`;
+				if (data?.description) {
+					const desc = data.description.length > 200 ? `${data.description.slice(0, 200)}...` : data.description;
+					caption += `\n📝 ${desc}\n`;
+				}
+				caption += '\nQuer salvar isso?';
+
+				const safeCaption = caption.replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '') || 'Confirmar?';
+
 				if (data?.imageUrl) {
-					const cap = (data?.title || '').replace(/[*_\[\]()~`>#+\-=|{}.!]/g, '') || 'Confirmar?';
-					getBot().api.sendPhoto(chatId, data.imageUrl, { caption: cap, reply_markup: keyb }).catch(() => {
-						getBot().api.sendMessage(chatId, cap, { reply_markup: keyb }).catch(() => {});
-					});
+					getBot()
+						.api.sendPhoto(chatId, data.imageUrl, { caption: safeCaption, reply_markup: keyb })
+						.catch(() => {
+							getBot()
+								.api.sendMessage(chatId, safeCaption, { reply_markup: keyb })
+								.catch(() => {});
+						});
 				} else {
-					getBot().api.sendMessage(chatId, data?.title || 'Confirmar?', { reply_markup: keyb }).catch(() => {});
+					getBot()
+						.api.sendMessage(chatId, safeCaption, { reply_markup: keyb })
+						.catch(() => {});
 				}
 				return;
 			}
@@ -118,18 +168,21 @@ function buildToolCallbacks(
 	};
 }
 
-async function processPendingMessage(sessionKey: string, chatId: number, message: string, sessionSource?: SessionSource) {
+async function processPendingMessage(
+	sessionKey: string,
+	chatId: number,
+	message: string,
+	sessionSource?: SessionSource,
+) {
 	const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, message, sessionSource);
-	const userMessage = sessionContext
-		? `${sessionContext}\n\n${message}`
-		: message;
+	const userMessage = sessionContext ? `${sessionContext}\n\n${message}` : message;
 	const streamConsumer = new GatewayStreamConsumer({
 		chatId,
 		sendMessage: async (id, text) => {
 			const msg = await sendTelegramMessage(id, text);
-			return { messageId: msg.message_id };
+			return msg?.messageId ?? null;
 		},
-		editMessage: editMessageText,
+		editMessageText: editMessageText,
 	});
 	const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
 	const result = await runtime.kernel.runTurn(
@@ -138,9 +191,6 @@ async function processPendingMessage(sessionKey: string, chatId: number, message
 		undefined,
 	);
 	await streamConsumer.finish(result.text);
-	if (result.text) {
-		await sendTelegramMessage(chatId, result.text).catch(() => {});
-	}
 }
 
 export function registerTelegramWebhook(app: Hono) {
@@ -191,10 +241,12 @@ export function registerTelegramWebhook(app: Hono) {
 									reply_markup: undefined,
 								});
 							} catch {}
-							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, choice, cbSessionSource);
-							const userMessage = sessionContext
-								? `${sessionContext}\n\n${choice}`
-								: choice;
+							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(
+								sessionKey,
+								choice,
+								cbSessionSource,
+							);
+							const userMessage = sessionContext ? `${sessionContext}\n\n${choice}` : choice;
 							const cbProgress = { text: '', msgId: null as number | null };
 							const cbSkip = { value: false };
 							const cbCallbacks = buildToolCallbacks(chatId, cbSkip, cbProgress);
@@ -211,15 +263,27 @@ export function registerTelegramWebhook(app: Hono) {
 
 						// Confirm: yes/no
 						if (data === 'confirm:yes') {
-							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
+							await getBot()
+								.api.editMessageReplyMarkup(chatId, messageId, {})
+								.catch(() => {});
 							const confirmCtx = lastConfirmContext.get(chatId);
+							let details = confirmCtx?.title ? `Título: ${confirmCtx.title}` : '';
+							if (confirmCtx?.year) details += `\nAno: ${confirmCtx.year}`;
+							if (confirmCtx?.artist) details += `\nArtista: ${confirmCtx.artist}`;
+							if (confirmCtx?.album) details += `\nÁlbum: ${confirmCtx.album}`;
+							if (confirmCtx?.director) details += `\nDiretor: ${confirmCtx.director}`;
+							if (confirmCtx?.genres) details += `\nGêneros: ${confirmCtx.genres}`;
+							if (confirmCtx?.description) details += `\nDescrição: ${confirmCtx.description}`;
+
 							const intentMessage = confirmCtx?.title
-								? `confirmar e salvar "${confirmCtx.title}"`
-								: 'confirmar e salvar';
-							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, intentMessage, cbSessionSource);
-							const userMessage = sessionContext
-								? `${sessionContext}\n\n${intentMessage}`
-								: intentMessage;
+								? `[SYSTEM: O usuário clicou em "Sim" e confirmou que quer salvar "${confirmCtx.title}". Execute a ferramenta save_memory para salvar isso na memória dele imediatamente. Use os seguintes detalhes para montar uma memória completa:\n${details}\nNão pergunte novamente, apenas salve.]`
+								: '[SYSTEM: O usuário clicou em "Sim" e confirmou que quer salvar. Execute save_memory imediatamente.]';
+							const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(
+								sessionKey,
+								intentMessage,
+								cbSessionSource,
+							);
+							const userMessage = sessionContext ? `${sessionContext}\n\n${intentMessage}` : intentMessage;
 							const confirmResult = await runtime.kernel.runTurn(
 								{ sessionKey, userMessage, systemPrompt },
 								undefined,
@@ -233,7 +297,9 @@ export function registerTelegramWebhook(app: Hono) {
 						}
 
 						if (data === 'confirm:no') {
-							await getBot().api.editMessageReplyMarkup(chatId, messageId, {}).catch(() => {});
+							await getBot()
+								.api.editMessageReplyMarkup(chatId, messageId, {})
+								.catch(() => {});
 							const ctx = lastClarifyContext.get(chatId);
 							if (ctx) {
 								sendClarifyMessage(chatId, ctx.question, ctx.choices).catch(() => {});
@@ -335,7 +401,11 @@ export function registerTelegramWebhook(app: Hono) {
 
 			// Prepend reset notification if session was reset
 			if (wasReset && resetReason) {
-				const notification = sessionStore.getResetNotification(resetReason, 'telegram', session.peerKind === 'direct' ? 1440 : undefined);
+				const notification = sessionStore.getResetNotification(
+					resetReason,
+					'telegram',
+					session.peerKind === 'direct' ? 1440 : undefined,
+				);
 				if (notification) {
 					userMessage = `${notification}${userMessage}`;
 				}
@@ -365,18 +435,20 @@ export function registerTelegramWebhook(app: Hono) {
 			};
 
 			try {
-				const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, msg.text, sessionSource);
-				const finalUserMessage = sessionContext
-					? `${sessionContext}\n\n${userMessage}`
-					: userMessage;
+				const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(
+					sessionKey,
+					msg.text,
+					sessionSource,
+				);
+				const finalUserMessage = sessionContext ? `${sessionContext}\n\n${userMessage}` : userMessage;
 
 				const streamConsumer = new GatewayStreamConsumer({
 					chatId: msg.chatId,
 					sendMessage: async (id, text) => {
 						const result = await sendTelegramMessage(id, text);
-						return { messageId: result.message_id };
+						return result?.messageId ?? null;
 					},
-					editMessage: editMessageText,
+					editMessageText: editMessageText,
 				});
 
 				const skipFlag = { value: skipFinalResponse };
@@ -389,18 +461,14 @@ export function registerTelegramWebhook(app: Hono) {
 					signal,
 				);
 
-				await streamConsumer.finish(result.text);
-
 				skipFinalResponse = skipFlag.value;
 				progressText = progress.text;
 
 				// 👍 3. Reaction: deu certo
 				await setMessageReaction(msg.chatId, userMessageId, '👍');
 
-				// 4. Send final response (skip if interrupted or clarify already sent buttons)
-				if (!result.interrupted && result.text && !skipFinalResponse) {
-					await sendTelegramMessage(msg.chatId, result.text);
-				}
+				// 4. Finish streaming with final text
+				await streamConsumer.finish(result.text);
 			} finally {
 				clearInterval(typingInterval);
 				activeSignals.delete(sessionKey);

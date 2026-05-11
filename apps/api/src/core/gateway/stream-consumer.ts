@@ -112,10 +112,13 @@ export class GatewayStreamConsumer {
 		if (now - this.lastEdit >= throttle) {
 			await this.push();
 		} else if (!this.editTimer) {
-			this.editTimer = setTimeout(() => {
-				this.editTimer = null;
-				void this.push();
-			}, throttle - (now - this.lastEdit));
+			this.editTimer = setTimeout(
+				() => {
+					this.editTimer = null;
+					void this.push();
+				},
+				throttle - (now - this.lastEdit),
+			);
 		}
 	}
 

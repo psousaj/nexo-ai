@@ -33,7 +33,8 @@ export class SessionContextBuilder {
 			sourceDisplay = `${platform} (${source.chatType})`;
 		}
 
-		const userDisplay = options?.redactPii && source.userName ? `User-${simpleHash(source.userName)}` : (source.userName || 'Unknown');
+		const userDisplay =
+			options?.redactPii && source.userName ? `User-${simpleHash(source.userName)}` : source.userName || 'Unknown';
 
 		return `## Current Session Context
 **Source:** ${platform} (${sourceDisplay})

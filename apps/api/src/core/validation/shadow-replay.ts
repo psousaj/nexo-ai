@@ -112,9 +112,7 @@ export class ShadowReplayService {
 
 		const scores = this.results.map((r) => r.matchScore);
 		const hermesLatencies = this.results.map((r) => r.hermesResult.durationMs);
-		const legacyLatencies = this.results
-			.filter((r) => r.legacyResult)
-			.map((r) => r.legacyResult!.durationMs);
+		const legacyLatencies = this.results.filter((r) => r.legacyResult).map((r) => r.legacyResult!.durationMs);
 
 		return {
 			totalRuns: this.results.length,

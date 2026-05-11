@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import { ShadowReplayService } from '@/core/validation/shadow-replay';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('ShadowReplayService', () => {
 	describe('runShadowReplay', () => {

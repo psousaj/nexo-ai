@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { sessionTranscripts } from '@/db/schema/session-transcripts';
-import { eq, desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 export interface TranscriptEntry {
 	role: 'user' | 'assistant' | 'tool' | 'system';
@@ -77,6 +77,6 @@ export class PostgresTranscriptStore {
 			.where(eq(sessionTranscripts.sessionId, sessionId))
 			.orderBy(desc(sessionTranscripts.sequence))
 			.limit(1);
-		return row ? (row.content as any)?.role ?? null : null;
+		return row ? ((row.content as any)?.role ?? null) : null;
 	}
 }

@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { agentSessions } from '@/db/schema/agent-sessions';
-import { eq } from 'drizzle-orm';
 import { loggers } from '@/utils/logger';
+import { eq } from 'drizzle-orm';
 import type { SessionRegistry } from '../registries/session-registry';
 import type { TranscriptEntry, TranscriptStore } from './transcript-store';
 
@@ -128,9 +128,7 @@ export class ContextCompressor {
 
 		// 5b. Anti-thrashing: if two consecutive compressions saved <10%, stop
 		const middleTokenCount = middle.reduce((sum, m) => sum + m.content.length, 0);
-		const savings = middleTokenCount > 0
-			? (middleTokenCount - summary.length) / middleTokenCount
-			: 0;
+		const savings = middleTokenCount > 0 ? (middleTokenCount - summary.length) / middleTokenCount : 0;
 
 		const history = compressionSavings.get(sessionId) ?? [];
 		history.push(savings);
@@ -202,9 +200,10 @@ export class ContextCompressor {
 						...tc,
 						function: {
 							...tc.function,
-							arguments: tc.function.arguments.length > 500
-								? tc.function.arguments.slice(0, 200) + '...[truncated]'
-								: tc.function.arguments,
+							arguments:
+								tc.function.arguments.length > 500
+									? `${tc.function.arguments.slice(0, 200)}...[truncated]`
+									: tc.function.arguments,
 						},
 					})),
 				};
@@ -230,7 +229,9 @@ export class ContextCompressor {
 		const model = this.opts.summarizationModel ?? SUMMARIZATION_MODEL;
 
 		if (!accountId || !apiToken) {
-			log.warn('CF Workers AI not configured (CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN) — using fallback summarization');
+			log.warn(
+				'CF Workers AI not configured (CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN) — using fallback summarization',
+			);
 			return this.fallbackSummarize(messages);
 		}
 
@@ -239,7 +240,9 @@ export class ContextCompressor {
 				if (m.role === 'user') return `User: ${m.content}`;
 				if (m.role === 'assistant') {
 					if (m.tool_calls?.length) {
-						const tools = m.tool_calls.map((tc) => `  → tool_call: ${tc.function.name}(${tc.function.arguments})`).join('\n');
+						const tools = m.tool_calls
+							.map((tc) => `  → tool_call: ${tc.function.name}(${tc.function.arguments})`)
+							.join('\n');
 						return `Assistant:\n${tools}`;
 					}
 					return `Assistant: ${m.content}`;
@@ -291,7 +294,7 @@ export class ContextCompressor {
 	private fallbackSummarize(messages: TranscriptEntry[]): string {
 		const combined = messages.map((m) => `[${m.role}] ${m.content.slice(0, 200)}`).join('\n');
 		if (combined.length > 4000) {
-			return combined.slice(0, 4000) + '\n...[truncated]';
+			return `${combined.slice(0, 4000)}\n...[truncated]`;
 		}
 		return combined;
 	}

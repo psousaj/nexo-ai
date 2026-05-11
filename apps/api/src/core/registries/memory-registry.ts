@@ -35,9 +35,28 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 				})
 				.returning();
 			return inserted;
-		} catch (err) {
-			log.error({ err, userId: data.userId, sessionKey: data.sessionKey }, 'memoryRegistry.store: erro ao inserir memory_envelope');
-			return null;
+		} catch (err: any) {
+			// FK violation: user doesn't exist — return structured error for LLM to handle
+			if (err.message?.includes('violates foreign key constraint')) {
+				log.warn(
+					{ userId: data.userId, sessionKey: data.sessionKey },
+					'memoryRegistry.store: user not found (ghost user)',
+				);
+				return {
+					status: 'error',
+					error: 'user_not_found',
+					message: 'Usuário não cadastrado. É necessário fazer cadastro na plataforma para salvar memórias.',
+				};
+			}
+			log.error(
+				{ err, userId: data.userId, sessionKey: data.sessionKey },
+				'memoryRegistry.store: erro ao inserir memory_envelope',
+			);
+			return {
+				status: 'error',
+				error: 'database_error',
+				message: 'Erro interno ao salvar memória. Tente novamente mais tarde.',
+			};
 		}
 	}
 

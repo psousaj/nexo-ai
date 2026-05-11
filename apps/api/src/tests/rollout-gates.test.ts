@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { RolloutGateChecker } from '@/core/validation/rollout-gates';
+import { describe, expect, it } from 'vitest';
 
 describe('RolloutGateChecker', () => {
 	const config = {

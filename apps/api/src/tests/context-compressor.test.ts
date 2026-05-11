@@ -66,13 +66,15 @@ describe('ContextCompressor', () => {
 		});
 
 		it('should compress when above threshold', async () => {
-			mockDbSelect.mockResolvedValue([{
-				id: 'old-sess',
-				sessionKey: 'agent:main:telegram:direct:123',
-				channel: 'telegram',
-				peerKind: 'direct',
-				peerId: '123',
-			}]);
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
 
 			const compressor = new ContextCompressor({
 				transcriptStore,
@@ -89,13 +91,15 @@ describe('ContextCompressor', () => {
 
 	describe('protected ranges', () => {
 		it('should preserve head and tail messages', async () => {
-			mockDbSelect.mockResolvedValue([{
-				id: 'old-sess',
-				sessionKey: 'agent:main:telegram:direct:123',
-				channel: 'telegram',
-				peerKind: 'direct',
-				peerId: '123',
-			}]);
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
 
 			const compressor = new ContextCompressor({
 				transcriptStore,
@@ -123,13 +127,15 @@ describe('ContextCompressor', () => {
 
 	describe('preprocessing', () => {
 		it('should filter out system and empty messages', async () => {
-			mockDbSelect.mockResolvedValue([{
-				id: 'old-sess',
-				sessionKey: 'agent:main:telegram:direct:123',
-				channel: 'telegram',
-				peerKind: 'direct',
-				peerId: '123',
-			}]);
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
 
 			const compressor = new ContextCompressor({
 				transcriptStore,
@@ -164,13 +170,15 @@ describe('ContextCompressor', () => {
 
 	describe('anti-thrashing / cooldown', () => {
 		it('should not compress again within cooldown', async () => {
-			mockDbSelect.mockResolvedValue([{
-				id: 'old-sess',
-				sessionKey: 'agent:main:telegram:direct:123',
-				channel: 'telegram',
-				peerKind: 'direct',
-				peerId: '123',
-			}]);
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
 
 			const compressor = new ContextCompressor({
 				transcriptStore,
@@ -231,13 +239,15 @@ describe('ContextCompressor', () => {
 
 	describe('cooldown reset across instances', () => {
 		it('should share cooldown state globally', async () => {
-			mockDbSelect.mockResolvedValue([{
-				id: 'old-sess',
-				sessionKey: 'agent:main:telegram:direct:123',
-				channel: 'telegram',
-				peerKind: 'direct',
-				peerId: '123',
-			}]);
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
 
 			const compressor1 = new ContextCompressor({
 				transcriptStore,

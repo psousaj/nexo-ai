@@ -22,7 +22,11 @@ export async function resolveActiveSessionKey(sessionKey: string): Promise<strin
 	if (!session?.parentSessionId) return sessionKey;
 
 	// Load parent session record to get its key
-	const parent = (await db.select().from(agentSessions).where(eq(agentSessions.id, session.parentSessionId)).limit(1)) as any[];
+	const parent = (await db
+		.select()
+		.from(agentSessions)
+		.where(eq(agentSessions.id, session.parentSessionId))
+		.limit(1)) as any[];
 	if (!parent?.[0]?.sessionKey) return sessionKey;
 
 	return resolveActiveSessionKey(parent[0].sessionKey);

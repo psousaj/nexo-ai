@@ -111,10 +111,7 @@ export class SessionStore {
 		return { session: created as SessionEntry, wasReset: false };
 	}
 
-	async resetSession(
-		sessionKey: string,
-		reason: 'idle' | 'daily' | 'compression' | 'manual',
-	): Promise<SessionEntry> {
+	async resetSession(sessionKey: string, reason: 'idle' | 'daily' | 'compression' | 'manual'): Promise<SessionEntry> {
 		const now = new Date();
 
 		// Mark current active session as ended
@@ -128,10 +125,7 @@ export class SessionStore {
 		let parentId: string | undefined;
 		if (activeSessions.length > 0) {
 			parentId = activeSessions[0].id;
-			await db
-				.update(agentSessions)
-				.set({ endedAt: now, resetReason: reason })
-				.where(eq(agentSessions.id, parentId));
+			await db.update(agentSessions).set({ endedAt: now, resetReason: reason }).where(eq(agentSessions.id, parentId));
 		}
 
 		// Load defaults from most recent session (ended or not)

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { AssistiveValidator } from '@/core/validation/assistive-validation';
+import { describe, expect, it } from 'vitest';
 
 describe('AssistiveValidator', () => {
 	describe('validateTurnResult', () => {

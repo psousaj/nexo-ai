@@ -70,6 +70,14 @@ export async function editMessageText(chatId: number, messageId: number, text: s
 	}
 }
 
+export async function deleteTelegramMessage(chatId: number, messageId: number): Promise<void> {
+	try {
+		await getBot().api.deleteMessage(chatId, messageId);
+	} catch {
+		// Ignore delete errors
+	}
+}
+
 export async function setMessageReaction(chatId: number, messageId: number, emoji: string): Promise<void> {
 	try {
 		await getBot().api.setMessageReaction(chatId, messageId, { reaction: [{ type: 'emoji', emoji }] });

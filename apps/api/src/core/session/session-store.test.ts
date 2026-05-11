@@ -4,8 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/db', () => ({
 	db: {
 		update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })) })),
-		select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ orderBy: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })) })) })) })),
-		'delete': vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
+		select: vi.fn(() => ({
+			from: vi.fn(() => ({
+				where: vi.fn(() => ({ orderBy: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })) })),
+			})),
+		})),
+		delete: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
 		insert: vi.fn(() => ({ values: vi.fn(() => Promise.resolve()) })),
 	},
 }));
@@ -22,7 +26,7 @@ vi.mock('@/db/schema/agent-sessions', () => ({
 	},
 }));
 
-import { SessionStore, type SessionEntry, type SessionRegistry } from './session-store';
+import { type SessionEntry, type SessionRegistry, SessionStore } from './session-store';
 
 function createMockRegistry(sessions: SessionEntry[] = []): SessionRegistry {
 	return {
