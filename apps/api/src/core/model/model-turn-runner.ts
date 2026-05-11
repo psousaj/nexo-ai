@@ -190,6 +190,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		if (ctx.userMessage && ctx.userMessage !== this.lastUserMessage) {
 			this.messages.push({ role: 'user', content: ctx.userMessage });
 			this.lastUserMessage = ctx.userMessage;
+			await this.persistMessage({ role: 'user', content: ctx.userMessage, timestamp: new Date() });
 		}
 
 		const apiMode = detectApiMode(resolved.baseURL);
@@ -291,6 +292,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				}));
 			}
 			this.messages.push(assistantMsg);
+			await this.persistMessage({
+				role: 'assistant',
+				content: (assistantMsg.content as string) ?? '',
+				tool_calls: (assistantMsg.tool_calls as any),
+				timestamp: new Date(),
+			});
 
 			const normalizedResponse: NormalizedResponse = {
 				content: fullContent,
