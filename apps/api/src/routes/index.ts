@@ -1,6 +1,5 @@
 import type { Hono } from 'hono';
 import { registerAccountRoutes } from './accounts';
-import { registerConversationRoutes } from './conversations';
 import { registerDiscordRoutes } from './discord';
 import { registerHealthRoutes } from './health';
 import { registerMemoryRoutes } from './memories';
@@ -13,7 +12,6 @@ export function registerRoutes(app: Hono) {
 	registerMemoryRoutes(app);
 	registerPreferencesRoutes(app);
 	registerAccountRoutes(app);
-	registerConversationRoutes(app);
 	registerWhatsAppSettingsRoutes(app);
 	registerDiscordRoutes(app);
 	registerTelegramWebhook(app);

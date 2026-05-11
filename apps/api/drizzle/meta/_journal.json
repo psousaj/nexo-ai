@@ -204,6 +204,13 @@
       "when": 1778472151406,
       "tag": "0028_hot_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1778514000000,
+      "tag": "0029_legacy_cleanup",
+      "breakpoints": true
     }
   ]
 }

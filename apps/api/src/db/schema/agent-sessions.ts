@@ -1,6 +1,5 @@
 import { relations } from 'drizzle-orm';
 import { index, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import { conversations } from './conversations';
 import { sessionTranscripts } from './session-transcripts';
 import { users } from './users';
 
@@ -21,7 +20,7 @@ export const agentSessions = pgTable(
 		peerId: varchar('peer_id', { length: 255 }).notNull(), // userId, groupId, channelId
 		// Session state
 		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
-		conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+		conversationId: uuid('conversation_id'),
 		// Session chain (NEX-73: context compression)
 		parentSessionId: uuid('parent_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
 		resetReason: varchar('reset_reason', { length: 50 }), // compression, manual, expiry
@@ -47,10 +46,6 @@ export const agentSessionsRelations = relations(agentSessions, ({ one, many }) =
 	user: one(users, {
 		fields: [agentSessions.userId],
 		references: [users.id],
-	}),
-	conversation: one(conversations, {
-		fields: [agentSessions.conversationId],
-		references: [conversations.id],
 	}),
 	transcripts: many(sessionTranscripts),
 }));
