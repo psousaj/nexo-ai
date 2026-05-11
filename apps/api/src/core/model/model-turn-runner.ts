@@ -10,7 +10,6 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	private messages: Array<Record<string, unknown>> = [];
 	private lastReasoningContent: string | null = null;
 	private lastUserMessage: string | null = null;
-	private pendingToolCalls: Array<{ name: string; id: string; arguments: Record<string, unknown> }> | null = null;
 	private sequenceCounter = 0;
 	private historyLoaded?: Promise<void>;
 
@@ -35,12 +34,6 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		// Wait for history to load before proceeding
 		if (this.historyLoaded) {
 			await this.historyLoaded;
-		}
-
-		// Drain pending tool calls from previous assistant message
-		if (this.pendingToolCalls && this.pendingToolCalls.length > 0) {
-			const tc = this.pendingToolCalls.shift()!;
-			return { type: 'tool', toolName: tc.name, toolCallId: tc.id, input: tc.arguments };
 		}
 
 		if (options?.stream) {
@@ -366,6 +359,57 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				...(t.tool_calls ? { tool_calls: t.tool_calls } : {}),
 			}));
 		this.sequenceCounter = transcripts.length > 0 ? Math.max(...transcripts.map((t) => t.sequence)) + 1 : 0;
+		this.sanitizeIncompleteToolCallsInHistory();
+	}
+
+	/**
+	 * After loading history, detect and fix incomplete tool_call/tool_result pairs.
+	 *
+	 * If the last assistant message has tool_calls but some are missing their
+	 * corresponding tool responses (crash during parallel execution), insert
+	 * stub results. This prevents the "tool_calls must be followed by tool
+	 * messages" API error.
+	 *
+	 * Mirrors Hermes' _sanitize_tool_pairs / Phase 4 concept.
+	 */
+	private sanitizeIncompleteToolCallsInHistory(): void {
+		// Find the last assistant message with tool_calls
+		let lastAssistantIdx = -1;
+		for (let i = this.messages.length - 1; i >= 0; i--) {
+			const m = this.messages[i] as Record<string, unknown>;
+			if (m.role === 'assistant' && Array.isArray(m.tool_calls) && (m.tool_calls as any[]).length > 0) {
+				lastAssistantIdx = i;
+				break;
+			}
+		}
+
+		if (lastAssistantIdx === -1) return;
+
+		const toolCalls = (this.messages[lastAssistantIdx] as any).tool_calls as Array<{
+			id: string;
+		}>;
+
+		// Collect tool response IDs after this assistant
+		const respondedIds = new Set<string>();
+		for (let i = lastAssistantIdx + 1; i < this.messages.length; i++) {
+			const m = this.messages[i] as Record<string, unknown>;
+			if (m.role === 'tool' && m.tool_call_id) {
+				respondedIds.add(m.tool_call_id as string);
+			}
+		}
+
+		// Find missing tool responses
+		const missing = toolCalls.filter((tc) => !respondedIds.has(tc.id));
+		if (missing.length === 0) return;
+
+		// Insert stub results for missing tool calls
+		for (const tc of missing) {
+			this.messages.push({
+				role: 'tool',
+				tool_call_id: tc.id,
+				content: '[Result from earlier conversation]',
+			});
+		}
 	}
 
 	private async persistMessage(entry: Omit<TranscriptEntry, 'sequence'>): Promise<void> {
@@ -384,28 +428,24 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	setMessages(messages: Array<Record<string, unknown>>): void {
 		this.messages = messages;
 		this.lastUserMessage = null;
-		this.pendingToolCalls = null;
 	}
 
 	clearMessages(): void {
 		this.messages = [];
 		this.lastUserMessage = null;
 		this.lastReasoningContent = null;
-		this.pendingToolCalls = null;
 	}
 
 	private toModelTurnOutput(normalized: NormalizedResponse): ModelTurnOutput {
 		if (normalized.toolCalls && normalized.toolCalls.length > 0) {
-			// Store extra tool calls for subsequent next() calls
-			if (normalized.toolCalls.length > 1) {
-				this.pendingToolCalls = normalized.toolCalls.slice(1).map((tc) => ({
-					name: tc.name,
-					id: tc.id,
-					arguments: tc.arguments,
-				}));
-			}
-			const tc = normalized.toolCalls[0];
-			return { type: 'tool', toolName: tc.name, toolCallId: tc.id, input: tc.arguments };
+			return {
+				type: 'tool',
+				toolCalls: normalized.toolCalls.map((tc) => ({
+					toolName: tc.name,
+					toolCallId: tc.id,
+					input: tc.arguments,
+				})),
+			};
 		}
 		return { type: 'respond', text: normalized.content ?? 'Entendi.' };
 	}

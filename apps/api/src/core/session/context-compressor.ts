@@ -109,7 +109,15 @@ export class ContextCompressor {
 		}
 
 		// 3. Preprocessing: filter + dedup + smart collapse + truncate
-		const clean = this.preprocess(messages);
+		let clean = this.preprocess(messages);
+		if (clean.length < this.threshold) {
+			return { compressed: false };
+		}
+
+		// 3b. Phase 4: sanitize tool_call/tool_result pairs
+		// Prevents orphan tool results or missing tool responses from
+		// corrupting the compressed conversation.
+		clean = this.sanitizeToolPairs(clean);
 		if (clean.length < this.threshold) {
 			return { compressed: false };
 		}
@@ -159,9 +167,16 @@ export class ContextCompressor {
 	}
 
 	private preprocess(messages: TranscriptEntry[]): TranscriptEntry[] {
-		// Phase 1a: filter system/empty messages
+		// Phase 1a: filter system messages and truly empty messages
+		// IMPORTANT: preserve assistant messages with tool_calls even if content is empty,
+		// otherwise we orphan the corresponding tool results below them.
 		const filtered = messages.filter((m) => {
 			if (m.role === 'system') return false;
+			// Assistant with tool_calls: keep even if content is empty
+			if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) return true;
+			// Tool messages: keep
+			if (m.role === 'tool') return true;
+			// User messages: keep only if they have content
 			if (!m.content || m.content.trim().length === 0) return false;
 			return true;
 		});
@@ -211,6 +226,71 @@ export class ContextCompressor {
 		}
 
 		return filtered;
+	}
+
+	/**
+	 * Phase 4: Sanitize tool_call/tool_result pairs after preprocessing.
+	 *
+	 * Fault Mode 1: Tool result references a call_id whose assistant tool_call
+	 * was removed (e.g. by empty-content filter). → Delete the orphan result.
+	 *
+	 * Fault Mode 2: Assistant has tool_calls but some results were dropped
+	 * (e.g. by MD5 dedup or boundary cutting).
+	 * → Insert stub "[Result from earlier conversation]".
+	 *
+	 * Mirrors Hermes' _sanitize_tool_pairs in context-compressor-architecture.
+	 */
+	private sanitizeToolPairs(messages: TranscriptEntry[]): TranscriptEntry[] {
+		// Collect all tool_call IDs from assistant messages
+		const assistantCallIds = new Set<string>();
+		for (const m of messages) {
+			if (m.role === 'assistant' && m.tool_calls) {
+				for (const tc of m.tool_calls) {
+					assistantCallIds.add(tc.id);
+				}
+			}
+		}
+
+		// Collect tool response call_ids
+		const resultCallIds = new Set<string>();
+		for (const m of messages) {
+			if (m.role === 'tool' && m.tool_call_id) {
+				if (assistantCallIds.has(m.tool_call_id)) {
+					resultCallIds.add(m.tool_call_id);
+				}
+			}
+		}
+
+		// Filter out orphan tool results (no matching assistant tool_call)
+		const filtered = messages.filter((m) => {
+			if (m.role === 'tool' && m.tool_call_id) {
+				return assistantCallIds.has(m.tool_call_id);
+			}
+			return true;
+		});
+
+		// Insert stubs for tool_calls with no matching result
+		const alreadyStubbed = new Set<string>();
+		const result: TranscriptEntry[] = [];
+		for (const m of filtered) {
+			result.push(m);
+			if (m.role === 'assistant' && m.tool_calls) {
+				for (const tc of m.tool_calls) {
+					if (!resultCallIds.has(tc.id) && !alreadyStubbed.has(tc.id)) {
+						alreadyStubbed.add(tc.id);
+						result.push({
+							role: 'tool',
+							content: '[Result from earlier conversation]',
+							tool_call_id: tc.id,
+							timestamp: m.timestamp ?? new Date(),
+							sequence: 0,
+						});
+					}
+				}
+			}
+		}
+
+		return result;
 	}
 
 	private simpleHash(input: string): string {

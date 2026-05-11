@@ -66,8 +66,11 @@ export class HermesKernel {
 					{ stream: true, onDelta: callbacks?.onDelta },
 				);
 
-				if (next.type === 'tool' && next.toolName) {
-					await callbacks?.onToolStart?.(next.toolName, next.input ?? {});
+				if (next.type === 'tool' && next.toolCalls && next.toolCalls.length > 0) {
+					// --- Batch execution: run ALL tool calls in parallel (Hermes pattern) ---
+					for (const tc of next.toolCalls) {
+						await callbacks?.onToolStart?.(tc.toolName, tc.input ?? {});
+					}
 
 					// Interrupt check: before tool execution
 					if (interrupt?.requested) {
@@ -80,45 +83,79 @@ export class HermesKernel {
 						return { text: '', interrupted: true, interruptMessage: interrupt.message ?? undefined };
 					}
 
-					const catalog = await this.deps.toolRegistry.buildHermesToolCatalog();
-					const descriptor = catalog.find((t) => t.name === next.toolName);
-					if (!descriptor) {
-						captureException(new Error(`Tool not found: ${next.toolName}`), { sessionKey: input.sessionKey });
-						throw new HermesRuntimeError('tool_not_found', `Tool ${next.toolName} not found in catalog`);
+					const results = await Promise.allSettled(
+						next.toolCalls.map(async (tc) => {
+							const descriptor = catalog.find((t) => t.name === tc.toolName);
+							if (!descriptor) {
+								captureException(new Error(`Tool not found: ${tc.toolName}`), { sessionKey: input.sessionKey });
+								throw new HermesRuntimeError('tool_not_found', `Tool ${tc.toolName} not found in catalog`);
+							}
+
+							return executeToolWithPolicy({
+								descriptor,
+								execute: () => descriptor.execute(input, tc.input ?? {}),
+							});
+						}),
+					);
+
+					for (let i = 0; i < results.length; i++) {
+						const tc = next.toolCalls[i];
+						const settled = results[i];
+
+						if (settled.status === 'rejected') {
+							failures.push(tc.toolName);
+							await callbacks?.onToolEnd?.(tc.toolName, { error: true });
+							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
+								error: true,
+								tool: tc.toolName,
+								message: 'A ferramenta falhou ao executar.',
+							});
+							continue;
+						}
+
+						const result = settled.value;
+
+						await callbacks?.onToolEnd?.(tc.toolName, result);
+
+						if (result.status === 'blocked') {
+							if (result.requiresConfirmation) {
+								return { text: `Tool ${tc.toolName} requires confirmation.` };
+							}
+							failures.push(tc.toolName);
+							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
+								error: true,
+								tool: tc.toolName,
+								message: `Tool ${tc.toolName} is denied by policy`,
+							});
+							continue;
+						}
+
+						if (result.status === 'error') {
+							failures.push(tc.toolName);
+							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
+								error: true,
+								tool: tc.toolName,
+								message: 'A ferramenta falhou ao executar.',
+							});
+							continue;
+						}
+
+						const resultData = result.data as Record<string, unknown> | undefined;
+						if (resultData?._requiresInput) {
+							toolsUsed.push(tc.toolName);
+							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, result);
+							void writeTurnAudit({
+								runType: 'normal',
+								sessionKey: input.sessionKey,
+								policies: [],
+								tools: toolsUsed,
+							});
+							return { text: '' };
+						}
+
+						toolsUsed.push(tc.toolName);
+						this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, result);
 					}
-
-					const result = await executeToolWithPolicy({
-						descriptor,
-						execute: () => descriptor.execute(input, next.input ?? {}),
-					});
-
-					await callbacks?.onToolEnd?.(next.toolName, result);
-
-					if (result.status === 'blocked') {
-						if (result.requiresConfirmation) return { text: `Tool ${next.toolName} requires confirmation.` };
-						throw new HermesRuntimeError('tool_denied', `Tool ${next.toolName} is denied by policy`);
-					}
-
-					if (result.status === 'error') {
-						failures.push(next.toolName);
-						this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, {
-							error: true,
-							tool: next.toolName,
-							message: 'A ferramenta falhou ao executar.',
-						});
-						continue;
-					}
-
-					const resultData = result.data as Record<string, unknown> | undefined;
-					if (resultData?._requiresInput) {
-						toolsUsed.push(next.toolName);
-						this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
-						void writeTurnAudit({ runType: 'normal', sessionKey: input.sessionKey, policies: [], tools: toolsUsed });
-						return { text: '' };
-					}
-
-					toolsUsed.push(next.toolName);
-					this.deps.modelTurnRunner.addToolResult?.(next.toolName, next.toolCallId ?? next.toolName, result);
 				}
 
 				if (next.type === 'respond') {

@@ -270,4 +270,125 @@ describe('ContextCompressor', () => {
 			expect(result.compressed).toBe(false);
 		});
 	});
+
+	describe('tool_call pair sanitization', () => {
+		it('should preserve assistant with tool_calls and empty content in preprocess', async () => {
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
+
+			const compressor = new ContextCompressor({
+				transcriptStore,
+				sessionRegistry,
+				threshold: 5,
+				headKeep: 1,
+				tailKeep: 1,
+			});
+
+			const messages: TranscriptEntry[] = [
+				{ role: 'user', content: 'do X and Y' },
+				{
+					role: 'assistant',
+					content: '',
+					tool_calls: [{ id: 'c1', type: 'function', function: { name: 'search', arguments: '{}' } }],
+				},
+				{ role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
+				{ role: 'user', content: 'thanks' },
+				{ role: 'assistant', content: 'done' },
+				{ role: 'user', content: 'more' },
+				{ role: 'assistant', content: 'sure' },
+			];
+
+			const result = await compressor.checkAndCompress('sess-1', messages);
+			expect(result.compressed).toBe(true);
+
+			const savedArgs = (transcriptStore.save as any).mock.calls[0];
+			const savedEntries: TranscriptEntry[] = savedArgs[1];
+			// head(1: user) + summary(1) + tail(1: assistant) = 3
+			expect(savedEntries.length).toBe(3);
+		});
+
+		it('should remove orphan tool results (Fault Mode 1)', async () => {
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
+
+			const compressor = new ContextCompressor({
+				transcriptStore,
+				sessionRegistry,
+				threshold: 5,
+				headKeep: 1,
+				tailKeep: 1,
+			});
+
+			// Tool result for call-999 has no matching assistant tool_call → orphan
+			const messages: TranscriptEntry[] = [
+				{ role: 'user', content: 'hello' },
+				{ role: 'assistant', content: 'hi' },
+				{ role: 'user', content: 'world' },
+				{ role: 'assistant', content: 'ok' },
+				{ role: 'tool', content: '{"orphaned":true}', tool_call_id: 'call-999' },
+				{ role: 'user', content: 'foo' },
+				{ role: 'assistant', content: 'bar' },
+			];
+
+			const result = await compressor.checkAndCompress('sess-1', messages);
+
+			// Should still compress despite orphan (it gets removed)
+			expect(result.compressed).toBe(true);
+		});
+
+		it('should add stubs for missing tool responses (Fault Mode 2)', async () => {
+			mockDbSelect.mockResolvedValue([
+				{
+					id: 'old-sess',
+					sessionKey: 'agent:main:telegram:direct:123',
+					channel: 'telegram',
+					peerKind: 'direct',
+					peerId: '123',
+				},
+			]);
+
+			// We need a high enough threshold that after sanitization we still have enough
+			const compressor = new ContextCompressor({
+				transcriptStore,
+				sessionRegistry,
+				threshold: 3,
+				headKeep: 1,
+				tailKeep: 1,
+			});
+
+			// Assistant has 2 tool_calls but only 1 has a response
+			const messages: TranscriptEntry[] = [
+				{ role: 'user', content: 'hello' },
+				{
+					role: 'assistant',
+					content: '',
+					tool_calls: [
+						{ id: 'call-a', type: 'function', function: { name: 'search', arguments: '{}' } },
+						{ id: 'call-b', type: 'function', function: { name: 'read', arguments: '{}' } },
+					],
+				},
+				{ role: 'tool', content: '{"result":"a"}', tool_call_id: 'call-a' },
+				// call-b result is MISSING — should get a stub
+				{ role: 'user', content: 'next' },
+				{ role: 'assistant', content: 'done' },
+			];
+
+			const result = await compressor.checkAndCompress('sess-1', messages);
+			expect(result.compressed).toBe(true);
+		});
+	});
 });

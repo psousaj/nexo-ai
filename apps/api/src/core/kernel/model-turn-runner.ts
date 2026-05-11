@@ -1,8 +1,10 @@
 export interface ModelTurnOutput {
 	type: 'tool' | 'respond';
-	toolName?: string;
-	toolCallId?: string;
-	input?: Record<string, unknown>;
+	toolCalls?: Array<{
+		toolName: string;
+		toolCallId: string;
+		input: Record<string, unknown>;
+	}>;
 	text?: string;
 }
 
