@@ -331,6 +331,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		await this.persistMessage({
 			role: 'tool',
 			content: JSON.stringify(result),
+			tool_call_id: toolCallId,
 			timestamp: new Date(),
 		});
 	}
@@ -346,6 +347,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		this.messages = transcripts.map((t) => ({
 			role: t.role,
 			content: t.content,
+			...(t.tool_call_id ? { tool_call_id: t.tool_call_id } : {}),
 			...(t.tool_calls ? { tool_calls: t.tool_calls } : {}),
 		}));
 		this.sequenceCounter = transcripts.length > 0 ? Math.max(...transcripts.map((t) => t.sequence)) + 1 : 0;

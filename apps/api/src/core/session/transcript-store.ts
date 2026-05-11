@@ -5,6 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 export interface TranscriptEntry {
 	role: 'user' | 'assistant' | 'tool' | 'system';
 	content: string;
+	tool_call_id?: string;
 	tool_calls?: Array<{
 		id: string;
 		type: 'function';
@@ -27,6 +28,7 @@ export class PostgresTranscriptStore {
 		return rows.map((row) => ({
 			role: (row.content as any).role,
 			content: (row.content as any).content,
+			tool_call_id: (row.content as any).tool_call_id,
 			tool_calls: (row.content as any).tool_calls,
 			timestamp: row.createdAt,
 			sequence: row.sequence,
@@ -39,6 +41,7 @@ export class PostgresTranscriptStore {
 			content: {
 				role: entry.role,
 				content: entry.content,
+				tool_call_id: entry.tool_call_id,
 				tool_calls: entry.tool_calls,
 			},
 			sequence: entry.sequence,
