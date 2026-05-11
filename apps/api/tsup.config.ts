@@ -35,37 +35,5 @@ export default defineConfig({
 				]
 			: []),
 	],
-	onSuccess: async () => {
-		const { cpSync, existsSync } = await import('node:fs');
-		const { join } = await import('node:path');
-
-		const templatesSource = join('src', 'templates');
-		const templatesDest = join('dist', 'templates');
-		const nlpModelSource = join('src', 'services', 'message-analysis', 'training', 'model');
-		const nlpModelDest = join('dist', 'model');
-		const promptsSource = join('src', 'config', 'prompts');
-		const promptsDest = join('dist', 'config', 'prompts');
-
-		if (existsSync(templatesSource)) {
-			cpSync(templatesSource, templatesDest, { recursive: true });
-			console.log('✓ Templates copiados para dist/templates');
-		} else {
-			console.warn('⚠ Pasta templates não encontrada em', templatesSource);
-		}
-
-		if (existsSync(nlpModelSource)) {
-			cpSync(nlpModelSource, nlpModelDest, { recursive: true });
-			console.log('✓ Modelo NLP copiado para dist/model');
-		} else {
-			console.warn('⚠ Pasta do modelo NLP não encontrada em', nlpModelSource);
-		}
-
-		if (existsSync(promptsSource)) {
-			cpSync(promptsSource, promptsDest, { recursive: true });
-			const promptsPath = `dist/${['config', 'prompts'].join('/')}`;
-			console.log(`✓ Prompts YAML copiados para ${promptsPath}`);
-		} else {
-			console.warn('⚠ Pasta de prompts YAML não encontrada em', promptsSource);
-		}
-	},
+	onSuccess: async () => {},
 });
