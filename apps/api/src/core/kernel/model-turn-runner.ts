@@ -9,4 +9,5 @@ export interface ModelTurnOutput {
 export interface ModelTurnRunner {
 	next(context: unknown): Promise<ModelTurnOutput>;
 	addToolResult?(toolName: string, toolCallId: string, result: unknown): Promise<void>;
+	needsAutoContinue?(): boolean;
 }

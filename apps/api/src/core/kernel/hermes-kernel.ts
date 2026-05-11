@@ -32,6 +32,11 @@ export class HermesKernel {
 		const toolsUsed: string[] = [];
 		const failures: string[] = [];
 
+		// Auto-continue: if last message was a tool result after crash
+		if (this.deps.modelTurnRunner.needsAutoContinue?.()) {
+			input.userMessage = '[System note: Your turn was interrupted. Please continue.]\n\n' + input.userMessage;
+		}
+
 		try {
 			for (let step = 0; step < 6; step++) {
 				// Interrupt check: before every LLM call

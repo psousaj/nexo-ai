@@ -38,6 +38,8 @@ const pendingMessages = new Map<string, string>();
 async function resolveCachedRuntime(sessionKey: string, message?: string, sessionSource?: SessionSource) {
 	const contextResult = await baseRuntime.contextAssembler.buildFromSessionKey(sessionKey, message, sessionSource);
 	const catalog = await baseRuntime.toolRegistry.buildHermesToolCatalog();
+	const sessionData = await baseRuntime.sessionRegistry.load(sessionKey);
+	const sessionId = sessionData?.id as string | undefined;
 	const signature = AgentCache.computeSignature(
 		'gpt-4o-mini',
 		hashToolCatalog(catalog),
@@ -45,7 +47,7 @@ async function resolveCachedRuntime(sessionKey: string, message?: string, sessio
 	);
 	let runtime = agentCache.get(sessionKey, signature);
 	if (!runtime) {
-		runtime = createHermesRuntime();
+		runtime = createHermesRuntime({ sessionId });
 		agentCache.set(sessionKey, signature, runtime);
 	}
 	return { runtime, systemPrompt: contextResult.systemPrompt, sessionContext: contextResult.sessionContext };

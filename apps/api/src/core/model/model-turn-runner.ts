@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { ModelTurnOutput, ModelTurnRunner } from '../kernel/model-turn-runner';
+import type { PostgresTranscriptStore, TranscriptEntry } from '../session/transcript-store';
 import { CredentialPool } from './credential-pool';
 import { detectApiMode, getTransport } from './transports';
 import type { NormalizedResponse } from './transports/types';
@@ -10,18 +11,32 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	private lastReasoningContent: string | null = null;
 	private lastUserMessage: string | null = null;
 	private pendingToolCalls: Array<{ name: string; id: string; arguments: Record<string, unknown> }> | null = null;
+	private sequenceCounter = 0;
+	private historyLoaded?: Promise<void>;
 
 	constructor(
 		private deps: {
 			credentialPool?: CredentialPool;
 			defaultProvider?: string;
 			defaultModel?: string;
+			transcriptStore?: PostgresTranscriptStore;
+			sessionId?: string;
 		} = {},
 	) {
 		this.credentialPool = deps.credentialPool ?? CredentialPool.fromEnv();
+
+		// Load existing history
+		if (deps.transcriptStore && deps.sessionId) {
+			this.historyLoaded = this.loadHistory(deps.transcriptStore, deps.sessionId);
+		}
 	}
 
 	async next(context: unknown): Promise<ModelTurnOutput> {
+		// Wait for history to load before proceeding
+		if (this.historyLoaded) {
+			await this.historyLoaded;
+		}
+
 		// Drain pending tool calls from previous assistant message
 		if (this.pendingToolCalls && this.pendingToolCalls.length > 0) {
 			const tc = this.pendingToolCalls.shift()!;
@@ -54,6 +69,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		if (ctx.userMessage && ctx.userMessage !== this.lastUserMessage) {
 			this.messages.push({ role: 'user', content: ctx.userMessage });
 			this.lastUserMessage = ctx.userMessage;
+			await this.persistMessage({ role: 'user', content: ctx.userMessage, timestamp: new Date() });
 		}
 
 		const apiMode = detectApiMode(resolved.baseURL);
@@ -116,6 +132,12 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				this.lastReasoningContent = ' ';
 			}
 			this.messages.push(assistantMsg);
+			await this.persistMessage({
+				role: 'assistant',
+				content: (assistantMsg.content as string) ?? '',
+				tool_calls: (assistantMsg.tool_calls as any),
+				timestamp: new Date(),
+			});
 
 			return this.toModelTurnOutput(normalized);
 		} catch (error: any) {
@@ -134,11 +156,46 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	}
 
 	async addToolResult(toolName: string, toolCallId: string, result: unknown): Promise<void> {
+		// Wait for history to load before mutating messages
+		if (this.historyLoaded) {
+			await this.historyLoaded;
+		}
+
 		this.messages.push({
 			role: 'tool',
 			content: JSON.stringify(result),
 			tool_call_id: toolCallId,
 		});
+		await this.persistMessage({
+			role: 'tool',
+			content: JSON.stringify(result),
+			timestamp: new Date(),
+		});
+	}
+
+	needsAutoContinue(): boolean {
+		if (this.messages.length === 0) return false;
+		const last = this.messages[this.messages.length - 1];
+		return last?.role === 'tool';
+	}
+
+	private async loadHistory(store: PostgresTranscriptStore, sessionId: string): Promise<void> {
+		const transcripts = await store.load(sessionId);
+		this.messages = transcripts.map((t) => ({
+			role: t.role,
+			content: t.content,
+			...(t.tool_calls ? { tool_calls: t.tool_calls } : {}),
+		}));
+		this.sequenceCounter = transcripts.length > 0 ? Math.max(...transcripts.map((t) => t.sequence)) + 1 : 0;
+	}
+
+	private async persistMessage(entry: Omit<TranscriptEntry, 'sequence'>): Promise<void> {
+		if (this.deps.transcriptStore && this.deps.sessionId) {
+			await this.deps.transcriptStore.append(this.deps.sessionId, {
+				...entry,
+				sequence: this.sequenceCounter++,
+			});
+		}
 	}
 
 	private toModelTurnOutput(normalized: NormalizedResponse): ModelTurnOutput {

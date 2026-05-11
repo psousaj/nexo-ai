@@ -14,6 +14,7 @@ import type { SkillInfo } from '../context/context-assembler';
 import { HermesKernel } from '../kernel/hermes-kernel';
 import type { ModelTurnRunner } from '../kernel/model-turn-runner';
 import { CredentialPool, DefaultModelTurnRunner } from '../model';
+import { PostgresTranscriptStore } from '../session/transcript-store';
 import { PostgresMemoryRegistry } from '../registries/memory-registry';
 import type { MemoryRegistry } from '../registries/memory-registry';
 import { PostgresSessionRegistry } from '../registries/session-registry';
@@ -28,6 +29,7 @@ export interface HermesRuntime {
 	kernel: HermesKernel;
 	contextAssembler: ContextAssembler;
 	signature?: string;
+	transcriptStore?: PostgresTranscriptStore;
 }
 
 async function loadSkillsFromDb(): Promise<SkillInfo[]> {
@@ -51,8 +53,11 @@ export function createHermesRuntime(deps?: {
 	memoryRegistry?: MemoryRegistry;
 	sessionRegistry?: SessionRegistry;
 	credentialPool?: CredentialPool;
+	transcriptStore?: PostgresTranscriptStore;
+	sessionId?: string;
 }): HermesRuntime {
 	const credentialPool = deps?.credentialPool ?? CredentialPool.fromEnv();
+	const transcriptStore = deps?.transcriptStore ?? new PostgresTranscriptStore();
 	const memoryRegistry = deps?.memoryRegistry ?? new PostgresMemoryRegistry();
 	const toolRegistry =
 		deps?.toolRegistry ??
@@ -66,7 +71,13 @@ export function createHermesRuntime(deps?: {
 		});
 	const sessionRegistry = deps?.sessionRegistry ?? new PostgresSessionRegistry();
 	const contextAssembler = new ContextAssembler({ memoryRegistry, loadSkills: loadSkillsFromDb });
-	const modelTurnRunner = deps?.modelTurnRunner ?? new DefaultModelTurnRunner({ credentialPool });
+	const modelTurnRunner =
+		deps?.modelTurnRunner ??
+		new DefaultModelTurnRunner({
+			credentialPool,
+			transcriptStore,
+			sessionId: deps?.sessionId,
+		});
 	const kernel = new HermesKernel({ modelTurnRunner, toolRegistry });
-	return { sessionRegistry, memoryRegistry, toolRegistry, kernel, contextAssembler };
+	return { sessionRegistry, memoryRegistry, toolRegistry, kernel, contextAssembler, transcriptStore };
 }
