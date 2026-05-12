@@ -397,12 +397,16 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 
 			const toolCalls = (m as any).tool_calls as Array<{ id: string }>;
 
-			// Collect tool response IDs after this assistant
+			// Collect tool response IDs immediately after this assistant (until next non-tool)
 			const respondedIds = new Set<string>();
+			let insertAfter = idx;
 			for (let i = idx + 1; i < this.messages.length; i++) {
 				const msg = this.messages[i] as Record<string, unknown>;
 				if (msg.role === 'tool' && msg.tool_call_id) {
 					respondedIds.add(msg.tool_call_id as string);
+					insertAfter = i;
+				} else if (msg.role !== 'tool') {
+					break;
 				}
 			}
 
@@ -410,13 +414,22 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 			const missing = toolCalls.filter((tc) => !respondedIds.has(tc.id));
 			if (missing.length === 0) continue;
 
-			// Insert stub results for missing tool calls
-			for (const tc of missing) {
-				this.messages.push({
-					role: 'tool',
-					tool_call_id: tc.id,
-					content: '[Result from earlier conversation]',
-				});
+			// Insert stub results RIGHT AFTER the last tool message (or the assistant if no tools)
+			const stubs = missing.map((tc) => ({
+				role: 'tool' as const,
+				tool_call_id: tc.id,
+				content: '[Result from earlier conversation]',
+			}));
+			this.messages.splice(insertAfter + 1, 0, ...stubs);
+
+			// Also persist these stubs so the DB is consistent
+			for (const stub of stubs) {
+				this.persistMessage({
+					role: stub.role,
+					content: stub.content,
+					tool_call_id: stub.tool_call_id,
+					timestamp: new Date(),
+				}).catch(() => {});
 			}
 		}
 	}
