@@ -174,23 +174,29 @@ async function processPendingMessage(
 	message: string,
 	sessionSource?: SessionSource,
 ) {
-	const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, message, sessionSource);
-	const userMessage = sessionContext ? `${sessionContext}\n\n${message}` : message;
-	const streamConsumer = new GatewayStreamConsumer({
-		chatId,
-		sendMessage: async (id, text) => {
-			const msg = await sendTelegramMessage(id, text);
-			return msg?.messageId ?? null;
-		},
-		editMessageText: editMessageText,
-	});
-	const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
-	const result = await runtime.kernel.runTurn(
-		{ sessionKey, userMessage, systemPrompt },
-		{ ...callbacks, onDelta: async (text) => streamConsumer.consume(text) },
-		undefined,
-	);
-	await streamConsumer.finish(result.text);
+	const signal: InterruptSignal = { requested: false, message: null };
+	activeSignals.set(sessionKey, signal);
+	try {
+		const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, message, sessionSource);
+		const userMessage = sessionContext ? `${sessionContext}\n\n${message}` : message;
+		const streamConsumer = new GatewayStreamConsumer({
+			chatId,
+			sendMessage: async (id, text) => {
+				const msg = await sendTelegramMessage(id, text);
+				return msg?.messageId ?? null;
+			},
+			editMessageText: editMessageText,
+		});
+		const callbacks = buildToolCallbacks(chatId, { value: false }, { text: '', msgId: null });
+		const result = await runtime.kernel.runTurn(
+			{ sessionKey, userMessage, systemPrompt },
+			{ ...callbacks, onDelta: async (text) => streamConsumer.consume(text) },
+			signal,
+		);
+		await streamConsumer.finish(result.text);
+	} finally {
+		activeSignals.delete(sessionKey);
+	}
 }
 
 export function registerTelegramWebhook(app: Hono) {
