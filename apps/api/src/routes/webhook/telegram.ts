@@ -345,6 +345,9 @@ export function registerTelegramWebhook(app: Hono) {
 				if (cbPending) {
 					pendingMessages.delete(sessionKey);
 					processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource).catch(() => {});
+				} else if (activeSignals.get(sessionKey)) {
+					// No pending messages — release the guard (unless processPendingMessage kept it)
+					activeSignals.delete(sessionKey);
 				}
 
 					return c.json({ ok: true });
@@ -507,6 +510,9 @@ export function registerTelegramWebhook(app: Hono) {
 			if (pending) {
 				pendingMessages.delete(sessionKey);
 				processPendingMessage(sessionKey, msg.chatId, pending, sessionSource).catch(() => {});
+			} else {
+				// No pending messages — safe to release the guard
+				activeSignals.delete(sessionKey);
 			}
 
 			return c.json({ ok: true, sessionKey });
