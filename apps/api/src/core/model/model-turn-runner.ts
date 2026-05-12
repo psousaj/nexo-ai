@@ -148,6 +148,13 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				error?.message,
 				JSON.stringify(error?.stack ?? '').slice(0, 300),
 			);
+			// DEBUG: log message sequence to find orphaned tool_calls
+			const msgSeq = this.messages.map((m: any) => {
+				const tc = m.tool_calls;
+				const tcIds = tc ? (tc as any[]).map((t: any) => t.id) : [];
+				return `${m.role}${tcIds.length ? `[tc:${tcIds.join(',')}]` : ''}${m.tool_call_id ? `[result:${m.tool_call_id}]` : ''}`;
+			});
+			console.error('[DEBUG-MSG] Messages:', JSON.stringify(msgSeq));
 			if (error?.status === 429 || error?.status === 402) {
 				this.credentialPool.markExhausted(activeProvider, resolved.apiKey);
 				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };
@@ -312,6 +319,13 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 				error?.message,
 				JSON.stringify(error?.stack ?? '').slice(0, 300),
 			);
+			// DEBUG: log message sequence to find orphaned tool_calls
+			const msgSeq = this.messages.map((m: any) => {
+				const tc = m.tool_calls;
+				const tcIds = tc ? (tc as any[]).map((t: any) => t.id) : [];
+				return `${m.role}${tcIds.length ? `[tc:${tcIds.join(',')}]` : ''}${m.tool_call_id ? `[result:${m.tool_call_id}]` : ''}`;
+			});
+			console.error('[DEBUG-MSG] Messages:', JSON.stringify(msgSeq));
 			if (error?.status === 429 || error?.status === 402) {
 				this.credentialPool.markExhausted(activeProvider, resolved.apiKey);
 				return { type: 'respond', text: 'O serviço de IA está sobrecarregado. Tente novamente em alguns instantes.' };
