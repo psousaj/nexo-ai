@@ -68,33 +68,12 @@ export class HermesKernel {
 
 				if (next.type === 'tool' && next.toolCalls && next.toolCalls.length > 0) {
 					// --- Batch execution: run ALL tool calls in parallel (Hermes pattern) ---
+					// NOTE: interrupt is NOT checked here — Hermes lets in-flight tools
+					// complete before stopping. The interrupt check at the top of the
+					// loop (step N+1) handles clean exit after all results are added.
+					// This prevents orphaned tool_calls in the messages array.
 					for (const tc of next.toolCalls) {
 						await callbacks?.onToolStart?.(tc.toolName, tc.input ?? {});
-					}
-
-					// Interrupt check: before tool execution
-					// If the LLM just returned tool_calls and the assistant message
-					// was already pushed to the runner, we MUST add stub results for
-					// all tool_calls before returning. Otherwise the next LLM call
-					// sees orphaned tool_calls and fails with 400.
-					// The onToolStart callbacks already set up the UI (clarify buttons,
-					// confirm inline keyboard), so the user can interact from there.
-					if (interrupt?.requested) {
-						for (const tc of next.toolCalls) {
-							failures.push(tc.toolName);
-							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
-								error: true,
-								tool: tc.toolName,
-								message: 'Interrompido antes de executar.',
-							});
-						}
-						void writeTurnAudit({
-							runType: 'interrupted',
-							sessionKey: input.sessionKey,
-							policies: [],
-							tools: toolsUsed,
-						});
-						return { text: '', interrupted: true, interruptMessage: interrupt.message ?? undefined };
 					}
 
 					const results = await Promise.allSettled(
