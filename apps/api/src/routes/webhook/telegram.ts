@@ -242,6 +242,8 @@ export function registerTelegramWebhook(app: Hono) {
 						userName: cb.from?.first_name,
 					};
 					activeSignals.set(sessionKey, cbSignal);
+					let cbHandled = false;
+					let cbResultText = '';
 					try {
 						// Always answer callback query IMMEDIATELY to prevent Telegram retry
 						if (cb.id)
@@ -283,7 +285,7 @@ export function registerTelegramWebhook(app: Hono) {
 							if (result?.text) {
 								await sendTelegramMessage(chatId, result.text).catch(() => {});
 							}
-							return c.json({ ok: true });
+							cbHandled = true;
 						}
 
 						// Confirm: yes/no
@@ -314,11 +316,12 @@ export function registerTelegramWebhook(app: Hono) {
 								undefined,
 								cbSignal,
 							);
-							if (confirmResult?.text) {
-								await sendTelegramMessage(chatId, confirmResult.text).catch(() => {});
+							cbResultText = confirmResult?.text ?? '';
+							if (cbResultText) {
+								await sendTelegramMessage(chatId, cbResultText).catch(() => {});
 							}
 							lastConfirmContext.delete(chatId);
-							return c.json({ ok: true });
+							cbHandled = true;
 						}
 
 						if (data === 'confirm:no') {
@@ -331,25 +334,23 @@ export function registerTelegramWebhook(app: Hono) {
 							} else {
 								await sendTelegramMessage(chatId, 'Me diga novamente o que quer salvar!').catch(() => {});
 							}
-							return c.json({ ok: true });
+							cbHandled = true;
 						}
 					} catch (e) {
 						log.error('Callback handler error:', e);
 					} finally {
-						// Hermes pattern: keep guard alive, transfer to drain below
 						await sessionStore.touchSession(sessionKey).catch(() => {});
+						// Drain pending from callback handler — fire-and-forget
+						const cbPending = pendingMessages.get(sessionKey);
+						if (cbPending) {
+							pendingMessages.delete(sessionKey);
+							processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource).catch(() => {});
+						} else if (activeSignals.get(sessionKey)) {
+							activeSignals.delete(sessionKey);
+						}
 					}
 
-				// Drain pending from callback handler — fire-and-forget
-				const cbPending = pendingMessages.get(sessionKey);
-				if (cbPending) {
-					pendingMessages.delete(sessionKey);
-					processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource).catch(() => {});
-				} else if (activeSignals.get(sessionKey)) {
-					// No pending messages — release the guard (unless processPendingMessage kept it)
-					activeSignals.delete(sessionKey);
-				}
-
+					if (cbHandled) return c.json({ ok: true });
 					return c.json({ ok: true });
 				}
 
