@@ -118,8 +118,18 @@ export class HermesKernel {
 						await callbacks?.onToolEnd?.(tc.toolName, result);
 
 						if (result.status === 'blocked') {
+							// Blocked tools (requiresConfirmation) already had their
+							// UI handled by onToolStart callback (inline keyboard, etc).
+							// No need to return early — just continue so all tools
+							// in the batch get their results added to messages.
 							if (result.requiresConfirmation) {
-								return { text: `Tool ${tc.toolName} requires confirmation.` };
+								failures.push(tc.toolName);
+								this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
+									error: true,
+									tool: tc.toolName,
+									message: `Tool ${tc.toolName} is denied by policy`,
+								});
+								continue;
 							}
 							failures.push(tc.toolName);
 							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
@@ -142,15 +152,12 @@ export class HermesKernel {
 
 						const resultData = result.data as Record<string, unknown> | undefined;
 						if (resultData?._requiresInput) {
+							// Tools that require user input (clarify) already had
+							// their UI handled by onToolStart callback. Just add the
+							// result and continue — no need to return early.
 							toolsUsed.push(tc.toolName);
 							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, result);
-							void writeTurnAudit({
-								runType: 'normal',
-								sessionKey: input.sessionKey,
-								policies: [],
-								tools: toolsUsed,
-							});
-							return { text: '' };
+							continue;
 						}
 
 						toolsUsed.push(tc.toolName);
