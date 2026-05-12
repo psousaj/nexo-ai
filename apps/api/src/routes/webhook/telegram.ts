@@ -174,15 +174,18 @@ async function processPendingMessage(
 	message: string,
 	sessionSource?: SessionSource,
 ) {
-	// Guard: if another signal is already active (concurrent webhook sneaked in
-	// during the micro-window between signal deletion and this function's setup),
-	// re-queue instead of starting a second runTurn on the same cached runtime.
-	if (activeSignals.has(sessionKey)) {
+	// Use the EXISTING signal — it was kept alive by the caller (never deleted).
+	// This is the Hermes pattern: the guard never dies, it's just transferred
+	// from handler → drain → next drain → ... until the queue is empty.
+	const signal = activeSignals.get(sessionKey);
+	if (!signal) {
+		// Guard removed before we could acquire it — re-queue for safety
 		pendingMessages.set(sessionKey, message);
 		return;
 	}
-	const signal: InterruptSignal = { requested: false, message: null };
-	activeSignals.set(sessionKey, signal);
+	signal.requested = false;
+	signal.message = null;
+
 	try {
 		const { runtime, systemPrompt, sessionContext } = await resolveCachedRuntime(sessionKey, message, sessionSource);
 		const userMessage = sessionContext ? `${sessionContext}\n\n${message}` : message;
@@ -202,7 +205,16 @@ async function processPendingMessage(
 		);
 		await streamConsumer.finish(result.text);
 	} finally {
-		activeSignals.delete(sessionKey);
+		// Chain next pending or clean up — Hermes pattern: transfer ownership
+		const nextPending = pendingMessages.get(sessionKey);
+		if (nextPending) {
+			pendingMessages.delete(sessionKey);
+			// Spawn fresh — do NOT recurse (stack safety, matches Hermes create_task)
+			processPendingMessage(sessionKey, chatId, nextPending, sessionSource).catch(() => {});
+		} else {
+			// Queue empty — safe to remove the guard
+			activeSignals.delete(sessionKey);
+		}
 	}
 }
 
@@ -324,15 +336,15 @@ export function registerTelegramWebhook(app: Hono) {
 					} catch (e) {
 						log.error('Callback handler error:', e);
 					} finally {
-						activeSignals.delete(sessionKey);
+						// Hermes pattern: keep guard alive, transfer to drain below
 						await sessionStore.touchSession(sessionKey).catch(() => {});
 					}
 
-				// Drain pending from callback handler
+				// Drain pending from callback handler — fire-and-forget
 				const cbPending = pendingMessages.get(sessionKey);
 				if (cbPending) {
 					pendingMessages.delete(sessionKey);
-					await processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource);
+					processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource).catch(() => {});
 				}
 
 					return c.json({ ok: true });
@@ -484,15 +496,17 @@ export function registerTelegramWebhook(app: Hono) {
 				await streamConsumer.finish(result.text);
 			} finally {
 				clearInterval(typingInterval);
-				activeSignals.delete(sessionKey);
+				// Hermes pattern: do NOT delete activeSignals. Keep the guard alive
+				// and transfer ownership to the pending drain below.
 				await sessionStore.touchSession(sessionKey).catch(() => {});
 			}
 
-			// Drain pending: if user messaged during processing, process it now
+			// Drain pending: fire-and-forget (Hermes create_task pattern).
+			// The signal entry is still alive, so concurrent webhooks still queue.
 			const pending = pendingMessages.get(sessionKey);
 			if (pending) {
 				pendingMessages.delete(sessionKey);
-				await processPendingMessage(sessionKey, msg.chatId, pending, sessionSource);
+				processPendingMessage(sessionKey, msg.chatId, pending, sessionSource).catch(() => {});
 			}
 
 			return c.json({ ok: true, sessionKey });
