@@ -387,42 +387,37 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 	 * Mirrors Hermes' _sanitize_tool_pairs / Phase 4 concept.
 	 */
 	private sanitizeIncompleteToolCallsInHistory(): void {
-		// Find the last assistant message with tool_calls
-		let lastAssistantIdx = -1;
-		for (let i = this.messages.length - 1; i >= 0; i--) {
-			const m = this.messages[i] as Record<string, unknown>;
-			if (m.role === 'assistant' && Array.isArray(m.tool_calls) && (m.tool_calls as any[]).length > 0) {
-				lastAssistantIdx = i;
-				break;
+		// Scan ALL assistant messages with tool_calls, not just the last one.
+		// Old code from crashed sessions may have orphaned pairs anywhere.
+		for (let idx = this.messages.length - 1; idx >= 0; idx--) {
+			const m = this.messages[idx] as Record<string, unknown>;
+			if (m.role !== 'assistant' || !Array.isArray(m.tool_calls) || (m.tool_calls as any[]).length === 0) {
+				continue;
 			}
-		}
 
-		if (lastAssistantIdx === -1) return;
+			const toolCalls = (m as any).tool_calls as Array<{ id: string }>;
 
-		const toolCalls = (this.messages[lastAssistantIdx] as any).tool_calls as Array<{
-			id: string;
-		}>;
-
-		// Collect tool response IDs after this assistant
-		const respondedIds = new Set<string>();
-		for (let i = lastAssistantIdx + 1; i < this.messages.length; i++) {
-			const m = this.messages[i] as Record<string, unknown>;
-			if (m.role === 'tool' && m.tool_call_id) {
-				respondedIds.add(m.tool_call_id as string);
+			// Collect tool response IDs after this assistant
+			const respondedIds = new Set<string>();
+			for (let i = idx + 1; i < this.messages.length; i++) {
+				const msg = this.messages[i] as Record<string, unknown>;
+				if (msg.role === 'tool' && msg.tool_call_id) {
+					respondedIds.add(msg.tool_call_id as string);
+				}
 			}
-		}
 
-		// Find missing tool responses
-		const missing = toolCalls.filter((tc) => !respondedIds.has(tc.id));
-		if (missing.length === 0) return;
+			// Find missing tool responses
+			const missing = toolCalls.filter((tc) => !respondedIds.has(tc.id));
+			if (missing.length === 0) continue;
 
-		// Insert stub results for missing tool calls
-		for (const tc of missing) {
-			this.messages.push({
-				role: 'tool',
-				tool_call_id: tc.id,
-				content: '[Result from earlier conversation]',
-			});
+			// Insert stub results for missing tool calls
+			for (const tc of missing) {
+				this.messages.push({
+					role: 'tool',
+					tool_call_id: tc.id,
+					content: '[Result from earlier conversation]',
+				});
+			}
 		}
 	}
 
