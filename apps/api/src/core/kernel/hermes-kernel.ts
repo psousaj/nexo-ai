@@ -73,7 +73,21 @@ export class HermesKernel {
 					}
 
 					// Interrupt check: before tool execution
+					// If the LLM just returned tool_calls and the assistant message
+					// was already pushed to the runner, we MUST add stub results for
+					// all tool_calls before returning. Otherwise the next LLM call
+					// sees orphaned tool_calls and fails with 400.
+					// The onToolStart callbacks already set up the UI (clarify buttons,
+					// confirm inline keyboard), so the user can interact from there.
 					if (interrupt?.requested) {
+						for (const tc of next.toolCalls) {
+							failures.push(tc.toolName);
+							this.deps.modelTurnRunner.addToolResult?.(tc.toolName, tc.toolCallId ?? tc.toolName, {
+								error: true,
+								tool: tc.toolName,
+								message: 'Interrompido antes de executar.',
+							});
+						}
 						void writeTurnAudit({
 							runType: 'interrupted',
 							sessionKey: input.sessionKey,
