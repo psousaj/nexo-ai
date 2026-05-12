@@ -174,6 +174,13 @@ async function processPendingMessage(
 	message: string,
 	sessionSource?: SessionSource,
 ) {
+	// Guard: if another signal is already active (concurrent webhook sneaked in
+	// during the micro-window between signal deletion and this function's setup),
+	// re-queue instead of starting a second runTurn on the same cached runtime.
+	if (activeSignals.has(sessionKey)) {
+		pendingMessages.set(sessionKey, message);
+		return;
+	}
 	const signal: InterruptSignal = { requested: false, message: null };
 	activeSignals.set(sessionKey, signal);
 	try {
@@ -321,12 +328,12 @@ export function registerTelegramWebhook(app: Hono) {
 						await sessionStore.touchSession(sessionKey).catch(() => {});
 					}
 
-					// Drain pending from callback handler
-					const cbPending = pendingMessages.get(sessionKey);
-					if (cbPending) {
-						pendingMessages.delete(sessionKey);
-						processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource);
-					}
+				// Drain pending from callback handler
+				const cbPending = pendingMessages.get(sessionKey);
+				if (cbPending) {
+					pendingMessages.delete(sessionKey);
+					await processPendingMessage(sessionKey, chatId, cbPending, cbSessionSource);
+				}
 
 					return c.json({ ok: true });
 				}
@@ -485,7 +492,7 @@ export function registerTelegramWebhook(app: Hono) {
 			const pending = pendingMessages.get(sessionKey);
 			if (pending) {
 				pendingMessages.delete(sessionKey);
-				processPendingMessage(sessionKey, msg.chatId, pending, sessionSource);
+				await processPendingMessage(sessionKey, msg.chatId, pending, sessionSource);
 			}
 
 			return c.json({ ok: true, sessionKey });
