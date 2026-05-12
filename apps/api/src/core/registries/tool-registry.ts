@@ -117,13 +117,12 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			{
 				name: 'search_memories',
 				description:
-					'Busca nas memórias salvas do usuário. Use para lembrar informações que o usuário já salvou antes.',
+					'Busca nas memórias salvas do usuário. Use quando o usuario pedir "minhas coisas salvas", "o que eu salvei", "memorias", etc. Retorna titulo, data em que foi salvo e confianca. Ao responder, liste cada memoria com emoji tematico e mencione QUANDO foi salva (ex: "salvo em 12/05").',
 				jsonSchema: {
 					type: 'object',
 					properties: {
-						query: { type: 'string', description: 'Termo de busca' },
+						query: { type: 'string', description: 'Termo de busca (ou vazio para listar todas)' },
 					},
-					required: ['query'],
 				},
 				policy: 'auto',
 				execute: async (ctx: unknown, _input: Record<string, unknown>) => {

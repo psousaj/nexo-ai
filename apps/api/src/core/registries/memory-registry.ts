@@ -60,26 +60,34 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 		}
 	}
 
-	async loadRelevant(input: unknown): Promise<Array<{ summary: string; confidence: number }>> {
+	async loadRelevant(input: unknown): Promise<Array<{ summary: string; confidence: number; createdAt: string }>> {
 		const { userId, limit } = input as { userId: string; limit?: number };
 		try {
 			const rows = await db
-				.select({ content: memoryEnvelopes.normalizedContent, confidence: memoryEnvelopes.confidence })
+				.select({
+					content: memoryEnvelopes.normalizedContent,
+					confidence: memoryEnvelopes.confidence,
+					createdAt: memoryEnvelopes.createdAt,
+				})
 				.from(memoryEnvelopes)
 				.where(eq(memoryEnvelopes.userId, userId))
-				.orderBy(desc(memoryEnvelopes.confidence))
+				.orderBy(desc(memoryEnvelopes.createdAt))
 				.limit(limit ?? 10);
-			return rows.map((r) => ({ summary: r.content, confidence: r.confidence ?? 1 }));
+			return rows.map((r) => ({
+				summary: r.content,
+				confidence: r.confidence ?? 1,
+				createdAt: r.createdAt?.toISOString() ?? '',
+			}));
 		} catch (err) {
 			log.warn({ err, userId }, 'memoryRegistry.loadRelevant: fallback — confidence column pode não existir');
 			try {
 				const rows = await db
-					.select({ content: memoryEnvelopes.normalizedContent })
+					.select({ content: memoryEnvelopes.normalizedContent, createdAt: memoryEnvelopes.createdAt })
 					.from(memoryEnvelopes)
 					.where(eq(memoryEnvelopes.userId, userId))
 					.orderBy(desc(memoryEnvelopes.createdAt))
 					.limit(limit ?? 10);
-				return rows.map((r) => ({ summary: r.content, confidence: 1 }));
+				return rows.map((r) => ({ summary: r.content, confidence: 1, createdAt: r.createdAt?.toISOString() ?? '' }));
 			} catch (err2) {
 				log.error({ err: err2, userId }, 'memoryRegistry.loadRelevant: erro fatal ao carregar memórias');
 				return [];
