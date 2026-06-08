@@ -2,7 +2,7 @@ name: API Image for Coolify
 
 on:
   push:
-    branches: [ development ]
+    branches: [main]
     paths:
       - apps/api/**
       - packages/**
