@@ -155,8 +155,6 @@
       "when": 1778078009885,
       "tag": "0021_eminent_storm",
       "breakpoints": true
-<<<<<<< HEAD
-=======
     },
     {
       "idx": 22,
@@ -213,7 +211,6 @@
       "when": 1778514000000,
       "tag": "0029_legacy_cleanup",
       "breakpoints": true
->>>>>>> development
     }
   ]
 }

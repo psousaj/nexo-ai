@@ -18,14 +18,11 @@ const boolFromEnv = z.enum(['true', 'false']).transform((val) => val === 'true')
 
 const envSchema = z.object({
 	// --------------------------------------------------------------------------
-<<<<<<< HEAD
-=======
 	// Telemetry — OpenTelemetry (opcional)
 	// --------------------------------------------------------------------------
 	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
 
 	// --------------------------------------------------------------------------
->>>>>>> development
 	// Core — runtime básico
 	// --------------------------------------------------------------------------
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -58,117 +55,6 @@ const envSchema = z.object({
 	DATABASE_URL: z.string().url(),
 
 	// --------------------------------------------------------------------------
-<<<<<<< HEAD
-	// Redis — obrigatório para BullMQ
-	// --------------------------------------------------------------------------
-	REDIS_HOST: z.string().min(1, 'REDIS_HOST é obrigatório'),
-	REDIS_PORT: z.coerce.number().default(6379),
-	REDIS_USER: z.string().min(1, 'REDIS_USER é obrigatório'),
-	REDIS_PASSWORD: z.string().min(1, 'REDIS_PASSWORD é obrigatório'),
-	REDIS_TLS: boolFromEnv.default('false'),
-
-	// --------------------------------------------------------------------------
-	// Telegram Bot
-	// --------------------------------------------------------------------------
-	TELEGRAM_BOT_TOKEN: z.string().default(''),
-	TELEGRAM_BOT_USERNAME: z.string().optional(),
-	TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
-
-	// --------------------------------------------------------------------------
-	// Evolution API (WhatsApp self-hosted)
-	// --------------------------------------------------------------------------
-	EVOLUTION_API_BASE_URL: z.string().url().default('http://localhost:8080'),
-	EVOLUTION_API_KEY: z.string().optional(),
-	EVOLUTION_INSTANCE_NAME: z.string().default('nexo-dev'),
-	EVOLUTION_WEBHOOK_SECRET: z.string().optional(),
-	EVOLUTION_WEBHOOK_PATH: z.string().default('/webhook/whatsapp/evolution'),
-
-	// --------------------------------------------------------------------------
-	// Cloudflare AI Gateway
-	// --------------------------------------------------------------------------
-	CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
-	CLOUDFLARE_API_TOKEN: z.string().min(1),
-	CLOUDFLARE_GATEWAY_ID: z.string().default('nexo-ai-gateway'),
-	CF_GATEWAY_MODEL: z.string().default('dynamic/nexo'),
-	CF_INTENT_MODEL: z.string().default('dynamic/nexo'),
-	CF_EMBED_MODEL: z.string().default('dynamic/embeddings'),
-	WHISPER_MODEL: z.string().default('whisper-1'),
-	EDGE_TTS_VOICE: z.string().default('pt-BR-FranciscaNeural'),
-	EDGE_TTS_TRUSTED_TOKEN: z.string(),
-	EMBEDDING_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(4),
-	EMBEDDING_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(25000),
-	EMBEDDING_MAX_RETRIES: z.coerce.number().int().min(0).max(8).default(4),
-	EMBEDDING_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(100).max(10000).default(600),
-	EMBEDDING_RETRY_MAX_DELAY_MS: z.coerce.number().int().min(500).max(60000).default(8000),
-
-	// --------------------------------------------------------------------------
-	// Observability — OpenTelemetry + Jaeger
-	// --------------------------------------------------------------------------
-	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
-	OTEL_SERVICE_NAME: z.string().optional(),
-	JAEGER_UI_URL: z.string().default('http://localhost:16686'),
-
-	// --------------------------------------------------------------------------
-	// Observability — Sentry
-	// --------------------------------------------------------------------------
-	SENTRY_ENABLED: boolFromEnv.default('true'),
-	SENTRY_DSN: z.string().optional(),
-	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().default(0.1),
-	SENTRY_AUTH_TOKEN: z.string().optional(),
-	SENTRY_ORG: z.string().default('ze-filho'),
-	SENTRY_PROJECT: z.string().default('node-hono'),
-
-	// --------------------------------------------------------------------------
-	// Enrichment APIs
-	// --------------------------------------------------------------------------
-	TMDB_API_KEY: z.string(),
-	YOUTUBE_API_KEY: z.string(),
-	GOOGLE_BOOKS_API_KEY: z.string().optional(),
-	SPOTIFY_CLIENT_ID: z.string().min(1, 'SPOTIFY_CLIENT_ID é obrigatório para save_music'),
-	SPOTIFY_CLIENT_SECRET: z.string().min(1, 'SPOTIFY_CLIENT_SECRET é obrigatório para save_music'),
-	BRAVE_SEARCH_API_KEY: z.string().optional(),
-
-	// --------------------------------------------------------------------------
-	// Feature flags (pivot)
-	// --------------------------------------------------------------------------
-	CONVERSATION_FREE: boolFromEnv.default('true'),
-	TOOL_SCHEMA_V2: boolFromEnv.default('false'),
-	MULTIMODAL_AUDIO: boolFromEnv.default('false'),
-	MULTIMODAL_IMAGE: boolFromEnv.default('false'),
-	PROVIDER_SPLIT: boolFromEnv.default('false'),
-
-	// --------------------------------------------------------------------------
-	// Email (Resend)
-	// --------------------------------------------------------------------------
-	RESEND_API_KEY: z.string().optional(),
-
-	// --------------------------------------------------------------------------
-	// Discord OAuth + Bot
-	// --------------------------------------------------------------------------
-	DISCORD_CLIENT_ID: z.string().optional(),
-	DISCORD_CLIENT_SECRET: z.string().optional(),
-	DISCORD_BOT_TOKEN: z.string().optional(),
-	DISCORD_BOT_USERNAME: z.string().default('NexoAssistente_bot'),
-
-	// --------------------------------------------------------------------------
-	// Better Auth
-	// --------------------------------------------------------------------------
-	BETTER_AUTH_SECRET: z.string().min(32).optional(),
-	BETTER_AUTH_URL: z.string().url().optional(),
-
-	// --------------------------------------------------------------------------
-	// Google OAuth
-	// --------------------------------------------------------------------------
-	GOOGLE_CLIENT_ID: z.string().optional(),
-	GOOGLE_CLIENT_SECRET: z.string().optional(),
-
-	// --------------------------------------------------------------------------
-	// Microsoft OAuth
-	// --------------------------------------------------------------------------
-	MICROSOFT_CLIENT_ID: z.string().optional(),
-	MICROSOFT_CLIENT_SECRET: z.string().optional(),
-
-=======
 	// Redis — opcional (BullMQ queues desativadas)
 	// --------------------------------------------------------------------------
 	REDIS_HOST: z.string().optional(),
@@ -243,7 +129,6 @@ const envSchema = z.object({
 	// --------------------------------------------------------------------------
 	BOT_TOKEN_TELEGRAM: z.string().optional(),
 
->>>>>>> development
 	// --------------------------------------------------------------------------
 	// Nuxt Dashboard (frontend - public vars)
 	// --------------------------------------------------------------------------
@@ -262,11 +147,6 @@ export const API_ENV_KEYS = [
 	'PORT',
 	'CORS_ORIGINS',
 	'LOG_LEVEL',
-<<<<<<< HEAD
-	'PROVIDER_SPLIT',
-	'DISCORD_BOT_TOKEN',
-=======
->>>>>>> development
 ] as const;
 
 export type ApiEnv = Pick<Env, (typeof API_ENV_KEYS)[number]>;
@@ -277,11 +157,6 @@ export function getApiEnv(source: Env = env): ApiEnv {
 		PORT: source.PORT,
 		CORS_ORIGINS: source.CORS_ORIGINS,
 		LOG_LEVEL: source.LOG_LEVEL,
-<<<<<<< HEAD
-		PROVIDER_SPLIT: source.PROVIDER_SPLIT,
-		DISCORD_BOT_TOKEN: source.DISCORD_BOT_TOKEN,
-=======
->>>>>>> development
 	};
 }
 

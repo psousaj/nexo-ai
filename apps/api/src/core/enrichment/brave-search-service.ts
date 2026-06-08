@@ -1,28 +1,16 @@
 import { env } from '@/config/env';
-<<<<<<< HEAD:apps/api/src/services/enrichment/brave-search-service.ts
-import { instrumentService } from '@/services/service-instrumentation';
-=======
->>>>>>> development:apps/api/src/core/enrichment/brave-search-service.ts
 import { loggers } from '@/utils/logger';
 
 export interface BraveSearchResult {
 	title: string;
 	url: string;
 	description: string;
-<<<<<<< HEAD:apps/api/src/services/enrichment/brave-search-service.ts
-	age?: string; // e.g. "1 day ago"
-=======
 	age?: string;
->>>>>>> development:apps/api/src/core/enrichment/brave-search-service.ts
 }
 
 const BRAVE_SEARCH_API_URL = 'https://api.search.brave.com/res/v1/web/search';
 
-<<<<<<< HEAD:apps/api/src/services/enrichment/brave-search-service.ts
-class BraveSearchService {
-=======
 export class BraveSearchService {
->>>>>>> development:apps/api/src/core/enrichment/brave-search-service.ts
 	private readonly apiKey = env.BRAVE_SEARCH_API_KEY;
 
 	async search(query: string, count = 5): Promise<BraveSearchResult[]> {
@@ -75,25 +63,9 @@ export class BraveSearchService {
 		}
 	}
 
-<<<<<<< HEAD:apps/api/src/services/enrichment/brave-search-service.ts
-	/**
-	 * Sanitiza strings para evitar prompt injection via snippets da web
-	 */
-	private sanitize(text: string): string {
-		return text
-			.replace(/[<>]/g, '') // remove HTML tags
-			.replace(/\n+/g, ' ') // normaliza quebras de linha
-			.substring(0, 300) // limita tamanho
-			.trim();
-	}
-}
-
-export const braveSearchService = instrumentService('brave-search', new BraveSearchService());
-=======
 	private sanitize(text: string): string {
 		return text.replace(/[<>]/g, '').replace(/\n+/g, ' ').substring(0, 300).trim();
 	}
 }
 
 export const braveSearchService = new BraveSearchService();
->>>>>>> development:apps/api/src/core/enrichment/brave-search-service.ts

@@ -20,12 +20,8 @@
 		"lint:biome": "biome check --write .",
 		"train:nexo": "tsx --env-file=../../.env -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
 		"train:nexo:bert": "tsx --env-file=../../.env -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
-<<<<<<< HEAD
-		"set-admin": "tsx --env-file=../../.env scripts/set-admin.ts"
-=======
 		"set-admin": "tsx --env-file=../../.env scripts/set-admin.ts",
 		"db:seed:skills": "tsx --env-file=../../.env scripts/seed-skills.ts"
->>>>>>> development
 	},
 	"dependencies": {
 		"@google/genai": "^2.0.1",
@@ -36,10 +32,6 @@
 		"@nexo/otel": "workspace:*",
 		"@nexo/shared": "workspace:*",
 		"@openfeature/server-sdk": "^1.20.2",
-<<<<<<< HEAD
-		"@scalar/hono-api-reference": "^0.9.37",
-=======
->>>>>>> development
 		"@sentry/core": "^10.39.0",
 		"@sentry/node": "^10.39.0",
 		"@sentry/profiling-node": "^10.39.0",

@@ -147,16 +147,6 @@ const statCards = [
 		iconClass: 'text-green-400',
 		valueClass: 'text-green-600',
 	},
-<<<<<<< HEAD
-	{
-		key: 'disabled' as const,
-		label: 'Desabilitadas',
-		icon: 'i-heroicons-x-circle',
-		iconClass: 'text-red-400',
-		valueClass: 'text-red-600',
-	},
-=======
->>>>>>> development
 	{
 		key: 'disabled' as const,
 		label: 'Desabilitadas',

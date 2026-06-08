@@ -50,16 +50,6 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		category: 'pivot',
 		defaultEnabled: env.MULTIMODAL_IMAGE,
 	},
-<<<<<<< HEAD
-	{
-		key: 'nexo.pivot.provider-split',
-		label: 'Provider Split',
-		description: 'Divide processamento entre providers de IA',
-		category: 'pivot',
-		defaultEnabled: env.PROVIDER_SPLIT,
-	},
-=======
->>>>>>> development
 ];
 
 // ============================================================================
@@ -134,44 +124,14 @@ export const FLAG = {
 	TOOL_SCHEMA_V2: 'nexo.pivot.tool-schema-v2',
 	MULTIMODAL_AUDIO: 'nexo.pivot.multimodal-audio',
 	MULTIMODAL_IMAGE: 'nexo.pivot.multimodal-image',
-<<<<<<< HEAD
-	PROVIDER_SPLIT: 'nexo.pivot.provider-split',
-
-=======
->>>>>>> development
 	// Channels
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',
 	CHANNEL_WHATSAPP: 'nexo.channel.whatsapp',
-<<<<<<< HEAD
-	// Tools
-	TOOL_SAVE_NOTE: 'nexo.tool.save-note',
-	TOOL_SAVE_MOVIE: 'nexo.tool.save-movie',
-	TOOL_SAVE_TV_SHOW: 'nexo.tool.save-tv-show',
-	TOOL_SAVE_VIDEO: 'nexo.tool.save-video',
-	TOOL_SAVE_LINK: 'nexo.tool.save-link',
-	TOOL_SEARCH_ITEMS: 'nexo.tool.search-items',
-	TOOL_ENRICH_MOVIE: 'nexo.tool.enrich-movie',
-	TOOL_ENRICH_TV_SHOW: 'nexo.tool.enrich-tv-show',
-	TOOL_ENRICH_VIDEO: 'nexo.tool.enrich-video',
-	TOOL_DELETE_MEMORY: 'nexo.tool.delete-memory',
-	TOOL_DELETE_ALL_MEMORIES: 'nexo.tool.delete-all-memories',
-	TOOL_GET_ASSISTANT_NAME: 'nexo.tool.get-assistant-name',
-	TOOL_UPDATE_USER_SETTINGS: 'nexo.tool.update-user-settings',
-	TOOL_MEMORY_SEARCH: 'nexo.tool.memory-search',
-	TOOL_MEMORY_GET: 'nexo.tool.memory-get',
-	TOOL_DAILY_LOG_SEARCH: 'nexo.tool.daily-log-search',
-	TOOL_LIST_CALENDAR_EVENTS: 'nexo.tool.list-calendar-events',
-	TOOL_CREATE_CALENDAR_EVENT: 'nexo.tool.create-calendar-event',
-	TOOL_LIST_TODOS: 'nexo.tool.list-todos',
-	TOOL_CREATE_TODO: 'nexo.tool.create-todo',
-	TOOL_SCHEDULE_REMINDER: 'nexo.tool.schedule-reminder',
-=======
 	// Hermes validation & rollout
 	HERMES_SHADOW_REPLAY_ENABLED: 'nexo.hermes.shadow-replay-enabled',
 	HERMES_ROLLOUT_PERCENTAGE: 'nexo.hermes.rollout-percentage',
 	HERMES_VALIDATION_ENABLED: 'nexo.hermes.validation-enabled',
->>>>>>> development
 } as const;
 
 export type FlagKey = (typeof FLAG)[keyof typeof FLAG];
