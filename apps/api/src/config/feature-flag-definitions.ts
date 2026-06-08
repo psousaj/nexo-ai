@@ -7,7 +7,6 @@
  */
 
 import { env } from '@/config/env';
-import { getAllTools } from '@/services/tools/registry';
 
 export type FlagCategory = 'pivot' | 'channel' | 'tool';
 
@@ -20,7 +19,7 @@ export interface FeatureFlagDefinition {
 }
 
 // ============================================================================
-// Pivot flags (6) — seed usa env var como valor inicial
+// Pivot flags (5) — seed usa env var como valor inicial
 // ============================================================================
 const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 	{
@@ -51,6 +50,7 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		category: 'pivot',
 		defaultEnabled: env.MULTIMODAL_IMAGE,
 	},
+<<<<<<< HEAD
 	{
 		key: 'nexo.pivot.provider-split',
 		label: 'Provider Split',
@@ -58,6 +58,8 @@ const pivotFlagDefinitions: FeatureFlagDefinition[] = [
 		category: 'pivot',
 		defaultEnabled: env.PROVIDER_SPLIT,
 	},
+=======
+>>>>>>> development
 ];
 
 // ============================================================================
@@ -88,27 +90,38 @@ const channelFlagDefinitions: FeatureFlagDefinition[] = [
 ];
 
 // ============================================================================
-// Tool flags — gerados do registry; respeitam defaultEnabled de cada tool
-// ============================================================================
-function buildToolFlagDefinitions(): FeatureFlagDefinition[] {
-	return getAllTools().map((tool) => ({
-		key: `nexo.tool.${tool.name.replace(/_/g, '-')}`,
-		label: tool.label,
-		description: tool.description,
-		category: 'tool' as FlagCategory,
-		defaultEnabled: tool.defaultEnabled ?? true,
-	}));
-}
-
-// ============================================================================
 // Exported constants
 // ============================================================================
 
-/** Todas as definições de flags (pivot + channel). Tools ficam em global_tools. */
-export const FLAG_DEFINITIONS: FeatureFlagDefinition[] = [...pivotFlagDefinitions, ...channelFlagDefinitions];
+// ============================================================================
+// Hermes validation flags
+// ============================================================================
+const hermesFlagDefinitions: FeatureFlagDefinition[] = [
+	{
+		key: 'nexo.hermes.shadow-replay-enabled',
+		label: 'Hermes Shadow Replay',
+		description: 'Executa shadow replay comparando Hermes vs legacy',
+		category: 'pivot',
+		defaultEnabled: false,
+	},
+	{
+		key: 'nexo.hermes.validation-enabled',
+		label: 'Hermes Validation',
+		description: 'Habilita validação assistiva de respostas do Hermes',
+		category: 'pivot',
+		defaultEnabled: true,
+	},
+];
 
-/** Definições de tool flags (para seed do global_tools via OpenFeature) */
-export const TOOL_FLAG_DEFINITIONS: FeatureFlagDefinition[] = buildToolFlagDefinitions();
+export const FLAG_DEFINITIONS: FeatureFlagDefinition[] = [
+	...pivotFlagDefinitions,
+	...channelFlagDefinitions,
+	...hermesFlagDefinitions,
+];
+
+export const HERMES_CONFIG = {
+	rolloutPercentage: { type: 'number', default: 0, min: 0, max: 100 },
+} as const;
 
 /**
  * Chaves type-safe de todas as flags (pivot + channel + tool)
@@ -121,12 +134,16 @@ export const FLAG = {
 	TOOL_SCHEMA_V2: 'nexo.pivot.tool-schema-v2',
 	MULTIMODAL_AUDIO: 'nexo.pivot.multimodal-audio',
 	MULTIMODAL_IMAGE: 'nexo.pivot.multimodal-image',
+<<<<<<< HEAD
 	PROVIDER_SPLIT: 'nexo.pivot.provider-split',
 
+=======
+>>>>>>> development
 	// Channels
 	CHANNEL_TELEGRAM: 'nexo.channel.telegram',
 	CHANNEL_DISCORD: 'nexo.channel.discord',
 	CHANNEL_WHATSAPP: 'nexo.channel.whatsapp',
+<<<<<<< HEAD
 	// Tools
 	TOOL_SAVE_NOTE: 'nexo.tool.save-note',
 	TOOL_SAVE_MOVIE: 'nexo.tool.save-movie',
@@ -149,6 +166,12 @@ export const FLAG = {
 	TOOL_LIST_TODOS: 'nexo.tool.list-todos',
 	TOOL_CREATE_TODO: 'nexo.tool.create-todo',
 	TOOL_SCHEDULE_REMINDER: 'nexo.tool.schedule-reminder',
+=======
+	// Hermes validation & rollout
+	HERMES_SHADOW_REPLAY_ENABLED: 'nexo.hermes.shadow-replay-enabled',
+	HERMES_ROLLOUT_PERCENTAGE: 'nexo.hermes.rollout-percentage',
+	HERMES_VALIDATION_ENABLED: 'nexo.hermes.validation-enabled',
+>>>>>>> development
 } as const;
 
 export type FlagKey = (typeof FLAG)[keyof typeof FLAG];

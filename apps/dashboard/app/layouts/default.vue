@@ -2,6 +2,7 @@
 import { useAbility } from '@casl/vue';
 import {
 	Bell,
+	Cpu,
 	Database,
 	FlaskConical,
 	LayoutDashboard,
@@ -43,6 +44,7 @@ const adminItems = [
 	{ name: 'Usuários', icon: Users, path: '/admin/users', subject: 'AdminPanel', action: 'manage' },
 	{ name: 'Conversas', icon: MessageSquare, path: '/admin/conversations', subject: 'AdminPanel', action: 'manage' },
 	{ name: 'Tools', icon: ToggleRight, path: '/admin/tools', subject: 'AdminPanel', action: 'manage' },
+	{ name: 'AI Providers', icon: Cpu, path: '/admin/ai-providers', subject: 'AdminPanel', action: 'manage' },
 	{ name: 'Configurações', icon: Settings, path: '/admin/settings', subject: 'AdminPanel', action: 'manage' },
 	{ name: 'Playground', icon: FlaskConical, path: '/admin/playground', subject: 'AdminPanel', action: 'manage' },
 ];

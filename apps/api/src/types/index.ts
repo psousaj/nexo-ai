@@ -1,5 +1,6 @@
-import { loggers } from '@/utils/logger';
+import type { ItemMetadata, ItemType } from '@nexo/shared';
 
+<<<<<<< HEAD
 // Types básicos do sistema
 
 // Re-export shared types
@@ -31,22 +32,28 @@ export type {
 	ImageMetadata,
 };
 export * from './agent-decision-v2';
+=======
+export type { ItemType, ItemMetadata };
+>>>>>>> development
 
 export type ConversationState =
-	| 'idle' // Conversa inativa, pronta para receber comandos
-	| 'processing' // Ação em andamento (evita concorrência)
-	| 'awaiting_context' // Aguardando contexto do usuário
-	| 'off_topic_chat' // Usuário entrou em conversa paralela fora do escopo
-	| 'awaiting_confirmation' // Aguardando confirmação do usuário (lista com botões)
-	| 'awaiting_final_confirmation' // Aguardando confirmação final com imagem
-	| 'enriching' // Buscando informações adicionais
-	| 'saving' // Salvando o conteúdo
-	| 'error' // Estado de erro
-	| 'waiting_close' // Ação finalizada, timer de 15min agendado
-	| 'closed'; // Conversa encerrada, contexto limpo
+	| 'idle'
+	| 'processing'
+	| 'awaiting_context'
+	| 'off_topic_chat'
+	| 'awaiting_confirmation'
+	| 'awaiting_final_confirmation'
+	| 'enriching'
+	| 'saving'
+	| 'error'
+	| 'waiting_close'
+	| 'closed';
+
+export type ConversationContext = Record<string, unknown>;
 
 export type MessageRole = 'user' | 'assistant';
 
+<<<<<<< HEAD
 /**
  * Schema canônico de resposta do agente (LLM)
  *
@@ -333,3 +340,6 @@ export interface MemorySearchResult {
 	score: number;
 	source: 'memory' | 'daily_log';
 }
+=======
+export type MessageMetadata = Record<string, unknown>;
+>>>>>>> development

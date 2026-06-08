@@ -35,6 +35,7 @@ export default defineConfig({
 				]
 			: []),
 	],
+<<<<<<< HEAD
 	onSuccess: async () => {
 		const { cpSync, existsSync } = await import('node:fs');
 		const { join } = await import('node:path');
@@ -68,4 +69,7 @@ export default defineConfig({
 			console.warn('⚠ Pasta de prompts YAML não encontrada em', promptsSource);
 		}
 	},
+=======
+	onSuccess: async () => {},
+>>>>>>> development
 });

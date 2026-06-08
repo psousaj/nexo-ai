@@ -1,15 +1,4 @@
-import {
-	Bot,
-	BrainCircuit,
-	Clapperboard,
-	Gamepad2,
-	Link2,
-	Menu,
-	MessageCircle,
-	Send,
-	StickyNote,
-	X,
-} from 'lucide-vue-next';
+import { BrainCircuit, Clapperboard, Link2, StickyNote } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
 const isMenuOpen = ref(false);
 const usersCount = ref(0);
@@ -172,7 +161,7 @@ __VLS_asFunctionalElement(
 	__VLS_intrinsicElements.button,
 )({
 	...{
-		onClick: (...[_$event]) => {
+		onClick: (...[$event]) => {
 			__VLS_ctx.isMenuOpen = !__VLS_ctx.isMenuOpen;
 		},
 	},
@@ -1485,16 +1474,10 @@ __VLS_asFunctionalElement(
 /** @type {__VLS_StyleScopedClasses['hover:text-white']} */
 /** @type {__VLS_StyleScopedClasses['transition-colors']} */
 /** @type {__VLS_StyleScopedClasses['text-sm']} */
-let __VLS_dollars;
+var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
 	setup() {
 		return {
-			Bot: Bot,
-			Gamepad2: Gamepad2,
-			Menu: Menu,
-			MessageCircle: MessageCircle,
-			Send: Send,
-			X: X,
 			isMenuOpen: isMenuOpen,
 			usersCount: usersCount,
 			features: features,

@@ -1,6 +1,6 @@
 {
 	"name": "@nexo/api",
-	"version": "0.5.48",
+	"version": "0.7.1",
 	"description": "Assistente pessoal via WhatsApp com IA",
 	"type": "module",
 	"scripts": {
@@ -20,21 +20,26 @@
 		"lint:biome": "biome check --write .",
 		"train:nexo": "tsx --env-file=../../.env -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts",
 		"train:nexo:bert": "tsx --env-file=../../.env -r dotenv/config src/services/message-analysis/training/nexo-trainer.ts --bert",
+<<<<<<< HEAD
 		"set-admin": "tsx --env-file=../../.env scripts/set-admin.ts"
+=======
+		"set-admin": "tsx --env-file=../../.env scripts/set-admin.ts",
+		"db:seed:skills": "tsx --env-file=../../.env scripts/seed-skills.ts"
+>>>>>>> development
 	},
 	"dependencies": {
-		"@bull-board/api": "^6.16.4",
-		"@bull-board/hono": "^6.16.4",
-		"@bull-board/ui": "^6.16.4",
+		"@google/genai": "^2.0.1",
 		"@google/generative-ai": "^0.24.1",
 		"@hono/node-server": "^1.19.11",
-		"@hono/swagger-ui": "^0.5.3",
 		"@hono/zod-validator": "^0.7.6",
 		"@nexo/env": "workspace:*",
 		"@nexo/otel": "workspace:*",
 		"@nexo/shared": "workspace:*",
 		"@openfeature/server-sdk": "^1.20.2",
+<<<<<<< HEAD
 		"@scalar/hono-api-reference": "^0.9.37",
+=======
+>>>>>>> development
 		"@sentry/core": "^10.39.0",
 		"@sentry/node": "^10.39.0",
 		"@sentry/profiling-node": "^10.39.0",
@@ -43,11 +48,12 @@
 		"better-auth": "^1.4.17",
 		"bullmq": "^5.70.4",
 		"chrono-node": "^2.9.0",
-		"discord.js": "^14.25.1",
 		"dotenv": "^17.2.3",
 		"drizzle-orm": "^0.45.1",
+		"ffmpeg-static": "^5.3.0",
 		"google-auth-library": "^10.5.0",
 		"googleapis": "^171.4.0",
+		"grammy": "^1.42.0",
 		"handlebars": "^4.7.8",
 		"hono": "^4.11.5",
 		"ioredis": "^5.9.2",

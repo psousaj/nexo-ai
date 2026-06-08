@@ -18,6 +18,14 @@ const boolFromEnv = z.enum(['true', 'false']).transform((val) => val === 'true')
 
 const envSchema = z.object({
 	// --------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+	// Telemetry — OpenTelemetry (opcional)
+	// --------------------------------------------------------------------------
+	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+>>>>>>> development
 	// Core — runtime básico
 	// --------------------------------------------------------------------------
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -50,6 +58,7 @@ const envSchema = z.object({
 	DATABASE_URL: z.string().url(),
 
 	// --------------------------------------------------------------------------
+<<<<<<< HEAD
 	// Redis — obrigatório para BullMQ
 	// --------------------------------------------------------------------------
 	REDIS_HOST: z.string().min(1, 'REDIS_HOST é obrigatório'),
@@ -159,6 +168,82 @@ const envSchema = z.object({
 	MICROSOFT_CLIENT_ID: z.string().optional(),
 	MICROSOFT_CLIENT_SECRET: z.string().optional(),
 
+=======
+	// Redis — opcional (BullMQ queues desativadas)
+	// --------------------------------------------------------------------------
+	REDIS_HOST: z.string().optional(),
+	REDIS_PORT: z.coerce.number().optional(),
+	REDIS_USER: z.string().optional(),
+	REDIS_PASSWORD: z.string().optional(),
+	REDIS_TLS: boolFromEnv.optional(),
+
+	// --------------------------------------------------------------------------
+	// Sentry
+	// --------------------------------------------------------------------------
+	SENTRY_ENABLED: boolFromEnv.default('false'),
+	SENTRY_DSN: z.string().optional(),
+	SENTRY_AUTH_TOKEN: z.string().optional(),
+	SENTRY_ORG: z.string().optional(),
+	SENTRY_PROJECT: z.string().optional(),
+	SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
+
+	// --------------------------------------------------------------------------
+	// Feature flags (pivot — defaults only, overridden via DB)
+	// --------------------------------------------------------------------------
+	CONVERSATION_FREE: boolFromEnv.default('true'),
+	TOOL_SCHEMA_V2: boolFromEnv.default('false'),
+	MULTIMODAL_AUDIO: boolFromEnv.default('false'),
+	MULTIMODAL_IMAGE: boolFromEnv.default('false'),
+
+	// --------------------------------------------------------------------------
+	// OAuth / Auth (shared between API and Dashboard)
+	// --------------------------------------------------------------------------
+	BETTER_AUTH_SECRET: z.string().min(32).optional().or(z.literal('')),
+	BETTER_AUTH_URL: z.string().url().optional().or(z.literal('')),
+
+	GOOGLE_CLIENT_ID: z.string().optional(),
+	GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+	MICROSOFT_CLIENT_ID: z.string().optional(),
+	MICROSOFT_CLIENT_SECRET: z.string().optional(),
+
+	DISCORD_CLIENT_ID: z.string().optional(),
+	DISCORD_CLIENT_SECRET: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// Enrichment APIs (optional — tools disabled if not set)
+	// --------------------------------------------------------------------------
+	TMDB_API_KEY: z.string().optional(),
+	YOUTUBE_API_KEY: z.string().optional(),
+	GOOGLE_BOOKS_API_KEY: z.string().optional(),
+	SPOTIFY_CLIENT_ID: z.string().optional(),
+	SPOTIFY_CLIENT_SECRET: z.string().optional(),
+	BRAVE_SEARCH_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// AI Providers (optional — used directly by CredentialPool)
+	// --------------------------------------------------------------------------
+	OPENAI_API_KEY: z.string().optional(),
+	DEEPSEEK_API_KEY: z.string().optional(),
+	OPENROUTER_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// Cloudflare Workers AI (optional — STT/TTS models)
+	// --------------------------------------------------------------------------
+	CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+	CLOUDFLARE_API_TOKEN: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// Gemini TTS (optional — text-to-speech, Fenrir voice)
+	// --------------------------------------------------------------------------
+	GEMINI_TTS_API_KEY: z.string().optional(),
+
+	// --------------------------------------------------------------------------
+	// Telegram Bot
+	// --------------------------------------------------------------------------
+	BOT_TOKEN_TELEGRAM: z.string().optional(),
+
+>>>>>>> development
 	// --------------------------------------------------------------------------
 	// Nuxt Dashboard (frontend - public vars)
 	// --------------------------------------------------------------------------
@@ -177,8 +262,11 @@ export const API_ENV_KEYS = [
 	'PORT',
 	'CORS_ORIGINS',
 	'LOG_LEVEL',
+<<<<<<< HEAD
 	'PROVIDER_SPLIT',
 	'DISCORD_BOT_TOKEN',
+=======
+>>>>>>> development
 ] as const;
 
 export type ApiEnv = Pick<Env, (typeof API_ENV_KEYS)[number]>;
@@ -189,8 +277,11 @@ export function getApiEnv(source: Env = env): ApiEnv {
 		PORT: source.PORT,
 		CORS_ORIGINS: source.CORS_ORIGINS,
 		LOG_LEVEL: source.LOG_LEVEL,
+<<<<<<< HEAD
 		PROVIDER_SPLIT: source.PROVIDER_SPLIT,
 		DISCORD_BOT_TOKEN: source.DISCORD_BOT_TOKEN,
+=======
+>>>>>>> development
 	};
 }
 

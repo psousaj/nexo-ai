@@ -1,6 +1,6 @@
 {
 	"name": "nexo-monorepo",
-	"version": "0.5.48",
+	"version": "0.7.1",
 	"private": true,
 	"workspaces": [
 		"apps/*",
@@ -26,9 +26,10 @@
 		"build:api": "turbo build --filter=@nexo/api",
 		"build:dashboard": "turbo build --filter=@nexo/dashboard",
 		"build:landing": "turbo build --filter=@nexo/landing",
-		"db:generate": "turbo db:generate --filter=@nexo/api",
-		"db:push": "turbo db:push --filter=@nexo/api",
+		"db:generate": "pnpm --filter=@nexo/api run db:generate",
+		"db:push": "pnpm --filter=@nexo/api run db:push",
 		"db:studio": "turbo db:studio --filter=@nexo/api",
+		"db:seed:skills": "pnpm --filter=@nexo/api run db:seed:skills",
 		"release": "./scripts/release.sh",
 		"version:patch": "./scripts/version.sh patch",
 		"version:minor": "./scripts/version.sh minor",

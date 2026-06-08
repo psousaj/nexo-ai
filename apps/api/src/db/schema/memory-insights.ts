@@ -40,6 +40,11 @@ export const memoryInsights = pgTable(
 		source: text('source').default('inference').notNull(), // inference|user|system
 		// Versionamento
 		version: integer('version').default(1).notNull(),
+<<<<<<< HEAD
+=======
+		/** ID do envelope canônico que originou este insight */
+		sourceEnvelopeId: uuid('source_envelope_id'),
+>>>>>>> development
 		supersededBy: uuid('superseded_by'), // se foi atualizado por insight mais novo
 		// Timestamps
 		createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
