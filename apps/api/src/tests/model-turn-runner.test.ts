@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DefaultModelTurnRunner } from '../core/model/model-turn-runner';
 import type { PostgresTranscriptStore } from '../core/session/transcript-store';
 

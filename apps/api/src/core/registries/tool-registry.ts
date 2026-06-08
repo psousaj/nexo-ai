@@ -1,8 +1,8 @@
+import { PostgresMemoryRegistry } from '@/core/registries/memory-registry';
 import { db } from '@/db';
 import { userChannels } from '@/db/schema/user-channels';
-import { PostgresMemoryRegistry } from '@/core/registries/memory-registry';
+import { and, eq } from 'drizzle-orm';
 import type { HermesToolDescriptor } from '../policies/policy-types';
-import { eq, and } from 'drizzle-orm';
 
 export interface HermesToolRegistry {
 	listEnabled(): Promise<HermesToolDescriptor[]>;
