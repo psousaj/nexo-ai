@@ -49,6 +49,22 @@ pnpm test        # turbo test
 
 NUNCA dar push direto na main. Sempre criar PR → revisar → mergear. Push direto na main só com ordem EXPLÍCITA do usuário.
 
+## 🔄 Pós-PR Merge: sempre rodar `git sync-branch`
+
+Após mergear QUALQUER PR na main, rodar:
+```
+git sync-branch
+```
+
+O alias global (`~/.gitconfig`) executa:
+1. `git switch main`
+2. `git pull --rebase`
+3. `git switch development`
+4. `git rebase main`
+5. `git push --force-with-lease origin development`
+
+Isso mantém a `development` sempre em cima da main.
+
 ## Agent skills
 
 ### Issue tracker
