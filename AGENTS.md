@@ -45,6 +45,10 @@ pnpm test        # turbo test
 - **Node:** 22+
 - **GitHub:** psousaj/nexo-ai
 
+## 🚨 Regra Sagrada: NUNCA push direto na main
+
+NUNCA dar push direto na main. Sempre criar PR → revisar → mergear. Push direto na main só com ordem EXPLÍCITA do usuário.
+
 ## Agent skills
 
 ### Issue tracker
