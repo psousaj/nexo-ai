@@ -46,6 +46,38 @@ export interface ToolOutput {
 // ProjectionStore instance for writing memory envelopes (Path A)
 const projectionStore = new PostgresProjectionStore();
 
+/**
+ * Helper KISS: escreve envelope e retorna { id } ou ToolOutput de erro.
+ * Elimina repetição de writeEnvelope + null check em todas as tools.
+ */
+async function writeEnvelope(
+	context: ToolContext,
+	sourceKind: string,
+	tool: string,
+	normalizedContent: string,
+	rawArtifact: Record<string, unknown>,
+	errorMessage: string,
+): Promise<{ success: true; data: { id: string } } | ToolOutput> {
+	const envelope = await projectionStore.writeEnvelope({
+		userId: context.userId,
+		sessionKey: context.conversationId,
+		sourceKind,
+		sourceChannel: context.provider,
+		normalizedContent,
+		rawArtifact,
+		artifactMetadata: rawArtifact,
+		confidence: 1.0,
+		relevanceDecay: null,
+		audit: { created_via: 'chat', tool },
+	});
+
+	if (!envelope) {
+		return { success: false, error: errorMessage };
+	}
+
+	return { success: true as const, data: { id: envelope.id } };
+}
+
 // ============================================================================
 // SAVE TOOLS - Contratos específicos por tipo
 // ============================================================================
@@ -100,39 +132,22 @@ export async function save_note(
 			};
 		}
 
-		const envelope = await projectionStore.writeEnvelope({
-			userId: context.userId,
-			sessionKey: context.conversationId,
-			sourceKind: 'note',
-			sourceChannel: context.provider,
-			normalizedContent: params.content,
-			rawArtifact: metadata,
-			artifactMetadata: metadata as Record<string, unknown>,
-			confidence: 1.0,
-			relevanceDecay: null,
-			audit: { created_via: 'chat', tool: 'save_note' },
-		});
-
-		if (!envelope) {
-			loggers.tools.error(
-				`❌ ${getRandomLogMessage(toolLogs.error, {
-					tool: 'save_note',
-					error: 'projectionStore.writeEnvelope retornou null',
-				})}`,
-			);
-			loggers.tools.error({ envelope }, '❌ Erro ao criar nota no banco de dados');
-			return {
-				success: false,
-				error: 'Erro ao criar nota no banco de dados',
-			};
-		}
+		const saved = await writeEnvelope(
+			context,
+			'note',
+			'save_note',
+			params.content,
+			metadata,
+			'Erro ao criar nota no banco de dados',
+		);
+		if (!saved.success) return saved;
 
 		loggers.tools.info(`✅ ${getRandomLogMessage(toolLogs.success, { tool: 'save_note' })}`);
-		loggers.tools.info({ id: envelope.id }, '📝 Nota salva');
+		loggers.tools.info({ id: saved.data.id }, '📝 Nota salva');
 
 		return {
 			success: true,
-			data: { id: envelope.id, title: params.content.slice(0, 100) },
+			data: { id: saved.data.id, title: params.content.slice(0, 100) },
 		};
 	} catch (error) {
 		loggers.tools.error(
@@ -223,27 +238,16 @@ export async function save_movie(
 				);
 		}
 
-		const envelope = await projectionStore.writeEnvelope({
-			userId: context.userId,
-			sessionKey: context.conversationId,
-			sourceKind: 'movie',
-			sourceChannel: context.provider,
-			normalizedContent: params.title,
-			rawArtifact: metadata,
-			artifactMetadata: metadata as Record<string, unknown>,
-			confidence: 1.0,
-			relevanceDecay: null,
-			audit: { created_via: 'chat', tool: 'save_movie' },
-		});
-
-		if (!envelope) {
-			return { success: false, error: 'Erro ao salvar filme no banco de dados' };
-		}
-
-		return {
-			success: true,
-			data: { id: envelope.id, title: params.title },
-		};
+		const saved = await writeEnvelope(
+			context,
+			'movie',
+			'save_movie',
+			params.title,
+			metadata,
+			'Erro ao salvar filme no banco de dados',
+		);
+		if (!saved.success) return saved;
+		return { success: true, data: { id: saved.data.id, title: params.title } };
 	} catch (error) {
 		return {
 			success: false,
@@ -325,27 +329,16 @@ export async function save_tv_show(
 				);
 		}
 
-		const envelope = await projectionStore.writeEnvelope({
-			userId: context.userId,
-			sessionKey: context.conversationId,
-			sourceKind: 'tv_show',
-			sourceChannel: context.provider,
-			normalizedContent: params.title,
-			rawArtifact: metadata,
-			artifactMetadata: metadata as Record<string, unknown>,
-			confidence: 1.0,
-			relevanceDecay: null,
-			audit: { created_via: 'chat', tool: 'save_tv_show' },
-		});
-
-		if (!envelope) {
-			return { success: false, error: 'Erro ao salvar série no banco de dados' };
-		}
-
-		return {
-			success: true,
-			data: { id: envelope.id, title: params.title },
-		};
+		const saved = await writeEnvelope(
+			context,
+			'tv_show',
+			'save_tv_show',
+			params.title,
+			metadata,
+			'Erro ao salvar série no banco de dados',
+		);
+		if (!saved.success) return saved;
+		return { success: true, data: { id: saved.data.id, title: params.title } };
 	} catch (error) {
 		return {
 			success: false,
@@ -377,27 +370,16 @@ export async function save_video(
 			duration: 0,
 		} as VideoMetadata;
 
-		const envelope = await projectionStore.writeEnvelope({
-			userId: context.userId,
-			sessionKey: context.conversationId,
-			sourceKind: 'video',
-			sourceChannel: context.provider,
-			normalizedContent: params.title || params.url,
-			rawArtifact: metadata,
-			artifactMetadata: metadata as Record<string, unknown>,
-			confidence: 1.0,
-			relevanceDecay: null,
-			audit: { created_via: 'chat', tool: 'save_video' },
-		});
-
-		if (!envelope) {
-			return { success: false, error: 'Erro ao salvar vídeo no banco de dados' };
-		}
-
-		return {
-			success: true,
-			data: { id: envelope.id, title: params.title || params.url },
-		};
+		const saved = await writeEnvelope(
+			context,
+			'video',
+			'save_video',
+			params.title || params.url,
+			metadata,
+			'Erro ao salvar vídeo no banco de dados',
+		);
+		if (!saved.success) return saved;
+		return { success: true, data: { id: saved.data.id, title: params.title || params.url } };
 	} catch (error) {
 		return {
 			success: false,
@@ -427,27 +409,16 @@ export async function save_link(
 			og_description: params.description,
 		} as LinkMetadata;
 
-		const envelope = await projectionStore.writeEnvelope({
-			userId: context.userId,
-			sessionKey: context.conversationId,
-			sourceKind: 'link',
-			sourceChannel: context.provider,
-			normalizedContent: params.description || params.url,
-			rawArtifact: metadata,
-			artifactMetadata: metadata as Record<string, unknown>,
-			confidence: 1.0,
-			relevanceDecay: null,
-			audit: { created_via: 'chat', tool: 'save_link' },
-		});
-
-		if (!envelope) {
-			return { success: false, error: 'Erro ao salvar link no banco de dados' };
-		}
-
-		return {
-			success: true,
-			data: { id: envelope.id, title: params.description || params.url },
-		};
+		const saved = await writeEnvelope(
+			context,
+			'link',
+			'save_link',
+			params.description || params.url,
+			metadata,
+			'Erro ao salvar link no banco de dados',
+		);
+		if (!saved.success) return saved;
+		return { success: true, data: { id: saved.data.id, title: params.description || params.url } };
 	} catch (error) {
 		return {
 			success: false,
@@ -1522,26 +1493,18 @@ export async function save_book(
 				};
 			}
 
-			const envelope = await projectionStore.writeEnvelope({
-				userId: context.userId,
-				sessionKey: context.conversationId,
-				sourceKind: 'book',
-				sourceChannel: context.provider,
-				normalizedContent: params.title,
-				rawArtifact: metadata,
-				artifactMetadata: metadata as Record<string, unknown>,
-				confidence: 1.0,
-				relevanceDecay: null,
-				audit: { created_via: 'chat', tool: 'save_book' },
-			});
-
-			if (!envelope) {
-				return { success: false, error: 'Erro ao salvar livro no banco de dados' };
-			}
-
+			const saved = await writeEnvelope(
+				context,
+				'book',
+				'save_book',
+				params.title,
+				metadata,
+				'Erro ao salvar livro no banco de dados',
+			);
+			if (!saved.success) return saved;
 			return {
 				success: true,
-				data: { id: envelope.id, title: params.title },
+				data: { id: saved.data.id, title: params.title },
 			};
 		}
 
@@ -1558,24 +1521,18 @@ export async function save_book(
 				google_books_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
 			} as BookMetadata;
 
-			const envelope = await projectionStore.writeEnvelope({
-				userId: context.userId,
-				sessionKey: context.conversationId,
-				sourceKind: 'book',
-				sourceChannel: context.provider,
-				normalizedContent: params.title,
-				rawArtifact: fallbackMetadata,
-				artifactMetadata: fallbackMetadata as Record<string, unknown>,
-				confidence: 1.0,
-				relevanceDecay: null,
-				audit: { created_via: 'chat', tool: 'save_book' },
-			});
-			if (!envelope) {
-				return { success: false, error: 'Erro ao salvar livro no banco de dados' };
-			}
+			const saved = await writeEnvelope(
+				context,
+				'book',
+				'save_book',
+				params.title,
+				fallbackMetadata,
+				'Erro ao salvar livro no banco de dados',
+			);
+			if (!saved.success) return saved;
 			return {
 				success: true,
-				data: { id: envelope.id, title: params.title },
+				data: { id: saved.data.id, title: params.title },
 			};
 		}
 
@@ -1668,26 +1625,18 @@ export async function save_music(
 				};
 			}
 
-			const envelope = await projectionStore.writeEnvelope({
-				userId: context.userId,
-				sessionKey: context.conversationId,
-				sourceKind: 'music',
-				sourceChannel: context.provider,
-				normalizedContent: params.title,
-				rawArtifact: metadata,
-				artifactMetadata: metadata as Record<string, unknown>,
-				confidence: 1.0,
-				relevanceDecay: null,
-				audit: { created_via: 'chat', tool: 'save_music' },
-			});
-
-			if (!envelope) {
-				return { success: false, error: 'Erro ao salvar música no banco de dados' };
-			}
-
+			const saved = await writeEnvelope(
+				context,
+				'music',
+				'save_music',
+				params.title,
+				metadata,
+				'Erro ao salvar música no banco de dados',
+			);
+			if (!saved.success) return saved;
 			return {
 				success: true,
-				data: { id: envelope.id, title: params.title },
+				data: { id: saved.data.id, title: params.title },
 			};
 		}
 
@@ -1707,24 +1656,18 @@ export async function save_music(
 				spotify_url: 'https://open.spotify.com',
 			} as MusicMetadata;
 
-			const envelope = await projectionStore.writeEnvelope({
-				userId: context.userId,
-				sessionKey: context.conversationId,
-				sourceKind: 'music',
-				sourceChannel: context.provider,
-				normalizedContent: params.title,
-				rawArtifact: fallbackMetadata,
-				artifactMetadata: fallbackMetadata as Record<string, unknown>,
-				confidence: 1.0,
-				relevanceDecay: null,
-				audit: { created_via: 'chat', tool: 'save_music' },
-			});
-			if (!envelope) {
-				return { success: false, error: 'Erro ao salvar música no banco de dados' };
-			}
+			const saved = await writeEnvelope(
+				context,
+				'music',
+				'save_music',
+				params.title,
+				fallbackMetadata,
+				'Erro ao salvar música no banco de dados',
+			);
+			if (!saved.success) return saved;
 			return {
 				success: true,
-				data: { id: envelope.id, title: params.title },
+				data: { id: saved.data.id, title: params.title },
 			};
 		}
 
@@ -1785,24 +1728,18 @@ export async function save_image(
 				description: params.description,
 			} as ImageMetadata;
 
-			const envelope = await projectionStore.writeEnvelope({
-				userId: context.userId,
-				sessionKey: context.conversationId,
-				sourceKind: 'image',
-				sourceChannel: context.provider,
-				normalizedContent: params.description || params.url,
-				rawArtifact: imgMetadata,
-				artifactMetadata: imgMetadata as Record<string, unknown>,
-				confidence: 1.0,
-				relevanceDecay: null,
-				audit: { created_via: 'chat', tool: 'save_image' },
-			});
-			if (!envelope) {
-				return { success: false, error: 'Erro ao salvar imagem no banco de dados' };
-			}
+			const saved = await writeEnvelope(
+				context,
+				'image',
+				'save_image',
+				params.description || params.url,
+				imgMetadata,
+				'Erro ao salvar imagem no banco de dados',
+			);
+			if (!saved.success) return saved;
 			return {
 				success: true,
-				data: { id: envelope.id, title: params.description || params.url },
+				data: { id: saved.data.id, title: params.description || params.url },
 			};
 		}
 
@@ -1877,29 +1814,18 @@ export async function save_memory(
 			};
 		}
 
-		const envelope = await projectionStore.writeEnvelope({
-			userId: context.userId,
-			sessionKey: context.conversationId,
-			sourceKind: 'memory',
-			sourceChannel: context.provider,
-			normalizedContent: params.content,
-			rawArtifact: metadata,
-			artifactMetadata: metadata as Record<string, unknown>,
-			confidence: 1.0,
-			relevanceDecay: null,
-			audit: { created_via: 'chat', tool: 'save_memory' },
-		});
-
-		if (!envelope) {
-			return {
-				success: false,
-				error: 'Erro ao criar memória no banco de dados',
-			};
-		}
-
+		const saved = await writeEnvelope(
+			context,
+			'memory',
+			'save_memory',
+			params.content,
+			metadata,
+			'Erro ao criar memória no banco de dados',
+		);
+		if (!saved.success) return saved;
 		return {
 			success: true,
-			data: { id: envelope.id, title: params.content.slice(0, 100) },
+			data: { id: saved.data.id, title: params.content.slice(0, 100) },
 		};
 	} catch (error) {
 		return {
