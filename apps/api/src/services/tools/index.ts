@@ -236,9 +236,13 @@ export async function save_movie(
 			audit: { created_via: 'chat', tool: 'save_movie' },
 		});
 
+		if (!envelope) {
+			return { success: false, error: 'Erro ao salvar filme no banco de dados' };
+		}
+
 		return {
 			success: true,
-			data: { id: envelope?.id, title: params.title },
+			data: { id: envelope.id, title: params.title },
 		};
 	} catch (error) {
 		return {
@@ -334,9 +338,13 @@ export async function save_tv_show(
 			audit: { created_via: 'chat', tool: 'save_tv_show' },
 		});
 
+		if (!envelope) {
+			return { success: false, error: 'Erro ao salvar série no banco de dados' };
+		}
+
 		return {
 			success: true,
-			data: { id: envelope?.id, title: params.title },
+			data: { id: envelope.id, title: params.title },
 		};
 	} catch (error) {
 		return {
@@ -382,9 +390,13 @@ export async function save_video(
 			audit: { created_via: 'chat', tool: 'save_video' },
 		});
 
+		if (!envelope) {
+			return { success: false, error: 'Erro ao salvar vídeo no banco de dados' };
+		}
+
 		return {
 			success: true,
-			data: { id: envelope?.id, title: params.title || params.url },
+			data: { id: envelope.id, title: params.title || params.url },
 		};
 	} catch (error) {
 		return {
@@ -428,9 +440,13 @@ export async function save_link(
 			audit: { created_via: 'chat', tool: 'save_link' },
 		});
 
+		if (!envelope) {
+			return { success: false, error: 'Erro ao salvar link no banco de dados' };
+		}
+
 		return {
 			success: true,
-			data: { id: envelope?.id, title: params.description || params.url },
+			data: { id: envelope.id, title: params.description || params.url },
 		};
 	} catch (error) {
 		return {
@@ -1519,9 +1535,13 @@ export async function save_book(
 				audit: { created_via: 'chat', tool: 'save_book' },
 			});
 
+			if (!envelope) {
+				return { success: false, error: 'Erro ao salvar livro no banco de dados' };
+			}
+
 			return {
 				success: true,
-				data: { id: envelope?.id, title: params.title },
+				data: { id: envelope.id, title: params.title },
 			};
 		}
 
@@ -1550,9 +1570,12 @@ export async function save_book(
 				relevanceDecay: null,
 				audit: { created_via: 'chat', tool: 'save_book' },
 			});
+			if (!envelope) {
+				return { success: false, error: 'Erro ao salvar livro no banco de dados' };
+			}
 			return {
 				success: true,
-				data: { id: envelope?.id, title: params.title },
+				data: { id: envelope.id, title: params.title },
 			};
 		}
 
@@ -1658,9 +1681,13 @@ export async function save_music(
 				audit: { created_via: 'chat', tool: 'save_music' },
 			});
 
+			if (!envelope) {
+				return { success: false, error: 'Erro ao salvar música no banco de dados' };
+			}
+
 			return {
 				success: true,
-				data: { id: envelope?.id, title: params.title },
+				data: { id: envelope.id, title: params.title },
 			};
 		}
 
@@ -1692,9 +1719,12 @@ export async function save_music(
 				relevanceDecay: null,
 				audit: { created_via: 'chat', tool: 'save_music' },
 			});
+			if (!envelope) {
+				return { success: false, error: 'Erro ao salvar música no banco de dados' };
+			}
 			return {
 				success: true,
-				data: { id: envelope?.id, title: params.title },
+				data: { id: envelope.id, title: params.title },
 			};
 		}
 
@@ -1767,9 +1797,12 @@ export async function save_image(
 				relevanceDecay: null,
 				audit: { created_via: 'chat', tool: 'save_image' },
 			});
+			if (!envelope) {
+				return { success: false, error: 'Erro ao salvar imagem no banco de dados' };
+			}
 			return {
 				success: true,
-				data: { id: envelope?.id, title: params.description || params.url },
+				data: { id: envelope.id, title: params.description || params.url },
 			};
 		}
 

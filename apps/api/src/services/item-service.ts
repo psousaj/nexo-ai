@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { db } from '@/db';
 import { memoryItems, semanticExternalItems } from '@/db/schema';
+import { memoryEnvelopes } from '@/db/schema/memory-envelopes';
 import { captureException } from '@/sentry';
 import type { ItemMetadata, ItemType, MovieMetadata, TVShowMetadata } from '@/types/index';
 import { loggers } from '@/utils/logger';
@@ -35,68 +36,18 @@ export class ItemService {
 		contentHash?: string;
 		metadata?: ItemMetadata;
 	}): Promise<DuplicateCheckResult> {
-		const { userId, type, externalId, title, metadata } = params;
+		const { userId, type, externalId, title } = params;
 
-		// Gera hash do conteúdo
-		const contentHash = this.generateContentHash({
-			type,
-			title: title || '',
-			metadata,
-		});
-
-		// 1. Verifica por contentHash (mais preciso)
-		if (contentHash) {
-			const [existing] = await db
-				.select()
-				.from(memoryItems)
-				.where(and(eq(memoryItems.userId, userId), eq(memoryItems.contentHash, contentHash)))
-				.limit(1);
-
-			if (existing) {
-				return {
-					isDuplicate: true,
-					existingItem: {
-						id: existing.id,
-						title: existing.title,
-						type: existing.type as ItemType,
-						createdAt: existing.createdAt,
-					},
-				};
-			}
-		}
-
-		// 2. Verifica por externalId (fallback)
-		if (externalId) {
-			const [existing] = await db
-				.select()
-				.from(memoryItems)
-				.where(and(eq(memoryItems.userId, userId), eq(memoryItems.type, type), eq(memoryItems.externalId, externalId)))
-				.limit(1);
-
-			if (existing) {
-				return {
-					isDuplicate: true,
-					existingItem: {
-						id: existing.id,
-						title: existing.title,
-						type: existing.type as ItemType,
-						createdAt: existing.createdAt,
-					},
-				};
-			}
-		}
-
-		// Fallback: busca por título similar (normalizado)
+		// 1. Verifica por normalizedContent + userId + sourceKind (KISS: texto exato)
 		if (title) {
-			const normalizedTitle = this.normalizeTitle(title);
 			const [existing] = await db
 				.select()
-				.from(memoryItems)
+				.from(memoryEnvelopes)
 				.where(
 					and(
-						eq(memoryItems.userId, userId),
-						eq(memoryItems.type, type),
-						sql`LOWER(REGEXP_REPLACE(${memoryItems.title}, '[^a-zA-Z0-9]', '', 'g')) = ${normalizedTitle}`,
+						eq(memoryEnvelopes.userId, userId),
+						eq(memoryEnvelopes.sourceKind, type),
+						eq(memoryEnvelopes.normalizedContent, title),
 					),
 				)
 				.limit(1);
@@ -106,8 +57,35 @@ export class ItemService {
 					isDuplicate: true,
 					existingItem: {
 						id: existing.id,
-						title: existing.title,
-						type: existing.type as ItemType,
+						title: existing.normalizedContent,
+						type,
+						createdAt: existing.createdAt,
+					},
+				};
+			}
+		}
+
+		// 2. Verifica por externalId no rawArtifact JSONB (spotify_id, google_books_id)
+		if (externalId) {
+			const [existing] = await db
+				.select()
+				.from(memoryEnvelopes)
+				.where(
+					and(
+						eq(memoryEnvelopes.userId, userId),
+						eq(memoryEnvelopes.sourceKind, type),
+						sql`${memoryEnvelopes.rawArtifact}->>'spotify_id' = ${externalId} OR ${memoryEnvelopes.rawArtifact}->>'google_books_id' = ${externalId}`,
+					),
+				)
+				.limit(1);
+
+			if (existing) {
+				return {
+					isDuplicate: true,
+					existingItem: {
+						id: existing.id,
+						title: existing.normalizedContent,
+						type,
 						createdAt: existing.createdAt,
 					},
 				};
