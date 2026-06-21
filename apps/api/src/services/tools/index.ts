@@ -5,6 +5,7 @@
  * Entradas validadas, saídas previsíveis, zero decisão.
  */
 
+import { PostgresProjectionStore } from '@/core/memory/projection-store';
 import { conversationService } from '@/services/conversation-service';
 import { getRandomLogMessage, toolLogs } from '@/services/conversation/logMessages';
 import { enrichmentService } from '@/services/enrichment';
@@ -42,6 +43,9 @@ export interface ToolOutput {
 	error?: string;
 }
 
+// ProjectionStore instance for writing memory envelopes (Path A)
+const projectionStore = new PostgresProjectionStore();
+
 // ============================================================================
 // SAVE TOOLS - Contratos específicos por tipo
 // ============================================================================
@@ -74,35 +78,49 @@ export async function save_note(
 	}
 
 	try {
-		const result = await itemService.createItem({
+		const metadata = {
+			full_content: params.content,
+			created_via: 'chat',
+		} as NoteMetadata;
+
+		// Verificar duplicata via ItemService (leitura ainda funciona)
+		const dupCheck = await itemService.checkDuplicate({
 			userId: context.userId,
 			type: 'note',
 			title: params.content.slice(0, 100),
-			metadata: {
-				full_content: params.content,
-				created_via: 'chat',
-			} as NoteMetadata,
+			metadata,
 		});
 
-		// Verificar se é duplicata
-		if (result.isDuplicate && result.existingItem) {
+		if (dupCheck.isDuplicate && dupCheck.existingItem) {
 			loggers.tools.warn('⚠️ Nota duplicada detectada');
 			return {
 				success: false,
 				error: 'duplicate',
-				message: `⚠️ Esta nota já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+				message: `⚠️ Esta nota já foi salva em ${new Date(dupCheck.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
 			};
 		}
 
-		// Verificar se item foi criado com sucesso
-		if (!result.item) {
+		const envelope = await projectionStore.writeEnvelope({
+			userId: context.userId,
+			sessionKey: context.conversationId,
+			sourceKind: 'note',
+			sourceChannel: context.provider,
+			normalizedContent: params.content,
+			rawArtifact: metadata,
+			artifactMetadata: metadata as Record<string, unknown>,
+			confidence: 1.0,
+			relevanceDecay: null,
+			audit: { created_via: 'chat', tool: 'save_note' },
+		});
+
+		if (!envelope) {
 			loggers.tools.error(
 				`❌ ${getRandomLogMessage(toolLogs.error, {
 					tool: 'save_note',
-					error: 'itemService.createItem retornou null sem ser duplicata',
+					error: 'projectionStore.writeEnvelope retornou null',
 				})}`,
 			);
-			loggers.tools.error({ result }, '❌ Erro ao criar nota no banco de dados');
+			loggers.tools.error({ envelope }, '❌ Erro ao criar nota no banco de dados');
 			return {
 				success: false,
 				error: 'Erro ao criar nota no banco de dados',
@@ -110,11 +128,11 @@ export async function save_note(
 		}
 
 		loggers.tools.info(`✅ ${getRandomLogMessage(toolLogs.success, { tool: 'save_note' })}`);
-		loggers.tools.info({ id: result.item.id }, '📝 Nota salva');
+		loggers.tools.info({ id: envelope.id }, '📝 Nota salva');
 
 		return {
 			success: true,
-			data: { id: result.item.id, title: result.item.title },
+			data: { id: envelope.id, title: params.content.slice(0, 100) },
 		};
 	} catch (error) {
 		loggers.tools.error(
@@ -205,16 +223,22 @@ export async function save_movie(
 				);
 		}
 
-		const item = await itemService.createItem({
+		const envelope = await projectionStore.writeEnvelope({
 			userId: context.userId,
-			type: 'movie',
-			title: params.title,
-			metadata,
+			sessionKey: context.conversationId,
+			sourceKind: 'movie',
+			sourceChannel: context.provider,
+			normalizedContent: params.title,
+			rawArtifact: metadata,
+			artifactMetadata: metadata as Record<string, unknown>,
+			confidence: 1.0,
+			relevanceDecay: null,
+			audit: { created_via: 'chat', tool: 'save_movie' },
 		});
 
 		return {
 			success: true,
-			data: { id: item.item.id, title: item.item.title },
+			data: { id: envelope?.id, title: params.title },
 		};
 	} catch (error) {
 		return {
@@ -297,16 +321,22 @@ export async function save_tv_show(
 				);
 		}
 
-		const item = await itemService.createItem({
+		const envelope = await projectionStore.writeEnvelope({
 			userId: context.userId,
-			type: 'tv_show',
-			title: params.title,
-			metadata,
+			sessionKey: context.conversationId,
+			sourceKind: 'tv_show',
+			sourceChannel: context.provider,
+			normalizedContent: params.title,
+			rawArtifact: metadata,
+			artifactMetadata: metadata as Record<string, unknown>,
+			confidence: 1.0,
+			relevanceDecay: null,
+			audit: { created_via: 'chat', tool: 'save_tv_show' },
 		});
 
 		return {
 			success: true,
-			data: { id: item.item.id, title: item.item.title },
+			data: { id: envelope?.id, title: params.title },
 		};
 	} catch (error) {
 		return {
@@ -332,21 +362,29 @@ export async function save_video(
 	}
 
 	try {
-		const item = await itemService.createItem({
+		const metadata = {
+			video_id: params.url,
+			platform: 'youtube',
+			channel_name: '',
+			duration: 0,
+		} as VideoMetadata;
+
+		const envelope = await projectionStore.writeEnvelope({
 			userId: context.userId,
-			type: 'video',
-			title: params.title || params.url,
-			metadata: {
-				video_id: params.url,
-				platform: 'youtube',
-				channel_name: '',
-				duration: 0,
-			} as VideoMetadata,
+			sessionKey: context.conversationId,
+			sourceKind: 'video',
+			sourceChannel: context.provider,
+			normalizedContent: params.title || params.url,
+			rawArtifact: metadata,
+			artifactMetadata: metadata as Record<string, unknown>,
+			confidence: 1.0,
+			relevanceDecay: null,
+			audit: { created_via: 'chat', tool: 'save_video' },
 		});
 
 		return {
 			success: true,
-			data: { id: item.item.id, title: item.item.title },
+			data: { id: envelope?.id, title: params.title || params.url },
 		};
 	} catch (error) {
 		return {
@@ -372,19 +410,27 @@ export async function save_link(
 	}
 
 	try {
-		const item = await itemService.createItem({
+		const metadata = {
+			url: params.url,
+			og_description: params.description,
+		} as LinkMetadata;
+
+		const envelope = await projectionStore.writeEnvelope({
 			userId: context.userId,
-			type: 'link',
-			title: params.description || params.url,
-			metadata: {
-				url: params.url,
-				og_description: params.description,
-			} as LinkMetadata,
+			sessionKey: context.conversationId,
+			sourceKind: 'link',
+			sourceChannel: context.provider,
+			normalizedContent: params.description || params.url,
+			rawArtifact: metadata,
+			artifactMetadata: metadata as Record<string, unknown>,
+			confidence: 1.0,
+			relevanceDecay: null,
+			audit: { created_via: 'chat', tool: 'save_link' },
 		});
 
 		return {
 			success: true,
-			data: { id: item.item.id, title: item.item.title },
+			data: { id: envelope?.id, title: params.description || params.url },
 		};
 	} catch (error) {
 		return {
@@ -1443,24 +1489,39 @@ export async function save_book(
 				google_books_id: params.google_books_id,
 			};
 
-			const result = await itemService.createItem({
+			// Verificar duplicata via ItemService (leitura ainda funciona)
+			const dupCheck = await itemService.checkDuplicate({
 				userId: context.userId,
 				type: 'book',
 				title: params.title,
+				externalId: params.google_books_id,
 				metadata,
 			});
 
-			if (result.isDuplicate && result.existingItem) {
+			if (dupCheck.isDuplicate && dupCheck.existingItem) {
 				return {
 					success: false,
 					error: 'duplicate',
-					message: `⚠️ Este livro já foi salvo em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+					message: `⚠️ Este livro já foi salvo em ${new Date(dupCheck.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
 				};
 			}
 
+			const envelope = await projectionStore.writeEnvelope({
+				userId: context.userId,
+				sessionKey: context.conversationId,
+				sourceKind: 'book',
+				sourceChannel: context.provider,
+				normalizedContent: params.title,
+				rawArtifact: metadata,
+				artifactMetadata: metadata as Record<string, unknown>,
+				confidence: 1.0,
+				relevanceDecay: null,
+				audit: { created_via: 'chat', tool: 'save_book' },
+			});
+
 			return {
 				success: true,
-				data: { id: result.item?.id, title: params.title },
+				data: { id: envelope?.id, title: params.title },
 			};
 		}
 
@@ -1470,20 +1531,28 @@ export async function save_book(
 		if (!found) {
 			// Fallback: salva sem enriquecimento
 			loggers.tools.warn({ title: params.title }, '⚠️ Google Books sem resultado, salvando livro sem metadata');
-			const result = await itemService.createItem({
-				userId: context.userId,
-				type: 'book',
+			const fallbackMetadata = {
 				title: params.title,
-				metadata: {
-					title: params.title,
-					authors: params.author ? [params.author] : [],
-					genres: [],
-					google_books_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
-				} as BookMetadata,
+				authors: params.author ? [params.author] : [],
+				genres: [],
+				google_books_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
+			} as BookMetadata;
+
+			const envelope = await projectionStore.writeEnvelope({
+				userId: context.userId,
+				sessionKey: context.conversationId,
+				sourceKind: 'book',
+				sourceChannel: context.provider,
+				normalizedContent: params.title,
+				rawArtifact: fallbackMetadata,
+				artifactMetadata: fallbackMetadata as Record<string, unknown>,
+				confidence: 1.0,
+				relevanceDecay: null,
+				audit: { created_via: 'chat', tool: 'save_book' },
 			});
 			return {
 				success: true,
-				data: { id: result.item?.id, title: params.title },
+				data: { id: envelope?.id, title: params.title },
 			};
 		}
 
@@ -1559,24 +1628,39 @@ export async function save_music(
 				spotify_url: params.spotify_url ?? `https://open.spotify.com/track/${params.spotify_id}`,
 			};
 
-			const result = await itemService.createItem({
+			// Verificar duplicata via ItemService (leitura ainda funciona)
+			const dupCheck = await itemService.checkDuplicate({
 				userId: context.userId,
 				type: 'music',
 				title: params.title,
+				externalId: params.spotify_id,
 				metadata,
 			});
 
-			if (result.isDuplicate && result.existingItem) {
+			if (dupCheck.isDuplicate && dupCheck.existingItem) {
 				return {
 					success: false,
 					error: 'duplicate',
-					message: `⚠️ Esta música já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+					message: `⚠️ Esta música já foi salva em ${new Date(dupCheck.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
 				};
 			}
 
+			const envelope = await projectionStore.writeEnvelope({
+				userId: context.userId,
+				sessionKey: context.conversationId,
+				sourceKind: 'music',
+				sourceChannel: context.provider,
+				normalizedContent: params.title,
+				rawArtifact: metadata,
+				artifactMetadata: metadata as Record<string, unknown>,
+				confidence: 1.0,
+				relevanceDecay: null,
+				audit: { created_via: 'chat', tool: 'save_music' },
+			});
+
 			return {
 				success: true,
-				data: { id: result.item?.id, title: params.title },
+				data: { id: envelope?.id, title: params.title },
 			};
 		}
 
@@ -1585,24 +1669,32 @@ export async function save_music(
 
 		if (!found) {
 			loggers.tools.warn({ title: params.title }, '⚠️ Spotify sem resultado, salvando música sem metadata');
-			const result = await itemService.createItem({
-				userId: context.userId,
-				type: 'music',
+			const fallbackMetadata = {
 				title: params.title,
-				metadata: {
-					title: params.title,
-					artist: params.artist ?? '',
-					artists: params.artist ? [params.artist] : [],
-					album: 'Unknown album',
-					duration_ms: 0,
-					genres: [],
-					spotify_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
-					spotify_url: 'https://open.spotify.com',
-				} as MusicMetadata,
+				artist: params.artist ?? '',
+				artists: params.artist ? [params.artist] : [],
+				album: 'Unknown album',
+				duration_ms: 0,
+				genres: [],
+				spotify_id: `manual:${params.title.toLowerCase().trim().replace(/\s+/g, '-')}`,
+				spotify_url: 'https://open.spotify.com',
+			} as MusicMetadata;
+
+			const envelope = await projectionStore.writeEnvelope({
+				userId: context.userId,
+				sessionKey: context.conversationId,
+				sourceKind: 'music',
+				sourceChannel: context.provider,
+				normalizedContent: params.title,
+				rawArtifact: fallbackMetadata,
+				artifactMetadata: fallbackMetadata as Record<string, unknown>,
+				confidence: 1.0,
+				relevanceDecay: null,
+				audit: { created_via: 'chat', tool: 'save_music' },
 			});
 			return {
 				success: true,
-				data: { id: result.item?.id, title: params.title },
+				data: { id: envelope?.id, title: params.title },
 			};
 		}
 
@@ -1658,18 +1750,26 @@ export async function save_image(
 
 		if (!metadata) {
 			// Fallback: salva sem metadata de imagem
-			const result = await itemService.createItem({
+			const imgMetadata = {
+				url: params.url,
+				description: params.description,
+			} as ImageMetadata;
+
+			const envelope = await projectionStore.writeEnvelope({
 				userId: context.userId,
-				type: 'image',
-				title: params.description || params.url,
-				metadata: {
-					url: params.url,
-					description: params.description,
-				} as ImageMetadata,
+				sessionKey: context.conversationId,
+				sourceKind: 'image',
+				sourceChannel: context.provider,
+				normalizedContent: params.description || params.url,
+				rawArtifact: imgMetadata,
+				artifactMetadata: imgMetadata as Record<string, unknown>,
+				confidence: 1.0,
+				relevanceDecay: null,
+				audit: { created_via: 'chat', tool: 'save_image' },
 			});
 			return {
 				success: true,
-				data: { id: result.item?.id, title: params.description || params.url },
+				data: { id: envelope?.id, title: params.description || params.url },
 			};
 		}
 
@@ -1720,28 +1820,44 @@ export async function save_memory(
 	}
 
 	try {
-		const result = await itemService.createItem({
+		const metadata = {
+			content: params.content,
+			semantic_type: params.semantic_type,
+			tags: params.tags,
+			source: params.source,
+			created_via: 'chat',
+		} as MemoryMetadata;
+
+		// Verificar duplicata via ItemService (leitura ainda funciona)
+		const dupCheck = await itemService.checkDuplicate({
 			userId: context.userId,
 			type: 'memory',
 			title: params.content.slice(0, 100),
-			metadata: {
-				content: params.content,
-				semantic_type: params.semantic_type,
-				tags: params.tags,
-				source: params.source,
-				created_via: 'chat',
-			} as MemoryMetadata,
+			metadata,
 		});
 
-		if (result.isDuplicate && result.existingItem) {
+		if (dupCheck.isDuplicate && dupCheck.existingItem) {
 			return {
 				success: false,
 				error: 'duplicate',
-				message: `⚠️ Esta memória já foi salva em ${new Date(result.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
+				message: `⚠️ Esta memória já foi salva em ${new Date(dupCheck.existingItem.createdAt).toLocaleDateString('pt-BR')}.`,
 			};
 		}
 
-		if (!result.item) {
+		const envelope = await projectionStore.writeEnvelope({
+			userId: context.userId,
+			sessionKey: context.conversationId,
+			sourceKind: 'memory',
+			sourceChannel: context.provider,
+			normalizedContent: params.content,
+			rawArtifact: metadata,
+			artifactMetadata: metadata as Record<string, unknown>,
+			confidence: 1.0,
+			relevanceDecay: null,
+			audit: { created_via: 'chat', tool: 'save_memory' },
+		});
+
+		if (!envelope) {
 			return {
 				success: false,
 				error: 'Erro ao criar memória no banco de dados',
@@ -1750,7 +1866,7 @@ export async function save_memory(
 
 		return {
 			success: true,
-			data: { id: result.item.id, title: result.item.title },
+			data: { id: envelope.id, title: params.content.slice(0, 100) },
 		};
 	} catch (error) {
 		return {
