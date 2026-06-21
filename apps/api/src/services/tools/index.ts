@@ -1,447 +1,243 @@
 // ============================================================================
-// UPDATE TOOLS
+// CONTEXT RESOLUTION TOOL
 // ============================================================================
 
 /**
- * Tool: update_user_settings
- * Atualiza configurações do usuário (nome do assistente, etc)
+ * Resolve uma referência contextual do usuário ("esse primeiro", "aquele filme", "era esse")
  */
-export async function update_user_settings(
+export async function resolve_context_reference(
 	context: ToolContext,
-	params: {
-		assistantName?: string;
-	},
+	params: { reference_hint: string },
 ): Promise<ToolOutput> {
-	try {
-		const { preferencesService } = await import('@/services/preferences-service');
+	const { conversationId } = context;
+	const { reference_hint } = params;
 
-		if (params.assistantName !== undefined) {
-			await preferencesService.setAssistantName(context.userId, params.assistantName);
+	const history = await conversationService.getHistory(conversationId, 6);
+	const assistantMessages = history.filter((m) => m.role === 'assistant').reverse();
 
-			return {
-				success: true,
-				message: params.assistantName ? `Nome atualizado para "${params.assistantName}"` : 'Nome resetado para "Nexo"',
-			};
+	if (assistantMessages.length === 0) {
+		return {
+			success: false,
+			error: 'Nenhuma mensagem do assistente encontrada no histórico recente.',
+		};
+	}
+
+	const entityPatterns = [
+		/['"]([^'"]{2,60})['"]/g,
+		/(?:como|seria|parece|chama(?:do)?|título|chamado)\s+['"]?([A-Z][\w\s:–-]{1,50})['"]?/gi,
+		/(?:^|\n)\d+[.)\s]+([A-Z][\w\s:–-]{1,50})/gm,
+	];
+
+	interface Candidate {
+		entity: string;
+		type: 'movie' | 'tv_show' | 'video' | 'link' | 'note' | null;
+		source: string;
+	}
+
+	const candidates: Candidate[] = [];
+
+	for (const msg of assistantMessages) {
+		for (const pattern of entityPatterns) {
+			let match: RegExpExecArray | null;
+			const re = new RegExp(pattern.source, pattern.flags);
+			while ((match = re.exec(msg.content)) !== null) {
+				const entity = match[1]?.trim();
+				if (entity && entity.length >= 2) {
+					candidates.push({ entity, type: null, source: msg.content.slice(0, 120) });
+				}
+			}
 		}
+		if (candidates.length > 0) break;
+	}
 
-		return { success: false, error: 'Nenhuma configuração fornecida' };
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao atualizar configurações');
+	if (candidates.length === 0) {
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao atualizar',
+			error: 'Não consegui identificar o item referenciado nas mensagens recentes.',
 		};
 	}
+
+	const best = candidates[0];
+
+	return {
+		success: true,
+		data: {
+			resolved: best.entity,
+			type: best.type,
+			confidence: candidates.length === 1 ? 0.9 : 0.7,
+			source_message: best.source,
+		},
+	};
 }
 
 // ============================================================================
-// PREFERENCES TOOLS
+// WEB SEARCH TOOL
 // ============================================================================
 
 /**
- * Tool: get_assistant_name
- * Retorna o nome customizado do assistente (ou null para default)
+ * Tool: web_search
  */
-export async function get_assistant_name(context: ToolContext, _params: {}): Promise<ToolOutput> {
-	try {
-		const { preferencesService } = await import('@/services/preferences-service');
-		const name = await preferencesService.getAssistantName(context.userId);
-
-		return {
-			success: true,
-			data: { name: name || 'Nexo' },
-		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao buscar nome do assistente');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao buscar preferências',
-		};
-	}
-}
-
-// ============================================================================
-// MEMORY SEARCH TOOLS (OpenClaw Pattern)
-// ============================================================================
-
-/**
- * Tool: memory_search
- * Search user memory using hybrid vector + keyword search
- */
-export async function memory_search(
-	context: ToolContext,
+export async function web_search(
+	_context: ToolContext,
 	params: {
 		query: string;
-		maxResults?: number;
-		types?: string[];
+		count?: number;
 	},
 ): Promise<ToolOutput> {
-	try {
-		const { searchMemory } = await import('@/services/memory-search');
-
-		const results = await searchMemory({
-			query: params.query,
-			userId: context.userId,
-			maxResults: params.maxResults || 10,
-			types: params.types,
-		});
-
-		loggers.tools.info({ query: params.query, resultsCount: results.length }, '✅ Memory search tool executed');
-
-		return {
-			success: true,
-			data: {
-				results: results.map((r) => ({
-					id: r.id,
-					type: r.type,
-					title: r.title,
-					metadata: r.metadata,
-					score: r.score,
-				})),
-				count: results.length,
-			},
-		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Memory search tool failed');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao buscar memória',
-		};
+	if (!params.query?.trim()) {
+		return { success: false, error: 'Query vazia' };
 	}
-}
 
-/**
- * Tool: memory_get
- * Get specific memory item by ID
- */
-export async function memory_get(
-	context: ToolContext,
-	params: {
-		id: string;
-	},
-): Promise<ToolOutput> {
 	try {
-		const { getMemoryItem } = await import('@/services/memory-search');
+		const results = await braveSearchService.search(params.query, params.count ?? 5);
 
-		const item = await getMemoryItem(params.id, context.userId);
-
-		if (!item) {
+		if (results.length === 0) {
 			return {
 				success: false,
-				error: 'Item não encontrado',
+				error: 'Nenhum resultado encontrado para a busca',
 			};
 		}
 
 		return {
 			success: true,
 			data: {
-				id: item.id,
-				type: item.type,
-				title: item.title,
-				metadata: item.metadata,
+				type: 'web_search' as const,
+				query: params.query,
+				results,
 			},
 		};
 	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Memory get tool failed');
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao buscar item',
-		};
-	}
-}
-
-/**
- * Tool: daily_log_search
- * Search daily logs for specific date or content
- */
-export async function daily_log_search(
-	context: ToolContext,
-	params: {
-		date?: string;
-		query?: string;
-	},
-): Promise<ToolOutput> {
-	try {
-		const { searchDailyLogs } = await import('@/services/memory-search');
-
-		const logs = await searchDailyLogs({
-			userId: context.userId,
-			date: params.date,
-			query: params.query,
-		});
-
-		return {
-			success: true,
-			data: {
-				logs,
-				count: logs.length,
-			},
-		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Daily log search tool failed');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao buscar diário',
+			error: error instanceof Error ? error.message : 'Erro ao buscar na web',
 		};
 	}
 }
 
 // ============================================================================
-// INTEGRATION TOOLS - Calendar, Todo, Reminders
+// ANALYZE URL TOOL
 // ============================================================================
 
+export type UrlContentType = 'movie' | 'tv_show' | 'music' | 'video' | 'book' | 'image' | 'link';
+export type TypeCategory = 'enrichable' | 'text';
+
+interface UrlAnalysisResult {
+	detected_type: UrlContentType;
+	type_category: TypeCategory;
+	title?: string;
+	metadata?: Record<string, unknown>;
+}
+
+const TYPE_CATEGORY: Record<UrlContentType, TypeCategory> = {
+	movie: 'enrichable',
+	tv_show: 'enrichable',
+	music: 'enrichable',
+	video: 'enrichable',
+	book: 'enrichable',
+	image: 'text',
+	link: 'text',
+};
+
+function detectTypeFromUrl(urlStr: string): UrlContentType | null {
+	try {
+		const url = new URL(urlStr);
+		const hostname = url.hostname.replace(/^www\./, '');
+		const pathname = url.pathname;
+
+		if (/\.(jpg|jpeg|png|gif|webp|svg|avif)(\?|$)/i.test(urlStr)) return 'image';
+		if (/^(i\.)?imgur\.com/.test(hostname)) return 'image';
+		if (hostname === 'unsplash.com' && pathname.startsWith('/photos/')) return 'image';
+		if (hostname === 'pexels.com' && pathname.startsWith('/photo/')) return 'image';
+		if (hostname === 'flickr.com' && pathname.startsWith('/photos/')) return 'image';
+		if (hostname === 'pinterest.com' && pathname.startsWith('/pin/')) return 'image';
+
+		if (hostname === 'youtube.com' && (pathname.startsWith('/watch') || pathname.startsWith('/shorts/'))) return 'video';
+		if (hostname === 'youtu.be') return 'video';
+		if (hostname === 'vimeo.com') return 'video';
+		if (hostname === 'dailymotion.com' && pathname.startsWith('/video/')) return 'video';
+		if (hostname === 'twitch.tv' && pathname.includes('/videos/')) return 'video';
+		if (hostname === 'kick.com' && pathname.includes('/video/')) return 'video';
+		if (hostname === 'tiktok.com' && pathname.includes('/video/')) return 'video';
+		if (hostname === 'instagram.com' && (pathname.startsWith('/reel/') || pathname.startsWith('/p/'))) return 'video';
+
+		if (hostname === 'open.spotify.com' && /\/(track|album|artist|playlist)\//.test(pathname)) return 'music';
+		if (hostname === 'music.apple.com') return 'music';
+		if (hostname === 'music.youtube.com') return 'music';
+		if (hostname === 'soundcloud.com') return 'music';
+		if (hostname === 'deezer.com' && /\/(track|album|artist)\//.test(pathname)) return 'music';
+		if (hostname === 'tidal.com' && /\/(track|album|artist)\//.test(pathname)) return 'music';
+		if (hostname === 'genius.com' && pathname.endsWith('-lyrics')) return 'music';
+		if (hostname === 'letras.mus.br') return 'music';
+
+		if (hostname === 'goodreads.com' && pathname.startsWith('/book/')) return 'book';
+		if ((hostname === 'amazon.com.br' || hostname === 'amazon.com') && pathname.startsWith('/dp/')) return 'book';
+		if (hostname === 'books.google.com' || (hostname === 'google.com' && pathname.startsWith('/books/'))) return 'book';
+		if (hostname === 'skoob.com.br' && pathname.startsWith('/livro/')) return 'book';
+		if (hostname === 'audible.com' && pathname.startsWith('/pd/')) return 'book';
+
+		if (hostname === 'themoviedb.org' && pathname.startsWith('/tv/')) return 'tv_show';
+		if (hostname === 'thetvdb.com' && pathname.startsWith('/series/')) return 'tv_show';
+		if (hostname === 'tv.apple.com' && pathname.startsWith('/show/')) return 'tv_show';
+		if (hostname === 'netflix.com' && pathname.startsWith('/title/')) return 'tv_show';
+		if (hostname === 'hbomax.com' && pathname.startsWith('/series/')) return 'tv_show';
+		if (hostname === 'disneyplus.com' && pathname.startsWith('/series/')) return 'tv_show';
+		if (hostname === 'globoplay.globo.com' && pathname.includes('/t/')) return 'tv_show';
+
+		if (hostname === 'imdb.com' && pathname.startsWith('/title/')) return 'movie';
+		if (hostname === 'themoviedb.org' && pathname.startsWith('/movie/')) return 'movie';
+		if (hostname === 'letterboxd.com' && pathname.startsWith('/film/')) return 'movie';
+		if (hostname === 'rottentomatoes.com' && pathname.startsWith('/m/')) return 'movie';
+		if (hostname === 'metacritic.com' && pathname.startsWith('/movie/')) return 'movie';
+		if (hostname === 'adorocinema.com' && pathname.startsWith('/filmes/')) return 'movie';
+		if (hostname === 'tv.apple.com' && pathname.startsWith('/movie/')) return 'movie';
+
+		return null;
+	} catch {
+		return null;
+	}
+}
+
 /**
- * Tool: list_calendar_events
+ * Tool: analyze_url
  */
-export async function list_calendar_events(
-	context: ToolContext,
+export async function analyze_url(
+	_context: ToolContext,
 	params: {
-		startDate?: string;
-		endDate?: string;
-		maxResults?: number;
+		url: string;
 	},
 ): Promise<ToolOutput> {
+	if (!params.url?.trim()) {
+		return { success: false, error: 'URL vazia' };
+	}
+
 	try {
-		const { hasGoogleCalendarConnected, listCalendarEvents } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
+		const detectedByPattern = detectTypeFromUrl(params.url);
+		const ogMetadata = await openGraphService.fetchMetadata(params.url);
 
-		const isConnected = await hasGoogleCalendarConnected(context.userId);
-		if (!isConnected) {
-			return {
-				success: false,
-				error: 'Você precisa conectar sua conta Google primeiro. Use o link no dashboard para conectar.',
-			};
-		}
+		const detected_type: UrlContentType = detectedByPattern ?? 'link';
+		const type_category: TypeCategory = TYPE_CATEGORY[detected_type];
 
-		let startDate: Date | undefined;
-		let endDate: Date | undefined;
-
-		if (params.startDate) {
-			const { parseNaturalDate } = await import('@/services/date-parser');
-			startDate = await parseNaturalDate(params.startDate);
-		}
-
-		if (params.endDate) {
-			const { parseNaturalDate } = await import('@/services/date-parser');
-			endDate = await parseNaturalDate(params.endDate);
-		}
-
-		const events = await listCalendarEvents(context.userId, startDate, endDate, params.maxResults || 10);
-
-		return {
-			success: true,
-			data: {
-				events: events.map((e) => ({
-					id: e.id,
-					title: e.title,
-					description: e.description,
-					start: e.start.toISOString(),
-					end: e.end?.toISOString(),
-					location: e.location,
-				})),
-				count: events.length,
+		const result: UrlAnalysisResult = {
+			detected_type,
+			type_category,
+			title: ogMetadata.og_title,
+			metadata: {
+				url: params.url,
+				og_title: ogMetadata.og_title,
+				og_description: ogMetadata.og_description,
+				og_image: ogMetadata.og_image,
+				domain: ogMetadata.domain,
 			},
 		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao listar eventos do calendário');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao listar eventos',
-		};
-	}
-}
-
-/**
- * Tool: create_calendar_event
- */
-export async function create_calendar_event(
-	context: ToolContext,
-	params: {
-		title: string;
-		startDate: string;
-		endDate?: string;
-		description?: string;
-		duration?: number;
-		location?: string;
-	},
-): Promise<ToolOutput> {
-	try {
-		const { hasGoogleCalendarConnected, createCalendarEvent: createEvent } = await import(
-			'@/services/integrations/google-calendar.service'
-		);
-
-		const isConnected = await hasGoogleCalendarConnected(context.userId);
-		if (!isConnected) {
-			return {
-				success: false,
-				error: 'Você precisa conectar sua conta Google primeiro.',
-			};
-		}
-
-		const { parseNaturalDate } = await import('@/services/date-parser');
-		const startDate = await parseNaturalDate(params.startDate);
-
-		let endDate: Date | undefined;
-		if (params.endDate) {
-			endDate = await parseNaturalDate(params.endDate);
-		} else if (params.duration) {
-			endDate = new Date(startDate.getTime() + params.duration * 60 * 1000);
-		} else {
-			endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-		}
-
-		const eventId = await createEvent(context.userId, {
-			title: params.title,
-			description: params.description,
-			startDate,
-			endDate,
-			location: params.location,
-		});
 
 		return {
 			success: true,
-			message: `Evento "${params.title}" criado com sucesso para ${startDate.toLocaleString('pt-BR')}`,
-			data: { eventId },
+			data: result,
 		};
 	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao criar evento no calendário');
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao criar evento',
-		};
-	}
-}
-
-/**
- * Tool: list_todos
- */
-export async function list_todos(context: ToolContext, _params: {}): Promise<ToolOutput> {
-	try {
-		const { hasMicrosoftTodoConnected, listTasks } = await import('@/services/integrations/microsoft-todo.service');
-
-		const isConnected = await hasMicrosoftTodoConnected(context.userId);
-		if (!isConnected) {
-			return {
-				success: false,
-				error: 'Você precisa conectar sua conta Microsoft primeiro.',
-			};
-		}
-
-		const tasks = await listTasks(context.userId);
-
-		return {
-			success: true,
-			data: {
-				tasks: tasks.map((t) => ({
-					id: t.id,
-					title: t.title,
-					description: t.description,
-					dueDateTime: t.dueDateTime?.toISOString(),
-					isCompleted: t.isCompleted,
-				})),
-				count: tasks.length,
-			},
-		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao listar tarefas');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao listar tarefas',
-		};
-	}
-}
-
-/**
- * Tool: create_todo
- */
-export async function create_todo(
-	context: ToolContext,
-	params: {
-		title: string;
-		description?: string;
-		dueDate?: string;
-	},
-): Promise<ToolOutput> {
-	try {
-		const { hasMicrosoftTodoConnected, createTask } = await import('@/services/integrations/microsoft-todo.service');
-
-		const isConnected = await hasMicrosoftTodoConnected(context.userId);
-		if (!isConnected) {
-			return {
-				success: false,
-				error: 'Você precisa conectar sua conta Microsoft primeiro.',
-			};
-		}
-
-		let dueDateTime: Date | undefined;
-		if (params.dueDate) {
-			const { parseNaturalDate } = await import('@/services/date-parser');
-			dueDateTime = await parseNaturalDate(params.dueDate);
-		}
-
-		const taskId = await createTask(context.userId, {
-			title: params.title,
-			description: params.description,
-			dueDateTime,
-		});
-
-		return {
-			success: true,
-			message: `Tarefa "${params.title}" criada com sucesso`,
-			data: { taskId },
-		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao criar tarefa');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao criar tarefa',
-		};
-	}
-}
-
-/**
- * Tool: schedule_reminder
- */
-export async function schedule_reminder(
-	context: ToolContext,
-	params: {
-		title: string;
-		description?: string;
-		when: string;
-	},
-): Promise<ToolOutput> {
-	try {
-		if (!context.provider || !context.externalId) {
-			return {
-				success: false,
-				error: 'Não foi possível identificar o canal para enviar o lembrete',
-			};
-		}
-
-		const { parseNaturalDate } = await import('@/services/date-parser');
-		const scheduledFor = await parseNaturalDate(params.when);
-
-		const { scheduleReminder } = await import('@/services/scheduler-service');
-		const reminderId = await scheduleReminder({
-			userId: context.userId,
-			title: params.title,
-			description: params.description,
-			scheduledFor,
-			provider: context.provider,
-			externalId: context.externalId,
-		});
-
-		return {
-			success: true,
-			message: `Lembrete agendado para ${scheduledFor.toLocaleString('pt-BR')}`,
-			data: { reminderId, scheduledFor: scheduledFor.toISOString() },
-		};
-	} catch (error) {
-		loggers.tools.error({ err: error }, '❌ Erro ao agendar lembrete');
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : 'Erro ao agendar lembrete',
+			error: error instanceof Error ? error.message : 'Erro ao analisar URL',
 		};
 	}
 }
