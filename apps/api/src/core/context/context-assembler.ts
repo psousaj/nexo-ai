@@ -124,6 +124,11 @@ Sempre que houver ambiguidade:
 			systemPromptParts.push(`## Long-term Memory\n${memorySummaries.map((s) => `- ${s}`).join('\n')}`);
 		}
 
+		systemPromptParts.push(`## Regras de Ferramentas
+- Se uma tool retornar \`success: false\`, NUNCA diga que salvou ou que a operação foi concluída.
+- Informe o erro ao usuário exatamente como a tool retornou.
+- A tool é a fonte da verdade. Se ela falhou, a operação falhou.`);
+
 		return {
 			systemPrompt: systemPromptParts.join('\n\n'),
 			sessionContext: input.sessionSource ? new SessionContextBuilder().build(input.sessionSource) : '',
