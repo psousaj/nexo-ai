@@ -1,4 +1,7 @@
 import type { MemoryRegistry } from '@/core/registries/memory-registry';
+import { db } from '@/db';
+import { accounts } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { SessionContextBuilder } from '../session/session-context-builder';
 import type { SessionSource } from '../session/session-context-builder';
 
@@ -130,7 +133,30 @@ Sempre que houver ambiguidade:
 
 	async buildFromSessionKey(sessionKey: string, userMessage?: string, sessionSource?: SessionSource) {
 		const parts = sessionKey.split(':');
-		const userId = parts[4] ?? 'unknown';
+		// sessionKey format: "agent:main:{provider}:direct:{externalId}"
+		// parts[2] = provider (e.g. "telegram")
+		// parts[4] = externalId/chatId (e.g. "8061789835")
+		const provider = parts[2];
+		const externalId = parts[4];
+		let userId = 'unknown';
+
+		if (provider && externalId) {
+			try {
+				const result = await db
+					.select({ userId: accounts.userId })
+					.from(accounts)
+					.where(and(eq(accounts.providerId, provider), eq(accounts.accountId, externalId)))
+					.limit(1)
+					.then((rows) => rows[0] ?? null);
+				if (result) {
+					userId = result.userId;
+				}
+			} catch {
+				// Fallback: account table may not exist (e.g. early migrations)
+				// Keep userId as 'unknown'
+			}
+		}
+
 		return this.build({ userId, sessionKey, userMessage, sessionSource });
 	}
 }
