@@ -125,11 +125,13 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					},
 				},
 				policy: 'auto',
-				execute: async (ctx: unknown, _input: Record<string, unknown>) => {
+				execute: async (ctx: unknown, input: Record<string, unknown>) => {
 					const userId = await extractUserId(ctx);
+					const query = (input.query as string)?.trim().toLowerCase();
 					const results = await memoryRegistry.loadRelevant({
 						userId,
-						limit: 10,
+						limit: 40,
+						query,
 					});
 					return { results };
 				},

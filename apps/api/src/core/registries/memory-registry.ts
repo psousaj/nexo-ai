@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { memoryEnvelopes } from '@/db/schema/memory-envelopes';
 import { loggers } from '@/utils/logger';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ilike, or } from 'drizzle-orm';
 
 const log = loggers.db;
 
@@ -61,33 +61,60 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 	}
 
 	async loadRelevant(input: unknown): Promise<Array<{ summary: string; confidence: number; createdAt: string }>> {
-		const { userId, limit } = input as { userId: string; limit?: number };
+		const { userId, limit, query } = input as { userId: string; limit?: number; query?: string };
+
+		// Monta where: sempre filtra por userId, e opcionalmente por texto
+		const whereConditions = [eq(memoryEnvelopes.userId, userId)];
+		if (query) {
+			whereConditions.push(
+				or(
+					ilike(memoryEnvelopes.normalizedContent, `%${query}%`),
+					ilike(memoryEnvelopes.sourceKind, `%${query}%`),
+				),
+			);
+		}
+
 		try {
 			const rows = await db
 				.select({
 					content: memoryEnvelopes.normalizedContent,
 					confidence: memoryEnvelopes.confidence,
 					createdAt: memoryEnvelopes.createdAt,
+					sourceKind: memoryEnvelopes.sourceKind,
+					metadata: memoryEnvelopes.rawArtifact,
 				})
 				.from(memoryEnvelopes)
-				.where(eq(memoryEnvelopes.userId, userId))
+				.where(and(...whereConditions))
 				.orderBy(desc(memoryEnvelopes.createdAt))
-				.limit(limit ?? 10);
+				.limit(limit ?? 30);
 			return rows.map((r) => ({
 				summary: r.content,
 				confidence: r.confidence ?? 1,
 				createdAt: r.createdAt?.toISOString() ?? '',
+				sourceKind: r.sourceKind,
+				metadata: r.metadata,
 			}));
 		} catch (err) {
 			log.warn({ err, userId }, 'memoryRegistry.loadRelevant: fallback — confidence column pode não existir');
 			try {
 				const rows = await db
-					.select({ content: memoryEnvelopes.normalizedContent, createdAt: memoryEnvelopes.createdAt })
+					.select({
+						content: memoryEnvelopes.normalizedContent,
+						createdAt: memoryEnvelopes.createdAt,
+						sourceKind: memoryEnvelopes.sourceKind,
+						metadata: memoryEnvelopes.rawArtifact,
+					})
 					.from(memoryEnvelopes)
-					.where(eq(memoryEnvelopes.userId, userId))
+					.where(and(...whereConditions))
 					.orderBy(desc(memoryEnvelopes.createdAt))
-					.limit(limit ?? 10);
-				return rows.map((r) => ({ summary: r.content, confidence: 1, createdAt: r.createdAt?.toISOString() ?? '' }));
+					.limit(limit ?? 30);
+				return rows.map((r) => ({
+					summary: r.content,
+					confidence: 1,
+					createdAt: r.createdAt?.toISOString() ?? '',
+					sourceKind: r.sourceKind,
+					metadata: r.metadata,
+				}));
 			} catch (err2) {
 				log.error({ err: err2, userId }, 'memoryRegistry.loadRelevant: erro fatal ao carregar memórias');
 				return [];
