@@ -117,11 +117,15 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 			{
 				name: 'search_memories',
 				description:
-					'Busca nas memórias salvas do usuário. Use quando o usuario pedir "minhas coisas salvas", "o que eu salvei", "memorias", etc. Retorna titulo, data em que foi salvo e confianca. Ao responder, liste cada memoria com emoji tematico e mencione QUANDO foi salva (ex: "salvo em 12/05").',
+					'Busca nas memórias salvas do usuário. Retorna cada resultado com: título, data, confiança, tipo (sourceKind: filme, link, música, livro, nota, foto, etc.) e metadados. Use quando o usuario pedir "minhas coisas salvas", "o que eu salvei", "memorias", etc. IMPORTANTE: SEMPRE que o usuário pedir por memórias sem especificar o tipo, use clarify() para perguntar "Que tipo? (filme, link, música, livro, foto, nota, ou todos)" antes de chamar a tool — a menos que ele já tenha especificado. O parâmetro query aceita termos como "filme", "link", "música" para filtrar por tipo. Ao responder, liste cada memoria com emoji tematico e mencione QUANDO foi salva (ex: "salvo em 12/05").',
 				jsonSchema: {
 					type: 'object',
 					properties: {
-						query: { type: 'string', description: 'Termo de busca (ou vazio para listar todas)' },
+						query: {
+							type: 'string',
+							description:
+								'Termo de busca ou tipo para filtrar. Passe "filme", "link", "música", "livro", "foto", "nota" para buscar por tipo específico. Vazio ou omitido retorna todas.',
+						},
 					},
 				},
 				policy: 'auto',
