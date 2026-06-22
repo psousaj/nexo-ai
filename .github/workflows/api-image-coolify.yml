@@ -73,136 +73,32 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     env:
-      COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
-      COOLIFY_HEALTHCHECK_URL: ${{ secrets.COOLIFY_HEALTHCHECK_URL }}
+      COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL || 'https://coolify.gruporedux.com.br' }}
+      COOLIFY_PREVIEW_UUID: q3cmcm9u39q6o1pk8qlnha9x
+      COOLIFY_PRODUCTION_UUID: ki9858xcvpezsso8kmwgpk6a
       COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
 
     steps:
-      - name: Skip deploy when webhook is not configured
-        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK == '' }}
-        run: echo "COOLIFY_DEPLOY_WEBHOOK is empty. Skipping deploy."
+      - name: Determine app UUID
+        id: app
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "uuid=${{ env.COOLIFY_PRODUCTION_UUID }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "uuid=${{ env.COOLIFY_PREVIEW_UUID }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate Coolify token
-        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN == '' }}
+        if: ${{ env.COOLIFY_API_TOKEN == '' }}
         run: |
-          echo "COOLIFY_API_TOKEN is required when COOLIFY_DEPLOY_WEBHOOK is configured."
-          exit 1
+          echo "COOLIFY_API_TOKEN is not configured. Skipping deploy."
+          exit 0
 
-      - name: Trigger deploy webhook
-        if: ${{ env.COOLIFY_DEPLOY_WEBHOOK != '' && env.COOLIFY_API_TOKEN != '' }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const webhook = process.env.COOLIFY_DEPLOY_WEBHOOK;
-            const rawToken = process.env.COOLIFY_API_TOKEN || "";
-            const token = rawToken.trim().replace(/^Bearer\s+/i, "");
-
-            if (!token) {
-              core.setFailed("COOLIFY_API_TOKEN is empty after normalization.");
-              return;
-            }
-
-            const isCloudflareChallenge = (body) =>
-              /just a moment|cf_chl|cf-browser-verification|challenge-platform|attention required/i.test(
-                body || "",
-              );
-
-            const callDeploy = async (method, authHeader) => {
-              let response;
-              try {
-                response = await fetch(webhook, {
-                  method,
-                  headers: {
-                    Authorization: authHeader,
-                    Accept: "application/json",
-                    "User-Agent": "github-actions-coolify-deploy",
-                  },
-                  signal: AbortSignal.timeout(30000),
-                });
-              } catch {
-                return {
-                  code: 0,
-                  body: "",
-                  headers: {},
-                };
-              }
-
-              const body = await response.text();
-              const headers = Object.fromEntries(response.headers.entries());
-
-              return {
-                code: response.status,
-                body,
-                headers,
-              };
-            };
-
-            const attempts = [
-              {
-                label: "POST + Bearer",
-                method: "POST",
-                authHeader: `Bearer ${token}`,
-              },
-              {
-                label: "POST + raw token",
-                method: "POST",
-                authHeader: token,
-              },
-              {
-                label: "GET + Bearer",
-                method: "GET",
-                authHeader: `Bearer ${token}`,
-              },
-              {
-                label: "GET + raw token",
-                method: "GET",
-                authHeader: token,
-              },
-            ];
-
-            const results = [];
-
-            for (const attempt of attempts) {
-              const result = await callDeploy(attempt.method, attempt.authHeader);
-              results.push({
-                ...attempt,
-                ...result,
-              });
-
-              if (result.code >= 200 && result.code < 300) {
-                core.info(
-                  `Coolify deploy triggered (${attempt.label}, HTTP ${result.code}).`,
-                );
-                return;
-              }
-            }
-
-            const codesSummary = results
-              .map((result) => `${result.label}=${result.code}`)
-              .join(", ");
-
-            if (results.some((result) => isCloudflareChallenge(result.body))) {
-              core.setFailed(
-                `Deploy webhook blocked by Cloudflare challenge before reaching Coolify (${codesSummary}). Use a non-proxied/origin URL in COOLIFY_DEPLOY_WEBHOOK or add a WAF skip rule for this webhook path.`,
-              );
-            } else if (
-              results.some((result) => result.code === 401 || result.code === 403)
-            ) {
-              core.setFailed(
-                `Coolify rejected auth (${codesSummary}). Verify token scope/permission in Coolify.`,
-              );
-            } else {
-              core.setFailed(`Coolify deploy call failed (${codesSummary}).`);
-            }
-
-            for (const result of results) {
-              core.info(`--- ${result.label} response headers (first 10) ---`);
-              Object.entries(result.headers)
-                .slice(0, 10)
-                .forEach(([key, value]) => core.info(`${key}: ${value}`));
-
-              if (result.body) {
-                core.info(`--- ${result.label} response body (first 300 chars) ---`);
-                core.info(result.body.slice(0, 300));
-              }
-            }
+      - name: Trigger deploy via Coolify API
+        run: |
+          DEPLOY_URL="${{ env.COOLIFY_API_URL }}/api/v1/deploy?uuid=${{ steps.app.outputs.uuid }}"
+          echo "Deploying: ${{ steps.app.outputs.uuid }} (${{ github.ref_name }})"
+          RESULT=$(curl -sk -X POST \
+            -H "Authorization: Bearer ${{ env.COOLIFY_API_TOKEN }}" \
+            "$DEPLOY_URL")
+          echo "Result: $RESULT"
