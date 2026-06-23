@@ -1,8 +1,12 @@
-import { execSync } from 'child_process';
-import { existsSync, mkdtempSync, writeFileSync, readFileSync, unlinkSync, rmdirSync } from 'fs';
-import { join } from 'path';
+import { execFileSync, execSync } from 'child_process';
+import { existsSync, mkdtempSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { join } from 'path';
 import type { STTProvider, STTTranscribeOptions } from '../types';
+
+function shq(s: string): string {
+	return `'${s.replace(/'/g, "'\\''")}'`;
+}
 
 function findWhisperBinary(): string | null {
 	// 1. Env var explícito tem prioridade
@@ -52,28 +56,24 @@ export function createLocalProvider(): STTProvider {
 				const binaryName = binaryPath.split('/').pop() || '';
 				const isFasterWhisper = binaryName.includes('faster-whisper') || binaryName === 'faster_whisper';
 
-				let command: string;
 				if (isFasterWhisper) {
 					// faster-whisper: python -m faster_whisper input_file --output_dir tmp_dir
 					const model = process.env.LOCAL_WHISPER_MODEL || 'base';
-					const language = options?.languageHint ? ` --language ${options.languageHint}` : '';
-					command = `python3 -m faster_whisper "${inputFile}" --model "${model}" --output_dir "${tmpDir}"${language}`;
+					const command = `python3 -m faster_whisper ${shq(inputFile)} --model ${shq(model)} --output_dir ${shq(tmpDir)}${options?.languageHint ? ` --language ${shq(options.languageHint)}` : ''}`;
+					execSync(command, { timeout: 120_000, encoding: 'utf-8' });
 				} else {
 					// whisper-cpp: ./whisper-cpp -m model.bin -f input_file --output-txt
 					const modelPath = process.env.LOCAL_WHISPER_MODEL_PATH || './models/ggml-base.bin';
-					const language = options?.languageHint ? ` -l ${options.languageHint}` : '';
-					command = `"${binaryPath}" -m "${modelPath}" -f "${inputFile}" --output-txt --output-dir "${tmpDir}"${language}`;
+					const args = ['-m', modelPath, '-f', inputFile, '--output-txt', '--output-dir', tmpDir];
+					if (options?.languageHint) {
+						args.push('-l', options.languageHint);
+					}
+					execFileSync(binaryPath, args, { timeout: 120_000, encoding: 'utf-8' });
 				}
-
-				execSync(command, { timeout: 120_000, encoding: 'utf-8' });
 
 				// Tenta ler resultado — whisper-cpp gera {input}.txt, faster-whisper gera {input}.txt
 				const stem = inputFile.replace(/\.\w+$/, '');
-				const outputCandidates = [
-					`${stem}.txt`,
-					`${inputFile}.txt`,
-					join(tmpDir, `${inputFile.split('/').pop()}.txt`),
-				];
+				const outputCandidates = [`${stem}.txt`, `${inputFile}.txt`, join(tmpDir, `${inputFile.split('/').pop()}.txt`)];
 
 				for (const candidate of outputCandidates) {
 					if (existsSync(candidate)) {
@@ -90,7 +90,11 @@ export function createLocalProvider(): STTProvider {
 					if (existsSync(inputFile)) unlinkSync(inputFile);
 					// Limpa arquivos de saída
 					const stem = inputFile.replace(/\.\w+$/, '');
-					for (const candidate of [`${stem}.txt`, `${inputFile}.txt`, join(tmpDir, `${inputFile.split('/').pop()}.txt`)]) {
+					for (const candidate of [
+						`${stem}.txt`,
+						`${inputFile}.txt`,
+						join(tmpDir, `${inputFile.split('/').pop()}.txt`),
+					]) {
 						if (existsSync(candidate)) unlinkSync(candidate);
 					}
 					rmdirSync(tmpDir);
