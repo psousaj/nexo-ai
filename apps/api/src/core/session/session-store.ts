@@ -182,7 +182,7 @@ export class SessionStore {
 		const lastActivity = entry.lastActivityAt;
 
 		let idleExpired = false;
-		let dailyExpired = false;
+		let _dailyExpired = false;
 
 		if (policy.mode === 'idle' || policy.mode === 'both') {
 			const idleMs = policy.idleMinutes * 60 * 1000;
@@ -192,7 +192,7 @@ export class SessionStore {
 		if (policy.mode === 'daily' || policy.mode === 'both') {
 			const todayAtHour = new Date(now);
 			todayAtHour.setHours(policy.atHour, 0, 0, 0);
-			dailyExpired = lastActivity.getTime() < todayAtHour.getTime();
+			_dailyExpired = lastActivity.getTime() < todayAtHour.getTime();
 		}
 
 		return idleExpired ? 'idle' : 'daily';

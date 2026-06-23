@@ -158,7 +158,7 @@ export class PostgresToolRegistry implements HermesToolRegistry {
 					required: ['question', 'choices'],
 				},
 				policy: 'auto',
-				execute: async (_ctx: unknown, input: Record<string, unknown>) => {
+				execute: async (_ctx: unknown, _input: Record<string, unknown>) => {
 					return {
 						_requiresInput: true,
 						status: 'asked',
