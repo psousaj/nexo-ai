@@ -67,6 +67,74 @@ const INVISIBLE_UNICODE_RANGES: Array<{ name: string; pattern: RegExp }> = [
 	{ name: 'bidi_embedding', pattern: /[\u202A-\u202E]/g },
 ];
 
+// ── Homoglyph Confusables ────────────────────────────────────────────────────
+// Characters that look like ASCII but are different Unicode code points.
+// Source: https://www.unicode.org/Public/security/latest/confusables.txt (subset)
+
+const HOMOGLYPH_MAP: Record<string, string> = {
+	// Cyrillic lookalikes
+	'\u0430': 'a', // Cyrillic а → Latin a
+	'\u0435': 'e', // Cyrillic е → Latin e
+	'\u043E': 'o', // Cyrillic о → Latin o
+	'\u0441': 'c', // Cyrillic с → Latin c
+	'\u0440': 'p', // Cyrillic р → Latin p
+	'\u0445': 'x', // Cyrillic х → Latin x
+	'\u0456': 'i', // Cyrillic і → Latin i
+	'\u0455': 's', // Cyrillic ѕ → Latin s (actually Serbian Cyrillic dze)
+	'\u0432': 'b', // Cyrillic в → Latin b
+	'\u043D': 'h', // Cyrillic н → Latin h
+	'\u043A': 'k', // Cyrillic к → Latin k
+	'\u043C': 'm', // Cyrillic м → Latin m
+	'\u043F': 'n', // Cyrillic п → Latin n (looks like Greek pi)
+	'\u0442': 't', // Cyrillic т → Latin t
+	'\u0443': 'y', // Cyrillic у → Latin y
+
+	// Greek lookalikes
+	'\u03BF': 'o', // Greek ο → Latin o
+	'\u03B5': 'e', // Greek ε → Latin e
+	'\u03B1': 'a', // Greek α → Latin a
+	'\u03C1': 'p', // Greek ρ → Latin p
+	'\u03C7': 'x', // Greek χ → Latin x
+	'\u03B2': 'b', // Greek β → Latin b
+	'\u03B3': 'y', // Greek γ → Latin y
+	'\u03B7': 'n', // Greek η → Latin n
+	'\u03BA': 'k', // Greek κ → Latin k
+	'\u03BC': 'm', // Greek μ → Latin m
+	'\u03BD': 'v', // Greek ν → Latin v
+	'\u03C4': 't', // Greek τ → Latin t
+
+	// Latin extended lookalikes
+	'\u1D00': 'a', // ᴀ → Latin a
+};
+
+// Build a combined detection regex for homoglyphs (any char in the map except ASCII identity entries)
+const HOMOGLYPH_CHARS = Object.keys(HOMOGLYPH_MAP).filter((c) => c.codePointAt(0)! > 0x7f);
+const HOMOGLYPH_REGEX = new RegExp(`[${HOMOGLYPH_CHARS.join('')}]`, 'g');
+
+// ── Escape Sequence Patterns ─────────────────────────────────────────────────
+
+const ESCAPE_SEQUENCE_PATTERNS: Array<{ name: string; regex: RegExp }> = [
+	// Hex escapes: \x00 through \xFF
+	{ name: 'hex_escape', regex: /\\x[0-9a-fA-F]{2}/g },
+	// Unicode escapes: \u0000 through \uFFFF
+	{ name: 'unicode_escape', regex: /\\u[0-9a-fA-F]{4}/g },
+	// Unicode escapes with braces: \u{...}
+	{ name: 'unicode_brace_escape', regex: /\\u\{[0-9a-fA-F]+\}/g },
+	// ANSI escape sequences (ESC + [ + params + letter)
+	{ name: 'ansi_escape', regex: /\\x1[bB]\[[0-9;]*[A-Za-z]/g },
+	// Null byte and control character patterns
+	{ name: 'null_byte', regex: /\\0{1,3}/g },
+];
+
+// Regex for raw control bytes (ESC, NUL, etc. — built dynamically to pass Biome lint)
+const RAW_CONTROL_BYTE_REGEX = (() => {
+	const chars = Array.from({ length: 32 }, (_, i) => {
+		if (i === 0x09 || i === 0x0a || i === 0x0d) return ''; // skip TAB, LF, CR
+		return String.fromCodePoint(i);
+	}).join('');
+	return new RegExp(`[${chars}]`, 'g');
+})();
+
 // ── Sanitization Logic ───────────────────────────────────────────────────────
 
 /**
@@ -91,6 +159,36 @@ export function detectThreats(text: string): string[] {
 		invisible.pattern.lastIndex = 0;
 	}
 
+	// Check homoglyph confusables
+	if (HOMOGLYPH_REGEX.test(text)) {
+		detected.push('homoglyph');
+	}
+	HOMOGLYPH_REGEX.lastIndex = 0;
+
+	// Check escape sequences
+	for (const esc of ESCAPE_SEQUENCE_PATTERNS) {
+		if (esc.regex.test(text)) {
+			detected.push(esc.name);
+		}
+		esc.regex.lastIndex = 0;
+	}
+	if (detected.some((d) => ESCAPE_SEQUENCE_PATTERNS.some((e) => e.name === d))) {
+		if (!detected.includes('escape_sequence')) {
+			detected.push('escape_sequence');
+		}
+	}
+
+	// Check raw control bytes (actual ESC, NUL, etc. — not encoded)
+	if (RAW_CONTROL_BYTE_REGEX.test(text)) {
+		if (!detected.includes('escape_sequence')) {
+			detected.push('escape_sequence');
+		}
+		if (!detected.includes('raw_control_byte')) {
+			detected.push('raw_control_byte');
+		}
+		RAW_CONTROL_BYTE_REGEX.lastIndex = 0;
+	}
+
 	return detected;
 }
 
@@ -104,7 +202,7 @@ export function neutralizeThreats(text: string): string {
 	clean = clean.replace(/^\s*(system|assistant|user|developer|human|ai)\s*:\s*/gim, '[$1] ');
 
 	// Neutralize markdown/codeblock confusion
-	clean = clean.replace(/```\s*(system|prompt|instructions?)/gi, '`\\n\\n`$1');
+	clean = clean.replace(/```\s*(system|prompt|instructions?)/gi, '`\n\n`$1');
 	clean = clean.replace(/<\s*(system|prompt|instructions?)\s*>/gi, '‹$1›');
 
 	// Break up dangerous phrases with zero-width space (ironic but effective)
@@ -112,6 +210,26 @@ export function neutralizeThreats(text: string): string {
 	clean = clean.replace(/disregard\s+(everything\s+above|above\s+instructions?)/gi, 'dis­regard $1');
 	clean = clean.replace(/forget\s+(the\s+)?(prompt|instructions?|context)/gi, 'for­get $2');
 
+	return clean;
+}
+
+/**
+ * Normalize homoglyph confusables to their ASCII equivalents
+ */
+export function normalizeHomoglyphs(text: string): string {
+	return text.replace(HOMOGLYPH_REGEX, (char) => HOMOGLYPH_MAP[char] ?? char);
+}
+
+/**
+ * Remove escape sequences (hex, unicode, ANSI, null byte)
+ */
+export function stripEscapeSequences(text: string): string {
+	let clean = text;
+	for (const esc of ESCAPE_SEQUENCE_PATTERNS) {
+		clean = clean.replace(esc.regex, '');
+	}
+	// Also strip actual escape characters in the text (ESC byte, NUL, etc.)
+	clean = clean.replace(RAW_CONTROL_BYTE_REGEX, '');
 	return clean;
 }
 
@@ -138,8 +256,12 @@ export function sanitizePromptInput(text: string, context?: { field: string; use
 	let cleanText = text;
 
 	if (detectedPatterns.length > 0) {
+		// Normalize homoglyphs FIRST so neutralization regexes catch
+		// disguised injection phrases (e.g. "instructiоns" → "instructions")
+		cleanText = normalizeHomoglyphs(cleanText);
 		cleanText = neutralizeThreats(cleanText);
 		cleanText = stripInvisibleUnicode(cleanText);
+		cleanText = stripEscapeSequences(cleanText);
 
 		loggers.context.warn(
 			{
