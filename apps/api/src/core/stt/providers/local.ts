@@ -1,8 +1,13 @@
-import { execFileSync, execSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'fs';
+import { exec, execFile } from 'child_process';
+import { existsSync } from 'fs';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { promisify } from 'util';
 import type { STTProvider, STTTranscribeOptions } from '../types';
+
+const pExec = promisify(exec);
+const pExecFile = promisify(execFile);
 
 function shq(s: string): string {
 	return `'${s.replace(/'/g, "'\\''")}'`;
@@ -17,13 +22,13 @@ function findWhisperBinary(): string | null {
 		return null;
 	}
 
-	// 2. Tenta detectar whisper-cpp ou faster-whisper no PATH
+	// 2. Tenta detectar whisper-cpp ou faster-whisper no PATH (sync, chamado do getter)
 	try {
-		const result = execSync(
+		const { stdout } = require('child_process').execSync(
 			'command -v whisper-cpp 2>/dev/null || command -v faster-whisper 2>/dev/null || command -v whisper 2>/dev/null',
 			{ encoding: 'utf-8', timeout: 5000 },
-		).trim();
-		return result || null;
+		);
+		return stdout.trim() || null;
 	} catch {
 		return null;
 	}
@@ -45,12 +50,12 @@ export function createLocalProvider(): STTProvider {
 			if (!binaryPath) return null;
 
 			const ext = options?.filename?.split('.').pop() || 'ogg';
-			const tmpDir = mkdtempSync(join(tmpdir(), 'nexo-stt-'));
+			const tmpDir = await mkdtemp(join(tmpdir(), 'nexo-stt-'));
 			const inputFile = join(tmpDir, `audio.${ext}`);
 
 			try {
 				// Escreve áudio em arquivo temporário
-				writeFileSync(inputFile, Buffer.from(audioBase64, 'base64'));
+				await writeFile(inputFile, Buffer.from(audioBase64, 'base64'));
 
 				// Detecta qual binário e constrói comando
 				const binaryName = binaryPath.split('/').pop() || '';
@@ -60,7 +65,7 @@ export function createLocalProvider(): STTProvider {
 					// faster-whisper: python -m faster_whisper input_file --output_dir tmp_dir
 					const model = process.env.LOCAL_WHISPER_MODEL || 'base';
 					const command = `python3 -m faster_whisper ${shq(inputFile)} --model ${shq(model)} --output_dir ${shq(tmpDir)}${options?.languageHint ? ` --language ${shq(options.languageHint)}` : ''}`;
-					execSync(command, { timeout: 120_000, encoding: 'utf-8' });
+					await pExec(command, { timeout: 120_000 });
 				} else {
 					// whisper-cpp: ./whisper-cpp -m model.bin -f input_file --output-txt
 					const modelPath = process.env.LOCAL_WHISPER_MODEL_PATH || './models/ggml-base.bin';
@@ -68,7 +73,7 @@ export function createLocalProvider(): STTProvider {
 					if (options?.languageHint) {
 						args.push('-l', options.languageHint);
 					}
-					execFileSync(binaryPath, args, { timeout: 120_000, encoding: 'utf-8' });
+					await pExecFile(binaryPath, args, { timeout: 120_000 });
 				}
 
 				// Tenta ler resultado — whisper-cpp gera {input}.txt, faster-whisper gera {input}.txt
@@ -76,9 +81,11 @@ export function createLocalProvider(): STTProvider {
 				const outputCandidates = [`${stem}.txt`, `${inputFile}.txt`, join(tmpDir, `${inputFile.split('/').pop()}.txt`)];
 
 				for (const candidate of outputCandidates) {
-					if (existsSync(candidate)) {
-						const text = readFileSync(candidate, 'utf-8').trim();
+					try {
+						const text = (await readFile(candidate, 'utf-8')).trim();
 						if (text) return text;
+					} catch {
+						// arquivo não existe ou não pode ser lido
 					}
 				}
 
@@ -86,21 +93,8 @@ export function createLocalProvider(): STTProvider {
 			} catch {
 				return null;
 			} finally {
-				try {
-					if (existsSync(inputFile)) unlinkSync(inputFile);
-					// Limpa arquivos de saída
-					const stem = inputFile.replace(/\.\w+$/, '');
-					for (const candidate of [
-						`${stem}.txt`,
-						`${inputFile}.txt`,
-						join(tmpDir, `${inputFile.split('/').pop()}.txt`),
-					]) {
-						if (existsSync(candidate)) unlinkSync(candidate);
-					}
-					rmdirSync(tmpDir);
-				} catch {
-					// cleanup silencioso
-				}
+				// cleanup assíncrono — fogo e esquece
+				rm(tmpDir, { recursive: true, force: true }).catch(() => {});
 			}
 		},
 	};
