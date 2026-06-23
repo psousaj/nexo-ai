@@ -1,7 +1,10 @@
 import { AgentCache, hashSystemPrompt, hashToolCatalog } from '@/core/cache/agent-cache';
 import { sttService } from '@/core/enrichment/stt-service';
+import { createDefaultSTTRouter } from '@/core/stt';
 import { ttsService } from '@/core/enrichment/tts-service';
 import { visionService } from '@/core/enrichment/vision-service';
+
+const sttRouter = createDefaultSTTRouter();
 import { GatewayStreamConsumer } from '@/core/gateway/stream-consumer';
 import type { InterruptSignal, KernelCallbacks } from '@/core/kernel/hermes-kernel';
 import { PostgresSessionRegistry, resolveSessionKey } from '@/core/registries/session-registry';
@@ -403,7 +406,10 @@ export function registerTelegramWebhook(app: Hono) {
 				progressText = '🎙️ Transcrevendo áudio...\n';
 				const audioBuffer = await downloadTelegramFile(voiceId);
 				if (audioBuffer) {
-					const transcript = await sttService.transcribe(audioBuffer.toString('base64'));
+					const transcript = await sttRouter.transcribe(audioBuffer.toString('base64'), {
+						filename: `audio_${voiceId}.ogg`,
+						mimeType: 'audio/ogg',
+					});
 					if (transcript) {
 						userMessage = transcript;
 					} else {
