@@ -8,6 +8,28 @@ RUN npm install -g pnpm@9.15.4
 WORKDIR /app
 
 # ============================================
+# Whisper Builder — compila whisper.cpp pra Alpine
+# ============================================
+FROM alpine:3.19 AS whisper-builder
+
+RUN apk add --no-cache git g++ make
+
+WORKDIR /whisper
+RUN git clone --depth 1 --branch v1.9.1 https://github.com/ggerganov/whisper.cpp.git . \
+	&& make -j$(nproc) \
+	&& cp main /usr/local/bin/whisper-cpp
+
+# ============================================
+# Model Downloader — baixa modelo base do whisper
+# ============================================
+FROM alpine:3.19 AS model-downloader
+
+RUN apk add --no-cache curl
+
+RUN curl -sL -o /models/ggml-base.bin \
+	https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+
+# ============================================
 # Stage 1: Dependencies
 # ============================================
 FROM base AS deps
@@ -37,14 +59,21 @@ RUN pnpm deploy --filter=@nexo/api --prod /deploy
 # ============================================
 FROM node:22-alpine AS runner
 
-RUN addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
+RUN apk add --no-cache curl ca-certificates && \
+	addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
 
 WORKDIR /app
 
 COPY --chown=appuser:appgroup --from=builder /deploy .
 
+# Whisper binary e modelo
+COPY --from=whisper-builder /usr/local/bin/whisper-cpp /usr/local/bin/whisper-cpp
+COPY --chown=appuser:appgroup --from=model-downloader /models/ggml-base.bin /app/models/ggml-base.bin
+
 ENV NODE_ENV=production
 ENV NEXO_MODEL_PATH=/app/dist/model/nexo-model.nlp
+ENV LOCAL_WHISPER_BINARY=/usr/local/bin/whisper-cpp
+ENV LOCAL_WHISPER_MODEL_PATH=/app/models/ggml-base.bin
 
 EXPOSE 3001
 
