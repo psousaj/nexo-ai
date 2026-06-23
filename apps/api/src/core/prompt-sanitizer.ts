@@ -169,6 +169,16 @@ export function detectThreats(text: string): string[] {
 		}
 	}
 
+	// Check raw control bytes (actual ESC, NUL, etc. — not encoded)
+	if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text)) {
+		if (!detected.includes('escape_sequence')) {
+			detected.push('escape_sequence');
+		}
+		if (!detected.includes('raw_control_byte')) {
+			detected.push('raw_control_byte');
+		}
+	}
+
 	return detected;
 }
 
@@ -208,8 +218,8 @@ export function stripEscapeSequences(text: string): string {
 	for (const esc of ESCAPE_SEQUENCE_PATTERNS) {
 		clean = clean.replace(esc.regex, '');
 	}
-	// Also strip actual escape characters in the text (ESC byte, etc.)
-	clean = clean.replace(/\x1b/g, '');
+	// Also strip actual escape characters in the text (ESC byte, NUL, etc.)
+	clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 	return clean;
 }
 
@@ -236,8 +246,10 @@ export function sanitizePromptInput(text: string, context?: { field: string; use
 	let cleanText = text;
 
 	if (detectedPatterns.length > 0) {
-		cleanText = neutralizeThreats(cleanText);
+		// Normalize homoglyphs FIRST so neutralization regexes catch
+		// disguised injection phrases (e.g. "instructiоns" → "instructions")
 		cleanText = normalizeHomoglyphs(cleanText);
+		cleanText = neutralizeThreats(cleanText);
 		cleanText = stripInvisibleUnicode(cleanText);
 		cleanText = stripEscapeSequences(cleanText);
 
