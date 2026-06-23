@@ -1,8 +1,7 @@
 import { AgentCache, hashSystemPrompt, hashToolCatalog } from '@/core/cache/agent-cache';
-import { sttService } from '@/core/enrichment/stt-service';
-import { createDefaultSTTRouter } from '@/core/stt';
 import { ttsService } from '@/core/enrichment/tts-service';
 import { visionService } from '@/core/enrichment/vision-service';
+import { createDefaultSTTRouter } from '@/core/stt';
 
 const sttRouter = createDefaultSTTRouter();
 import { GatewayStreamConsumer } from '@/core/gateway/stream-consumer';
