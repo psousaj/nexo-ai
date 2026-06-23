@@ -67,10 +67,7 @@ export class PostgresMemoryRegistry implements MemoryRegistry {
 		const whereConditions = [eq(memoryEnvelopes.userId, userId)];
 		if (query) {
 			whereConditions.push(
-				or(
-					ilike(memoryEnvelopes.normalizedContent, `%${query}%`),
-					ilike(memoryEnvelopes.sourceKind, `%${query}%`),
-				),
+				or(ilike(memoryEnvelopes.normalizedContent, `%${query}%`), ilike(memoryEnvelopes.sourceKind, `%${query}%`)),
 			);
 		}
 

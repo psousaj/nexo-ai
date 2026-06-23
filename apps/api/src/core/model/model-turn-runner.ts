@@ -334,7 +334,7 @@ export class DefaultModelTurnRunner implements ModelTurnRunner {
 		}
 	}
 
-	async addToolResult(toolName: string, toolCallId: string, result: unknown): Promise<void> {
+	async addToolResult(_toolName: string, toolCallId: string, result: unknown): Promise<void> {
 		// Wait for history to load before mutating messages
 		if (this.historyLoaded) {
 			await this.historyLoaded;

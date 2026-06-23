@@ -64,7 +64,7 @@ describe('GatewayStreamConsumer', () => {
 
 	it('should call finish on timeout', async () => {
 		const deps = createDeps();
-		const consumer = new GatewayStreamConsumer({ ...deps, maxStreamingTimeMs: 10 });
+		const _consumer = new GatewayStreamConsumer({ ...deps, maxStreamingTimeMs: 10 });
 		// Wait for timeout to fire
 		await new Promise((r) => setTimeout(r, 50));
 		expect(deps.sendMessage).toHaveBeenCalled();

@@ -1,9 +1,9 @@
-import { exec, execFile } from 'child_process';
-import { existsSync } from 'fs';
-import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { promisify } from 'util';
+import { exec, execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { STTProvider, STTTranscribeOptions } from '../types';
 
 const pExec = promisify(exec);
@@ -24,7 +24,7 @@ function findWhisperBinary(): string | null {
 
 	// 2. Tenta detectar whisper-cpp ou faster-whisper no PATH (sync, chamado do getter)
 	try {
-		const { stdout } = require('child_process').execSync(
+		const { stdout } = require('node:child_process').execSync(
 			'command -v whisper-cpp 2>/dev/null || command -v faster-whisper 2>/dev/null || command -v whisper 2>/dev/null',
 			{ encoding: 'utf-8', timeout: 5000 },
 		);
