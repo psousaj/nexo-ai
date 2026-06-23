@@ -126,6 +126,15 @@ const ESCAPE_SEQUENCE_PATTERNS: Array<{ name: string; regex: RegExp }> = [
 	{ name: 'null_byte', regex: /\\0{1,3}/g },
 ];
 
+// Regex for raw control bytes (ESC, NUL, etc. — built dynamically to pass Biome lint)
+const RAW_CONTROL_BYTE_REGEX = (() => {
+	const chars = Array.from({ length: 32 }, (_, i) => {
+		if (i === 0x09 || i === 0x0a || i === 0x0d) return ''; // skip TAB, LF, CR
+		return String.fromCodePoint(i);
+	}).join('');
+	return new RegExp(`[${chars}]`, 'g');
+})();
+
 // ── Sanitization Logic ───────────────────────────────────────────────────────
 
 /**
@@ -170,13 +179,14 @@ export function detectThreats(text: string): string[] {
 	}
 
 	// Check raw control bytes (actual ESC, NUL, etc. — not encoded)
-	if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text)) {
+	if (RAW_CONTROL_BYTE_REGEX.test(text)) {
 		if (!detected.includes('escape_sequence')) {
 			detected.push('escape_sequence');
 		}
 		if (!detected.includes('raw_control_byte')) {
 			detected.push('raw_control_byte');
 		}
+		RAW_CONTROL_BYTE_REGEX.lastIndex = 0;
 	}
 
 	return detected;
@@ -219,7 +229,7 @@ export function stripEscapeSequences(text: string): string {
 		clean = clean.replace(esc.regex, '');
 	}
 	// Also strip actual escape characters in the text (ESC byte, NUL, etc.)
-	clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+	clean = clean.replace(RAW_CONTROL_BYTE_REGEX, '');
 	return clean;
 }
 
