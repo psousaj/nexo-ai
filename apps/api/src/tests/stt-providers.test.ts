@@ -29,6 +29,22 @@ describe('Cloudflare STT Provider', () => {
 	});
 });
 
+describe('Local Whisper Provider', () => {
+	it('reports unavailable when no whisper binary is found', async () => {
+		const { createLocalProvider } = await import('@/core/stt/providers/local');
+		const provider = createLocalProvider();
+		expect(provider.name).toBe('local');
+		expect(provider.isAvailable).toBe(false);
+	});
+
+	it('returns null when provider is not available', async () => {
+		const { createLocalProvider } = await import('@/core/stt/providers/local');
+		const provider = createLocalProvider();
+		const result = await provider.transcribe('dGVzdCBhdWRpbw==');
+		expect(result).toBeNull();
+	});
+});
+
 describe('Groq STT Provider', () => {
 	it('reports unavailable when GROQ_API_KEY is missing', async () => {
 		const { createGroqProvider } = await import('@/core/stt/providers/groq');
