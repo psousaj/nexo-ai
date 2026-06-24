@@ -34,6 +34,19 @@ function findWhisperBinary(): string | null {
 	}
 }
 
+/**
+ * Extrai texto da transcrição do stdout do whisper-cpp.
+ * Formato: [00:00:00.000 --> 00:00:10.500]   texto da transcrição
+ * Remove timestamps e junta linhas.
+ */
+function parseWhisperStdout(stdout: string): string {
+	return stdout
+		.split('\n')
+		.map((line) => line.replace(/^\[\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}\]\s*/, '').trim())
+		.filter(Boolean)
+		.join(' ');
+}
+
 export function createLocalProvider(): STTProvider {
 	let binaryPath: string | null = null;
 
@@ -66,27 +79,26 @@ export function createLocalProvider(): STTProvider {
 					const model = process.env.LOCAL_WHISPER_MODEL || 'base';
 					const command = `python3 -m faster_whisper ${shq(inputFile)} --model ${shq(model)} --output_dir ${shq(tmpDir)}${options?.languageHint ? ` --language ${shq(options.languageHint)}` : ''}`;
 					await pExec(command, { timeout: 120_000 });
+
+					// faster-whisper escreve arquivo .txt no output_dir
+					const txtFile = join(tmpDir, `${inputFile.split('/').pop()}.txt`);
+					try {
+						const text = (await readFile(txtFile, 'utf-8')).trim();
+						if (text) return text;
+					} catch {
+						return null;
+					}
 				} else {
-					// whisper-cpp: ./whisper-cpp -m model.bin -f input_file --output-txt
+					// whisper-cpp: usa stdout em vez de arquivo
+					// sem --output-txt: não escreve .txt, transcrição vai pro stdout
 					const modelPath = process.env.LOCAL_WHISPER_MODEL_PATH || './models/ggml-base.bin';
-					const args = ['-m', modelPath, '-f', inputFile, '--output-txt', '--output-dir', tmpDir];
+					const args = ['-m', modelPath, '-f', inputFile];
 					if (options?.languageHint) {
 						args.push('-l', options.languageHint);
 					}
-					await pExecFile(binaryPath, args, { timeout: 120_000 });
-				}
-
-				// Tenta ler resultado — whisper-cpp gera {input}.txt, faster-whisper gera {input}.txt
-				const stem = inputFile.replace(/\.\w+$/, '');
-				const outputCandidates = [`${stem}.txt`, `${inputFile}.txt`, join(tmpDir, `${inputFile.split('/').pop()}.txt`)];
-
-				for (const candidate of outputCandidates) {
-					try {
-						const text = (await readFile(candidate, 'utf-8')).trim();
-						if (text) return text;
-					} catch {
-						// arquivo não existe ou não pode ser lido
-					}
+					const { stdout } = await pExecFile(binaryPath, args, { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
+					const text = parseWhisperStdout(stdout);
+					if (text) return text;
 				}
 
 				return null;
