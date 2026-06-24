@@ -96,7 +96,7 @@ export function createLocalProvider(): STTProvider {
 					if (options?.languageHint) {
 						args.push('-l', options.languageHint);
 					}
-					const { stdout } = await pExecFile(binaryPath, args, { timeout: 120_000 });
+					const { stdout } = await pExecFile(binaryPath, args, { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
 					const text = parseWhisperStdout(stdout);
 					if (text) return text;
 				}
