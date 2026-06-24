@@ -68,3 +68,38 @@ describe('Groq STT Provider', () => {
 		vi.unstubAllGlobals();
 	});
 });
+
+describe('parseWhisperStdout', () => {
+	it('extrai texto de linhas com timestamp', async () => {
+		const { parseWhisperStdout } = await import('@/core/stt/providers/local');
+		const result = parseWhisperStdout('[00:00:00.000 --> 00:00:05.000]  Olá, tudo bem?');
+		expect(result).toBe('Olá, tudo bem?');
+	});
+
+	it('junta múltiplas linhas', async () => {
+		const { parseWhisperStdout } = await import('@/core/stt/providers/local');
+		const result = parseWhisperStdout(
+			'[00:00:00.000 --> 00:00:03.000]  Primeira frase\n[00:00:03.000 --> 00:00:06.000]  Segunda frase',
+		);
+		expect(result).toBe('Primeira frase Segunda frase');
+	});
+
+	it('ignora linhas de log sem timestamp', async () => {
+		const { parseWhisperStdout } = await import('@/core/stt/providers/local');
+		const result = parseWhisperStdout(
+			'whisper_init: loading model...\n[00:00:00.000 --> 00:00:03.000]  Só esta linha importa',
+		);
+		expect(result).toBe('Só esta linha importa');
+	});
+
+	it('retorna string vazia se não houver linhas com timestamp', async () => {
+		const { parseWhisperStdout } = await import('@/core/stt/providers/local');
+		const result = parseWhisperStdout('whisper_init: carregando...\nwhisper: done');
+		expect(result).toBe('');
+	});
+
+	it('retorna string vazia para stdout vazio', async () => {
+		const { parseWhisperStdout } = await import('@/core/stt/providers/local');
+		expect(parseWhisperStdout('')).toBe('');
+	});
+});
