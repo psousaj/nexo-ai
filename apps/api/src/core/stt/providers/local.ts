@@ -37,12 +37,15 @@ function findWhisperBinary(): string | null {
 /**
  * Extrai texto da transcrição do stdout do whisper-cpp.
  * Formato: [00:00:00.000 --> 00:00:10.500]   texto da transcrição
- * Remove timestamps e junta linhas.
+ * Filtra apenas linhas com timestamp (ignora logs/diagnóstico) e extrai o texto.
  */
-function parseWhisperStdout(stdout: string): string {
+const TIMESTAMP_LINE = /^\[\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}\]\s*/;
+
+export function parseWhisperStdout(stdout: string): string {
 	return stdout
 		.split('\n')
-		.map((line) => line.replace(/^\[\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}\]\s*/, '').trim())
+		.filter((line) => TIMESTAMP_LINE.test(line))
+		.map((line) => line.replace(TIMESTAMP_LINE, '').trim())
 		.filter(Boolean)
 		.join(' ');
 }
