@@ -68,17 +68,18 @@ export function createLocalProvider(): STTProvider {
 					await pExec(command, { timeout: 120_000 });
 				} else {
 					// whisper-cpp: ./whisper-cpp -m model.bin -f input_file --output-txt
+					// Nota: --output-dir não existe no whisper-cpp v1.9.1
+					// O .txt é gerado no mesmo diretório do input como {inputFile}.txt
 					const modelPath = process.env.LOCAL_WHISPER_MODEL_PATH || './models/ggml-base.bin';
-					const args = ['-m', modelPath, '-f', inputFile, '--output-txt', '--output-dir', tmpDir];
+					const args = ['-m', modelPath, '-f', inputFile, '--output-txt'];
 					if (options?.languageHint) {
 						args.push('-l', options.languageHint);
 					}
 					await pExecFile(binaryPath, args, { timeout: 120_000 });
 				}
 
-				// Tenta ler resultado — whisper-cpp gera {input}.txt, faster-whisper gera {input}.txt
-				const stem = inputFile.replace(/\.\w+$/, '');
-				const outputCandidates = [`${stem}.txt`, `${inputFile}.txt`, join(tmpDir, `${inputFile.split('/').pop()}.txt`)];
+				// Tenta ler resultado — whisper-cpp gera {inputFile}.txt, faster-whisper gera {input}.txt
+				const outputCandidates = [`${inputFile}.txt`];
 
 				for (const candidate of outputCandidates) {
 					try {
