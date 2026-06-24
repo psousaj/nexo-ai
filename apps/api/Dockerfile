@@ -12,12 +12,13 @@ WORKDIR /app
 # ============================================
 FROM alpine:3.19 AS whisper-builder
 
-RUN apk add --no-cache git g++ make
+RUN apk add --no-cache git g++ make cmake
 
 WORKDIR /whisper
 RUN git clone --depth 1 --branch v1.9.1 https://github.com/ggerganov/whisper.cpp.git . \
-	&& make -j$(nproc) \
-	&& cp main /usr/local/bin/whisper-cpp
+	&& cmake -B build -DBUILD_SHARED_LIBS=OFF \
+	&& cmake --build build -j$(nproc) \
+	&& cp build/bin/whisper-cli /usr/local/bin/whisper-cpp
 
 # ============================================
 # Model Downloader — baixa modelo base do whisper
@@ -26,7 +27,7 @@ FROM alpine:3.19 AS model-downloader
 
 RUN apk add --no-cache curl
 
-RUN curl -sL -o /models/ggml-base.bin \
+RUN mkdir -p /models && curl -sLf --retry 3 -o /models/ggml-base.bin \
 	https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
 # ============================================
@@ -59,7 +60,7 @@ RUN pnpm deploy --filter=@nexo/api --prod /deploy
 # ============================================
 FROM node:22-alpine AS runner
 
-RUN apk add --no-cache curl ca-certificates && \
+RUN apk add --no-cache curl ca-certificates libgomp && \
 	addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
 
 WORKDIR /app
