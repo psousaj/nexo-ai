@@ -27,7 +27,7 @@ FROM alpine:3.19 AS model-downloader
 
 RUN apk add --no-cache curl
 
-RUN mkdir -p /models && curl -sL -o /models/ggml-base.bin \
+RUN mkdir -p /models && curl -sLf --retry 3 -o /models/ggml-base.bin \
 	https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
 # ============================================
