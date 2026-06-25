@@ -524,6 +524,10 @@ export function registerTelegramWebhook(app: Hono) {
 			return c.json({ ok: true, sessionKey });
 		} catch (error) {
 			log.error('Telegram webhook error:', error);
+			// 🔴 CRITICAL: Clean up active signal on error, otherwise the signal
+			// stays in memory and all subsequent messages from this user get
+			// queued as "pending" but never processed (bot appears stuck).
+			activeSignals.delete(sessionKey);
 			return c.json({ ok: false, error: 'Internal error' }, 500);
 		}
 	});
