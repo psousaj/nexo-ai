@@ -80,8 +80,9 @@ biome.json
 # Turbo cache
 .turbo
 
-# Scripts (not needed in runtime for API)
+# Scripts (not needed in runtime for API, except faster-transcribe.py)
 apps/api/scripts
+!apps/api/scripts/faster-transcribe.py
 
 # Local data
 *.db
