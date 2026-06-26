@@ -3,9 +3,9 @@
 faster-whisper transcription CLI.
 
 Usage:
-    python3 faster-transcribe.py <input_audio> <model_size> [language]
+    python3 faster-transcribe.py <input_audio> [model_size] [language]
 
-Model size: tiny, base, small, medium, large-v3 (default: base)
+Model size: tiny, base, small, medium, large-v3 (default: base or LOCAL_WHISPER_MODEL)
 Language: ISO 639-1 code (e.g., 'pt' for Portuguese). Auto-detect if omitted.
 
 Output: Transcribed text to stdout.
@@ -31,7 +31,11 @@ def main():
     language = sys.argv[3] if len(sys.argv) > 3 else None
 
     # Set num_workers for CPU inference — 4 cores is a safe default
-    cpu_threads = int(os.environ.get("LOCAL_WHISPER_THREADS", "4"))
+    try:
+        cpu_threads = int(os.environ.get("LOCAL_WHISPER_THREADS", "4"))
+    except ValueError:
+        print("WARNING: Invalid LOCAL_WHISPER_THREADS value, using default 4", file=sys.stderr)
+        cpu_threads = 4
 
     try:
         model = WhisperModel(

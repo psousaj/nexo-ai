@@ -33,23 +33,7 @@ RUN pnpm build --filter=@nexo/api
 RUN pnpm deploy --filter=@nexo/api --prod /deploy
 
 # ============================================
-# Stage 3: faster-whisper Python environment
-# ============================================
-FROM python:3.11-slim AS faster-whisper-env
-
-# System deps: ffmpeg para codecs de áudio, libsndfile pra soundfile, libgomp pra OpenMP
-RUN apt-get update && apt-get install -y ffmpeg libsndfile1 libgomp1 && \
-	rm -rf /var/lib/apt/lists/*
-
-RUN pip install --no-cache-dir faster-whisper
-
-# Pré-download do modelo base pra não pagar no primeiro áudio
-RUN python3 -c "\
-from faster_whisper import WhisperModel; \
-WhisperModel('base', device='cpu', compute_type='int8')"
-
-# ============================================
-# Stage 4: Runner (Debian bookworm — glibc necessário pro faster-whisper)
+# Stage 3: Runner (Debian bookworm — glibc necessário pro faster-whisper)
 # ============================================
 FROM node:22-bookworm-slim AS runner
 
