@@ -112,4 +112,111 @@ describe('STT Router', () => {
 			expect(router.getAvailableProviders()).toEqual(['cloudflare']);
 		});
 	});
+
+	describe('fallback chain order: Local → Cloudflare → Groq', () => {
+		it('uses local first when it succeeds', async () => {
+			const { createSTTRouter } = await import('@/core/stt/stt-router');
+			const local = {
+				name: 'local',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue('transcrição local'),
+			};
+			const cloudflare = {
+				name: 'cloudflare',
+				isAvailable: true,
+				transcribe: vi.fn(),
+			};
+			const groq = {
+				name: 'groq',
+				isAvailable: true,
+				transcribe: vi.fn(),
+			};
+
+			const router = createSTTRouter([local, cloudflare, groq]);
+			const result = await router.transcribe('base64audio');
+
+			expect(result).toBe('transcrição local');
+			expect(local.transcribe).toHaveBeenCalledOnce();
+			expect(cloudflare.transcribe).not.toHaveBeenCalled();
+			expect(groq.transcribe).not.toHaveBeenCalled();
+		});
+
+		it('falls back to cloudflare when local fails', async () => {
+			const { createSTTRouter } = await import('@/core/stt/stt-router');
+			const local = {
+				name: 'local',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue(null),
+			};
+			const cloudflare = {
+				name: 'cloudflare',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue('transcrição cloudflare'),
+			};
+			const groq = {
+				name: 'groq',
+				isAvailable: true,
+				transcribe: vi.fn(),
+			};
+
+			const router = createSTTRouter([local, cloudflare, groq]);
+			const result = await router.transcribe('base64audio');
+
+			expect(result).toBe('transcrição cloudflare');
+			expect(local.transcribe).toHaveBeenCalledOnce();
+			expect(cloudflare.transcribe).toHaveBeenCalledOnce();
+			expect(groq.transcribe).not.toHaveBeenCalled();
+		});
+
+		it('falls back to groq when local and cloudflare fail', async () => {
+			const { createSTTRouter } = await import('@/core/stt/stt-router');
+			const local = {
+				name: 'local',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue(null),
+			};
+			const cloudflare = {
+				name: 'cloudflare',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue(null),
+			};
+			const groq = {
+				name: 'groq',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue('transcrição groq'),
+			};
+
+			const router = createSTTRouter([local, cloudflare, groq]);
+			const result = await router.transcribe('base64audio');
+
+			expect(result).toBe('transcrição groq');
+			expect(local.transcribe).toHaveBeenCalledOnce();
+			expect(cloudflare.transcribe).toHaveBeenCalledOnce();
+			expect(groq.transcribe).toHaveBeenCalledOnce();
+		});
+
+		it('returns null when all providers fail', async () => {
+			const { createSTTRouter } = await import('@/core/stt/stt-router');
+			const local = {
+				name: 'local',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue(null),
+			};
+			const cloudflare = {
+				name: 'cloudflare',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue(null),
+			};
+			const groq = {
+				name: 'groq',
+				isAvailable: true,
+				transcribe: vi.fn().mockResolvedValue(null),
+			};
+
+			const router = createSTTRouter([local, cloudflare, groq]);
+			const result = await router.transcribe('base64audio');
+
+			expect(result).toBeNull();
+		});
+	});
 });
