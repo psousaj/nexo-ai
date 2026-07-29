@@ -108,7 +108,8 @@ export function createLocalProvider(): STTProvider {
 				}
 
 				return null;
-			} catch {
+			} catch (err) {
+				loggers.enrichment.warn({ provider: 'local', error: String(err) }, 'STT local transcribe failed');
 				return null;
 			} finally {
 				// cleanup assíncrono — fogo e esquece
