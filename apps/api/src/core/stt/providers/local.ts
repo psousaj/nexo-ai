@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { STTProvider, STTTranscribeOptions } from '../types';
+import { loggers } from '@/utils/logger';
 
 const pExec = promisify(exec);
 const pExecFile = promisify(execFile);
@@ -19,7 +20,7 @@ function findWhisperBinary(): string | null {
 		if (existsSync(process.env.LOCAL_WHISPER_BINARY)) {
 			return process.env.LOCAL_WHISPER_BINARY;
 		}
-		console.warn(`[STT] LOCAL_WHISPER_BINARY=${process.env.LOCAL_WHISPER_BINARY} set but file not found`);
+		loggers.enrichment.warn({ provider: 'local' }, `LOCAL_WHISPER_BINARY=${process.env.LOCAL_WHISPER_BINARY} set but file not found`);
 		return null;
 	}
 
@@ -31,7 +32,7 @@ function findWhisperBinary(): string | null {
 		);
 		return stdout.trim() || null;
 	} catch {
-		console.warn('[STT] No whisper binary found in PATH');
+		loggers.enrichment.warn({ provider: 'local' }, 'No whisper binary found in PATH');
 		return null;
 	}
 }
