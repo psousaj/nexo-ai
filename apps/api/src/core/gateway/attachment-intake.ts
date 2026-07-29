@@ -1,5 +1,7 @@
-import { sttService } from '@/core/enrichment/stt-service';
+import { createDefaultSTTRouter } from '@/core/stt';
 import { loggers } from '@/utils/logger';
+
+const defaultSTT = createDefaultSTTRouter();
 
 export interface Attachment {
 	kind: 'audio' | 'image';
@@ -30,7 +32,7 @@ export class AttachmentIntakeService {
 						const audioData = await this.downloadAttachment(attachment.url);
 						const text = this.deps?.transcribe
 							? await this.deps.transcribe(audioData)
-							: await sttService.transcribe(audioData);
+							: await defaultSTT.transcribe(audioData);
 						if (text) {
 							return { kind: 'audio', transcription: { text, confidence: 0.9 } };
 						}
