@@ -19,17 +19,19 @@ function findWhisperBinary(): string | null {
 		if (existsSync(process.env.LOCAL_WHISPER_BINARY)) {
 			return process.env.LOCAL_WHISPER_BINARY;
 		}
+		console.warn(`[STT] LOCAL_WHISPER_BINARY=${process.env.LOCAL_WHISPER_BINARY} set but file not found`);
 		return null;
 	}
 
 	// 2. Tenta detectar whisper-cpp ou faster-whisper no PATH (sync, chamado do getter)
 	try {
-		const { stdout } = require('node:child_process').execSync(
+		const { stdout } = execSync(
 			'command -v whisper-cpp 2>/dev/null || command -v faster-whisper 2>/dev/null || command -v whisper 2>/dev/null',
 			{ encoding: 'utf-8', timeout: 5000 },
 		);
 		return stdout.trim() || null;
 	} catch {
+		console.warn('[STT] No whisper binary found in PATH');
 		return null;
 	}
 }

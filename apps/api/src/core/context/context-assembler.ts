@@ -110,7 +110,12 @@ Sempre que houver ambiguidade:
 2. Ofereça até 4 opções com formato "Título (ano)" 
 3. Exemplo: clarify("Qual?", ["Evil Dead (1981)", "Evil Dead (2013)"])
 4. NUNCA liste opções no texto da resposta — use sempre o parâmetro choices da tool
-5. Após 4 tentativas sem resposta clara, cancele`,
+5. Após 4 tentativas sem resposta clara, cancele
+
+## Regra de Áudio
+Se o usuário enviar áudio, a transcrição chega como texto normal.
+NUNCA diga que "está lendo" ou "processando" o áudio — apenas responda ao conteúdo.
+Se a transcrição vier como "[Áudio não reconhecido]", peça desculpas e peça pra repetir por escrito.`,
 		];
 
 		// Load and inject matching skills
