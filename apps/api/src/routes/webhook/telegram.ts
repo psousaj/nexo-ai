@@ -402,7 +402,6 @@ export function registerTelegramWebhook(app: Hono) {
 			// Voice message: download audio + transcribe via STT
 			if (update.message?.voice && !userMessage) {
 				const voiceId = update.message.voice.file_id;
-				progressText = '🎙️ Transcrevendo áudio...\n';
 				const audioBuffer = await downloadTelegramFile(voiceId);
 				if (audioBuffer) {
 					const transcript = await sttRouter.transcribe(audioBuffer.toString('base64'), {

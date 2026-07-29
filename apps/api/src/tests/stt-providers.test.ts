@@ -12,36 +12,52 @@ describe('Cloudflare STT Provider', () => {
 	});
 
 	it('returns null on fetch failure', async () => {
-		const { createCloudflareProvider } = await import('@/core/stt/providers/cloudflare');
 		vi.stubEnv('CLOUDFLARE_ACCOUNT_ID', 'test-account');
 		vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test-token');
 
-		const provider = createCloudflareProvider();
+		try {
+			const { createCloudflareProvider } = await import('@/core/stt/providers/cloudflare');
 
-		// Mock fetch to reject
-		const mockFetch = vi.fn().mockRejectedValue(new Error('network error'));
-		vi.stubGlobal('fetch', mockFetch);
+			const provider = createCloudflareProvider();
 
-		const result = await provider.transcribe('dGVzdCBhdWRpbw==');
-		expect(result).toBeNull();
+			// Mock fetch to reject
+			const mockFetch = vi.fn().mockRejectedValue(new Error('network error'));
+			vi.stubGlobal('fetch', mockFetch);
 
-		vi.unstubAllGlobals();
+			const result = await provider.transcribe('dGVzdCBhdWRpbw==');
+			expect(result).toBeNull();
+		} finally {
+			vi.unstubAllEnvs();
+			vi.unstubAllGlobals();
+		}
 	});
 });
 
 describe('Local Whisper Provider', () => {
 	it('reports unavailable when no whisper binary is found', async () => {
-		const { createLocalProvider } = await import('@/core/stt/providers/local');
-		const provider = createLocalProvider();
-		expect(provider.name).toBe('local');
-		expect(provider.isAvailable).toBe(false);
+		vi.stubEnv('LOCAL_WHISPER_BINARY', '/nonexistent/whisper-binary');
+
+		try {
+			const { createLocalProvider } = await import('@/core/stt/providers/local');
+			const provider = createLocalProvider();
+			expect(provider.name).toBe('local');
+			expect(provider.isAvailable).toBe(false);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it('returns null when provider is not available', async () => {
-		const { createLocalProvider } = await import('@/core/stt/providers/local');
-		const provider = createLocalProvider();
-		const result = await provider.transcribe('dGVzdCBhdWRpbw==');
-		expect(result).toBeNull();
+		vi.stubEnv('LOCAL_WHISPER_BINARY', '/nonexistent/whisper-binary');
+
+		try {
+			const { createLocalProvider } = await import('@/core/stt/providers/local');
+			const provider = createLocalProvider();
+			const result = await provider.transcribe('dGVzdCBhdWRpbw==');
+			expect(result).toBeNull();
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });
 
@@ -54,18 +70,22 @@ describe('Groq STT Provider', () => {
 	});
 
 	it('returns null on fetch failure', async () => {
-		const { createGroqProvider } = await import('@/core/stt/providers/groq');
 		vi.stubEnv('GROQ_API_KEY', 'test-key');
 
-		const provider = createGroqProvider();
+		try {
+			const { createGroqProvider } = await import('@/core/stt/providers/groq');
 
-		const mockFetch = vi.fn().mockRejectedValue(new Error('network error'));
-		vi.stubGlobal('fetch', mockFetch);
+			const provider = createGroqProvider();
 
-		const result = await provider.transcribe('dGVzdCBhdWRpbw==');
-		expect(result).toBeNull();
+			const mockFetch = vi.fn().mockRejectedValue(new Error('network error'));
+			vi.stubGlobal('fetch', mockFetch);
 
-		vi.unstubAllGlobals();
+			const result = await provider.transcribe('dGVzdCBhdWRpbw==');
+			expect(result).toBeNull();
+		} finally {
+			vi.unstubAllEnvs();
+			vi.unstubAllGlobals();
+		}
 	});
 });
 

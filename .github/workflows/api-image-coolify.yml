@@ -98,7 +98,7 @@ jobs:
         run: |
           DEPLOY_URL="${{ env.COOLIFY_API_URL }}/api/v1/deploy?uuid=${{ steps.app.outputs.uuid }}"
           echo "Deploying: ${{ steps.app.outputs.uuid }} (${{ github.ref_name }})"
-          RESULT=$(curl -sk -X POST \
+          RESULT=$(curl -sf -X POST \
             -H "Authorization: Bearer ${{ env.COOLIFY_API_TOKEN }}" \
             "$DEPLOY_URL")
           echo "Result: $RESULT"
