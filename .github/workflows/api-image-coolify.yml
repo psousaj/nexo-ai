@@ -96,7 +96,7 @@ jobs:
 
       - name: Trigger deploy via Coolify API
         run: |
-          DEPLOY_URL="${{ env.COOLIFY_API_URL }}/api/v1/deploy?uuid=${{ steps.app.outputs.uuid }}"
+          DEPLOY_URL="${{ env.COOLIFY_API_URL }}/api/v1/deploy?uuid=${{ steps.app.outputs.uuid }}&force=true"
           echo "Deploying: ${{ steps.app.outputs.uuid }} (${{ github.ref_name }})"
           RESULT=$(curl -sf -X POST \
             -H "Authorization: Bearer ${{ env.COOLIFY_API_TOKEN }}" \
