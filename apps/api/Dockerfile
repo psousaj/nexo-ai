@@ -60,7 +60,7 @@ RUN pnpm deploy --filter=@nexo/api --prod /deploy
 # ============================================
 FROM node:22-alpine AS runner
 
-RUN apk add --no-cache curl ca-certificates libgomp && \
+RUN apk add --no-cache curl ca-certificates ffmpeg libgomp && \
 	addgroup -g 1001 -S appgroup && adduser -S -D -H -u 1001 -G appgroup appuser
 
 WORKDIR /app
