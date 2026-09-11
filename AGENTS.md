@@ -69,7 +69,7 @@ Isso mantém a `development` sempre em cima da main.
 
 ### Issue tracker
 
-Issues are tracked in Linear (team: Nexo-memo-assistant, team key: NEX, project: Nexo Hermes Engine). Use `mcp_linear_*` tools for all issue operations. See `docs/agents/issue-tracker.md`.
+Issues are tracked in Linear (workspace: nexo-memo-assistant, team: Nexo-memo-assistant, team key: NEX, project: Nexo Hermes Engine). Use Linear MCP tools for all issue operations. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -77,4 +77,4 @@ Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 
 ### Domain docs
 
-Single-context (monorepo). See `docs/agents/domain.md`.
+Single-context Turbo monorepo. See `docs/agents/domain.md`.
